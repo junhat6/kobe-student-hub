@@ -49,3 +49,15 @@ Keep current tasks and evidence in GitHub Issues/PRs. Do not paste student feedb
 **Independent QA:** A separate reviewer rebuilt the verifier and production Worker bundles and independently passed 32 tests (28 identity/owner plus four production denial/data-boundary cases). It verified the stateless nonce limitation and reviewed the design wording. [QA report](QA-AUTH-BOUNDARY.md).
 
 **Replanning:** #4 stays open. Next are authorized OAuth configuration, one-time attempts/PKCE/state and session lifecycle, then stored-owner endpoint integration and enrollment rules. Authentication, privacy and moderation gates must all be met before real posting. Cryptographic fixtures are not live Google sign-in, actual current-student verification or student usefulness evidence.
+
+## Cycle 04 — one-time attempts and callback-log gate
+
+**Planner:** Prepare an atomic attempt-consumption dependency of #4, without connecting real callbacks. Check open work before starting; no overlapping open PR was found.
+
+**Developer:** Added a private transient D1 table and unconnected store, fresh 256-bit values, state/browser digests, single conditional UPDATE RETURNING, 10-minute validity and bounded explicit expired-row cleanup. No cleanup scheduler or ten-minute retention guarantee. Test-only composition uses the stored nonce with the real signature verifier. [Scope/limits](OAUTH-ATTEMPTS.md).
+
+**Release gate:** [LOGGING-GATE.md](LOGGING-GATE.md) requires actual platform settings and log inspection before a callback is connected. No real leakage is claimed; an app-only logger check or sampled absence cannot prove privacy. Production routes/UI/config remain unchanged.
+
+**Replanning:** #4 remains open: secure browser/state/PKCE transport, code exchange, session/CSRF, actual log verification, cleanup/retention operation, enrollment and private-endpoint integration are still pending. Do not reset a consumed attempt to recover from an ambiguous or failed callback; start fresh.
+
+**Cycle04 independent QA:** A separate context re-bundled the fixtures and passed 14 tests (10 attempts + four real-app negative/data-boundary cases), including concurrent consumption and real-signature composition. [Report](QA-OAUTH-ATTEMPTS.md). This does not close the real OAuth/session/logging release gates.

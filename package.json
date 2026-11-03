@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "wrangler deploy --dry-run --outdir .worker && esbuild tests/fixtures/auth-worker.ts --bundle --format=esm --platform=browser --outfile=.worker/auth-test.js && vitest run",
+    "test": "wrangler deploy --dry-run --outdir .worker && node scripts/build-test-fixtures.mjs && vitest run",
     "test:e2e": "playwright test",
     "db:local": "wrangler d1 migrations apply kobe-student-hub-preview --local",
     "preview": "wrangler dev --ip 127.0.0.1 --port 8787",

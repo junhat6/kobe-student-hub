@@ -14,3 +14,4 @@
 - Use parameterized queries, explicit public DTOs, bounded API data, no shared mutable request state, safe Markdown, security headers. Avoid logging content/identity/secrets.
 - Do not store tokens in files/commands/output. Do not post private user feedback to public issues. Keep dependency licenses and reference notices.
 - Run npm run build, npm test, npm run test:e2e and npm run deploy:check for relevant changes. Use npm run types after Wrangler bindings change. Read docs/DEPLOYMENT.md before remote actions. Never use the placeholder D1 ID for a deployment.
+- Before connecting a real OAuth callback, complete docs/OAUTH-ATTEMPTS.md and docs/LOGGING-GATE.md. Nonce equality is not one-time attempt consumption, and app-level log silence is not proof of platform-log secrecy. Never enable a callback based solely on these helper tests.
