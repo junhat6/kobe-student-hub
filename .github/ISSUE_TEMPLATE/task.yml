@@ -1,0 +1,29 @@
+name: Development task
+description: One bounded hypothesis, implementation and independent QA cycle
+title: '[Task] '
+body:
+  - type: textarea
+    id: value
+    attributes:
+      label: User situation and desired outcome
+      description: Cite the PRD/experience and distinguish hypotheses from decisions. Never put student private data here.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance conditions and boundaries
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Plan, implementation, independent QA, evidence and replanning
+      value: |
+        Planner:
+        Developer:
+        Independent QA (separate context):
+        Browser evidence:
+        Security / privacy:
+        Student value validation (distinct from AI tests):
+        Remaining problems and next plan:
