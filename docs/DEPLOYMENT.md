@@ -9,7 +9,7 @@ Remote setup is pending the required resource authorization and deployment acces
 ## Once resource authorization and access are resolved
 
 1. Confirm the selected account and the exact resource name; list existing resources before creating to avoid duplicates.
-2. Create only the new `kobe-student-hub-preview` D1 database. Use the returned ID in `wrangler.jsonc`. No changes to ideaboost-whiteboard. Prefer no plan upgrade; stop if a paid commitment or unexpected charge is required.
+2. Create only the new `kobe-student-hub-preview` D1 database. Use the returned ID in `wrangler.jsonc`. Do not change unrelated existing services. Prefer no plan upgrade; stop if a paid commitment or unexpected charge is required.
 3. Keep this sample preview clearly labeled and noindexed. Set `workers_dev:true` only for the intended new preview Worker; keep `preview_urls:false` unless explicitly needed.
 4. Run `npm ci`, `npm run types`, `npm run build`, `npm test`, `npm run db:local`, `npm run test:e2e`, `npm run deploy:check`. Independent QA must review user-facing changes.
 5. Apply migrations on the new remote DB using `wrangler d1 migrations apply kobe-student-hub-preview --remote`. Do not execute unrelated SQL, wipe data, or replay migrations blindly.
