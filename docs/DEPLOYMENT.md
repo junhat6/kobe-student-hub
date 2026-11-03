@@ -1,33 +1,47 @@
-# Cloudflare deployment
+# Cloudflare preview deployment
 
-## Current status
+## Verified public preview
 
-Local Workers + D1 are verified. No remote resources have been created for this project. `wrangler.jsonc` has an explicit placeholder database ID and `workers_dev:false`; it cannot be mistaken for an already configured deployment. No payment, plan upgrade, R2 activation, new token or GitHub integration has been performed.
+https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/
 
-Remote setup is pending the required resource authorization and deployment access. Do not retry a rejected operation through another route. Account-specific plan, existing-resource and credential-scope details do not belong in this public repository. The latest main merge/deploy autonomy policy does not remove applicable runtime approval rules.
+The initial deployment used verified main `6e82dfbd70669c3bc869fd5cc35e8cfe5c5b80fd` from an isolated archive/build. Only fictional public samples are served; no real login or posting is available. The dedicated preview D1 was bootstrapped with migrations 0001/0002 and the compatible migration ledger. The deployer checked four sample entries/two fictional profiles and HTTP headers/denials. [Independent live HTTP/browser QA](QA-DEPLOYMENT.md) separately confirmed the public behavior. Later internal auth preparation is not evidence of a working OAuth flow.
 
-## Once resource authorization and access are resolved
+Resource identifiers, account/payment settings and credentials stay outside this public repository. The source template keeps the placeholder D1 ID and workers_dev:false for local development. Runtime deployment settings are generated into ignored `.wrangler/preview.deploy.json`; never commit that file or upload it as a CI artifact.
 
-1. Confirm the selected account and the exact resource name; list existing resources before creating to avoid duplicates.
-2. Create only the new `kobe-student-hub-preview` D1 database. Use the returned ID in `wrangler.jsonc`. Do not change unrelated existing services. Prefer no plan upgrade; stop if a paid commitment or unexpected charge is required.
-3. Keep this sample preview clearly labeled and noindexed. Set `workers_dev:true` only for the intended new preview Worker; keep `preview_urls:false` unless explicitly needed.
-4. Run `npm ci`, `npm run types`, `npm run build`, `npm test`, `npm run db:local`, `npm run test:e2e`, `npm run deploy:check`. Independent QA must review user-facing changes.
-5. Apply migrations on the new remote DB using `wrangler d1 migrations apply kobe-student-hub-preview --remote`. Do not execute unrelated SQL, wipe data, or replay migrations blindly.
-6. Deploy with `wrangler deploy`. Record the returned literal URL and version; verify `/api/health`, `/api/catalog`, a deep link and security headers. No guessed URL counts as verification.
-7. Record evidence and remaining limits. This preview deployment does not authorize opening real student posting.
+## Reproducible configuration
 
-Use an already authorized tool or request only the minimum missing access. Do not run a broad default login grant without checking its scopes and the applicable approval requirements.
+Use an already authorized connection and verify the dedicated resource name/ID before preparing. Supply private runtime variables:
 
-## GitHub pipeline
+- CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_EXPECTED_ACCOUNT_ID
+- CLOUDFLARE_D1_DATABASE_ID and CLOUDFLARE_EXPECTED_D1_DATABASE_ID
 
-`ci.yml` runs on PRs and main pushes: lockfile install, type generation, build, Worker/D1 tests, migrations, Chromium desktop/mobile E2E and dry-run. Failures retain reports/screenshots/traces. No production credentials are needed.
+`npm run deploy:prepare` requires valid matching account/D1 pairs, rejects the placeholder, unrelated Worker/binding and unexpected asset/migration paths, resolves source/assets/migration paths, and enables only the named preview's workers.dev URL. It does not create a resource, credential, grant or contract. It never writes CLOUDFLARE_API_TOKEN into the runtime configuration. Matching settings prevent accidental target errors; they do not replace Cloudflare authorization or independent resource verification.
 
-`deploy.yml` is opt-in. It runs only when repository variable `CLOUDFLARE_DEPLOY_ENABLED` is `true`, on main push or manual dispatch, and has its own validation before deployment. Until infrastructure is real and a narrow Actions secret is authorized, leave this unset. Current remote-resource guard fails if the D1 ID is placeholder, workers_dev is false, or the selected and expected account variables do not match. Set Actions secret `CLOUDFLARE_API_TOKEN` and variables `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_EXPECTED_ACCOUNT_ID` only through secure settings; never paste the token in an issue/chat/code. Required permissions: Workers Scripts edit and D1 edit on this account; prefer narrower resource restrictions where supported. Do not grant account-wide administrative access.
+```bash
+npm ci
+npm run types
+npm run build
+npm test
+npm run db:local
+npm run test:e2e
+npm run deploy:check
+npm run deploy:prepare
+```
 
-No persistent token or integration was created. Automatic deployment is configured in source, **not yet activated**. Initial deployment can use an authorized connector without adding GitHub credentials, but that does not make future CI deployment active.
+After independent QA and successful CI, an authorized deployment actor can run `npm run deploy:production`. That command prepares settings, builds, then deploys the Worker with the same generated config. It deliberately does not execute remote SQL or apply migrations automatically. Schema changes are a separate reviewed and authorized operation, not a hidden deployment side effect. It requires the appropriate Workers deployment access. In CI it refuses a missing credential rather than initiating an interactive login/grant.
+
+When existing authorized connections differ in capability, the agent can apply specifically authorized migrations through the authorized D1 connector and deploy through existing Wrangler authorization, using this same generated config. Check migration ledger and actual schema first; verify each result. Do not blindly replay migrations, reset the ledger, switch to another resource, or broaden permissions as a shortcut. The first bootstrap followed this split approach; no new persistent CI credential was created. The later auth-state table migration remains local preparation until the required separate remote authorization is resolved. Do not apply it through an alternate CLI or CI route.
+
+## CI and ongoing deployment
+
+`ci.yml` runs lockfile install, generated-type consistency, build, local Worker/D1 tests and migrations, 18 desktop/mobile E2E and dry-run. It needs no production credentials. Reports/screenshots/failure traces are retained for 14 days.
+
+`deploy.yml` remains opt-in via repository variable CLOUDFLARE_DEPLOY_ENABLED=true. It checks out main, validates the same source, prepares the ignored runtime config from the four private settings, and deploys using Actions secret CLOUDFLARE_API_TOKEN. It is **not activated** and no token was created. Standalone GitHub auto-deployment therefore remains pending an authorized narrowly scoped credential/settings; a connected agent can continue verified deployments with existing access. New persistent access requires the applicable confirmation; do not create account-wide admin tokens.
+
+Do not change unrelated services or the shared account namespace. Keep this sample preview clearly labelled and noindexed. Before reporting success, use the literal returned URL and verify health, catalog, deep link, headers and write denial. Preserve release source/version evidence privately; publish only intended preview URLs and sanitized project evidence.
 
 ## Costs and recovery
 
-Official pricing checked 2026-11-03: [Workers](https://developers.cloudflare.com/workers/platform/pricing/) has a free plan, paid minimum $5/month/account; [D1](https://developers.cloudflare.com/d1/platform/pricing/) free tier includes 5M rows read/day, 100K written/day and 5GB total storage. Static asset requests are free. These are published platform prices, not a statement about a particular account's contract or bill. Check the intended plan privately before deployment; never upgrade silently. Free-plan limits are shared with other account projects. No new billing contract has been accepted. No AI/R2/paid email service is used.
+Prefer existing allowances; no upgrade is required merely to serve this sample preview. Published [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/) lists Free and a Paid minimum of $5/month plus usage; [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) includes a free allowance. These are platform prices, not an account invoice or a promise of a $5 total cap. [R2](https://developers.cloudflare.com/r2/pricing/) has separate free allowances and usage charges; see [MEDIA-PLAN.md](MEDIA-PLAN.md). Recheck actual contract/limits privately before any change. No payment, upgrade or new R2 subscription was accepted in this setup.
 
-For a bad Worker release use `wrangler rollback` to a verified previous version, after confirming target. Database migrations are independent; rollbacks do not undo schema/data changes. Before real users, design backups/retention and backwards-compatible migrations. Do not delete remote data as a rollback shortcut.
+For a bad Worker release, select a verified previous version and use Wrangler rollback. Database migrations are independent: Worker rollback does not undo schema/data changes. Before real users, add backup/retention policy and backwards-compatible migrations. Do not delete remote data as a rollback shortcut.

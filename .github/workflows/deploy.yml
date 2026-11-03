@@ -27,12 +27,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - run: npm run deploy:check
-      - run: node scripts/check-remote-config.mjs
+      - run: npm run deploy:prepare
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_EXPECTED_ACCOUNT_ID: ${{ vars.CLOUDFLARE_EXPECTED_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_EXPECTED_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_EXPECTED_D1_DATABASE_ID }}
       - run: npm run deploy:production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_EXPECTED_ACCOUNT_ID: ${{ vars.CLOUDFLARE_EXPECTED_ACCOUNT_ID }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_EXPECTED_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_EXPECTED_D1_DATABASE_ID }}
