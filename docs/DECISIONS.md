@@ -28,6 +28,6 @@ Name `kobe-student-hub` is a reversible working name chosen after checking acces
 
 ## Infrastructure constraints
 
-Account verified against the user-specified connection by connector and Wrangler: `29a0469ba7d11f29ac94e3ed41f388a8`. Existing ideaboost-whiteboard is untouched. Initial account D1 listing was empty. Billing Read is unavailable, so the current subscription and marginal bill are not verified. CLI OAuth has workers_scripts write but lacks D1 write; connector D1 creation was rejected by automatic approval review for persistent-resource/cost authorization. No remote D1 or new Worker was created.
+Remote resource provisioning and deployment are pending the required authorization and usable access. No deployed URL is claimed. Do not bypass an approval rejection. Account-specific operational and billing details are retained outside this public repository.
 
-The requested deployment is prepared but blocked; never claim it happened. Do not use a different route to bypass the rejection. Remote setup requires exact authorization for the new D1 resource/cost implications and a usable D1 write path. Automated GitHub deployment additionally needs a narrowly scoped Cloudflare credential supplied as an Actions secret; creating that persistent access requires the applicable confirmation. Do not reuse or expand unrelated credentials.
+The prepared automated deployment requires a specifically authorized D1 database and an appropriately scoped credential supplied securely through Actions secrets. Do not create persistent access or activate a paid service without the applicable confirmation. Do not reuse or modify unrelated resources.
