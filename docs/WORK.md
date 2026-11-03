@@ -29,3 +29,13 @@ Operator and actual support contact; school relationship and publication rules; 
 ## Working protocol
 
 Keep current tasks and evidence in GitHub Issues/PRs. Do not paste student feedback, emails, school identifiers or authentication data into this public repository. A user-request intake in the eventual app must be private to the requester/operator by default; public Issues are currently for development tasks only. Do not create endless autonomous loops or automatic paid agent runs; update this plan from evidence and take one bounded cycle at a time.
+
+## Cycle 02 — reader-context card comparison preparation
+
+**Planner:** H02 asks whether showing prerequisite knowledge and reading outcomes before article selection helps students choose a suitable article. The originator's adopted E08/E23/E24 experiences are one person's input, not validation with other students. Reading-time cues may signal both a short read and a longer, more detailed article.
+
+**Developer:** `/study/cards?variant=a|b` renders the same three fictional articles in the same order. B alone adds prerequisite/outcome fields. Normal home cards are unchanged. The study is linked from `/about`, not presented as an adopted product improvement. No response intake, selection-event collection, personalized ranking or editor was added. [Plan](CARD-STUDY.md) includes neutral prompts, order/memory effects, sample limitations and private handling of any later responses.
+
+**Independent QA:** Separate context re-executed four mobile-viewport tests including study switching/back, study API 503/retry, general API outage/about, deep links/malformed route/overflow. See [QA-CARD-STUDY.md](QA-CARD-STUDY.md) for exact execution and browser evidence, plus [EVIDENCE.md](EVIDENCE.md).
+
+**Replanning:** Do not adopt B based on AI checks. Agree the small voluntary student trial and private recording method, then compare reasons for choosing, expected vs actual content, reselection and scanning burden. Keep both negative and positive observations. Cloud resource setup remains a separate pending task; this cycle does not retry it.
