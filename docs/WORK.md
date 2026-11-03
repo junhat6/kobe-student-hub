@@ -14,8 +14,8 @@
 
 | Priority / task | Acceptance / boundary | State |
 | --- | --- | --- |
-| P0: resolve preview infrastructure | Specifically authorize new D1 resource/cost implications; use least required access; deploy only new resources; verify literal returned URL/headers/API | Blocked by automatic review / missing D1 write path |
-| P0: school identity and privacy foundation | Server-side Google identity/verified domain checks, opaque sessions, CSRF, private data model, no automatic name/photo publication, ownership and graduation tests | Planned; no OAuth secret available |
+| P0: resolve preview infrastructure | Specifically authorize new D1 resource/cost implications; use least required access; deploy only new resources; verify literal returned URL/headers/API | Dedicated preview deployed and independently verified; standalone CI deploy activation pending |
+| P0: school identity and privacy foundation | Server-side Google identity/verified domain checks, opaque sessions, CSRF, private data model, no automatic name/photo publication, ownership and graduation tests | Internal verifier/one-time boundaries prepared; live OAuth/session settings pending |
 | P0: real publishing safety | Private drafts and media, author editing, unique-reporter three-person temporary hiding, protected operator recovery/deletion, failure-safe email outbox and contact/appeal path | Planned; never enable real posting before this gate |
 | P1: authoring across devices | Markdown assist + preview, explicit publish, optimistic concurrency, autosave status and safe recovery; image/YouTube policies before enabling | Planned |
 | P1: public likes, private history, recommendation | Correct privacy boundaries and deletion; real counts only; simple explainable tag/newness logic | Planned |
@@ -61,3 +61,10 @@ Keep current tasks and evidence in GitHub Issues/PRs. Do not paste student feedb
 **Replanning:** #4 remains open: secure browser/state/PKCE transport, code exchange, session/CSRF, actual log verification, cleanup/retention operation, enrollment and private-endpoint integration are still pending. Do not reset a consumed attempt to recover from an ambiguous or failed callback; start fresh.
 
 **Cycle04 independent QA:** A separate context re-bundled the fixtures and passed 14 tests (10 attempts + four real-app negative/data-boundary cases), including concurrent consumption and real-signature composition. [Report](QA-OAUTH-ATTEMPTS.md). This does not close the real OAuth/session/logging release gates.
+
+
+## Preview deployment handoff
+
+The [sample preview](https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/) was deployed from verified main 6e82dfb using dedicated resources and existing authorized connections. [Independent deployed HTTP/Chrome QA](QA-DEPLOYMENT.md) passed; real login/write routes remain closed. Public catalog is four fictional entries and two fictional profiles. Current ongoing-deployment procedures/settings are in DEPLOYMENT.md; GitHub-only automatic deploy is not activated and no new persistent credential was created.
+
+R2/image work is a separate next stage in MEDIA-PLAN.md. No paid upgrade or R2 subscription was accepted. Prefer existing/free allowances; exact activation/payment/usage conditions require the applicable confirmation.

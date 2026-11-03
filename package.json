@@ -12,8 +12,9 @@
     "db:local": "wrangler d1 migrations apply kobe-student-hub-preview --local",
     "preview": "wrangler dev --ip 127.0.0.1 --port 8787",
     "deploy:check": "npm run build && wrangler deploy --dry-run",
-    "deploy:production": "node scripts/check-remote-config.mjs && npm run build && wrangler d1 migrations apply kobe-student-hub-preview --remote && wrangler deploy",
-    "types": "wrangler types --include-runtime=false"
+    "deploy:production": "node scripts/prepare-deploy.mjs --for-deploy && npm run build && wrangler d1 migrations apply kobe-student-hub-preview --config .wrangler/preview.deploy.json --remote && wrangler deploy --config .wrangler/preview.deploy.json",
+    "types": "wrangler types --include-runtime=false",
+    "deploy:prepare": "node scripts/prepare-deploy.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

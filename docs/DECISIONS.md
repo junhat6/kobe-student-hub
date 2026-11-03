@@ -28,6 +28,6 @@ Name `kobe-student-hub` is a reversible working name chosen after checking acces
 
 ## Infrastructure constraints
 
-Remote resource provisioning and deployment are pending the required authorization and usable access. No deployed URL is claimed. Do not bypass an approval rejection. Account-specific operational and billing details are retained outside this public repository.
+A dedicated sample-only preview was subsequently authorized, provisioned and deployed; see DEPLOYMENT.md and QA-DEPLOYMENT.md for the intended public URL and verified scope. Do not bypass approval rejection. Account-specific operational and billing details remain outside this public repository.
 
 The prepared automated deployment requires a specifically authorized D1 database and an appropriately scoped credential supplied securely through Actions secrets. Do not create persistent access or activate a paid service without the applicable confirmation. Do not reuse or modify unrelated resources.
