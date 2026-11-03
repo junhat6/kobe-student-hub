@@ -65,8 +65,18 @@ Keep current tasks and evidence in GitHub Issues/PRs. Do not paste student feedb
 
 ## Preview deployment handoff
 
-The [sample preview](https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/) was deployed from verified main 6e82dfb using dedicated resources and existing authorized connections. [Independent deployed HTTP/Chrome QA](QA-DEPLOYMENT.md) passed; real login/write routes remain closed. Public catalog is four fictional entries and two fictional profiles. Current ongoing-deployment procedures/settings are in DEPLOYMENT.md; GitHub-only automatic deploy is not activated and no new persistent credential was created.
+The [sample preview](https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/) was initially deployed from verified main 6e82dfb, then updated to main 10a9ff4 using the Worker-only release path. These are release history, not a live assertion about every later deployment; subsequent releases are recorded in their merged PRs. Dedicated resources and existing authorized connections were used. [Independent deployed HTTP/Chrome QA](QA-DEPLOYMENT.md) passed; real login/write routes remain closed. Public catalog is four fictional entries and two fictional profiles. Current ongoing-deployment procedures/settings are in DEPLOYMENT.md; GitHub-only automatic deploy is not activated and no new persistent credential was created.
 
 R2/image work is a separate next stage in MEDIA-PLAN.md. No paid upgrade or R2 subscription was accepted. Prefer existing/free allowances; exact activation/payment/usage conditions require the applicable confirmation.
 
 Remote auth-state migration 0003 is a separate pending authorization, not part of the initial sample bootstrap. Do not hide it in automatic deploy or retry it by another tool. Worker-only deployment can continue against the already initialized sample schema.
+
+## Cycle 05 — body-load failure recovery
+
+**Planner:** #13 addresses a bounded reliability gap: the deferred Markdown module can fail to load while the catalog and navigation are available. Preserve the article's context and give the reader a recovery action. No additional data collection or real publishing is involved.
+
+**Developer:** Added a body-only React error boundary. A failed module/render displays an accessible explanation, full-page reload button and link to explore other articles. Reload deliberately creates a fresh document/module cache after a rejected lazy import; it is not a claim of in-place import retry. Header, summary, reader context and related navigation remain outside the boundary. The boundary resets for a different article ID, but a rejected shared lazy module still requires a page reload.
+
+**Verification:** Failure-injection browser tests cover a 503 for the actual production Markdown chunk, context visibility, navigation away/back, removal of the network failure and successful reload, with desktop and mobile viewport screenshots. [Independent QA](QA-BODY-RECOVERY.md) separately passed both viewport tests and visually inspected four screenshots, with no merge blocker. Root build, 59 unit/runtime tests, 20 E2E and deploy dry-run passed.
+
+**Replanning:** Keep #4/#12 blocked remote actions separate. Real OAuth, remote migration 0003, R2 activation and student trials remain pending. AI recovery checks do not establish student usefulness or physical-device compatibility.
