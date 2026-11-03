@@ -34,7 +34,7 @@ When existing authorized connections differ in capability, the agent can apply s
 
 ## CI and ongoing deployment
 
-`ci.yml` runs lockfile install, generated-type consistency, build, local Worker/D1 tests and migrations, 20 desktop/mobile E2E and dry-run. It needs no production credentials. Reports/screenshots/failure traces are retained for 14 days.
+`ci.yml` runs lockfile install, generated-type consistency, build, local Worker/D1 tests and migrations, 22 desktop/mobile E2E and dry-run. It needs no production credentials. Reports/screenshots/failure traces are retained for 14 days.
 
 `deploy.yml` remains opt-in via repository variable CLOUDFLARE_DEPLOY_ENABLED=true. It checks out main, validates the same source, prepares the ignored runtime config from the four private settings, and deploys using Actions secret CLOUDFLARE_API_TOKEN. It is **not activated** and no token was created. Standalone GitHub auto-deployment therefore remains pending an authorized narrowly scoped credential/settings; a connected agent can continue verified deployments with existing access. New persistent access requires the applicable confirmation; do not create account-wide admin tokens.
 
