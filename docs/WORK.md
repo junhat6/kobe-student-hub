@@ -96,3 +96,11 @@ Remote auth-state migration 0003 is a separate pending authorization, not part o
 **Developer:** Public card URLs carry an allowlisted list target; explicit article/project return preserves filters. Same-tab list snapshots and a bounded ephemeral view map restore card focus/position and recent browser history. New-tab/direct paths have safe fallbacks. Related content only inherits a real list snapshot, never an article's scroll offset. [Boundaries](LIST-RETURN.md).
 
 **QA / replanning:** Final root build/68 unit-runtime tests/30 E2E/deploy dry-run passed. [Independent QA](QA-LIST-RETURN.md) separately passed four unit and eight browser cases, visually inspected four screenshots and found no remaining blocker. An initial new-test locator omitted the arrow in the link's accessible name and was corrected; it did not establish product failure. Independent review identified the no-snapshot related-navigation edge, which was fixed with regression coverage. Keep student value and physical-device validation distinct. No remote authentication migration, R2 activation or paid contract is part of this cycle.
+
+## Cycle 08 — from reading to local code practice
+
+**Planner:** Compared real publishing, Markdown authoring/preview, image/video use and further card-study work against E23 and the pending gates. #19 selects a current reader action rather than another preparation screen: explicitly copy the displayed code for a practice environment. [Comparison and unvalidated H03](CODE-ACTION.md). Open work was checked; no overlapping PR existed.
+
+**Developer:** A code-block toolbar copies only the displayed pre text, reports success after completion, and offers full-range manual selection on denied/unavailable clipboard. Inline code and safe-Markdown restrictions stay intact. No real posting, storage, event collection, clipboard read or code execution was added.
+
+**Evidence / replanning:** The initial manual-selection assertion incorrectly assumed Selection.toString preserved the last LF; it was corrected to verify the complete selected DOM range while leaving native clipboard behavior explicitly unclaimed. Review's 44px target-size adjustment was adopted. Final tests and independent QA are recorded separately before merge. Keep #5 student trial and real authoring/privacy/media gates ahead of extra prototypes; no AI test establishes student value.
