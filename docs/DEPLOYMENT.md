@@ -28,9 +28,9 @@ npm run deploy:check
 npm run deploy:prepare
 ```
 
-After independent QA and successful CI, an authorized deployment actor can run `npm run deploy:production`. That command prepares settings, builds, applies only pending migrations to the selected D1, then deploys with the same generated config. It requires Workers Scripts and D1 write access. In CI it refuses a missing credential rather than initiating an interactive login/grant.
+After independent QA and successful CI, an authorized deployment actor can run `npm run deploy:production`. That command prepares settings, builds, then deploys the Worker with the same generated config. It deliberately does not execute remote SQL or apply migrations automatically. Schema changes are a separate reviewed and authorized operation, not a hidden deployment side effect. It requires the appropriate Workers deployment access. In CI it refuses a missing credential rather than initiating an interactive login/grant.
 
-When existing authorized connections differ in capability, the agent can apply migrations through the authorized D1 connector and deploy through existing Wrangler authorization, using this same generated config. Check migration ledger and actual schema first; verify each result. Do not blindly replay migrations, reset the ledger, switch to another resource, or broaden permissions as a shortcut. The first bootstrap followed this split approach; no new persistent CI credential was created.
+When existing authorized connections differ in capability, the agent can apply specifically authorized migrations through the authorized D1 connector and deploy through existing Wrangler authorization, using this same generated config. Check migration ledger and actual schema first; verify each result. Do not blindly replay migrations, reset the ledger, switch to another resource, or broaden permissions as a shortcut. The first bootstrap followed this split approach; no new persistent CI credential was created. The later auth-state table migration remains local preparation until the required separate remote authorization is resolved. Do not apply it through an alternate CLI or CI route.
 
 ## CI and ongoing deployment
 

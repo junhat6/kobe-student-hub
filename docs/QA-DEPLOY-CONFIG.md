@@ -68,3 +68,41 @@ docs/MEDIA-PLAN.md              22bf5803a6a3c5738f95c868baa54952372ec3d074de6a58
 ## Disposition
 
 No blocking finding remains for this local configuration/documentation handoff. The requested path restriction was fixed and independently tested. Only this QA report was edited by this reviewer. No deployment, remote migration, contract, credential or permission change was performed; automated deployment activation, real media/authentication safety and operational logging gates remain separate work.
+
+## Follow-up: Worker deployment separated from remote schema mutation
+
+This follow-up supersedes the earlier handoff description that `deploy:production` automatically applied pending migrations. The earlier 11-case run remains historical evidence; the current command is Worker-only.
+
+The deployer reported that automatic approval review rejected remote migration 0003 because the initial sample-preview authorization did not specifically cover a persistent auth-state schema change. The reported action was not executed and was not retried. This reviewer did not reissue it, use another route or independently query/change the remote schema. The documented current remote scope remains initial migrations 0001/0002, with the sample preview and real-OAuth write gate unchanged.
+
+Independent source recheck:
+
+- `deploy:production` now runs preparation, build and `wrangler deploy` only. It contains neither `d1 migrations apply` nor `d1 execute`.
+- The preparation helper only validates/generates local ignored configuration; it does not execute SQL. The build script remains TypeScript/Vite compilation. No migration step is hidden in that dependency chain.
+- `deploy.yml` still delegates to that package command. Its only database-migration command is `npm run db:local`, which explicitly uses `--local` for verification.
+- `DEPLOYMENT.md`, `OAUTH-ATTEMPTS.md`, `WORK.md` and `EVIDENCE.md` now distinguish remote migration 0003 as pending separate authorization and prohibit alternate CLI/CI routes to bypass that boundary. Local tests/migrations are not presented as remote application.
+
+Independent final subset rerun:
+
+```text
+npx vitest run tests/deploy-config.test.ts
+
+Test Files  1 passed (1)
+Tests      12 passed (12)
+Duration   431ms
+```
+
+The additional negative case checks that the package deployment command does not include remote SQL mutation; the other eleven local configuration checks also pass. This reviewer ran only the local subset, not the implementer's reported 59-test full suite. No Cloudflare command, permission grant, contract acceptance, remote migration or deployment was executed by this reviewer. No permission-dependent work was attempted.
+
+Final changed SHA-256 identities for this follow-up:
+
+```text
+package.json                  dc7c476b66a48d01c38166dc1aa9984ccd04156ae6bd251e308062169c359550
+tests/deploy-config.test.ts    66050e52b4b94455430ab13cd4e5918c5d99a458746fc7327a0e4e8e65143bcf
+docs/DEPLOYMENT.md            670909fd9258c0614257a6de45fe7eb0ecca2abbb146c32e1db22f2208ea1b7b
+docs/OAUTH-ATTEMPTS.md         75eb2f2636212886349c42d12a481bea26999f13a4c1d7f4eedecb564c2ae8c6
+docs/WORK.md                   2c5f618537fd2735f4cc5230d71f8948b90ab5938ba212bc501d4ed75b0cd047
+docs/EVIDENCE.md               ceffc6e1a8e9e505b4addf952778baa0d30e6813db4e302ac3e2d2cf693bf9bd
+```
+
+The preparation helper and workflow hashes remain as recorded above. No blocking finding remains for this Worker-only handoff; remote auth-state schema changes and all live-authentication/logging gates remain outside this approval.

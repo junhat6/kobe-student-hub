@@ -26,3 +26,5 @@ describe('private runtime deploy configuration',()=>{
  it.each(['assets','migrations','binding'])('refuses an unexpected %s source path/binding',field=>{const config=JSON.parse(template);if(field==='assets')config.assets.directory='../';else if(field==='migrations')config.d1_databases[0].migrations_dir='../other-sql';else config.assets.binding='OTHER';const r=run({},JSON.stringify(config));expect(r.status).toBe(1);expect(r.config).toBeNull()});
  it('does not initiate an interactive CI grant when the credential is missing',()=>{const r=run({CI:'true'},template,['--for-deploy']);expect(r.status).toBe(1);expect(r.config).toBeNull()});
 });
+
+it('keeps remote SQL mutation separate from the deployment command',()=>{const pkg=JSON.parse(readFileSync('package.json','utf8'));expect(pkg.scripts['deploy:production']).not.toMatch(/d1\s+(?:migrations\s+apply|execute)/)});

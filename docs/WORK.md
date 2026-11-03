@@ -68,3 +68,5 @@ Keep current tasks and evidence in GitHub Issues/PRs. Do not paste student feedb
 The [sample preview](https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/) was deployed from verified main 6e82dfb using dedicated resources and existing authorized connections. [Independent deployed HTTP/Chrome QA](QA-DEPLOYMENT.md) passed; real login/write routes remain closed. Public catalog is four fictional entries and two fictional profiles. Current ongoing-deployment procedures/settings are in DEPLOYMENT.md; GitHub-only automatic deploy is not activated and no new persistent credential was created.
 
 R2/image work is a separate next stage in MEDIA-PLAN.md. No paid upgrade or R2 subscription was accepted. Prefer existing/free allowances; exact activation/payment/usage conditions require the applicable confirmation.
+
+Remote auth-state migration 0003 is a separate pending authorization, not part of the initial sample bootstrap. Do not hide it in automatic deploy or retry it by another tool. Worker-only deployment can continue against the already initialized sample schema.
