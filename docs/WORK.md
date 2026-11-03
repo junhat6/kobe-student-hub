@@ -39,3 +39,13 @@ Keep current tasks and evidence in GitHub Issues/PRs. Do not paste student feedb
 **Independent QA:** Separate context re-executed four mobile-viewport tests including study switching/back, study API 503/retry, general API outage/about, deep links/malformed route/overflow. See [QA-CARD-STUDY.md](QA-CARD-STUDY.md) for exact execution and browser evidence, plus [EVIDENCE.md](EVIDENCE.md).
 
 **Replanning:** Do not adopt B based on AI checks. Agree the small voluntary student trial and private recording method, then compare reasons for choosing, expected vs actual content, reselection and scanning burden. Keep both negative and positive observations. Cloud resource setup remains a separate pending task; this cycle does not retry it.
+
+## Cycle 03 — school identity boundary, not sign-in release
+
+**Planner:** Take a narrow dependency of #4 while remote setup is pending: real server-side Google token verification and active-owner-only private-record policy. Check open work first; do not overlap another PR or create live OAuth/permissions/resources.
+
+**Developer:** Added JOSE RS256/fixed-Google-JWKS verification, issuer/audience/presenter/time/nonce/verified hosted-school checks, minimal private identity projection and pure owner policy. Tests use real ephemeral RSA signatures in Node and the same verifier in Workers. Production routes/session issuance/posting are unchanged and closed. [Design and remaining gates](AUTH-BOUNDARY.md).
+
+**Independent QA:** A separate reviewer rebuilt the verifier and production Worker bundles and independently passed 32 tests (28 identity/owner plus four production denial/data-boundary cases). It verified the stateless nonce limitation and reviewed the design wording. [QA report](QA-AUTH-BOUNDARY.md).
+
+**Replanning:** #4 stays open. Next are authorized OAuth configuration, one-time attempts/PKCE/state and session lifecycle, then stored-owner endpoint integration and enrollment rules. Authentication, privacy and moderation gates must all be met before real posting. Cryptographic fixtures are not live Google sign-in, actual current-student verification or student usefulness evidence.
