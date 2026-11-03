@@ -80,3 +80,11 @@ Remote auth-state migration 0003 is a separate pending authorization, not part o
 **Verification:** Failure-injection browser tests cover a 503 for the actual production Markdown chunk, context visibility, navigation away/back, removal of the network failure and successful reload, with desktop and mobile viewport screenshots. [Independent QA](QA-BODY-RECOVERY.md) separately passed both viewport tests and visually inspected four screenshots, with no merge blocker. Root build, 59 unit/runtime tests, 20 E2E and deploy dry-run passed.
 
 **Replanning:** Keep #4/#12 blocked remote actions separate. Real OAuth, remote migration 0003, R2 activation and student trials remain pending. AI recovery checks do not establish student usefulness or physical-device compatibility.
+
+## Cycle 06 — article and author combined search
+
+**Planner:** #15 fixes an existing discovery bug, unrelated to PR #14: `Git` and `サンプルの先輩` match individually, but their combination failed because all terms had to be found entirely in content or entirely in a profile.
+
+**Developer:** For each entry, combine its existing searchable content fields with only its corresponding author's public name/department, normalize both stored data and query with NFKC/lowercase, then require every query token to match. Kind/tag intersections and descending updated-date order are preserved. No additional profile fields, private fields, body indexing or cross-entry matching are introduced.
+
+**Verification / replanning:** Regression cases cover mixed-field AND, word order, full-width stored author/query values, other-author/other-entry exclusion, filter intersection, date order and missing profiles. Browser tests enter the mixed query, apply kind filters, try the wrong author, reload/back and open the result. Independent QA and exact execution evidence are recorded separately before merge. Student value validation remains unrun. The remote auth migration and R2 activation are independent pending actions.

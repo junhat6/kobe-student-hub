@@ -1,0 +1,20 @@
+import {test,expect} from '@playwright/test';
+test('combines article and its author while preserving filters',async({page},testInfo)=>{
+ await page.goto('/search');
+ const search=async(query:string)=>{await page.getByRole('searchbox').fill(query);await page.getByRole('button',{name:'検索',exact:true}).click()};
+ await search('Git サンプルの先輩');
+ await expect(page.getByRole('article')).toHaveCount(1);
+ await expect(page.getByRole('heading',{name:'commitの次に知りたい、ブランチの考え方'})).toBeVisible();
+ await page.screenshot({path:testInfo.outputPath('combined-match.png'),fullPage:true,scale:'css'});
+ await page.getByRole('button',{name:'作品',exact:true}).click();await expect(page.getByRole('article')).toHaveCount(0);
+ await page.getByRole('button',{name:'記事',exact:true}).click();await expect(page.getByRole('article')).toHaveCount(1);
+ await search('Git サンプルの学生');
+ await expect(page.getByRole('heading',{name:'ぴったりの記事が見つかりませんでした'})).toBeVisible();
+ await expect(page.getByRole('article')).toHaveCount(0);
+ await page.screenshot({path:testInfo.outputPath('different-author-empty.png'),fullPage:true,scale:'css'});
+ await search('　ＧｉＴ　サンプルの先輩 ');await expect(page.getByRole('article')).toHaveCount(1);
+ await page.reload();await expect(page.getByRole('article')).toHaveCount(1);
+ await page.getByRole('heading',{name:'commitの次に知りたい、ブランチの考え方'}).getByRole('link').click();
+ await expect(page.locator('pre')).toBeVisible();await page.goBack();await expect(page.getByRole('article')).toHaveCount(1);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
