@@ -15,6 +15,6 @@ test('combines article and its author while preserving filters',async({page},tes
  await search('　ＧｉＴ　サンプルの先輩 ');await expect(page.getByRole('article')).toHaveCount(1);
  await page.reload();await expect(page.getByRole('article')).toHaveCount(1);
  await page.getByRole('heading',{name:'commitの次に知りたい、ブランチの考え方'}).getByRole('link').click();
- await expect(page.locator('pre')).toBeVisible();await page.goBack();await expect(page.getByRole('article')).toHaveCount(1);
+ await expect(page.locator('pre').first()).toBeVisible();await page.goBack();await expect(page.getByRole('article')).toHaveCount(1);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

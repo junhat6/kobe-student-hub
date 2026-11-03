@@ -34,7 +34,7 @@ When existing authorized connections differ in capability, the agent can apply s
 
 ## CI and ongoing deployment
 
-`ci.yml` runs lockfile install, generated-type consistency, build, local Worker/D1 tests and migrations, 36 desktop/mobile E2E and dry-run. It needs no production credentials. Reports/screenshots/failure traces are retained for 14 days.
+`ci.yml` runs lockfile install, generated-type consistency, build, local Worker/D1 tests and migrations, 38 desktop/mobile E2E and dry-run. It needs no production credentials. Reports/screenshots/failure traces are retained for 14 days.
 
 `deploy.yml` remains opt-in via repository variable CLOUDFLARE_DEPLOY_ENABLED=true. It checks out main, validates the same source, prepares the ignored runtime config from the four private settings, and deploys using Actions secret CLOUDFLARE_API_TOKEN. It is **not activated** and no token was created. Standalone GitHub auto-deployment therefore remains pending an authorized narrowly scoped credential/settings; a connected agent can continue verified deployments with existing access. New persistent access requires the applicable confirmation; do not create account-wide admin tokens.
 
@@ -45,3 +45,10 @@ Do not change unrelated services or the shared account namespace. Keep this samp
 Prefer existing allowances; no upgrade is required merely to serve this sample preview. Published [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/) lists Free and a Paid minimum of $5/month plus usage; [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) includes a free allowance. These are platform prices, not an account invoice or a promise of a $5 total cap. [R2](https://developers.cloudflare.com/r2/pricing/) has separate free allowances and usage charges; see [MEDIA-PLAN.md](MEDIA-PLAN.md). Recheck actual contract/limits privately before any change. No payment, upgrade or new R2 subscription was accepted in this setup.
 
 For a bad Worker release, select a verified previous version and use Wrangler rollback. Database migrations are independent: Worker rollback does not undo schema/data changes. Before real users, add backup/retention policy and backwards-compatible migrations. Do not delete remote data as a rollback shortcut.
+
+
+## Guarded sample editorial revision
+
+The historical bootstrap migration 0002 is unchanged. `content-revisions/0001_git_practice.sql` updates only the published fictional git-branches body when its exact old text still matches; it makes no schema, auth, migration-ledger or real-user change. The local setup command applies this idempotent revision after local migrations; Worker tests apply it to their isolated fixture as well. The legacy seed generator now writes an ignored current snapshot instead of overwriting applied migration history.
+
+Remote editorial application is a separate reviewed operation through an already authorized connection to the verified preview target. Read the intended public sample first; if already equal to the new body, do not replay it. If it differs from both old and new expected text, stop rather than overwrite someone else's edit. Apply only this guarded content statement, verify one changed row/new public body and unchanged sample counts. Never run remote migrations to apply it: auth migration 0003 remains separately denied/pending and must not be retried or slipped in. Worker-only deploy still never runs remote SQL. Record actual remote status in the release PR; preparation/local success does not mean the public body changed.

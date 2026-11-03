@@ -13,7 +13,7 @@ test('failed body chunk preserves navigation and recovers after reload',async({p
  await expect(page.getByRole('alert')).toContainText('本文を読み込めませんでした');
  await page.unroute('**/assets/MarkdownRenderer-*.js');
  await page.getByRole('button',{name:'ページを再読み込み'}).click();
- await expect(page.locator('pre')).toBeVisible();
+ await expect(page.locator('pre').first()).toBeVisible();
  await expect(page.getByRole('heading',{name:'本文を読み込めませんでした'})).toHaveCount(0);
  await page.screenshot({path:testInfo.outputPath('body-recovered.png'),fullPage:true,scale:'css'});
 });

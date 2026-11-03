@@ -2,7 +2,7 @@
 
 ## Chosen minimum and alternatives
 
-PRD experience E23 (try something on one's own PC after reading) was adopted by the originator. That is one person's input, not student validation. The current Git article already contains a practice snippet; taking that displayed code into a local practice environment is a concrete next action available in the current preview.
+PRD experience E23 (try something on one's own PC after reading) was adopted by the originator. That is one person's input, not student validation. The current Git article contains staged practice blocks with a manual README edit and diff inspection between them; taking that displayed code into a local practice environment is a concrete next action available in the current preview.
 
 | Candidate | Next useful step / constraint | This cycle |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ H03: extracting the displayed code may reduce transcription friction before tryi
 
 ## Behavior and boundaries
 
-Fenced/indented block code receives a small toolbar. Inline code stays inline. The explicit copy action reads only the rendered pre element's textContent, preserving that DOM text's indentation and line endings; syntax-highlighting markup and toolbar text are excluded. A pending request disables repeated copy activation, and success appears only after writeText resolves. Rejection/absence shows a generic failure without internal exception details and offers a manual select action that focuses the code and selects its full DOM range.
+Fenced/indented block code receives a small toolbar. Inline code stays inline. The explicit copy action reads only the rendered pre element's textContent, preserving that DOM text's indentation and line endings; syntax-highlighting markup and toolbar text are excluded. A pending request disables repeated copy activation, and success appears only after writeText resolves. Manual selection is always available, including while a native write remains unresolved. Selecting does not cancel the browser/OS write; a late resolution or rejection does not overwrite the manual-selection guidance. No timeout pretends to cancel a native request. Rejection/absence shows a generic failure without internal exception details and offers a manual select action that focuses the code and selects its full DOM range.
 
 The app never reads the clipboard or invokes execCommand, executes code, saves a draft, collects events or posts content. The browser/OS controls write availability and permission behavior. A user-initiated write may invoke browser permission UI; no programmatic pre-grant is configured. See the [W3C Clipboard API working draft](https://www.w3.org/TR/clipboard-apis/#dom-clipboard-writetext). No site permission-policy/header relaxation is required in this patch.
 

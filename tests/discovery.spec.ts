@@ -16,7 +16,7 @@ test('search, tag, no results, reset and browser back',async({page})=>{
 });
 test('deep links, malformed route, no overflow and honest preview',async({page})=>{
  await page.goto('/articles/git-branches');await expect(page.getByRole('heading',{name:'commitの次に知りたい、ブランチの考え方'})).toBeVisible();
- await expect(page.locator('pre')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ await expect(page.locator('pre').first()).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.goto('/articles/%E0%A4%A');await expect(page.getByRole('heading',{name:'ページが見つかりません'})).toBeVisible();
  await page.goto('/about');await expect(page.getByRole('heading',{name:'まだ提供していないこと'})).toBeVisible();
 });
@@ -36,5 +36,5 @@ test('Markdown rejects active HTML and script links',async({page,request})=>{
 });
 test('capture home and article evidence',async({page},testInfo)=>{
  await page.goto('/');await expect(page.getByRole('article')).toHaveCount(4);await page.screenshot({path:testInfo.outputPath('home.png'),fullPage:true,scale:'css'});
- await page.goto('/articles/git-branches');await expect(page.locator('pre')).toBeVisible();await page.screenshot({path:testInfo.outputPath('article.png'),fullPage:true,scale:'css'});
+ await page.goto('/articles/git-branches');await expect(page.locator('pre').first()).toBeVisible();await page.screenshot({path:testInfo.outputPath('article.png'),fullPage:true,scale:'css'});
 });
