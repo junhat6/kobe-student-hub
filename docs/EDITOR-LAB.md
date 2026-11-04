@@ -43,3 +43,7 @@ Issue #45 adds explicit reader reporting and a read-only `/lab/moderation` page.
 ## Existing-session author lab
 
 `/lab/account` checks an existing cookie only, offers current-token logout and coordinates a session-bound author editor/profile subtree. It does not call fixture login on initial load, logout or reload; test setup must explicitly obtain a fictional session first. This differs from the older `/` convenience fixture. [SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md) defines proof timing, hidden-memory recovery and discarded-session limits; real Google and report/operator route integration remain unprovided. No remote/schema or actual identity grant is added.
+
+## 既存Markdown補助の範囲
+
+見出し・コードは選択が触れる行を対象にし、太字は選択した文字を囲みます。見出しはレベル2、コードは本文内のバッククォートより長い囲みを使います。操作後も明示保存が必要です。日本語入力中は補助操作を待ち、入力の確定後に使います。囲み・リスト等のMarkdown構造を解析するリッチテキストエディターではありません。[仕様・制約](MARKDOWN-HELPERS.md)。実IMEや学生の使いやすさは未検証です。
