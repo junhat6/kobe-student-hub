@@ -62,3 +62,7 @@ Before enabling real OAuth, select the dedicated Google project/client and exact
 ## Local private draft schema
 
 `0005_private_article_drafts.sql` is source preparation for private article persistence. Like session migration0004, it is not applied remotely by this cycle or by Worker deployment. Local development/test migration runs may apply it only to local D1. The production Worker still refuses draft routes and exposes the same four fictional sample entries. There is no real draft editor, autosave, publication or moderation endpoint.
+
+## Unconnected draft HTTP handler
+
+The private draft HTTP handler is a factory exercised only by local test fixtures. Production worker/index.ts does not import or mount it, and neither sample route behavior nor deployed assets are changed. Do not expose the fixture's identity/clock/race controls. Local tests of no-store/private headers are not an audit of deployed cache rules, browser lifecycle or platform logs; complete the existing activation gates before mounting real private endpoints.
