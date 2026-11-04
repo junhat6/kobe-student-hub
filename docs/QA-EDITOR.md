@@ -70,3 +70,17 @@ fb5969a2a8c7017307ffca645f5d41bcc0d9b46ffadd2c7b22d4284e2e2e2e69 playwright.edit
 961ef47f85ebfb99c5721a82351eeffd92676d8f4792f4622bf67cebd5e916db wrangler.editor.jsonc
 7c3306ebd0ec92307f504a64b754c7ea1209df0003e39e346e837918af06e3c7 vite.editor.config.ts
 ```
+
+## PR33 CIヘルパー修正後の追補
+
+CIでは14件中desktop再開caseだけがPlaywright response.finished()待機で30秒timeoutし、13件は成功したとの親報告を受領。独立レビューで、修正差分はtests/editor.spec.tsのsave helperからそのprotocol-level待機だけを除くものと確認した。HTTP200、clientがACK本文を検証した後の正確な保存済みDOMstatus、保存button disabledのassertは維持される。単にresponse header到着だけで保存完了と判断する弱化ではない。
+
+修正後に上記と同じ明示editor:build＋14件を独立再実行し、**14件成功（13.1秒）**。出力先は /tmp/kobe-editor-helper-qa。localHTTPS CertificateUnknown警告は以前同様で、context ignoreの範囲だけを使用。OStrust/remote/credential変更なし。独立ローカル成功はCI再成功を代わりに証明するものではない。
+
+再buildは元のCSS index-B1J8v_cP / JS index-BPx1OFHTと同じ。component/client/CSSのsourcehashも上記と一致し、製品sourceは変わっていない。helper修正後のtest SHA256は次の通り（上記005095...は元の画像取得run時のtest checkpointとして残す）。
+
+```text
+a24d3bb20099ea13f93e346200e8e353cf37661f97351c5e65e2e637b74071ea tests/editor.spec.ts
+```
+
+保持済み10PNGは再生成・上書き・追加公開していない。全10枚を上記hashと再照合して一致。7枚の公開済みリンクと3枚のローカル保持/公開承認待ち区分を維持する。新runの画像は一時出力に留める。現CI fileは既存公開suiteのplaywright-report/とtest-results/だけをartifact対象とし、未審査editor出力の自動uploadを含めないこともread-onlyで確認した。

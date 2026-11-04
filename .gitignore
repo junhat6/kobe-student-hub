@@ -16,3 +16,8 @@ test-results-editor*/
 playwright-report-editor/
 
 test-results-independent-editor*/
+
+# Local editor evidence awaiting individual public-sharing approval
+/docs/evidence/editor/04-explicit-recovery-mobile.png
+/docs/evidence/editor/05-unknown-outcome-confirmed-desktop.png
+/docs/evidence/editor/05-unknown-outcome-confirmed-mobile.png
