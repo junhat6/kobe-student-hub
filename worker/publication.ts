@@ -21,12 +21,21 @@ function metadata(value:unknown){
 type PublicRow={id:string;title:string;summary:string;body:string;tags_json:string;author_id:string;audience:string;prerequisite:string;outcome:string;updated_at:string;minutes:number;related_ids_json:string;display_name:string;department:string;year_label:string;bio:string;initials:string};
 const publicColumns=`c.id,c.title,c.summary,c.body,c.tags_json,c.author_id,c.audience,c.prerequisite,c.outcome,c.updated_at,c.minutes,c.related_ids_json,p.display_name,p.department,p.year_label,p.bio,p.initials`;
 const publicBounds=`c.kind='article' AND c.status='published' AND c.is_sample=0 AND ${profileBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=p.id OR private_id.google_subject=p.id) AND length(trim(c.title,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 AND instr(c.body,char(0))=0 AND length(CAST(c.body AS BLOB))<=262144 AND length(c.summary)<=300 AND length(CAST(c.summary AS BLOB))<=1200 AND length(c.tags_json)<=1024 AND length(CAST(c.tags_json AS BLOB))<=1024 AND length(c.related_ids_json)<=4096 AND length(CAST(c.related_ids_json AS BLOB))<=4096 AND length(c.audience)<=200 AND length(CAST(c.audience AS BLOB))<=800 AND length(c.prerequisite)<=200 AND length(CAST(c.prerequisite AS BLOB))<=800 AND length(c.outcome)<=200 AND length(CAST(c.outcome AS BLOB))<=800 AND c.minutes BETWEEN 1 AND 240 AND length(c.updated_at)=10`;
+/** Static SQL fragments for server repositories only; aliases p (profile), c (content). Provenance JOIN remains mandatory. */
+export const publicProfileSqlBounds=profileBounds;
+export const publicArticleSqlBounds=publicBounds;
+/** Shared bounded profile decoder; never derives public fields from account/provider data. */
+export function decodePublicProfile(r:Pick<PublicRow,'author_id'|'display_name'|'department'|'year_label'|'bio'|'initials'>):Profile|null{
+ if(!slug(r.author_id)||!chars(r.display_name,80)||!nonblank(r.display_name)||!chars(r.department,80)||!chars(r.year_label,32)||!chars(r.bio,800)||!chars(r.initials,8))return null;
+ return {id:r.author_id,name:r.display_name,department:r.department,year:r.year_label,bio:r.bio,initials:r.initials};
+}
 function publicDto(r:PublicRow):{entry:Entry;author:Profile}|null{
-   if(!chars(r.title,200)||!nonblank(r.title)||!chars(r.summary,300)||!chars(r.audience,200)||!chars(r.prerequisite,200)||!chars(r.outcome,200)||!chars(r.display_name,80)||!nonblank(r.display_name)||!chars(r.department,80)||!chars(r.year_label,32)||!chars(r.bio,800)||!chars(r.initials,8))return null;
+   const author=decodePublicProfile(r);if(!author)return null;
+   if(!chars(r.title,200)||!nonblank(r.title)||!chars(r.summary,300)||!chars(r.audience,200)||!chars(r.prerequisite,200)||!chars(r.outcome,200))return null;
    const parsed:unknown=JSON.parse(r.tags_json);const checked=tags(parsed);if(!checked||!Array.isArray(parsed)||JSON.stringify(checked)!==JSON.stringify(parsed))return null;
    const related:unknown=JSON.parse(r.related_ids_json);if(!Array.isArray(related)||related.length>20||!related.every(slug)||!slug(r.author_id)||!/^\d{4}-\d{2}-\d{2}$/.test(r.updated_at)||r.updated_at<'0000-01-01'||!Number.isInteger(r.minutes)||!nonblank(r.body))return null;
    const date=new Date(r.updated_at+'T00:00:00.000Z');if(!Number.isFinite(date.getTime())||date.toISOString().slice(0,10)!==r.updated_at)return null;
-   return {entry:{id:r.id,kind:'article',title:r.title,summary:r.summary,body:r.body,tags:checked,authorId:r.author_id,audience:r.audience,prerequisite:r.prerequisite,outcome:r.outcome,updatedAt:r.updated_at,minutes:r.minutes,relatedIds:related},author:{id:r.author_id,name:r.display_name,department:r.department,year:r.year_label,bio:r.bio,initials:r.initials}};
+   return {entry:{id:r.id,kind:'article',title:r.title,summary:r.summary,body:r.body,tags:checked,authorId:r.author_id,audience:r.audience,prerequisite:r.prerequisite,outcome:r.outcome,updatedAt:r.updated_at,minutes:r.minutes,relatedIds:related},author};
 }
 function articleSummary(entry:Entry):PublishedArticleSummary{return {id:entry.id,title:entry.title,summary:entry.summary,tags:entry.tags,audience:entry.audience,prerequisite:entry.prerequisite,outcome:entry.outcome,updatedAt:entry.updatedAt,minutes:entry.minutes}}
 /** Unconnected publication prototype. Active accounts do not prove current enrollment/admission. */
@@ -53,6 +62,11 @@ export class ArticlePublicationStore {
  async readPublished(id:unknown):Promise<{entry:Entry;author:Profile}|null>{
   if(!slug(id))return null;
   try{const row=await this.db.prepare(`SELECT ${publicColumns} FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id WHERE c.id=? AND ${publicBounds}`).bind(id).first<PublicRow>();return row?publicDto(row):null}catch{return null}
+ }
+ /** Server-only controlled selection, not a public bulk endpoint. Caller restores its own selected order. */
+ async readPublishedSelection(ids:readonly string[]):Promise<{entry:Entry;author:Profile}[]|null>{
+  if(!Array.isArray(ids)||ids.length>20||ids.some(id=>!draftId(id))||new Set(ids).size!==ids.length)return null;if(!ids.length)return [];
+  try{const rows=await this.db.prepare(`SELECT ${publicColumns} FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id WHERE c.id IN (${ids.map(()=>'?').join(',')}) AND ${publicBounds} ORDER BY c.id ASC`).bind(...ids).all<PublicRow>();if(rows.results.length!==ids.length)return null;const result:{entry:Entry;author:Profile}[]=[];for(const row of rows.results){if(!draftId(row.id)||!ids.includes(row.id))return null;const value=publicDto(row);if(!value)return null;result.push(value)}return result}catch{return null}
  }
  /** Both public lists share the same bounded candidate and full-article validation. */
  private async boundedPublications(authorId?:string):Promise<{entry:Entry;author:Profile}[]|null>{

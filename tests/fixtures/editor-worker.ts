@@ -1,3 +1,5 @@
+import {createPrivateLikeHandler} from '../../worker/likes-http';
+import {ArticleLikeStore} from '../../worker/likes';
 import {createPrivateSessionHandler} from '../../worker/session-http';
 import {createModerationHandler} from '../../worker/moderation-http';
 import {createPrivatePublicationHandler} from '../../worker/publication-http';
@@ -34,6 +36,14 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
    return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
   }catch{return Response.json({error:'unavailable'},{status:400,headers:privateHeaders})}
  }
+ // Anonymous local public likes. No identity bootstrap, private IDs or timestamps.
+ if(path.startsWith('/__lab/likes')){
+  const url=new URL(request.url),id=path.slice('/__lab/likes/'.length);const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Type':'application/json; charset=utf-8'};
+  const unavailable=()=>new Response(JSON.stringify({error:'likes_unavailable'}),{status:404,headers});
+  if(!path.startsWith('/__lab/likes/')||url.search||url.hash||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id))return unavailable();
+  if(request.method!=='GET')return new Response(JSON.stringify({error:'method_not_allowed'}),{status:405,headers:{...headers,Allow:'GET'}});
+  const result=await new ArticleLikeStore(env.DB,ORIGIN).readPublic(id);if(!result)return unavailable();const body=JSON.stringify(result);if(new TextEncoder().encode(body).byteLength>262144)return unavailable();return new Response(body,{headers});
+ }
  // Fictional local recent discovery: empty is distinct from a failed public lookup.
  if(path.startsWith('/__lab/discovery')){
   const url=new URL(request.url);const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Type':'application/json; charset=utf-8'};
@@ -63,6 +73,7 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
   const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublished(id);
   return Response.json(result??{error:'article_unavailable'},{status:result?200:404,headers});
  }
+ const like=await createPrivateLikeHandler(env.DB,ORIGIN)(request);if(like)return like;
  const session=await createPrivateSessionHandler(env.DB,ORIGIN)(request);if(session)return session;
  const moderation=await createModerationHandler(env.DB,ORIGIN,['editor-operator'])(request);if(moderation)return moderation;
  const publication=await createPrivatePublicationHandler(env.DB,ORIGIN)(request);if(publication)return publication;

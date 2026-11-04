@@ -9,3 +9,6 @@ export interface PublicAuthorArticles { author: Profile; entries: PublishedArtic
 export type PublicArticleAuthor = Pick<Profile, 'id'|'name'|'department'|'year'|'initials'>;
 export interface PublicDiscoveryCard { entry: PublishedArticleSummary; author: PublicArticleAuthor; }
 export interface PublicDiscovery { cards: PublicDiscoveryCard[]; }
+
+// Local-only public likes prototype; never includes private identity or like timestamps.
+export interface PublicLikedArticles { profile: PublicArticleAuthor; entries: PublishedArticleSummary[]; }
