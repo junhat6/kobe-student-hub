@@ -170,3 +170,10 @@ Source checkpoint: PR #25, `24b18dc900cc75b997408b91a8d8e9672a331ae2`. Root fina
 - Independent QA: 41 passing local Workers/D1 cases in 10.70s, exact source hashes and review corrections in [QA-GOOGLE-LOGIN.md](QA-GOOGLE-LOGIN.md).
 - Root final 105 tests passed (10.94s); existing 38 PC/mobile regressions passed (8.2s), build and deployment dry-run passed. Initial3 failed success cases exposed unsupported Workerd redirect:error and were corrected to manual handling with an outbound no-follow assertion. Deadline tests cover stalled headers/body/cancellation; provider/JWKS replies remain local stubs with real RSA verification.
 - Local development and isolated test D1 only; remote0004 not applied, no Google configuration/key/client/grant created, no real sign-in/posting route or deployment in this cycle. Current public runtime source remains 4d87f44.
+
+## Cycle 14 — private draft storage
+
+- [Design and scope selection](PRIVATE-DRAFTS.md): owner-only persistence and optimistic versions support later authoring handoff; no editor/autosave or student-value validation claimed.
+- [Independent QA](QA-DRAFTS.md): separate rebuild and40 local tests (10.75s), including draft12/session12/Google10/publicWorker6, exact source hashes and limitations.
+- Root local development migration0005 and38 PC/mobile regressions passed (8.1s). The public-catalog test seeds actual private draft content and verifies it is absent; draft routes stay405. Root final117 tests passed (11.10s), with build/deploy dry-run successful; CI release status is recorded in the release PR.
+- No production Worker routes/UI changes, remote0004/0005, accounts/credentials/grants/contracts or deployment. Actual public runtime remains sample-only source4d87f44.

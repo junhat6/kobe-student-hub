@@ -14,6 +14,7 @@ beforeAll(async()=>{
  bootstrapGitBody=(await db.prepare("SELECT body FROM content WHERE id='git-branches'").first<{body:string}>())!.body;
  const revision=readFileSync('content-revisions/0001_git_practice.sql','utf8').replace(/^--.*$/gm,'').trim();await db.prepare(revision).run();
  await db.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('private-actor','PRIVATE_GOOGLE_SUBJECT','fixture-private@st.kobedenshi.ac.jp','active',0)").run();
+ await db.prepare("INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) VALUES('11111111-1111-4111-8111-111111111111','private-actor','PRIVATE_ARTICLE_DRAFT','SECRET_DRAFT_MARKDOWN',1,0)").run();
  await db.prepare("INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms) VALUES(?,'private-actor',0,0,0,1)").bind('0'.repeat(64)).run();
  await db.prepare('INSERT INTO oauth_attempts(state_hash,browser_hash,nonce,created_at_ms,expires_at_ms) VALUES(?,?,?,?,?)').bind('a'.repeat(64),'b'.repeat(64),'n'.repeat(43),0,600000).run();
  for(const state of ['draft','hidden','deleted'])await db.prepare("INSERT INTO content SELECT ?,kind,?,summary,'SECRET_BODY',tags_json,author_id,audience,prerequisite,outcome,updated_at,minutes,related_ids_json,?,1 FROM content WHERE id='learning-notes'").bind(`private-${state}`,`PRIVATE_${state}`,state).run();
@@ -22,9 +23,9 @@ beforeAll(async()=>{
 afterAll(async()=>{await mf?.dispose()});
 describe('public data boundary on Workers and D1',()=>{
  it('never returns draft, hidden, deleted or real non-sample content',async()=>{
-  const res=await mf.dispatchFetch('http://test/api/catalog');expect(res.status).toBe(200);const body=await res.text();expect(body).not.toMatch(/PRIVATE_|SECRET_BODY|private-|state_hash|browser_hash|oauth_attempts|nonce|PRIVATE_GOOGLE_SUBJECT|token_hash|session_epoch|fixture-private/);const json=JSON.parse(body);expect(json.entries).toHaveLength(4);expect(json.profiles).toHaveLength(2);expect(res.headers.get('cache-control')).toBe('no-store');
+  const res=await mf.dispatchFetch('http://test/api/catalog');expect(res.status).toBe(200);const body=await res.text();expect(body).not.toMatch(/PRIVATE_|SECRET_BODY|private-|state_hash|browser_hash|oauth_attempts|nonce|PRIVATE_GOOGLE_SUBJECT|token_hash|session_epoch|fixture-private|PRIVATE_ARTICLE_DRAFT|SECRET_DRAFT_MARKDOWN|owner_account_id|private_article_drafts/);const json=JSON.parse(body);expect(json.entries).toHaveLength(4);expect(json.profiles).toHaveLength(2);expect(res.headers.get('cache-control')).toBe('no-store');
  });
- it('rejects every write and never accepts user data',async()=>{for(const method of ['POST','PUT','PATCH','DELETE']){const res=await mf.dispatchFetch('http://test/api/content',{method,body:'{"title":"injected"}'});expect(res.status).toBe(405)} });
+ it('rejects every write and never accepts user data',async()=>{for(const method of ['POST','PUT','PATCH','DELETE']){const res=await mf.dispatchFetch('http://test/api/content',{method,body:'{"title":"injected"}'});expect(res.status).toBe(405)} for(const method of ['GET','POST','PUT','DELETE']){const r=await mf.dispatchFetch('http://test/api/drafts/11111111-1111-4111-8111-111111111111',{method});expect(r.status).toBe(405);expect(await r.text()).not.toMatch(/SECRET_DRAFT|PRIVATE_ARTICLE|owner_account_id/)} });
  it('keeps authentication and posting closed despite client-supplied identity claims',async()=>{
   const auth=await mf.dispatchFetch('http://test/api/auth/callback',{method:'POST',headers:{Authorization:'Bearer client-supplied-token','Content-Type':'application/json'},body:JSON.stringify({email:'fixture-do-not-use@st.kobedenshi.ac.jp',email_verified:true,role:'admin',accountId:'owner'})});
   expect(auth.status).toBe(405);expect(auth.headers.get('set-cookie')).toBeNull();

@@ -47,6 +47,15 @@ export class SessionStore {
   const supplied=request.headers.get('X-CSRF-Token');if(!supplied||!validToken(supplied))return null;
   const session=await this.authenticate(request);return session&&equalToken(session.csrfToken,supplied)?session:null;
  }
+ /** Server-private storage proof. Never serialize this value or accept it from clients.
+  * Repositories must recheck this session and account inside their final SQL statement. */
+ async storageAuthorization(request:Request):Promise<{tokenHash:string;accountId:string;nowMs:number}|null>{
+  if(!['GET','POST','PUT','PATCH','DELETE'].includes(request.method))return null;
+  const session=request.method==='GET'?await this.authenticate(request):await this.authorizeMutation(request);
+  const raw=rawCookie(request);if(!session||!raw)return null;
+  const digest=await tokenHash(raw);const nowMs=this.now();if(nowMs===null)return null;
+  return {tokenHash:digest,accountId:session.actor.accountId,nowMs};
+ }
  async logout(request:Request):Promise<{clearCookie:string}|null>{
   const session=await this.authorizeMutation(request);const raw=rawCookie(request);if(!session||!raw)return null;
   try{const digest=await tokenHash(raw);const now=this.now();if(now===null)return null;const r=await this.db.prepare('UPDATE auth_sessions SET revoked_at_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL').bind(now,digest).run();return r.success?{clearCookie:cookie('',0)}:null}catch{return null}
