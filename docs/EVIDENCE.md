@@ -156,3 +156,17 @@ The previous 0003 rejection was superseded only after fresh explicit user permis
 Source checkpoint: PR #25, `24b18dc900cc75b997408b91a8d8e9672a331ae2`. Root final build/83 unit-runtime tests/deploy dry-run passed. Existing production-UI 38 E2E passed in 16.8s earlier in this cycle; the later correction only affects the unconnected private flow, so that local UI run is not claimed as a run of the final private-clock revision. CI runs the final source. Production application code/assets remain unchanged and do not import this flow.
 
 [Independent QA](QA-BROWSER-FLOW.md) rebuilt fixtures and passed 29 tests (13 browser-flow, 10 attempt, six Worker) in 683ms. The decrypt-time expiry/rollback finding was corrected with fresh-clock and fractional-cookie-expiry regression. Real SHA-256/JWE and local D1 run together; the test passes cookie headers manually and does not prove browser SameSite/Host enforcement. Independent public GET/POST start/callback remained 405/no Cookie/no Location, and health was read-only. No public endpoint, remote attempt write, actual provider exchange, real key/client credential or permission grant was created. Live session/CSRF/private-account/logging/admission gates and student value remain unverified.
+
+## Cycle 12 — private sessions (local only)
+
+- Local Workers/D1 session schema and server-only lifecycle: [design](SESSIONS.md).
+- Separate-context execution: 18 passing relevant cases; source hashes and limitations: [QA-SESSIONS.md](QA-SESSIONS.md).
+- Root session-stage full run: 95 passing tests plus build/deploy dry-run. No UI change, real provider, real account, browser-cookie enforcement or student-value claim.
+- Remote migration 0004 is not applied; deployed runtime remains sample-only at source 4d87f44. No production session endpoint/configuration was added.
+
+## Cycle 13 — private provider exchange integration
+
+- Server-private broker: [design and outstanding gates](GOOGLE-LOGIN.md).
+- Independent QA: 41 passing local Workers/D1 cases in 10.70s, exact source hashes and review corrections in [QA-GOOGLE-LOGIN.md](QA-GOOGLE-LOGIN.md).
+- Root final 105 tests passed (10.94s); existing 38 PC/mobile regressions passed (8.2s), build and deployment dry-run passed. Initial3 failed success cases exposed unsupported Workerd redirect:error and were corrected to manual handling with an outbound no-follow assertion. Deadline tests cover stalled headers/body/cancellation; provider/JWKS replies remain local stubs with real RSA verification.
+- Local development and isolated test D1 only; remote0004 not applied, no Google configuration/key/client/grant created, no real sign-in/posting route or deployment in this cycle. Current public runtime source remains 4d87f44.

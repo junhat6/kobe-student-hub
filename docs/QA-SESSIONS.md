@@ -1,0 +1,44 @@
+# Opaque session / CSRF 独立QA
+
+対象: Issue #26。実装者とは別コンテキストでsource/schema/caller契約レビューとlocal実行。対象は末尾hashで固定した未接続session primitiveとtest fixtureであり、後続provider exchangeのQAは含まない。実装・テスト変更なし。
+
+## 判定・修正
+
+最終検証範囲でblocking不具合は確認しなかった。レビューで既存Google verifierが受け入れる大文字email domainをSessionStoreが拒否する不一致を指摘。最終版はdomainの大文字を許容し、email形式/長さ・subject契約を既存verifierと合わせる。独立実行でuppercase-domain identityとpunctuationを含むsubject、誤形式/過大email拒否を確認した。local partを保存時に勝手に小文字化してはいない。
+
+SessionStore.createはprovider/subject/email形式を検査するが、その引数は暗号学的証明ではない。将来のtrusted server callerが実署名検証済みidentityだけを渡す必要がある。既にactiveなsubjectのaccountがDBにある場合だけINSERT SELECTでsessionを作り、account作成/在籍認可/自動active化は行わない。fixtureがJSONでidentityを受ける形を公開してはいけない。
+
+32byte乱数のopaque Cookie、domain-separated SHA256のDB token hashとCSRF値、DBからのaccount ID/status/epoch照合、8時間absolute/30分idle、時刻巻戻り拒否、同一Originとsession-specific CSRFによるunsafe method認可は整合する。Cookieにemail/subjectを含めず、CSRFをCookie値そのものと同一にしない。status変更triggerはepochを増やし、再active化しても旧sessionを復活させない。FK cascadeによるaccount削除時session削除も検証した。
+
+fresh tokenを追加発行しても、既存sessionの置換失効を自動では行わない。複数sessionは保持され、logoutはcurrent sessionだけを失効させる。これはsession単位のlogoutであり全端末logout/credential変更時の包括的rotation実装という主張にはしない。認証チェック後にaccount stateが変わるraceを全てなくすものでもなく、将来のprotected mutationはDB条件/transactionとpolicyを別途設計する必要がある。
+
+## 独立実行
+
+親の最終run終了通知後:
+
+```sh
+node scripts/build-test-fixtures.mjs
+npx vitest run tests/sessions.test.ts tests/worker.test.ts
+```
+
+**18件成功、2 files、659ms**（sessions12、publicWorker6）。localWorkers/D1実行にsandbox許可を使用。親の全95tests/build/dryrunを独立側で全件再実行したとは扱わない。
+
+fresh cookie/hash非露出、active admission限定、DB actor/別owner拒否、malformed/duplicate Cookie、cross-origin、unsafe全methodのCSRFと他session CSRF拒否、GETlogout拒否/currentのみrevoke、idle/absolute期限とactivity、時計巻戻り、status suspension/reactivationのepoch、account cascade、cleanup100件上限、設定/identity/DB不在時failclosedを実行した。ローカルprivate account/session fixture行を入れたpublic catalogもsample4件/2profilesと明示projectionを維持し、identity/hash/epoch等を漏らさない。
+
+production worker/index.tsは変更なし。独立検索でproduction .worker/index.jsにSessionStore/新session Cookie名がないことを確認。test-only session entryはfixture bundleのみ。今回UI変更なしのためscreenshotは不要。
+
+## スキーマと証拠境界
+
+0004_private_sessions.sqlはprivate_accounts（default pending、private subject/email、epoch）とauth_sessions、期限/account索引、status-change epoch triggerを定義する。remoteへの適用は実施していない。新しい実user/accountや本番sessionを作ったという結果ではない。localtests内のINSERT/DELETE/status変更は隔離fixtureのみ。
+
+Cookieは手動Request headerで供給しており、実ブラウザの__Host/Secure/HttpOnly/Lax強制や実OS/Safari挙動を実証しない。realproviderexchange/Googleclient/key/secret/session endpoint、session-fixation全体、実browser redirect、platform secretログ、在籍/卒業/運営、retention自動化、学生価値は未検証/未提供。cleanupは明示関数でcron運用ではない。remote0004、追加persistentgrant、契約/R2/認証設定は操作していない。
+
+## 検証対象SHA256
+
+```text
+0ad683fd05d16c429254c0c858d88d21e7d0f138c4489c3353db9716003320fe migrations/0004_private_sessions.sql
+6ee9104272fa7f16955a2ace209b7cce9ba1b2b01fca3f79f144fe2edfedfb0f worker/auth/sessions.ts
+771ece54457d693679fa10f0d26033d944c8378a41e0aa77405ca542c4aeb286 tests/sessions.test.ts
+cc9dbbd594e1b2a24e01eb2c73871aa6e0966e9949344fc42a9bf1cee6bb4804 tests/fixtures/session-worker.ts
+ced34e0eeb8e5489bfa19657dbf7426ad23771b0ea9854c3d94dd98c68bc16a5 worker/index.ts
+```
