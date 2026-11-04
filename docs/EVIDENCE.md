@@ -279,3 +279,9 @@ The Wrangler template requests query-string redaction; the existing generated-co
 ## Cycle 28 — first real-user release prerequisites
 
 [FIRST-RELEASE.md](FIRST-RELEASE.md) separates local prototype evidence, actual connection evidence, external settings/policy decisions and student/device validation, linking existing gate documents. [Independent documentation QA](QA-FIRST-RELEASE.md) reviewed the checklist and README/WORK against Issue38 and existing documents, found no blocking issue and checked28 repository-local links with0 missing. Root TypeScript/build and link checks passed; production assets are unchanged. Documentation-only scope adds no runtime behavior or gate-completion claim. No additional local functional tests were needed; existing mandatory CI remains enabled.
+
+## Cycle 29 — author detour retains discovery context
+
+Screenshot-first [reader audit](DISCOVERY-NEXT.md) and separate public baseline reproduced filtered1→article→author→home4 on PC/mobile. The repair keeps canonical root/search/study context through one profile wrapper, with separate actual profile and outer-list positions. Root passed build,272 tests,46 public PC/mobile cases and deployment dry-run. [Independent QA](QA-READER-CONTEXT.md) passed5 navigation units,16 existing/developer browser cases and2 final independent cases; screenshot-induced test measurement correction and final local-only capture guard are explicit. Six final images were independently viewed, root sampled4, and source/image fingerprints were checked. New images remain local; no original held image was republished.
+
+Observed condition loss is distinct from the unvalidated hypothesis that preserving it helps students continue exploration. H02/E23/activity-understanding candidates remain in the existing trial/discovery plan. Actual authentication/posting, comprehensive privacy and student/device validation remain unfinished. Operational evidence is outside this public record.
