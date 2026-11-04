@@ -4,8 +4,8 @@ import {createProfileClient,sameProfileInput,type ProfileInput,type PublicProfil
 import './profile-setup.css';
 const empty:ProfileInput={displayName:'',department:'',yearLabel:'',bio:''};
 function ProfileCard({value,preview=false}:{value:ProfileInput;preview?:boolean}){return <article className="profile-public-card" aria-label={preview?'公開プロフィールのプレビュー':'登録されたプロフィール'}><span className="profile-public-avatar" aria-hidden="true">{'initials' in value?String(value.initials):(Array.from(value.displayName.trim())[0]||'◎')}</span><div><h3>{value.displayName||'表示名がここに表示されます'}</h3><p className="profile-public-meta">{[value.department,value.yearLabel].filter(Boolean).join(' · ')||'学科・学年は未入力です'}</p><p className="profile-public-bio">{value.bio||'自己紹介は未入力です'}</p></div></article>}
-export default function PublicProfileSetup({csrfToken}:{csrfToken:string}){
- const client=useMemo(()=>createProfileClient(csrfToken),[csrfToken]);const mounted=useRef(true);const lock=useRef(false);
+export default function PublicProfileSetup({csrfToken,fetcher=fetch}:{csrfToken:string;fetcher?:typeof fetch}){
+ const client=useMemo(()=>createProfileClient(csrfToken,fetcher),[csrfToken,fetcher]);const mounted=useRef(true);const lock=useRef(false);
  const [loaded,setLoaded]=useState(false);const [busy,setBusy]=useState(false);const [profile,setProfile]=useState<PublicProfile|null>(null);const [text,setText]=useState<ProfileInput>(empty);
  const [confirmed,setConfirmed]=useState(false);const [uncertain,setUncertain]=useState(false);const [attempt,setAttempt]=useState<ProfileInput|null>(null);const [conflict,setConflict]=useState(false);
  const [message,setMessage]=useState('プロフィールの登録状態を確認しています…');const [failed,setFailed]=useState(false);

@@ -1,3 +1,4 @@
+import {createPrivateSessionHandler} from '../../worker/session-http';
 import {createModerationHandler} from '../../worker/moderation-http';
 import {createPrivatePublicationHandler} from '../../worker/publication-http';
 import {ArticlePublicationStore} from '../../worker/publication';
@@ -41,10 +42,21 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
   const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublished(id);
   return Response.json(result??{error:'article_unavailable'},{status:result?200:404,headers});
  }
+ const session=await createPrivateSessionHandler(env.DB,ORIGIN)(request);if(session)return session;
  const moderation=await createModerationHandler(env.DB,ORIGIN,['editor-operator'])(request);if(moderation)return moderation;
  const publication=await createPrivatePublicationHandler(env.DB,ORIGIN)(request);if(publication)return publication;
  const profile=await createPrivateProfileHandler(env.DB,ORIGIN)(request);if(profile)return profile;
- const result=await createPrivateDraftHandler(env.DB,ORIGIN)(request);if(result)return result;
+ const result=await createPrivateDraftHandler(env.DB,ORIGIN)(request);
+ if(result){
+  // Explicit local browser fault only: send headers/first bytes now, EOF later. Never deploy this fixture.
+  if(result.status===200&&request.method==='GET'&&/^\/api\/private\/drafts\/[0-9a-f-]{36}$/.test(path)&&request.headers.get('X-Lab-Body-Delay')==='5000'){
+   const bytes=new Uint8Array(await result.arrayBuffer());const headers=new Headers(result.headers);headers.delete('Content-Length');
+   let timer:ReturnType<typeof setTimeout>|undefined;
+   const body=new ReadableStream<Uint8Array>({start(controller){const cut=Math.min(bytes.length,32);controller.enqueue(bytes.subarray(0,cut));timer=setTimeout(()=>{try{controller.enqueue(bytes.subarray(cut));controller.close()}catch{}},5000)},cancel(){clearTimeout(timer)}});
+   return new Response(body,{status:result.status,headers});
+  }
+  return result;
+ }
  if(path.startsWith('/api/')||path.startsWith('/__fixture/'))return Response.json({error:'unavailable'},{status:404,headers:privateHeaders});
  const asset=await env.ASSETS.fetch(request);const response=new Response(asset.body,asset);for(const [name,value] of Object.entries(privateHeaders))response.headers.set(name,value);return response;
 }};
