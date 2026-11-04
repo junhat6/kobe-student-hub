@@ -39,3 +39,16 @@ React + TypeScript + Vite、Tailwind CSS v4、Base UI、Hono、Cloudflare Worker
 Planner → Developer → Independent QA → Evidence → Replanningを一巡ごとに残します。基本はmainで管理し、変更を短い作業ブランチ/PRにまとめ、CIと独立QA後にmainへ反映します。最新のユーザー指示でmainへのマージ・本番デプロイの都度承認は不要です。ただし永続権限や認証情報、有料契約など適用される確認は別です。詳細は [AGENTS.md](AGENTS.md)。
 
 PRDの原文は変更せず、現在の仮説や判断はリポジトリ内に別記録します。公開リポジトリに学生のデータ、認証情報、問い合わせ内容を載せないでください。
+
+## ローカル専用の編集検証
+
+公開プレビューには編集機能を接続していません。架空アカウントで下書きの編集・プレビュー・明示保存・競合復帰を試す専用環境です。
+
+```bash
+npm run editor:build
+npm run editor:preview
+# 別ターミナルで
+npm run test:editor
+```
+
+URLは `https://127.0.0.1:8788`。自己署名証明書を使い、ブラウザ自動テストだけがこのローカル環境のHTTPSエラーを無視します。OSの証明書信頼設定は変更しません。専用DBは `.wrangler/editor-state` のローカルデータだけで、既存プレビューDBとは別です。実在の個人情報や学校アカウントを入れず、fixtureをデプロイしないでください。[範囲・未提供事項](docs/EDITOR-LAB.md)。

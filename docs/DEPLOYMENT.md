@@ -66,3 +66,9 @@ Before enabling real OAuth, select the dedicated Google project/client and exact
 ## Unconnected draft HTTP handler
 
 The private draft HTTP handler is a factory exercised only by local test fixtures. Production worker/index.ts does not import or mount it, and neither sample route behavior nor deployed assets are changed. Do not expose the fixture's identity/clock/race controls. Local tests of no-store/private headers are not an audit of deployed cache rules, browser lifecycle or platform logs; complete the existing activation gates before mounting real private endpoints.
+
+## Local-only editor browser fixture
+
+`editor:build` produces ignored `.editor-preview`, separately from production `dist`. `editor:preview` seeds only the dedicated fictional local D1 under `.wrangler/editor-state` and starts a loopback HTTPS Worker on127.0.0.1:8788. The fixture's session injection is not real Google verification. Its config has a placeholder database ID, local-origin checks, and no Workers.dev URL; it is never a deployment target. Do not modify production preparation to accept its name/config or publish its entry/assets.
+
+`test:editor` uses the dedicated Playwright config with self-signed-certificate tolerance scoped to this local fixture. It does not install OS trust or disable TLS globally. Default public-preview E2E excludes editor specs; CI runs both suites separately. Existing public-preview artifacts retain their14day policy; automatic editor screenshot/trace upload is withheld pending publication approval, and only specifically reviewed repository screenshots are included. Fictional fixture traces are not evidence of real-user privacy. No remote0004/0005 or new credentials/grants/contracts are part of this editor cycle.
