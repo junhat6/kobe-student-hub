@@ -18,7 +18,8 @@ async function localDraftResponse(result:Response,request:Request,path:string){
   // Explicit local browser fault only: send headers/first bytes now, EOF later. Never deploy this fixture.
   const ordinary=result.status===200&&request.method==='GET'&&(/^\/api\/private\/(?:drafts|project-drafts)\/[0-9a-f-]{36}$/.test(path)||path==='/api/private/own-publications');
   const stop=((result.status===200&&request.method==='GET')||(result.status===200&&request.method==='POST'))&&/^\/api\/private\/publication-stops\/(?:article|project)\/[0-9a-f-]{36}$/.test(path);
-  if((ordinary||stop)&&request.headers.get('X-Lab-Body-Delay')==='5000'){
+  const articleCase=result.status===200&&request.method==='GET'&&/^\/api\/private\/moderation\/cases\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(path);
+  if((ordinary||stop||articleCase)&&request.headers.get('X-Lab-Body-Delay')==='5000'){
    const bytes=new Uint8Array(await result.arrayBuffer());const headers=new Headers(result.headers);headers.delete('Content-Length');
    let timer:ReturnType<typeof setTimeout>|undefined;
    const body=new ReadableStream<Uint8Array>({start(controller){const cut=Math.min(bytes.length,32);controller.enqueue(bytes.subarray(0,cut));timer=setTimeout(()=>{try{controller.enqueue(bytes.subarray(cut));controller.close()}catch{}},5000)},cancel(){clearTimeout(timer)}});
@@ -102,7 +103,7 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
  const project=await createPrivateProjectHandler(env.DB,ORIGIN)(request);if(project)return localDraftResponse(project,request,path);
  const like=await createPrivateLikeHandler(env.DB,ORIGIN)(request);if(like)return like;
  const session=await createPrivateSessionHandler(env.DB,ORIGIN)(request);if(session)return session;
- const moderation=await createModerationHandler(env.DB,ORIGIN,['editor-operator'])(request);if(moderation)return moderation;
+ const moderation=await createModerationHandler(env.DB,ORIGIN,['editor-operator'])(request);if(moderation)return localDraftResponse(moderation,request,path);
  const publication=await createPrivatePublicationHandler(env.DB,ORIGIN)(request);if(publication)return publication;
  const profile=await createPrivateProfileHandler(env.DB,ORIGIN)(request);if(profile)return profile;
  const result=await createPrivateDraftHandler(env.DB,ORIGIN)(request);

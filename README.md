@@ -62,3 +62,6 @@ URLは `https://127.0.0.1:8788`。自己署名証明書を使い、ブラウザ�
 本人の公開記録の範囲は [OWN-PUBLICATION-RECORDS.md](docs/OWN-PUBLICATION-RECORDS.md) を参照してください。
 
 本人のローカル公開停止と制約は [PUBLICATION-STOPS.md](docs/PUBLICATION-STOPS.md) を参照してください。
+
+
+記事の読み取り専用運営画面は、フォーカス・画面切替・セッション変更・確認不能時に以前の一覧と通報詳細を閉じます。再開には明示的な既存セッション確認と新しいサーバー権限確認が必要です。実運営・実認証の有効化ではありません。境界と制約は[MODERATION-SESSION.md](docs/MODERATION-SESSION.md)を参照してください。

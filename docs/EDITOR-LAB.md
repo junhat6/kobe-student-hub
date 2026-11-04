@@ -67,3 +67,6 @@ The existing `/lab/account` author subtree shows a private combined publication 
 ## Explicit owner stop of a published snapshot
 
 Within the existing guarded author record list, a published row can be selected for a separate explicit local stop confirmation. The selected target/source version stays separate from private saved/unsaved input. The acknowledgment/manual receipt distinguishes an own stop from a generic already-hidden state. Acknowledged stops refresh the list; unknown outcomes are not auto-retried or lost when the list changes. Local0011 is fully applied on each isolated startup; no real service/schema is changed. [PUBLICATION-STOPS.md](PUBLICATION-STOPS.md) explains the one-way prototype, unchanged report evidence and unavailable restore/delete/republication/actual delivery guarantees.
+
+
+記事の読み取り専用運営画面は、フォーカス・画面切替・セッション変更・確認不能時に以前の一覧と通報詳細を閉じます。再開には明示的な既存セッション確認と新しいサーバー権限確認が必要です。実運営・実認証の有効化ではありません。境界と制約は[MODERATION-SESSION.md](MODERATION-SESSION.md)を参照してください。
