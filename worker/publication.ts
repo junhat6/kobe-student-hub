@@ -1,5 +1,5 @@
 import {SessionStore,SESSION_IDLE_MS} from './auth/sessions';
-import type {Entry,Profile} from '../src/types';
+import type {Entry,Profile,PublicAuthorArticles,PublishedArticleSummary} from '../src/types';
 const slug=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(v);
 const draftId=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v);
 const chars=(v:unknown,max:number):v is string=>typeof v==='string'&&v.length<=max*2&&Array.from(v).length<=max&&!v.includes('\0')&&new TextDecoder().decode(new TextEncoder().encode(v))===v;
@@ -52,6 +52,21 @@ export class ArticlePublicationStore {
  async readPublished(id:unknown):Promise<{entry:Entry;author:Profile}|null>{
   if(!slug(id))return null;
   try{const row=await this.db.prepare(`SELECT ${publicColumns} FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id WHERE c.id=? AND ${publicBounds}`).bind(id).first<PublicRow>();return row?publicDto(row):null}catch{return null}
+ }
+ /** Public, session-independent author view: a bounded subset, never a complete catalog. */
+ async readPublishedAuthor(authorId:unknown):Promise<PublicAuthorArticles|null>{
+  if(!slug(authorId))return null;
+  try{
+   // Inspect the newest base candidates before loading bodies: malformed rows must not be skipped.
+   const candidates=await this.db.prepare(`SELECT c.id,CASE WHEN ${publicBounds} THEN 1 ELSE 0 END public_valid FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id LEFT JOIN public_profiles p ON p.id=c.author_id WHERE c.author_id=? AND c.kind='article' AND c.status='published' AND c.is_sample=0 ORDER BY publication.published_at_ms DESC,c.id ASC LIMIT 20`).bind(authorId).all<{id:string;public_valid:number}>();
+   const ids=candidates.results.map(row=>row.id);if(!ids.length||ids.some(id=>!draftId(id))||candidates.results.some(row=>row.public_valid!==1))return null;
+   const rows=await this.db.prepare(`SELECT ${publicColumns} FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id WHERE c.author_id=? AND c.id IN (${ids.map(()=>'?').join(',')}) AND ${publicBounds} ORDER BY publication.published_at_ms DESC,c.id ASC LIMIT 20`).bind(authorId,...ids).all<PublicRow>();
+   if(rows.results.length!==ids.length)return null;
+   let author:Profile|null=null;const entries:PublishedArticleSummary[]=[];
+   for(const row of rows.results){if(!draftId(row.id))return null;const value=publicDto(row);if(!value||value.author.id!==authorId)return null;author=value.author;const entry=value.entry;entries.push({id:entry.id,title:entry.title,summary:entry.summary,tags:entry.tags,audience:entry.audience,prerequisite:entry.prerequisite,outcome:entry.outcome,updatedAt:entry.updatedAt,minutes:entry.minutes})}
+   if(!author)return null;const result={author,entries};
+   return new TextEncoder().encode(JSON.stringify(result)).byteLength<=256*1024?result:null;
+  }catch{return null}
  }
  async getOwnReceipt(request:Request,id:unknown):Promise<{publication:({contentId:string;sourceVersion:number;entry:Entry;author:Profile})|null}|null>{
   if(request.method!=='GET'||!draftId(id))return null;
