@@ -271,3 +271,7 @@ Cycle17: mainCI41756626408 observed another test-only CDP body retrieval failure
 - Actual Composer publish→receipt newtab→new recent card→article→author and3 distinct fictional reporters→fresh feed exclusion/other card retained passed. Raw anonymous HTTP headers/strict path/query/method and body projections were checked. Genuine backend-empty and synthetic browser-empty/error cases remain separate claims.
 - Six final local receipt/card images independently viewed; root sampled5. Region crops establish these states rather than a complete20-card visual or physical-device result. No image upload or retry of held originals.
 - No real school Google/admission,operating delivery/policy/contact,platform logs/CDN/media,physical devices or student-value validation. Hosted sample remains source4d87f44. No new schema,remote0004–0007,credentials/grants,contracts,R2/mail,deployment or screenshot publication; #38 tracks actual activation gates.
+
+## Cycle 27 — source query-redaction configuration
+
+The Wrangler template requests query-string redaction; the existing generated-config roundtrip verifies preservation. Root passed build,271 tests,38 public PC/mobile cases and deployment dry-run; assets unchanged. [Independent source QA](QA-LOGGING-GATE.md) passed12 configuration tests and fixes source hashes. No runtime privacy or working OAuth claim follows from this source-only evidence.
