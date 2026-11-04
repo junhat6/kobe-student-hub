@@ -39,3 +39,7 @@ Issue #43 connects saved drafts and explicit profiles to an isolated first-publi
 ## Report and operator review lab
 
 Issue #45 adds explicit reader reporting and a read-only `/lab/moderation` page. Existing0006 is initialized in the isolated editor DB. An explicit tests-only `/__fixture/operator-session` helper uses a seeded fictional operator and trusted localhost fixture allowlist; opening the operator page never auto-creates that identity. This is not a real permission grant or an actual moderation/contact service. The operating decisions and unprovided restore/appeal/notification/contact gates are in [MODERATION-JOURNEY.md](MODERATION-JOURNEY.md). No new migration or remote change is included; images remain local.
+
+## Existing-session author lab
+
+`/lab/account` checks an existing cookie only, offers current-token logout and coordinates a session-bound author editor/profile subtree. It does not call fixture login on initial load, logout or reload; test setup must explicitly obtain a fictional session first. This differs from the older `/` convenience fixture. [SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md) defines proof timing, hidden-memory recovery and discarded-session limits; real Google and report/operator route integration remain unprovided. No remote/schema or actual identity grant is added.

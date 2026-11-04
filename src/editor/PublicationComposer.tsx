@@ -5,11 +5,11 @@ import type {EditorDraft} from './draft-client';
 import {createProfileClient,type PublicProfile} from './profile-client';
 import {canonicalTags,checkedMetadata,createPublicationClient,matchesPublication,type PublicationAttempt,type PublicationReceipt} from './publication-client';
 import './publication.css';
-interface Props {draft:EditorDraft;csrfToken:string;dirty:boolean;parentBusy:boolean;canStart:()=>boolean;onPending:(value:boolean)=>void;onUnsavedPreparation:(value:boolean)=>void}
+interface Props {fetcher?:typeof fetch;draft:EditorDraft;csrfToken:string;dirty:boolean;parentBusy:boolean;canStart:()=>boolean;onPending:(value:boolean)=>void;onUnsavedPreparation:(value:boolean)=>void}
 class SavedPreviewBoundary extends React.Component<{children:React.ReactNode},{failed:boolean}>{state={failed:false};static getDerivedStateFromError(){return {failed:true}}render(){return this.state.failed?<p>保存済み本文のプレビューを表示できませんでした。手元の編集は残っています。</p>:this.props.children}}
 const empty={summary:'',tags:'',minutes:'',audience:'',prerequisite:'',outcome:''};
-export default function PublicationComposer({draft,csrfToken,dirty,parentBusy,canStart,onPending,onUnsavedPreparation}:Props){
- const client=useMemo(()=>createPublicationClient(csrfToken),[csrfToken]);const profiles=useMemo(()=>createProfileClient(csrfToken),[csrfToken]);
+export default function PublicationComposer({fetcher=fetch,draft,csrfToken,dirty,parentBusy,canStart,onPending,onUnsavedPreparation}:Props){
+ const client=useMemo(()=>createPublicationClient(csrfToken,fetcher),[csrfToken,fetcher]);const profiles=useMemo(()=>createProfileClient(csrfToken,fetcher),[csrfToken,fetcher]);
  const [fields,setFields]=useState(empty);const [confirmed,setConfirmed]=useState(false);const [busy,setBusy]=useState(false);const [known,setKnown]=useState(false);const [readError,setReadError]=useState(false);
  const [profile,setProfile]=useState<PublicProfile|null>(null);const [receipt,setReceipt]=useState<PublicationReceipt|null>(null);const [attempt,setAttempt]=useState<PublicationAttempt|null>(null);const [uncertain,setUncertain]=useState(false);
  const confirmedFor=useRef<{draft:EditorDraft;profile:PublicProfile|null;fields:typeof empty}|null>(null);

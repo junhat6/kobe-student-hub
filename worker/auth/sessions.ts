@@ -14,6 +14,8 @@ function rawCookie(request:Request){
  const values=header.split(';').map(x=>x.trim()).filter(x=>x.startsWith(NAME+'=')).map(x=>x.slice(NAME.length+1));return values.length===1&&validToken(values[0])?values[0]:null;
 }
 function equalToken(a:string,b:string){if(!validToken(a)||!validToken(b))return false;let diff=0;for(let i=0;i<43;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0}
+/** Server-private result; never serialize its actor or storage state directly. */
+export type SessionInspection={kind:'authenticated';actor:ServerSessionActor;csrfToken:string}|{kind:'signed-out'}|{kind:'unavailable'};
 /** No production endpoint uses this repository. Identity must come from real server verification. */
 export class SessionStore {
  constructor(private readonly db:D1Database,private readonly origin:string,private readonly clock:()=>number=Date.now){}
@@ -30,17 +32,24 @@ export class SessionStore {
    return row?{setCookie:cookie(raw,SESSION_ABSOLUTE_MS/1000),csrfToken,actor:{accountId:row.account_id,accountStatus:'active'}}:null;
   }catch{return null}
  }
- async authenticate(request:Request):Promise<{actor:ServerSessionActor;csrfToken:string}|null>{
-  if(!this.configured()||new URL(request.url).origin!==this.origin)return null;
-  const raw=rawCookie(request);if(!raw)return null;
-  try{
-   const digest=await tokenHash(raw);const csrfToken=await csrf(raw);const now=this.now();if(now===null)return null;
-   const row=await this.db.prepare(`UPDATE auth_sessions SET last_seen_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL
+ private async lookup(request:Request):Promise<SessionInspection>{
+  if(!this.configured())return {kind:'unavailable'};
+  if(new URL(request.url).origin!==this.origin)return {kind:'signed-out'};
+  const raw=rawCookie(request);if(!raw)return {kind:'signed-out'};
+  const digest=await tokenHash(raw);const csrfToken=await csrf(raw);const now=this.now();if(now===null)return {kind:'unavailable'};
+  const row=await this.db.prepare(`UPDATE auth_sessions SET last_seen_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL
     AND created_at_ms<=? AND last_seen_ms<=? AND last_seen_ms>? AND expires_at_ms>?
     AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status='active' AND a.session_epoch=auth_sessions.account_epoch)
     RETURNING account_id`).bind(now,digest,now,now,now-SESSION_IDLE_MS,now).first<{account_id:string}>();
-   return row?{actor:{accountId:row.account_id,accountStatus:'active'},csrfToken}:null;
-  }catch{return null}
+  return row?{kind:'authenticated',actor:{accountId:row.account_id,accountStatus:'active'},csrfToken}:{kind:'signed-out'};
+ }
+ /** Existing fail-closed API: storage/configuration failures retain the original null behavior. */
+ async authenticate(request:Request):Promise<{actor:ServerSessionActor;csrfToken:string}|null>{
+  try{const result=await this.lookup(request);return result.kind==='authenticated'?{actor:result.actor,csrfToken:result.csrfToken}:null}catch{return null}
+ }
+ /** Distinguishes a failed check from confirmed absence for session lifecycle controllers only. */
+ async inspect(request:Request):Promise<SessionInspection>{
+  try{return await this.lookup(request)}catch{return {kind:'unavailable'}}
  }
  async authorizeMutation(request:Request){
   if(!['POST','PUT','PATCH','DELETE'].includes(request.method)||request.headers.get('Origin')!==this.origin||!['same-origin','none',null].includes(request.headers.get('Sec-Fetch-Site')))return null;
@@ -58,7 +67,7 @@ export class SessionStore {
  }
  async logout(request:Request):Promise<{clearCookie:string}|null>{
   const session=await this.authorizeMutation(request);const raw=rawCookie(request);if(!session||!raw)return null;
-  try{const digest=await tokenHash(raw);const now=this.now();if(now===null)return null;const r=await this.db.prepare('UPDATE auth_sessions SET revoked_at_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL').bind(now,digest).run();return r.success?{clearCookie:cookie('',0)}:null}catch{return null}
+  try{const digest=await tokenHash(raw);const now=this.now();if(now===null)return null;const r=await this.db.prepare('UPDATE auth_sessions SET revoked_at_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL').bind(now,digest).run();return r.success&&r.meta.changes===1?{clearCookie:cookie('',0)}:null}catch{return null}
  }
  async cleanupExpired():Promise<number|null>{
   try{const now=this.now();if(now===null)return null;const r=await this.db.prepare(`DELETE FROM auth_sessions WHERE token_hash IN(SELECT token_hash FROM auth_sessions WHERE expires_at_ms<=? OR last_seen_ms<=? ORDER BY expires_at_ms LIMIT 100)`).bind(now,now-SESSION_IDLE_MS).run();return r.success?r.meta.changes:null}catch{return null}
