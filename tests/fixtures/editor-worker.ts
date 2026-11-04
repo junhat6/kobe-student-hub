@@ -1,3 +1,4 @@
+import {createModerationHandler} from '../../worker/moderation-http';
 import {createPrivatePublicationHandler} from '../../worker/publication-http';
 import {ArticlePublicationStore} from '../../worker/publication';
 import {createPrivateProfileHandler} from '../../worker/profile-http';
@@ -18,6 +19,13 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
    return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
   }catch{return Response.json({error:'unavailable'},{status:503,headers:privateHeaders})}
  }
+ // Explicit tests-only operator bootstrap. The trusted allowlist below is fictional and localhost-only.
+ if(path==='/__fixture/operator-session'){
+  if(request.method!=='POST'||request.headers.get('Origin')!==ORIGIN)return Response.json({error:'unavailable'},{status:403,headers:privateHeaders});
+  const session=await new SessionStore(env.DB,ORIGIN).create({provider:'google',subject:'editor-fictional-operator',email:'editor-operator@st.kobedenshi.ac.jp'});
+  if(!session)return Response.json({error:'unavailable'},{status:503,headers:privateHeaders});
+  return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
+ }
  if(path==='/__fixture/session'){
   if(request.method!=='POST'||request.headers.get('Origin')!==ORIGIN)return Response.json({error:'unavailable'},{status:403,headers:privateHeaders});
   try{const text=await request.text();if(text.length>100)return Response.json({error:'unavailable'},{status:400,headers:privateHeaders});const input=JSON.parse(text) as {account?:unknown};if(input.account!=='a'&&input.account!=='b')return Response.json({error:'unavailable'},{status:400,headers:privateHeaders});
@@ -33,6 +41,7 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
   const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublished(id);
   return Response.json(result??{error:'article_unavailable'},{status:result?200:404,headers});
  }
+ const moderation=await createModerationHandler(env.DB,ORIGIN,['editor-operator'])(request);if(moderation)return moderation;
  const publication=await createPrivatePublicationHandler(env.DB,ORIGIN)(request);if(publication)return publication;
  const profile=await createPrivateProfileHandler(env.DB,ORIGIN)(request);if(profile)return profile;
  const result=await createPrivateDraftHandler(env.DB,ORIGIN)(request);if(result)return result;

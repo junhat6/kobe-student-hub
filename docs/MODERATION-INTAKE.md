@@ -25,3 +25,7 @@ The module and local migration are not imported or applied by production. Remote
 No new screenshots are published, and earlier rejected images remain held. No actual email, real student content, credential, permanent grant, contract or deployment is part of the cycle. See independent QA for executed cases and hashes; server/SQL tests do not establish a complete student or operator journey.
 
 References: [SQLite trigger and RAISE semantics](https://www.sqlite.org/lang_createtrigger.html),[D1 foreign keys](https://developers.cloudflare.com/d1/sql-api/foreign-keys/). Tests exercise the actual local Workers/D1 behavior rather than treating documentation as execution evidence.
+
+## Follow-up local journey
+
+Cycle22/#45 connects report intake/own receipt and read-only operator HTTP/UI in the fictional localhost lab. See MODERATION-JOURNEY.md for the implemented journey and concrete unresolved judgment, restoration/re-report, retention, notification and inquiry/contact decisions. Production remains unconnected; the local fake operator is not real role provisioning. No mail or restore/delete/contact submission is implemented.
