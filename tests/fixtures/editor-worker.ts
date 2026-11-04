@@ -1,3 +1,5 @@
+import {ProjectStore} from '../../worker/projects';
+import {createPrivateProjectHandler} from '../../worker/projects-http';
 import {createPrivateLikeHandler} from '../../worker/likes-http';
 import {ArticleLikeStore} from '../../worker/likes';
 import {createPrivateSessionHandler} from '../../worker/session-http';
@@ -9,6 +11,16 @@ import {SessionStore} from '../../worker/auth/sessions';
 import {createPrivateDraftHandler} from '../../worker/draft-http';
 const ORIGIN='https://127.0.0.1:8788';
 const privateHeaders={'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Vary':'Cookie'};
+async function localDraftResponse(result:Response,request:Request,path:string){
+  // Explicit local browser fault only: send headers/first bytes now, EOF later. Never deploy this fixture.
+  if(result.status===200&&request.method==='GET'&&/^\/api\/private\/(?:drafts|project-drafts)\/[0-9a-f-]{36}$/.test(path)&&request.headers.get('X-Lab-Body-Delay')==='5000'){
+   const bytes=new Uint8Array(await result.arrayBuffer());const headers=new Headers(result.headers);headers.delete('Content-Length');
+   let timer:ReturnType<typeof setTimeout>|undefined;
+   const body=new ReadableStream<Uint8Array>({start(controller){const cut=Math.min(bytes.length,32);controller.enqueue(bytes.subarray(0,cut));timer=setTimeout(()=>{try{controller.enqueue(bytes.subarray(cut));controller.close()}catch{}},5000)},cancel(){clearTimeout(timer)}});
+   return new Response(body,{status:result.status,headers});
+  }
+ return result;
+}
 export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LOCAL_EDITOR_FIXTURE:string}){
  if(env.LOCAL_EDITOR_FIXTURE!=='local-only-fictional'||new URL(request.url).origin!==ORIGIN)return new Response('Local fixture only',{status:404,headers:privateHeaders});
  const path=new URL(request.url).pathname;
@@ -35,6 +47,12 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
    const session=await new SessionStore(env.DB,ORIGIN).create({provider:'google',subject:'editor-fictional-'+input.account,email:'editor-fictional@st.kobedenshi.ac.jp'});if(!session)return Response.json({error:'unavailable'},{status:503,headers:privateHeaders});
    return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
   }catch{return Response.json({error:'unavailable'},{status:400,headers:privateHeaders})}
+ }
+ // Standalone project lab: private drafts never enter anonymous projections.
+ if(path.startsWith('/__lab/projects')||path.startsWith('/__lab/project-authors')){
+  const url=new URL(request.url),authors=path.startsWith('/__lab/project-authors'),prefix=authors?'/__lab/project-authors/':'/__lab/projects/',id=path.slice(prefix.length);const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Type':'application/json; charset=utf-8'};
+  const unavailable=()=>new Response(JSON.stringify({error:'project_unavailable'}),{status:404,headers});if(!path.startsWith(prefix)||url.search||url.hash||!(authors?/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/:/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/).test(id))return unavailable();if(request.method!=='GET')return new Response(JSON.stringify({error:'method_not_allowed'}),{status:405,headers:{...headers,Allow:'GET'}});
+  const store=new ProjectStore(env.DB,ORIGIN),value=authors?await store.readAuthor(id):await store.readPublished(id);if(!value)return unavailable();const body=JSON.stringify(value);if(new TextEncoder().encode(body).length>(authors?262144:65536))return unavailable();return new Response(body,{headers});
  }
  // Anonymous local public likes. No identity bootstrap, private IDs or timestamps.
  if(path.startsWith('/__lab/likes')){
@@ -73,6 +91,7 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
   const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublished(id);
   return Response.json(result??{error:'article_unavailable'},{status:result?200:404,headers});
  }
+ const project=await createPrivateProjectHandler(env.DB,ORIGIN)(request);if(project)return localDraftResponse(project,request,path);
  const like=await createPrivateLikeHandler(env.DB,ORIGIN)(request);if(like)return like;
  const session=await createPrivateSessionHandler(env.DB,ORIGIN)(request);if(session)return session;
  const moderation=await createModerationHandler(env.DB,ORIGIN,['editor-operator'])(request);if(moderation)return moderation;
@@ -80,14 +99,7 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
  const profile=await createPrivateProfileHandler(env.DB,ORIGIN)(request);if(profile)return profile;
  const result=await createPrivateDraftHandler(env.DB,ORIGIN)(request);
  if(result){
-  // Explicit local browser fault only: send headers/first bytes now, EOF later. Never deploy this fixture.
-  if(result.status===200&&request.method==='GET'&&/^\/api\/private\/drafts\/[0-9a-f-]{36}$/.test(path)&&request.headers.get('X-Lab-Body-Delay')==='5000'){
-   const bytes=new Uint8Array(await result.arrayBuffer());const headers=new Headers(result.headers);headers.delete('Content-Length');
-   let timer:ReturnType<typeof setTimeout>|undefined;
-   const body=new ReadableStream<Uint8Array>({start(controller){const cut=Math.min(bytes.length,32);controller.enqueue(bytes.subarray(0,cut));timer=setTimeout(()=>{try{controller.enqueue(bytes.subarray(cut));controller.close()}catch{}},5000)},cancel(){clearTimeout(timer)}});
-   return new Response(body,{status:result.status,headers});
-  }
-  return result;
+  return localDraftResponse(result,request,path);
  }
  if(path.startsWith('/api/')||path.startsWith('/__fixture/'))return Response.json({error:'unavailable'},{status:404,headers:privateHeaders});
  const asset=await env.ASSETS.fetch(request);const response=new Response(asset.body,asset);for(const [name,value] of Object.entries(privateHeaders))response.headers.set(name,value);return response;

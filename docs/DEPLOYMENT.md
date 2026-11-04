@@ -86,3 +86,7 @@ Do not wire publication into draft autosave or treat a replay as an update/resto
 ## Local article-like preparation
 
 Migration0008 and the article-like handlers are local/test-only. Production worker/index.ts does not import or mount them, and Worker deployment must not apply this migration implicitly. Existing anonymous sample reading does not create a session or like. The lab uses an explicit public association, owner withdrawal and a bounded anonymous public list; see ARTICLE-LIKES.md. Real Google/admission, graduation/activity visibility, operating/privacy and actual logging requirements remain unresolved gates. No remote migration, credential/grant or contract belongs to this local unit.
+
+## Local standalone project preparation
+
+Migration0009 prepares separate private project drafts and immutable project snapshots for the local/test fixture only. Production worker/index.ts does not mount these routes and deployment never applies their schema implicitly. The project-only author journey does not require an article, but it does not resolve project reporting, media, public editing, actual authentication/eligibility or operating/privacy requirements. See STANDALONE-PROJECTS.md. No remote migration or new credential/grant/contract is included.
