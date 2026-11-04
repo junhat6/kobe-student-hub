@@ -1,3 +1,4 @@
+import PublicLikesLab from '../../src/editor/PublicLikesLab';
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import DraftEditor from '../../src/editor/DraftEditor';
@@ -16,6 +17,8 @@ else if(location.pathname==='/lab/moderation')root.render(<ModerationLab/>);
 else if(location.pathname.startsWith('/lab/moderation'))root.render(<p>この検証画面を表示できません。</p>);
 else if(location.pathname==='/lab/discover')root.render(<PublicDiscoveryLab/>);
 else if(location.pathname.startsWith('/lab/discover'))root.render(<p>この新着一覧を表示できません。</p>);
+else if(location.pathname.startsWith('/lab/likes/'))root.render(<PublicLikesLab key={location.pathname} profileId={location.pathname.slice('/lab/likes/'.length)}/>);
+else if(location.pathname.startsWith('/lab/likes'))root.render(<p>この公開いいねを表示できません。</p>);
 else if(location.pathname.startsWith('/lab/authors/'))root.render(<PublicAuthorLab key={location.pathname} authorId={location.pathname.slice('/lab/authors/'.length)}/>);
 else if(location.pathname.startsWith('/lab/authors'))root.render(<p>この投稿者を表示できません。</p>);
 else if(location.pathname.startsWith('/lab/articles/'))root.render(<PublishedArticleLab contentId={location.pathname.slice('/lab/articles/'.length)}/>);
