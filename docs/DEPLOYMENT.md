@@ -76,3 +76,9 @@ The private draft HTTP handler is a factory exercised only by local test fixture
 ## Local article reporting preparation
 
 Migration0006 prepares private report/outbox tables and same-statement notification/hiding triggers. It is exercised only in isolated tests and local development D1. It has not been applied remotely, and Worker deployment still never executes remote SQL. Production does not import the module or mount a report/operator endpoint. Outbox rows remain pending; there is no real mail sender, configured operator, restore/delete action or public report UI. Remote0004/0005/0006 and all real publishing/privacy/operations gates must be separately addressed before enabling UGC.
+
+## Local first-publication snapshot preparation
+
+Migration0007 prepares private account→public-profile links and publication provenance/snapshot triggers. It is local/test-only in this cycle; remote0004/0005/0006/0007 are not applied. The production Worker/catalog remains sample-only, and the new record-backed non-sample public read function is not mounted on any real endpoint. An active local account plus a fixture profile mapping is not an enrollment/consent/release decision.
+
+Do not wire publication into draft autosave or treat a replay as an update/restore action. New real authoring/publication needs the existing Google/browser/logout/profile/enrollment/operations/log/mail/moderation/appeal/media gates. Publication source-link deletion behavior is a technical local model; real retention/account deletion policy remains undecided. No new config/credential/operator grant/contract/deployment or screenshot publication occurs here.

@@ -204,3 +204,10 @@ Cycle17: mainCI41756626408 observed another test-only CDP body retrieval failure
 - Root147 tests (11.22s),local development migration0006,38 public desktop/mobile regressions (8.1s),build/deploy dry-run passed. Production catalog GET after trusted fixture INSERT/DB triggers keeps one/two-report articles and excludes the third-report target/private reasons/outbox fields. This is not an actual public report endpoint or operator browser flow.
 - Concurrent dedup/threshold and outbox-failure rollback verified; account unlinking preserves accepted counts/pending cases while real retention/re-registration remains undecided.
 - No actual email/notification delivery,user-facing report UI,remote0004/0005/0006,credentials/operator grants/contracts/deployment or new screenshot publication. Public runtime remains sample-only4d87f44; student/operator value and full cache/media/appeal lifecycle remain unverified.
+
+## Cycle 19 — first-publication snapshot boundary
+
+- [Design and limits](PUBLICATION-BOUNDARY.md): saved-version owner authorization, manual public profile mapping, atomic immutable first-publication snapshot and explicit anonymous DTO. Unconnected local store; no actual publish HTTP/UI.
+- [Independent QA](QA-PUBLICATION.md): final18 cases passed (745ms), six source hashes; earlier30-case checkpoint explicitly separated. Concurrent idempotence, ABORT/IGNORE rollback, later private edit/delete independence, legacy projection bounds and three-report hiding without replay restoration verified.
+- Root158 tests (11.21s), local migration0007,38 public PC/mobile regressions (8.5s),build/deploy dry-run passed. Existing production catalog excludes actual fixture publication records, private linkage and their nonsample profiles; sample4/2 remains. Production entry/assets unchanged.
+- No real-user publish/login/browser/operator/mail/student trial or actual cache/log validation. No remote0004–0007,credentials/grants/contracts/deployment or new screenshot publication; previously withheld originals remain held. Runtime remains sample source4d87f44; #38 tracks release prerequisites.
