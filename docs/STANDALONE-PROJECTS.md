@@ -25,3 +25,7 @@ Migration0009 and all project routes are local/test-only. Production entry/asset
 Project reporting is not connected to actual service. A separate local intake/read-only review experiment is scoped in [PROJECT-REPORT-REVIEW.md](PROJECT-REPORT-REVIEW.md); accepted storage is not notification, hiding or judgment. The article three-reporter rule, article likes and article moderation are not silently applied to projects. No project report/restore/delete button pretends that policy or operating responsibility exists. Images/R2, article relationships, project likes and public editing require their own scoped work. No remote SQL, credential/grant, contract, real posting or screenshot publication is part of this unit.
 
 AI/D1/browser checks establish local behavior only. A future voluntary trial should ask whether the work explanation and links help a reader understand the activity or choose a next step, including reasons the form or disclosure is unsuitable. Clicks, registrations and command success are not student value. Physical devices, Safari/IME, real accounts and data protection remain separately unverified.
+
+## Separate owner-stop experiment
+
+[PUBLICATION-STOPS.md](PUBLICATION-STOPS.md) adds an explicit local owner stop of the original snapshot from the private publication-record view. It preserves project text/private edits/report evidence and does not apply an automatic work-report threshold. It is not public editing, erasure, restoration or an agreed real withdrawal/retention policy.

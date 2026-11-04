@@ -1,3 +1,4 @@
+import {createPrivatePublicationStopHandler} from '../../worker/publication-stops-http';
 import {createPrivateOwnPublicationsHandler} from '../../worker/own-publications-http';
 import {createPrivateProjectReportHandler} from '../../worker/project-reports-http';
 import {ProjectStore} from '../../worker/projects';
@@ -15,7 +16,9 @@ const ORIGIN='https://127.0.0.1:8788';
 const privateHeaders={'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Vary':'Cookie'};
 async function localDraftResponse(result:Response,request:Request,path:string){
   // Explicit local browser fault only: send headers/first bytes now, EOF later. Never deploy this fixture.
-  if(result.status===200&&request.method==='GET'&&(/^\/api\/private\/(?:drafts|project-drafts)\/[0-9a-f-]{36}$/.test(path)||path==='/api/private/own-publications')&&request.headers.get('X-Lab-Body-Delay')==='5000'){
+  const ordinary=result.status===200&&request.method==='GET'&&(/^\/api\/private\/(?:drafts|project-drafts)\/[0-9a-f-]{36}$/.test(path)||path==='/api/private/own-publications');
+  const stop=((result.status===200&&request.method==='GET')||(result.status===200&&request.method==='POST'))&&/^\/api\/private\/publication-stops\/(?:article|project)\/[0-9a-f-]{36}$/.test(path);
+  if((ordinary||stop)&&request.headers.get('X-Lab-Body-Delay')==='5000'){
    const bytes=new Uint8Array(await result.arrayBuffer());const headers=new Headers(result.headers);headers.delete('Content-Length');
    let timer:ReturnType<typeof setTimeout>|undefined;
    const body=new ReadableStream<Uint8Array>({start(controller){const cut=Math.min(bytes.length,32);controller.enqueue(bytes.subarray(0,cut));timer=setTimeout(()=>{try{controller.enqueue(bytes.subarray(cut));controller.close()}catch{}},5000)},cancel(){clearTimeout(timer)}});
@@ -93,6 +96,7 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
   const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublished(id);
   return Response.json(result??{error:'article_unavailable'},{status:result?200:404,headers});
  }
+ const stop=await createPrivatePublicationStopHandler(env.DB,ORIGIN)(request);if(stop)return localDraftResponse(stop,request,path);
  const ownPublications=await createPrivateOwnPublicationsHandler(env.DB,ORIGIN)(request);if(ownPublications)return localDraftResponse(ownPublications,request,path);
  const projectReport=await createPrivateProjectReportHandler(env.DB,ORIGIN,['editor-operator'])(request);if(projectReport)return projectReport;
  const project=await createPrivateProjectHandler(env.DB,ORIGIN)(request);if(project)return localDraftResponse(project,request,path);

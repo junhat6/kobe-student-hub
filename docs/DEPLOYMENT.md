@@ -98,3 +98,7 @@ Migration0010 adds report intake to the isolated local/test fixture. It does not
 ## Local own-publication record read
 
 The owner-only combined record endpoint is mounted only in the isolated local/test fixture, using existing tables. It adds no migration or visibility/report/notification action and does not broaden existing publication receipts. Production worker/index.ts and sample assets remain separate. No remote operation, credential/grant, contract or deployment belongs to this read-only unit. See OWN-PUBLICATION-RECORDS.md.
+
+## Local author publication-stop preparation
+
+Local/test0011 adds two unique owner-stop marker tables and atomic hidden/status-republish guards. The isolated editor applies the entire idempotent file on startup; a first table alone is not evidence all guards exist. Production worker/index.ts does not mount this action and deployment does not apply its schema. No remote change, new credential/grant, contract, mail or deployment belongs to this unit. PUBLICATION-STOPS.md separates the experiment from real withdrawal/retention and operating policy.
