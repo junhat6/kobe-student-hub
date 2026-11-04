@@ -37,3 +37,6 @@ The dedicated editor fixture initializes existing0006 in its isolated local data
 Independent QA should run only after the implementation is frozen, reuse prior evidence where unchanged, and execute relevant actual D1/HTTP/PC-mobile boundary tests plus required regressions. Images remain local; previous held originals are not retried or uploaded. AI checks establish operation only; student value, physical devices, real school Google, actual notification/contact/appeal/restore, CDN/logs and real-world operating readiness remain unverified.
 
 Production entry/assets/sample-only gates remain unchanged. No new migration, remote0004–0007, credentials/grants, real operator configuration, email/R2/contracts, deployment or screenshot publication is part of this cycle.
+
+
+記事の読み取り専用運営画面は、フォーカス・画面切替・セッション変更・確認不能時に以前の一覧と通報詳細を閉じます。再開には明示的な既存セッション確認と新しいサーバー権限確認が必要です。実運営・実認証の有効化ではありません。境界と制約は[MODERATION-SESSION.md](MODERATION-SESSION.md)を参照してください。
