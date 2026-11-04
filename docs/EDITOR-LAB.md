@@ -35,3 +35,7 @@ Issue #41 adds a separate collapsed preparation panel in this local lab: empty a
 ## First-publication confirmation lab
 
 Issue #43 connects saved drafts and explicit profiles to an isolated first-publication confirmation and a fictional anonymous reader. See [PUBLICATION-JOURNEY.md](PUBLICATION-JOURNEY.md) for saved-version/dirty-buffer/unknown-outcome boundaries and unavailable real-service conditions. The `/lab/articles/:id` entry does not bootstrap a fictional login; it reads only record-backed published snapshots through a local fixture endpoint. No new schema or production deployment is included. All new screenshots remain local.
+
+## Report and operator review lab
+
+Issue #45 adds explicit reader reporting and a read-only `/lab/moderation` page. Existing0006 is initialized in the isolated editor DB. An explicit tests-only `/__fixture/operator-session` helper uses a seeded fictional operator and trusted localhost fixture allowlist; opening the operator page never auto-creates that identity. This is not a real permission grant or an actual moderation/contact service. The operating decisions and unprovided restore/appeal/notification/contact gates are in [MODERATION-JOURNEY.md](MODERATION-JOURNEY.md). No new migration or remote change is included; images remain local.
