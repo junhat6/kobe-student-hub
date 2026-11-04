@@ -58,3 +58,7 @@ Remote editorial application is a separate reviewed operation through an already
 Migration `0004_private_sessions.sql` is prepared and exercised against local development and isolated test D1 only. It has not been applied remotely; do not infer its application from a successful Worker build, dry-run or CI migration test. The public Worker still does not import the session store or Google login broker. Their private JSON fixtures must never be routed or deployed.
 
 Before enabling real OAuth, select the dedicated Google project/client and exact callback configuration without exposing secrets, complete the actual logging gate, validate the browser/session/controller lifecycle, and establish admission/operation policy. Any remote schema action must be reviewed for its specific target and authorization and verified separately from deployment. Real posting additionally needs the existing privacy/ownership/moderation gates. Current module tests do not remove these requirements.
+
+## Local private draft schema
+
+`0005_private_article_drafts.sql` is source preparation for private article persistence. Like session migration0004, it is not applied remotely by this cycle or by Worker deployment. Local development/test migration runs may apply it only to local D1. The production Worker still refuses draft routes and exposes the same four fictional sample entries. There is no real draft editor, autosave, publication or moderation endpoint.
