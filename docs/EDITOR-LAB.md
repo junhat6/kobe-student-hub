@@ -63,3 +63,7 @@ A published fictional `/lab/projects/:id` shows an initially collapsed report pr
 ## Own article/project publication records
 
 The existing `/lab/account` author subtree shows a private combined publication record list through its stable session consumption guard. It loads at most20 records plus an explicit indication when more exist; it neither changes visibility nor infers a report cause, notice, judgment or full history. Published records can open the existing reader in a new tab without replacing editor input. Hidden/deleted records get no reader link or mutation action. [OWN-PUBLICATION-RECORDS.md](OWN-PUBLICATION-RECORDS.md) distinguishes recorded state/source version/initial publication time from current private drafts or guaranteed public delivery. Existing schema only; no production connection or actual permission is added.
+
+## Explicit owner stop of a published snapshot
+
+Within the existing guarded author record list, a published row can be selected for a separate explicit local stop confirmation. The selected target/source version stays separate from private saved/unsaved input. The acknowledgment/manual receipt distinguishes an own stop from a generic already-hidden state. Acknowledged stops refresh the list; unknown outcomes are not auto-retried or lost when the list changes. Local0011 is fully applied on each isolated startup; no real service/schema is changed. [PUBLICATION-STOPS.md](PUBLICATION-STOPS.md) explains the one-way prototype, unchanged report evidence and unavailable restore/delete/republication/actual delivery guarantees.

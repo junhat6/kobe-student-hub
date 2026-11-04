@@ -9,6 +9,8 @@ for(const file of ['migrations/0001_discovery.sql','migrations/0004_private_sess
  if(check.status!==0){process.stderr.write(check.stderr);process.exit(check.status??1)}
  if(!JSON.parse(check.stdout).some(x=>x.results?.some(row=>row.name===table)))run(['d1','execute','kobe-editor-fixture','--config',config,'--local','--persist-to','.wrangler/editor-state','--file',file]);
 }
+// Apply every IF NOT EXISTS stop table/guard on each LOCAL startup, including partial initialization.
+run(['d1','execute','kobe-editor-fixture','--config',config,'--local','--persist-to','.wrangler/editor-state','--file','migrations/0011_publication_stops.sql']);
 run(['d1','execute','kobe-editor-fixture','--config',config,'--local','--persist-to','.wrangler/editor-state','--command',"INSERT OR IGNORE INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('editor-a','editor-fictional-a','editor-a@st.kobedenshi.ac.jp','active',0),('editor-b','editor-fictional-b','editor-b@st.kobedenshi.ac.jp','active',0),('editor-operator','editor-fictional-operator','editor-operator@st.kobedenshi.ac.jp','active',0)"]);
 const child=spawn('npx',['wrangler','dev','--config',config,'--local','--local-protocol','https','--ip','127.0.0.1','--port','8788','--persist-to','.wrangler/editor-state'],{stdio:'inherit'});
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>child.kill(signal));

@@ -18,6 +18,10 @@ An article may become hidden after the existing three-account local report flow.
 
 Refresh removes stale visible rows while waiting and on failure. Existing session uncertainty hides private author state; same-session recovery preserves editor input. Confirmed invalidation or a different token discards the old subtree and requires the established continuation flow. Bounded session observations are not instantaneous atomic cross-tab detection, heap erasure or reversal of committed actions.
 
+## Separate owner-stop experiment
+
+A separately scoped local author action can stop a selected original publication from this list; see [PUBLICATION-STOPS.md](PUBLICATION-STOPS.md). The record GET remains read-only. Stopping is not public editing, report adjudication, erasure or restoration, and does not establish actual withdrawal/retention policy.
+
 ## Remaining release and value gates
 
 This unit is local/test-only, using existing schema. It adds no publication/edit/restore/delete/appeal/notification action, real operator, migration, remote SQL, credential/grant, contract, R2/mail, deployment or screenshot publication. Production sample entry/assets and actual connection remain unchanged. Real school Google/admission/graduation, operating responsibility/notification/judgment/explanation/contact/retention, project reporting scope, actual log/cache/privacy and student/physical-device evidence remain unfinished.
