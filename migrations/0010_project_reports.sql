@@ -1,0 +1,4 @@
+-- Local-only project report intake. No threshold, visibility transition, notification or retention policy.
+CREATE TABLE project_reports(id TEXT NOT NULL PRIMARY KEY,project_id TEXT NOT NULL REFERENCES project_publications(id),reporter_account_id TEXT REFERENCES private_accounts(id) ON DELETE SET NULL,reason TEXT NOT NULL,detail TEXT NOT NULL,created_at_ms INTEGER NOT NULL CHECK(created_at_ms BETWEEN 0 AND 253402300799999),UNIQUE(project_id,reporter_account_id));
+CREATE INDEX project_reports_recent ON project_reports(project_id,created_at_ms DESC,id ASC);
+CREATE TRIGGER project_reports_valid_insert BEFORE INSERT ON project_reports BEGIN SELECT CASE WHEN NEW.reporter_account_id IS NULL OR NOT EXISTS(SELECT 1 FROM private_accounts WHERE id=NEW.reporter_account_id AND status='active') OR NOT EXISTS(SELECT 1 FROM project_publications WHERE id=NEW.project_id AND status='published') THEN RAISE(ABORT,'project report unavailable') END; END;

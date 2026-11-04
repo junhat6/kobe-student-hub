@@ -1,0 +1,9 @@
+import type {ProjectReportCase,ProjectReportCaseSummary} from '../project-report-types';
+import {projectReportRequest,ProjectReportClientError,validProjectReportInput} from './project-report-client';
+import {projectUUID,validProjectReader} from './project-client';
+import {publicKeys,publicText} from './public-author-client';
+const time=(v:unknown)=>Number.isSafeInteger(v)&&Number(v)>=0&&Number(v)<=253402300799999;
+const status=(v:unknown)=>v==='published'||v==='hidden'||v==='deleted';
+function summary(v:unknown):v is ProjectReportCaseSummary{return publicKeys(v,['projectId','title','status','latestReportAt'])&&projectUUID(v.projectId)&&publicText(v.title,200)&&Boolean(v.title.trim())&&status(v.status)&&time(v.latestReportAt)}
+function detail(v:unknown,id:string):v is ProjectReportCase{return publicKeys(v,['project','author','status','reports','reportsTruncated'])&&validProjectReader({project:v.project,author:v.author},id)&&status(v.status)&&typeof v.reportsTruncated==='boolean'&&Array.isArray(v.reports)&&v.reports.length>0&&v.reports.length<=20&&(!v.reportsTruncated||v.reports.length===20)&&v.reports.every(r=>publicKeys(r,['reason','detail','receivedAt'])&&validProjectReportInput({reason:r.reason,detail:r.detail})&&time(r.receivedAt))}
+export function createProjectModerationClient(fetcher:typeof fetch=fetch){return {async queue(signal?:AbortSignal):Promise<ProjectReportCaseSummary[]>{const v=await projectReportRequest('/api/private/project-moderation/cases',fetcher,signal);if(!Array.isArray(v)||v.length>20||!v.every(summary)||new Set(v.map(r=>r.projectId)).size!==v.length)throw new ProjectReportClientError();return v},async read(id:string,signal?:AbortSignal):Promise<ProjectReportCase>{if(!projectUUID(id))throw new ProjectReportClientError();const v=await projectReportRequest('/api/private/project-moderation/cases/'+id,fetcher,signal);if(!detail(v,id))throw new ProjectReportClientError();return v}}}

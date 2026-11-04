@@ -90,3 +90,7 @@ Migration0008 and the article-like handlers are local/test-only. Production work
 ## Local standalone project preparation
 
 Migration0009 prepares separate private project drafts and immutable project snapshots for the local/test fixture only. Production worker/index.ts does not mount these routes and deployment never applies their schema implicitly. The project-only author journey does not require an article, but it does not resolve project reporting, media, public editing, actual authentication/eligibility or operating/privacy requirements. See STANDALONE-PROJECTS.md. No remote migration or new credential/grant/contract is included.
+
+## Local project report preparation
+
+Migration0010 adds report intake to the isolated local/test fixture. It does not change project visibility or introduce notification, operator judgment, restore/delete or article thresholds. Production worker/index.ts does not mount these handlers. Local fictional operator access does not provision a real role. No remote schema, credential/grant, contract, mail or deployment belongs to this unit. See PROJECT-REPORT-REVIEW.md for the unresolved work-policy and actual-activation boundaries.

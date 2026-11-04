@@ -1,3 +1,4 @@
+import ProjectModerationLab from '../../src/editor/ProjectModerationLab';
 import PublicProjectLab from '../../src/editor/PublicProjectLab';
 import ProjectAuthorLab from '../../src/editor/ProjectAuthorLab';
 import PublicLikesLab from '../../src/editor/PublicLikesLab';
@@ -15,6 +16,8 @@ root.render(<p>ローカル専用の実験環境を準備しています。</p>)
 if(location.origin!=='https://127.0.0.1:8788')root.render(<p>この実験環境は指定のローカルURLでのみ動きます。</p>);
 else if(location.pathname==='/lab/account')root.render(<AccountSessionLab/>);
 else if(location.pathname.startsWith('/lab/account'))root.render(<p>この検証画面を表示できません。</p>);
+else if(location.pathname==='/lab/project-moderation')root.render(<ProjectModerationLab/>);
+else if(location.pathname.startsWith('/lab/project-moderation'))root.render(<p>この作品通報画面を表示できません。</p>);
 else if(location.pathname==='/lab/moderation')root.render(<ModerationLab/>);
 else if(location.pathname.startsWith('/lab/moderation'))root.render(<p>この検証画面を表示できません。</p>);
 else if(location.pathname==='/lab/discover')root.render(<PublicDiscoveryLab/>);

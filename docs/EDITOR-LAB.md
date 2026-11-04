@@ -55,3 +55,7 @@ Issue #45 adds explicit reader reporting and a read-only `/lab/moderation` page.
 ## 新しく公開された記事を探す
 
 /lab/discover では、架空のローカル投稿を新しい順に20件まで見つけて、記事・投稿者へ進めます。公開確認後の一覧リンクは別タブで開きます。記事がない状態と取得失敗を分け、本文や認証情報はカードへ載せません。全件検索・推薦・一般公開サービスではありません。[範囲・限界](RECENT-FEED.md)。
+
+## Local project report intake and review
+
+A published fictional `/lab/projects/:id` shows an initially collapsed report preparation action. It checks only an existing session after explicit preparation; accepted private reason/detail are not put into public project/author DTOs. `/lab/project-moderation` uses the existing explicit fixture operator helper and trusted localhost allowlist for read-only queue/case review; visiting the page never provisions that role. Local0010 is initialized in the isolated editor DB. Intake does not automatically hide works, notify anyone or mark a case handled. At most20 targets and20 newest reports per case are bounded views, with an explicit partial-case notice when more exist. [PROJECT-REPORT-REVIEW.md](PROJECT-REPORT-REVIEW.md) separates this technical experiment from unresolved work reporting policy and actual service. No real identity, role grant, remote migration, email or screenshot publication is involved.
