@@ -34,6 +34,17 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
    return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
   }catch{return Response.json({error:'unavailable'},{status:400,headers:privateHeaders})}
  }
+ // Fictional local author discovery. Never deploy this fixture or expose orphan/private profiles.
+ if(path.startsWith('/__lab/authors')){
+  const url=new URL(request.url);const id=path.slice('/__lab/authors/'.length);
+  const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Type':'application/json; charset=utf-8'};
+  const unavailable=()=>new Response(JSON.stringify({error:'author_unavailable'}),{status:404,headers});
+  if(!path.startsWith('/__lab/authors/')||url.search||url.hash||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id))return unavailable();
+  if(request.method!=='GET')return new Response(JSON.stringify({error:'method_not_allowed'}),{status:405,headers:{...headers,Allow:'GET'}});
+  const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublishedAuthor(id);if(!result)return unavailable();
+  const body=JSON.stringify(result);if(new TextEncoder().encode(body).byteLength>262144)return unavailable();
+  return new Response(body,{headers});
+ }
  // Fictional local anonymous article delivery: no session bootstrap, cookies or private projection.
  if(path.startsWith('/__lab/articles/')){
   const url=new URL(request.url);const id=path.slice('/__lab/articles/'.length);
