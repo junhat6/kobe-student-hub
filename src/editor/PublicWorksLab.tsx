@@ -1,0 +1,11 @@
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {Button} from '@base-ui/react/button';
+import type {PublicProjectDiscovery} from '../project-types';
+import {createPublicWorksClient} from './public-works-client';
+import PublicProjectCard from './PublicProjectCard';
+import './project.css';
+export default function PublicWorksLab(){const client=useMemo(()=>createPublicWorksClient(),[]),mounted=useRef(true),generation=useRef(0),lock=useRef(false),request=useRef<AbortController|null>(null);const [value,setValue]=useState<PublicProjectDiscovery|null>(null),[busy,setBusy]=useState(false),[failed,setFailed]=useState(false);
+ async function refresh(){if(lock.current)return;lock.current=true;const run=++generation.current,controller=new AbortController();request.current=controller;setBusy(true);setFailed(false);setValue(null);try{const result=await client.read(controller.signal);if(mounted.current&&run===generation.current)setValue(result)}catch{if(mounted.current&&run===generation.current)setFailed(true)}finally{if(mounted.current&&run===generation.current){lock.current=false;setBusy(false)}}}
+ useEffect(()=>{mounted.current=true;void refresh();return()=>{mounted.current=false;generation.current++;request.current?.abort();lock.current=false}},[client]);
+ return <div className="project-public"><header>Kobe Student Hub · ローカル作品の探索</header><main><p className="project-local">画像なしの架空作品によるローカル限定の検証です。実際の学校ログインや一般投稿、運営判断は提供していません。</p><nav className="project-public-nav" aria-label="公開内容のナビゲーション"><a href="/lab/discover">公開記事を探す</a><a href="/lab/works" aria-current="page">公開作品を探す</a></nav><h1>新しい公開作品</h1><p>新しく公開した作品を最大20件表示します。作品の説明と投稿者を手がかりに、気になる制作をたどれます。人気順・おすすめ順位や全件検索ではありません。</p><Button disabled={busy} onClick={()=>void refresh()}>公開作品を再確認</Button>{failed?<section><h2>公開作品を表示できません</h2><p>接続や公開状態を確認できませんでした。作品がないとは判断できません。</p></section>:!value?<p role="status">公開作品を読み込んでいます…</p>:value.cards.length===0?<section><h2>公開作品はまだありません</h2><p>このローカル検証で公開された作品が、ここに表示されます。</p></section>:<section aria-label="新しい公開作品の一覧" className="project-cards">{value.cards.map(card=><PublicProjectCard key={card.project.id} project={card.project} author={card.author}/>)}</section>}</main><footer>ローカル専用 · 学生による価値・実端末での検証は未実施です。</footer></div>
+}
