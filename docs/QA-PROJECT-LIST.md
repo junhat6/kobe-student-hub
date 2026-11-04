@@ -23,12 +23,12 @@ After source freeze and the parent's complete checks, independently ran the focu
 ```sh
 npx vitest run tests/project-list.test.ts tests/project-client.test.ts
 npm run editor:build
-KOBE_LOCAL_EVIDENCE_DIR=/tmp/kobe-project-list-final-images npx playwright test --config playwright.editor.config.ts tests/editor-project-list.spec.ts tests/editor-project-list-independent.spec.ts --workers=1 --output=/tmp/kobe-project-list-final-output --reporter=list
+KOBE_LOCAL_EVIDENCE_DIR=/tmp/kobe-project-list-final-fixed-images npx playwright test --config playwright.editor.config.ts tests/editor-project-list.spec.ts tests/editor-project-list-independent.spec.ts --workers=1 --output=/tmp/kobe-project-list-final-fixed-output --reporter=list
 ```
 
 - 10 unit tests passed in83 milliseconds: merge helper3 and unchanged project client7.
 - Final editor assets: `index-DBeOr-vz.js` and `index-BTAIEj4w.css`.
-- 10 browser cases passed in29.9 seconds: developer scenarios6 plus independent scenarios4, across desktop and mobile emulation. No physical device was used.
+- 10 browser cases passed in30.0 seconds: developer scenarios6 plus independent scenarios4, across desktop and mobile emulation. No physical device was used.
 - The parent's separate350 tests/public48/editor164/build/dry-run pass and developer12 browser cases are separate evidence, not additional independent runs. Unchanged backend/authentication suites were not repeated.
 - Local self-signed HTTPS produced handshake diagnostics while browser contexts deliberately ignored that local certificate. Cases completed successfully without OS trust changes.
 
@@ -50,24 +50,34 @@ The first independent scenario updates a real local draft to version2, then star
 
 The second independent scenario starts with an actual immutable public version1, edits the private title/description and confirms version2 through UI, then types unsaved version3. The private list immediately shows the renamed title/version2. The textarea still contains unsaved version3. A fresh anonymous context retrieves the original title/description through both the project reader and new works feed; its rendered reader uses the matching mobile/desktop viewport, and its cookie jar stays empty. No private version is silently published.
 
-No implementation or test changes were made during this final independent run. PROJECT-LIST.md and the screen distinguish known confirmations from complete current server state. A manual refresh can observe a different point in time; this unit does not add synchronization or draft history.
+No implementation changes were made during independent execution. The final test-only setup correction and its verification are described below. PROJECT-LIST.md and the screen distinguish known confirmations from complete current server state. A manual refresh can observe a different point in time; this unit does not add synchronization or draft history.
+
+## CI setup-ordering correction
+
+The earlier independent10-case checkpoint passed29.9 seconds. Subsequent CI run41829031920 completed163 editor cases but timed out in the new mobile delayed-GET test while locating the old-title button, before reaching its EOF/privacy assertions. Its setup waited only for the form, not the initial version1 list. This allowed the actual version2 PUT to precede the initial server list read. The available CI timeout does not itself show what list title was rendered.
+
+A separate ignored, forced-ordering diagnostic held the initial list GET, established the visible form, committed actual PUT version2, then released the list request. It passed1 desktop case in12.5 seconds: the list legitimately returned the new title/version2 and no old-title button. This demonstrates a possible ordering and the missing test precondition; it does not claim the exact CI request chronology was observed.
+
+The committed independent test now explicitly awaits its version1 row, exact old-title button and version1 metadata before starting PUT version2. All delayed-EOF, timing, session-change and privacy assertions remain unchanged. No product code, timeout, retry or backend was changed. Type checking passed, an explicit editor rebuild produced the same assets, and the complete focused10 cases then passed30.0 seconds. The unchanged unit10/83ms evidence remains valid. The final eight images below were regenerated into the distinct fixed directory and all reopened; older images are historical evidence only. Overlapping checkpoints are not summed.
+
+Ignored probe SHA-256: `d31f5255362b29b0b32403b67bd714564d23eef6822ebad038f270d8268ec782`.
 
 ## Local visual evidence
 
-Independent QA opened all eight final images. The parent separately opened exactly five: desktop03 and mobile01/02/03/04; both baseline images were also opened separately. The updated title/version2 row, current saved2 and unsaved3 are simultaneously readable. Closed-A and new-B-empty states contain no old row. The anonymous reader retains public version1. Long mobile text wraps without observed overlap. These selected regions are not whole-page accessibility or physical-device evidence.
+Independent QA opened all eight final fixed-directory images. The parent separately opened exactly five images from that same final fixed directory: desktop03 and mobile01/02/03/04; both baseline images were also opened separately. The updated title/version2 row, current saved2 and unsaved3 are simultaneously readable. Closed-A and new-B-empty states contain no old row. The anonymous reader retains public version1. Long mobile text wraps without observed overlap. These selected regions are not whole-page accessibility or physical-device evidence.
 
-Images remain only under `/tmp/kobe-project-list-final-images`. Tests require explicit KOBE_LOCAL_EVIDENCE_DIR under `/tmp`; default CI writes no new screenshots. No image publication/upload was attempted.
+Images remain only under `/tmp/kobe-project-list-final-fixed-images`. Tests require explicit KOBE_LOCAL_EVIDENCE_DIR under `/tmp`; default CI writes no new screenshots. No image publication/upload was attempted.
 
 | Local image path | SHA-256 |
 | --- | --- |
 | `editor-desktop/01-old-draft-metadata-scope-discarded.png` | `54ea82b4dc70375c539a74385aff6eaf853044aaf8b2c3f3abd344951d0cf657` |
 | `editor-desktop/02-new-account-no-old-row-merge.png` | `298a1f8b6e04de83bd858814caa3fe1f6f103746875cc763493d5b9196c20d6d` |
-| `editor-desktop/03-confirmed-list-two-unsaved-three.png` | `c7a716b3dc88c61a3322590745450c78ca8d1f5f5667f22905bf5d6ff31a98fc` |
-| `editor-desktop/04-anonymous-original-public-one.png` | `8495b25dd104ebcbf83ee32f0b18e60c19cfbbd0b70800b30e5ef1639748fe88` |
+| `editor-desktop/03-confirmed-list-two-unsaved-three.png` | `bd802a18cb4e2335fd08a9b9ac24b32c9c40445234d36040e3e4bd5115a50c3f` |
+| `editor-desktop/04-anonymous-original-public-one.png` | `130ebaff6380fe4e2924833e0bdc556a98c96b40ee4f587148601944c9878b80` |
 | `editor-mobile/01-old-draft-metadata-scope-discarded.png` | `bf76466c1ae4f7272de651ccfc5479783a8ec10e602a85fb0f1a7544507834df` |
 | `editor-mobile/02-new-account-no-old-row-merge.png` | `9357789548c87ad0920cd2ceae846e8d30d73417c0e98544b87bef0dc4e1ac79` |
-| `editor-mobile/03-confirmed-list-two-unsaved-three.png` | `e3efc82c22bed88b13f4581fce77443796f77b68f831d9d4e08e6878136fdfd2` |
-| `editor-mobile/04-anonymous-original-public-one.png` | `5b2b068436ed37c6a9ca8c988369821fd4e5af8d5aa60d7733c9ac32b339b312` |
+| `editor-mobile/03-confirmed-list-two-unsaved-three.png` | `1061272c0a89b75457c7c53cf8654896b49c518ea9fa7ecca543071814183fdb` |
+| `editor-mobile/04-anonymous-original-public-one.png` | `d942857dd95ea788a4cd8119a8c5ecba919eb744cc2e44fdfeb9fbc21f56193c` |
 
 ## Final source fingerprints
 
@@ -81,7 +91,7 @@ Unchanged client and local fixture hashes identify the boundaries reused by the 
 | `tests/project-list.test.ts` | `d1c6407ca219f995521b13522f236d1f9932dfcc1a68fc0d3a47093c668b80e2` |
 | `tests/project-client.test.ts` | `38b263135eb50e6135e9dd1e416e10c5314919d7146968b7bd1d9af573157fbe` |
 | `tests/editor-project-list.spec.ts` | `fd77853b25dbcab7274a83f9dbdef71c7b4dfb4ae8648b85b1cb7b34f35e3747` |
-| `tests/editor-project-list-independent.spec.ts` | `80a84bc103de1da86d5db01a6cc3e53fa373fb8498d81887fd8e71537713cc45` |
+| `tests/editor-project-list-independent.spec.ts` | `33e4b3be3ad53c004f657de008dcc72a72b842e91bd692a3049bb0a3c698bbb5` |
 | `tests/fixtures/editor-worker.ts` | `787f0628aaeed400ac2fca160431bface9bfbc5dd25577fe16d0deb8b516b47d` |
 
 ## Limits
