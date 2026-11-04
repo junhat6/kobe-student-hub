@@ -332,3 +332,11 @@ Independent final backend30 (6.51s) reuses the relevant moderation12/HTTP11/publ
 **Validation:** TypeScript/build,271 tests (11.29s),38 public PC/mobile regressions (8.2s) and deployment dry-run passed. Existing production asset fingerprints are unchanged. Separate QA passed the12 deployment-config cases (366ms), reviewed the installed Wrangler schema and recorded source hashes in QA-LOGGING-GATE.md. No user-facing behavior changed, so no additional UI screenshots were needed.
 
 **Replanning:** The source template now requests query-string redaction and its generated-config preservation is regression checked. This cannot establish deployed settings, every logging layer, callback secrecy or real authentication readiness. Actual OAuth and student value validation remain separate unfinished gates.
+
+## Cycle 28 — first real-user release prerequisites
+
+**Planner:** Compared further local feature additions with the remaining real-user connection work in Issue38. The basic local publication/discovery journey now exists; the next useful public change is a concise restart point that separates local implementation evidence, actual connection evidence, external settings/policy decisions and student/device validation. No new policy or PRD change is inferred.
+
+**Scope:** FIRST-RELEASE.md maps existing release gates to acceptance evidence and the next action, with a README entry. It links existing authentication, ownership, moderation, media, deployment and trial records. This is a documentation index, not completion of its listed gates; operational data is outside this public change.
+
+**Replanning:** Prioritize real authentication/admission and operating decisions plus actual privacy/delivery evidence over speculative local features. Use the checklist to select a bounded next action and retain explicit unknowns. Student usefulness and physical-device behavior require their own observations.

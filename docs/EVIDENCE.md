@@ -275,3 +275,7 @@ Cycle17: mainCI41756626408 observed another test-only CDP body retrieval failure
 ## Cycle 27 — source query-redaction configuration
 
 The Wrangler template requests query-string redaction; the existing generated-config roundtrip verifies preservation. Root passed build,271 tests,38 public PC/mobile cases and deployment dry-run; assets unchanged. [Independent source QA](QA-LOGGING-GATE.md) passed12 configuration tests and fixes source hashes. No runtime privacy or working OAuth claim follows from this source-only evidence.
+
+## Cycle 28 — first real-user release prerequisites
+
+[FIRST-RELEASE.md](FIRST-RELEASE.md) separates local prototype evidence, actual connection evidence, external settings/policy decisions and student/device validation, linking existing gate documents. [Independent documentation QA](QA-FIRST-RELEASE.md) reviewed the checklist and README/WORK against Issue38 and existing documents, found no blocking issue and checked28 repository-local links with0 missing. Root TypeScript/build and link checks passed; production assets are unchanged. Documentation-only scope adds no runtime behavior or gate-completion claim. No additional local functional tests were needed; existing mandatory CI remains enabled.

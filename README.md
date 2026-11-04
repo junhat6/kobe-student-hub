@@ -32,7 +32,7 @@ npm run deploy:check
 
 React + TypeScript + Vite、Tailwind CSS v4、Base UI、Hono、Cloudflare Workers Static Assets + D1。Markdownはreact-markdownでHTMLを無効化し、コード強調を行います。初期段階では画像・埋め込みを受け付けません。
 
-[現在の作業と再計画](docs/WORK.md) · [検証記録](docs/EVIDENCE.md) · [独立QA](docs/QA-INDEPENDENT.md) · [デプロイ](docs/DEPLOYMENT.md) · [設計判断](docs/DECISIONS.md) · [デザイン](DESIGN.md)
+[初回公開の残条件](docs/FIRST-RELEASE.md) · [現在の作業と再計画](docs/WORK.md) · [検証記録](docs/EVIDENCE.md) · [独立QA](docs/QA-INDEPENDENT.md) · [デプロイ](docs/DEPLOYMENT.md) · [設計判断](docs/DECISIONS.md) · [デザイン](DESIGN.md)
 
 ## 自律開発
 
