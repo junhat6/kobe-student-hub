@@ -34,7 +34,7 @@ describe('public data boundary on Workers and D1',()=>{
  it('keeps authentication and posting closed despite client-supplied identity claims',async()=>{
   const auth=await mf.dispatchFetch('http://test/api/auth/callback',{method:'POST',headers:{Authorization:'Bearer client-supplied-token','Content-Type':'application/json'},body:JSON.stringify({email:'fixture-do-not-use@st.kobedenshi.ac.jp',email_verified:true,role:'admin',accountId:'owner'})});
   expect(auth.status).toBe(405);expect(auth.headers.get('set-cookie')).toBeNull();
-  for(const [method,path] of [['GET','/api/auth/start'],['POST','/api/auth/start'],['GET','/api/auth/callback'],['GET','/api/private/profile'],['POST','/api/private/profile']]){const r=await mf.dispatchFetch('http://test'+path,{method});expect(r.status).toBe(405);expect(r.headers.get('set-cookie')).toBeNull();expect(r.headers.get('location')).toBeNull()}
+  for(const [method,path] of [['GET','/api/auth/start'],['POST','/api/auth/start'],['GET','/api/auth/callback'],['GET','/api/private/profile'],['POST','/api/private/profile'],['GET','/api/private/publications/11111111-1111-4111-8111-111111111111'],['POST','/api/private/publications/11111111-1111-4111-8111-111111111111']]){const r=await mf.dispatchFetch('http://test'+path,{method});expect(r.status).toBe(405);expect(r.headers.get('set-cookie')).toBeNull();expect(r.headers.get('location')).toBeNull()}
   const health=await mf.dispatchFetch('http://test/api/health');expect((await health.json() as {writesEnabled:boolean}).writesEnabled).toBe(false);
  });
  it('returns a safe error when storage is unavailable',async()=>{

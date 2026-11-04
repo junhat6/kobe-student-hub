@@ -31,3 +31,7 @@ Real identity changes/logout must remount and clear private editor state under a
 ## First public-profile preparation
 
 Issue #41 adds a separate collapsed preparation panel in this local lab: empty author-entered public fields, reader preview and explicit first-create confirmation. It does not import Google name/photo/email or change the draft editor's private buffers. The existing session bootstrap remains fictional and must never be deployed. [PUBLIC-PROFILE.md](PUBLIC-PROFILE.md) defines the private endpoint, atomic mapping, retry and unprovided update/delete/eligibility boundaries. Local schema initialization now also uses0001 and0007 from the repository in the isolated editor database; no remote or production database is touched. New profile screenshots remain local and outside CI uploads.
+
+## First-publication confirmation lab
+
+Issue #43 connects saved drafts and explicit profiles to an isolated first-publication confirmation and a fictional anonymous reader. See [PUBLICATION-JOURNEY.md](PUBLICATION-JOURNEY.md) for saved-version/dirty-buffer/unknown-outcome boundaries and unavailable real-service conditions. The `/lab/articles/:id` entry does not bootstrap a fictional login; it reads only record-backed published snapshots through a local fixture endpoint. No new schema or production deployment is included. All new screenshots remain local.

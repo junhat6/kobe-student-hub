@@ -1,3 +1,5 @@
+import {createPrivatePublicationHandler} from '../../worker/publication-http';
+import {ArticlePublicationStore} from '../../worker/publication';
 import {createPrivateProfileHandler} from '../../worker/profile-http';
 import {SessionStore} from '../../worker/auth/sessions';
 import {createPrivateDraftHandler} from '../../worker/draft-http';
@@ -23,6 +25,15 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
    return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
   }catch{return Response.json({error:'unavailable'},{status:400,headers:privateHeaders})}
  }
+ // Fictional local anonymous article delivery: no session bootstrap, cookies or private projection.
+ if(path.startsWith('/__lab/articles/')){
+  const url=new URL(request.url);const id=path.slice('/__lab/articles/'.length);
+  const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff'};
+  if(request.method!=='GET'||url.search||url.hash||!(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id)))return Response.json({error:'article_unavailable'},{status:404,headers});
+  const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublished(id);
+  return Response.json(result??{error:'article_unavailable'},{status:result?200:404,headers});
+ }
+ const publication=await createPrivatePublicationHandler(env.DB,ORIGIN)(request);if(publication)return publication;
  const profile=await createPrivateProfileHandler(env.DB,ORIGIN)(request);if(profile)return profile;
  const result=await createPrivateDraftHandler(env.DB,ORIGIN)(request);if(result)return result;
  if(path.startsWith('/api/')||path.startsWith('/__fixture/'))return Response.json({error:'unavailable'},{status:404,headers:privateHeaders});
