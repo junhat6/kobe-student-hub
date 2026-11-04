@@ -1,3 +1,4 @@
+import {createPrivateProjectReportHandler} from '../../worker/project-reports-http';
 import {ProjectStore} from '../../worker/projects';
 import {createPrivateProjectHandler} from '../../worker/projects-http';
 import {createPrivateLikeHandler} from '../../worker/likes-http';
@@ -91,6 +92,7 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
   const result=await new ArticlePublicationStore(env.DB,ORIGIN).readPublished(id);
   return Response.json(result??{error:'article_unavailable'},{status:result?200:404,headers});
  }
+ const projectReport=await createPrivateProjectReportHandler(env.DB,ORIGIN,['editor-operator'])(request);if(projectReport)return projectReport;
  const project=await createPrivateProjectHandler(env.DB,ORIGIN)(request);if(project)return localDraftResponse(project,request,path);
  const like=await createPrivateLikeHandler(env.DB,ORIGIN)(request);if(like)return like;
  const session=await createPrivateSessionHandler(env.DB,ORIGIN)(request);if(session)return session;
