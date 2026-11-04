@@ -2,7 +2,7 @@
 
 ## Scope
 
-An unconnected D1-backed attempt repository, not a working OAuth callback. No route starts/consumes attempts in the production Worker. The remote auth-state table migration has not been applied; it remains a separate authorization gate, and Worker deployment does not implicitly run it. No real Google setting, user, session, code exchange, PKCE storage, permission grant or publication gate is enabled here.
+An unconnected D1-backed attempt repository, not a working OAuth callback. No route starts/consumes attempts in the production Worker. After new explicit user authorization, migration 0003 was applied to the dedicated preview D1 and independently checked; see [remote migration evidence](QA-AUTH-MIGRATION.md). The table is empty and no production route uses it. It must not be replayed or reset. Worker deployment still does not implicitly run remote SQL. No real Google setting, user, session, code exchange, PKCE storage, permission grant or publication gate is enabled here.
 
 `OAuthAttemptStore.start()` generates fresh 256-bit state, browser-binding and nonce values using Web Crypto. Only SHA-256 digests of state/browser-binding go into the private table; the nonce remains private transient verification context. No authorization code, access/ID/refresh token, PKCE verifier or client secret is stored. Return values must never be logged or placed in public data. Future callers must bind browserBinding to a secure server-owned browser context, not accept it as an arbitrary callback JSON field. Cookie transport and parallel-tab behavior are not designed by this primitive.
 
