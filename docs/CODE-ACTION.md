@@ -6,7 +6,7 @@ PRD experience E23 (try something on one's own PC after reading) was adopted by 
 
 | Candidate | Next useful step / constraint | This cycle |
 | --- | --- | --- |
-| Real sign-in and publishing | Requires authorized remote auth migration/configuration, sessions/private data, enrollment and moderation/operator gates | Keep closed; do not retry the denied migration |
+| Real sign-in and publishing | The attempt table is now authorized/applied, but configuration, sessions/private data, enrollment and moderation/operator gates remain | Keep closed; do not replay the applied migration |
 | Markdown authoring with assist and edit/preview | Needs a coherent private save/recovery and publication flow; a disposable editor would add another preparation surface | Defer; renderer remains reusable, no editor prototype added |
 | Images and video | Images require private ownership/lifecycle and R2 activation terms; YouTube/media behavior and privacy need an explicit implementation choice | Defer; do not enable uploads, image fetching or iframe embeds |
 | More card-comparison features | The existing A/B prototype already supports a student trial; more UI cannot replace students' feedback | Keep as is; #5 remains unvalidated |

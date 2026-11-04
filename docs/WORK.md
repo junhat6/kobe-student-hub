@@ -15,7 +15,7 @@
 | Priority / task | Acceptance / boundary | State |
 | --- | --- | --- |
 | P0: resolve preview infrastructure | Specifically authorize new D1 resource/cost implications; use least required access; deploy only new resources; verify literal returned URL/headers/API | Dedicated preview deployed and independently verified; standalone CI deploy activation pending |
-| P0: school identity and privacy foundation | Server-side Google identity/verified domain checks, opaque sessions, CSRF, private data model, no automatic name/photo publication, ownership and graduation tests | Internal verifier/one-time boundaries prepared; live OAuth/session settings pending |
+| P0: school identity and privacy foundation | Server-side Google identity/verified domain checks, opaque sessions, CSRF, private data model, no automatic name/photo publication, ownership and graduation tests | Verifier/one-time boundaries and authorized remote attempt schema prepared; live OAuth/session settings pending |
 | P0: real publishing safety | Private drafts and media, author editing, unique-reporter three-person temporary hiding, protected operator recovery/deletion, failure-safe email outbox and contact/appeal path | Planned; never enable real posting before this gate |
 | P1: authoring across devices | Markdown assist + preview, explicit publish, optimistic concurrency, autosave status and safe recovery; image/YouTube policies before enabling | Planned |
 | P1: public likes, private history, recommendation | Correct privacy boundaries and deletion; real counts only; simple explainable tag/newness logic | Planned |
@@ -69,7 +69,7 @@ The [sample preview](https://kobe-student-hub-preview.ideaboost-whiteboard.worke
 
 R2/image work is a separate next stage in MEDIA-PLAN.md. No paid upgrade or R2 subscription was accepted. Prefer existing/free allowances; exact activation/payment/usage conditions require the applicable confirmation.
 
-Remote auth-state migration 0003 is a separate pending authorization, not part of the initial sample bootstrap. Do not hide it in automatic deploy or retry it by another tool. Worker-only deployment can continue against the already initialized sample schema.
+Remote auth-state migration 0003 was subsequently applied under new explicit user authorization and verified (see Cycle 10 and QA-AUTH-MIGRATION.md). It was not part of initial bootstrap and is never an implicit deploy step. Do not replay/reset it. Worker-only deployment remains separate from remote SQL.
 
 ## Cycle 05 — body-load failure recovery
 
@@ -113,3 +113,12 @@ Remote auth-state migration 0003 is a separate pending authorization, not part o
 **Developer:** Manual selection is always visible and usable during pending writes. Pending disables only repeat native writes, does not claim cancellation, and late resolve/reject preserves manual guidance. Git sample separates branch, README edit, diff and commit, with explicit practice prerequisites. A guarded one-row content revision preserves immutable bootstrap history and leaves remote auth migration 0003 untouched. Remote editorial application is separate from Worker deploy and still must be verified.
 
 **Verification / replanning:** Root final build/70 tests/38 E2E (16.2s)/dry-run passed. Exact article command blocks ran in a disposable /tmp Git repository with dummy identity, isolated config and hooks disabled: no manual edit caused expected nothing-to-commit; after the README edit, diff/commit succeeded with two commits and clean try-new-title branch. This is fixture operation, not a student practice/learning result. [Independent QA](QA-CODE-PRACTICE.md) separately passed six Worker and eight browser cases and the disposable Git practice, with four visually checked images and no remaining blocker. Remote/public release status is recorded in PR #22. The optional E23 observation now fits the existing #5 plan, without extra study UI or private-data intake. OS clipboard/physical iPhone remain untested; auth/R2 holds remain.
+
+
+## Cycle 10 — authorized remote attempt schema, login stays closed
+
+**Authorization / action:** The owner explicitly authorized adding the authentication-test table to preview D1 without deleting existing data, acknowledging that this does not enable login. The earlier rejected operation was checked as unexecuted, then retried exactly once with the new evidence. The unchanged 0003 table/index plus migration-ledger insert succeeded.
+
+**Evidence:** Root reran all 70 local tests, captured before/after full published-sample/profile rows, total counts and old ledger rows, and confirmed exact preservation. The new table is empty; schema/index and ledger 0003 are present. Independent read-only remote and local-runtime QA are in QA-AUTH-MIGRATION.md. No remote attempt/credential/user row, endpoint, secret, permission grant or contract was created. The deployed Worker source remains 4d87f44; this follow-up is documentation only and is not another app deployment. Historical cycle/QA records below/above describe their own execution time and are superseded on this schema status.
+
+**Next development decision:** #4 remains open. Next select the smallest coherent browser-bound PKCE/state/attempt + opaque-session/CSRF flow once the dedicated Google client/redirect/secure settings and relevant operator/enrollment/logging conditions can be verified. Technical local design is possible; table existence alone is not a reason to expose a callback or accept client identity. Real provider exchange, one-time lifecycle, session fixation/replay, stored-owner access and actual secret-bearing log behavior still require implementation/verification. Retention/cleanup is not automatic. This task does not authorize another persistent grant, real sign-in or posting. #5's read-only student trial remains available independently of R2; its value evidence is still missing.
