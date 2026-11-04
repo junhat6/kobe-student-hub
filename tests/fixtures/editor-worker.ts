@@ -54,6 +54,14 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
    return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
   }catch{return Response.json({error:'unavailable'},{status:400,headers:privateHeaders})}
  }
+ // Anonymous standalone project discovery; no session or automatic identity creation.
+ if(path.startsWith('/__lab/project-discovery')){
+  const url=new URL(request.url),headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Type':'application/json; charset=utf-8'};
+  const error=(status:number)=>new Response(JSON.stringify({error:'project_discovery_unavailable'}),{status,headers});
+  if(path!=='/__lab/project-discovery'||url.search||url.hash)return error(404);
+  if(request.method!=='GET')return new Response(JSON.stringify({error:'method_not_allowed'}),{status:405,headers:{...headers,Allow:'GET'}});
+  const result=await new ProjectStore(env.DB,ORIGIN).readRecentPublished();if(result===null)return error(503);const body=JSON.stringify(result);if(new TextEncoder().encode(body).length>262144)return error(503);return new Response(body,{headers});
+ }
  // Standalone project lab: private drafts never enter anonymous projections.
  if(path.startsWith('/__lab/projects')||path.startsWith('/__lab/project-authors')){
   const url=new URL(request.url),authors=path.startsWith('/__lab/project-authors'),prefix=authors?'/__lab/project-authors/':'/__lab/projects/',id=path.slice(prefix.length);const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Type':'application/json; charset=utf-8'};

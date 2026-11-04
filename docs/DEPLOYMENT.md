@@ -102,3 +102,6 @@ The owner-only combined record endpoint is mounted only in the isolated local/te
 ## Local author publication-stop preparation
 
 Local/test0011 adds two unique owner-stop marker tables and atomic hidden/status-republish guards. The isolated editor applies the entire idempotent file on startup; a first table alone is not evidence all guards exist. Production worker/index.ts does not mount this action and deployment does not apply its schema. No remote change, new credential/grant, contract, mail or deployment belongs to this unit. PUBLICATION-STOPS.md separates the experiment from real withdrawal/retention and operating policy.
+
+
+Cycle36's recent-project feed is confined to the fictional local editor build and fixture. It adds no schema or production route, and does not apply pending remote migrations. Public sample asset bytes must remain identical; local discovery/stop checks do not establish actual CDN/cache/log protection or real publication availability. See PROJECT-DISCOVERY.md and its independent QA record.

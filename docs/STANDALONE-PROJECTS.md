@@ -29,3 +29,6 @@ AI/D1/browser checks establish local behavior only. A future voluntary trial sho
 ## Separate owner-stop experiment
 
 [PUBLICATION-STOPS.md](PUBLICATION-STOPS.md) adds an explicit local owner stop of the original snapshot from the private publication-record view. It preserves project text/private edits/report evidence and does not apply an automatic work-report threshold. It is not public editing, erasure, restoration or an agreed real withdrawal/retention policy.
+
+
+既知の作品URLや投稿者がなくても、ローカルの新着作品一覧 `/lab/works` から作品・投稿者へ進めます。公開保存版を最大20件表示する試作で、実公開・全件検索・人気順ではありません。[作品探索の範囲](PROJECT-DISCOVERY.md)と検証記録を参照してください。

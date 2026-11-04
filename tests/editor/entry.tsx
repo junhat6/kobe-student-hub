@@ -1,3 +1,4 @@
+import PublicWorksLab from '../../src/editor/PublicWorksLab';
 import ProjectModerationLab from '../../src/editor/ProjectModerationLab';
 import PublicProjectLab from '../../src/editor/PublicProjectLab';
 import ProjectAuthorLab from '../../src/editor/ProjectAuthorLab';
@@ -20,6 +21,8 @@ else if(location.pathname==='/lab/project-moderation')root.render(<ProjectModera
 else if(location.pathname.startsWith('/lab/project-moderation'))root.render(<p>この作品通報画面を表示できません。</p>);
 else if(location.pathname==='/lab/moderation')root.render(<ModerationLab/>);
 else if(location.pathname.startsWith('/lab/moderation'))root.render(<p>この検証画面を表示できません。</p>);
+else if(location.pathname==='/lab/works')root.render(<PublicWorksLab/>);
+else if(location.pathname.startsWith('/lab/works'))root.render(<p>この作品一覧を表示できません。</p>);
 else if(location.pathname==='/lab/discover')root.render(<PublicDiscoveryLab/>);
 else if(location.pathname.startsWith('/lab/discover'))root.render(<p>この新着一覧を表示できません。</p>);
 else if(location.pathname.startsWith('/lab/projects/'))root.render(<PublicProjectLab key={location.pathname} projectId={location.pathname.slice('/lab/projects/'.length)}/>);
