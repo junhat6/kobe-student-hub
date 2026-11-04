@@ -84,3 +84,17 @@ a24d3bb20099ea13f93e346200e8e353cf37661f97351c5e65e2e637b74071ea tests/editor.sp
 ```
 
 保持済み10PNGは再生成・上書き・追加公開していない。全10枚を上記hashと再照合して一致。7枚の公開済みリンクと3枚のローカル保持/公開承認待ち区分を維持する。新runの画像は一時出力に留める。現CI fileは既存公開suiteのplaywright-report/とtest-results/だけをartifact対象とし、未審査editor出力の自動uploadを含めないこともread-onlyで確認した。
+
+## Main CI応答本文取得修正後の第三checkpoint
+
+親報告ではmain CI 41756626408が13/14成功し、最後のmobile安全preview/別owner caseだけで、遅延したPlaywright POST Response.json()のCDP Network.getResponseBodyがNo data for resourceとして失敗した。UIの保存や認証境界が壊れたという観測とは区別する。
+
+修正差分を独立レビューし、Playwright側に長く保持したPOST body取得を除去し、まずUI save helperで実際に悪意あるMarkdown文字列の保存済みACKを待つ→browser内native fetchで本人のmetadata一覧からunique titleのIDを取得→安全preview→別fixture accountから同ID読取404、へ変更したと確認。単に失敗assertを削除するものではなく、以前の空draft ID取得に対して保存済みprivate contentを対象にする。timeout延長/retryや製品sourceの変更はない。
+
+明示editor:build後、同じ14ケースを独立再実行し、**14件成功（13.2秒）**。出力先 /tmp/kobe-editor-native-response-qa。第三test checkpoint:
+
+```text
+a9fe09039213e50376eb1dac20cfe0270481b6922313a249b03869eb58a52f15 tests/editor.spec.ts
+```
+
+component/client/CSSの3hashとbuildのindex-B1J8v_cP.css / index-BPx1OFHT.jsは最初の最終UI証拠と同一。保持済み10画像は再照合一致で、書換/追加公開をしていない。新runの画像は一時出力だけ。7公開済み/3ローカル公開承認待ち区分を維持し、ローカルpassをCI再成功の代替証拠にはしない。実Google/remote/OStrust/credentials/grants変更なし。
