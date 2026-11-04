@@ -13,7 +13,7 @@ function run(patch:Record<string,string|undefined>={},config=template,args:strin
 }
 describe('private runtime deploy configuration',()=>{
  it('keeps target and absolute paths explicit, without copying a credential into config',()=>{
-  const r=run({CLOUDFLARE_API_TOKEN:'fixture-only-not-a-real-credential'});expect(r.status).toBe(0);expect(r.config.name).toBe('kobe-student-hub-preview');expect(r.config.workers_dev).toBe(true);expect(r.config.preview_urls).toBe(false);expect(r.config.account_id).toBe(account);expect(r.config.d1_databases[0].database_id).toBe(database);expect(r.config.main).toBe(join(r.dir,'worker/index.ts'));expect(r.config.assets.directory).toBe(join(r.dir,'dist'));expect(JSON.stringify(r.config)).not.toContain('fixture-only');
+  const r=run({CLOUDFLARE_API_TOKEN:'fixture-only-not-a-real-credential'});expect(r.status).toBe(0);expect(r.config.name).toBe('kobe-student-hub-preview');expect(r.config.workers_dev).toBe(true);expect(r.config.preview_urls).toBe(false);expect(r.config.account_id).toBe(account);expect(r.config.d1_databases[0].database_id).toBe(database);expect(r.config.main).toBe(join(r.dir,'worker/index.ts'));expect(r.config.assets.directory).toBe(join(r.dir,'dist'));expect(r.config.observability).toEqual({...JSON.parse(template).observability,enabled:true,head_sampling_rate:0.1,redact_query_string:true});expect(JSON.stringify(r.config)).not.toContain('fixture-only');
  });
  it.each([
   {CLOUDFLARE_ACCOUNT_ID:''},
