@@ -34,6 +34,16 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
    return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
   }catch{return Response.json({error:'unavailable'},{status:400,headers:privateHeaders})}
  }
+ // Fictional local recent discovery: empty is distinct from a failed public lookup.
+ if(path.startsWith('/__lab/discovery')){
+  const url=new URL(request.url);const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow','X-Content-Type-Options':'nosniff','Content-Type':'application/json; charset=utf-8'};
+  const error=(status:number,code:string)=>new Response(JSON.stringify({error:code}),{status,headers});
+  if(path!=='/__lab/discovery'||url.search||url.hash)return error(404,'discovery_unavailable');
+  if(request.method!=='GET')return new Response(JSON.stringify({error:'method_not_allowed'}),{status:405,headers:{...headers,Allow:'GET'}});
+  const result=await new ArticlePublicationStore(env.DB,ORIGIN).readRecentPublished();if(!result)return error(503,'discovery_unavailable');
+  const body=JSON.stringify(result);if(new TextEncoder().encode(body).byteLength>262144)return error(503,'discovery_unavailable');
+  return new Response(body,{headers});
+ }
  // Fictional local author discovery. Never deploy this fixture or expose orphan/private profiles.
  if(path.startsWith('/__lab/authors')){
   const url=new URL(request.url);const id=path.slice('/__lab/authors/'.length);

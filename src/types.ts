@@ -5,3 +5,7 @@ export interface Catalog { entries: Entry[]; profiles: Profile[]; mode: 'sample'
 
 export type PublishedArticleSummary = Pick<Entry, 'id'|'title'|'summary'|'tags'|'audience'|'prerequisite'|'outcome'|'updatedAt'|'minutes'>;
 export interface PublicAuthorArticles { author: Profile; entries: PublishedArticleSummary[]; }
+
+export type PublicArticleAuthor = Pick<Profile, 'id'|'name'|'department'|'year'|'initials'>;
+export interface PublicDiscoveryCard { entry: PublishedArticleSummary; author: PublicArticleAuthor; }
+export interface PublicDiscovery { cards: PublicDiscoveryCard[]; }
