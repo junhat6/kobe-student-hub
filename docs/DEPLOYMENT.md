@@ -94,3 +94,7 @@ Migration0009 prepares separate private project drafts and immutable project sna
 ## Local project report preparation
 
 Migration0010 adds report intake to the isolated local/test fixture. It does not change project visibility or introduce notification, operator judgment, restore/delete or article thresholds. Production worker/index.ts does not mount these handlers. Local fictional operator access does not provision a real role. No remote schema, credential/grant, contract, mail or deployment belongs to this unit. See PROJECT-REPORT-REVIEW.md for the unresolved work-policy and actual-activation boundaries.
+
+## Local own-publication record read
+
+The owner-only combined record endpoint is mounted only in the isolated local/test fixture, using existing tables. It adds no migration or visibility/report/notification action and does not broaden existing publication receipts. Production worker/index.ts and sample assets remain separate. No remote operation, credential/grant, contract or deployment belongs to this read-only unit. See OWN-PUBLICATION-RECORDS.md.
