@@ -117,7 +117,7 @@ Remote auth-state migration 0003 was subsequently applied under new explicit use
 
 ## Cycle 10 — authorized remote attempt schema, login stays closed
 
-**Authorization / action:** The owner explicitly authorized adding the authentication-test table to preview D1 without deleting existing data, acknowledging that this does not enable login. The earlier rejected operation was checked as unexecuted, then retried exactly once with the new evidence. The unchanged 0003 table/index plus migration-ledger insert succeeded.
+**Authorization / action:** The owner explicitly authorized adding the authentication-test table to preview D1 without deleting existing data. This schema addition does not enable login. The earlier rejected operation was checked as unexecuted, then retried exactly once with the new evidence. The unchanged 0003 table/index plus migration-ledger insert succeeded.
 
 **Evidence:** Root reran all 70 local tests, captured before/after full published-sample/profile rows, total counts and old ledger rows, and confirmed exact preservation. The new table is empty; schema/index and ledger 0003 are present. Independent read-only remote and local-runtime QA are in QA-AUTH-MIGRATION.md. No remote attempt/credential/user row, endpoint, secret, permission grant or contract was created. The deployed Worker source remains 4d87f44; this follow-up is documentation only and is not another app deployment. Historical cycle/QA records below/above describe their own execution time and are superseded on this schema status.
 
