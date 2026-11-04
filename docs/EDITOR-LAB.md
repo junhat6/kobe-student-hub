@@ -73,3 +73,6 @@ Within the existing guarded author record list, a published row can be selected 
 
 
 既知の作品URLや投稿者がなくても、ローカルの新着作品一覧 `/lab/works` から作品・投稿者へ進めます。公開保存版を最大20件表示する試作で、実公開・全件検索・人気順ではありません。[作品探索の範囲](PROJECT-DISCOVERY.md)と検証記録を参照してください。
+
+
+作品の保存一覧は、一覧取得時の記録に、その後確定した保存・読取の版情報を反映します。未保存の入力や公開保存版は別に保持し、保存結果不明を成功扱いにしません。[保存一覧の範囲](PROJECT-LIST.md)を参照してください。
