@@ -4,11 +4,14 @@ const COOKIE='__Host-kobe-oauth';
 const ISSUER='kobe-student-hub:oauth-attempt';
 const secret=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9_-]{43}$/.test(v);
 export interface BrowserFlowConfig {origin:string;clientId:string;cookieKey:Uint8Array}
-function context(config:BrowserFlowConfig){
+export type OAuthIntent='login'|'pending-registration';
+const validIntent=(v:unknown):v is OAuthIntent=>v==='login'||v==='pending-registration';
+function context(config:BrowserFlowConfig,intent:OAuthIntent){
+ if(!validIntent(intent))return null;
  try{
   const url=new URL(config.origin);
   if(url.protocol!=='https:'||url.origin!==config.origin||!config.cookieKey||config.cookieKey.byteLength!==32||!(config.cookieKey instanceof Uint8Array)||!/^[A-Za-z0-9_-]{1,220}\.apps\.googleusercontent\.com$/.test(config.clientId))return null;
-  const redirect=config.origin+'/api/auth/callback';return {redirect,audience:config.clientId+'|'+redirect};
+  const redirect=config.origin+'/api/auth/callback';return {redirect,audience:config.clientId+'|'+redirect+(intent==='login'?'':'|pending-registration')};
  }catch{return null}
 }
 // Only start/mutating actions use this check. Cross-site provider GET callbacks use state/binding.
@@ -29,8 +32,8 @@ export async function pkceChallenge(verifier:string):Promise<string|null>{
 export class BrowserOAuthFlow {
  constructor(private readonly db:D1Database,private readonly config:BrowserFlowConfig,private readonly clock:()=>number=Date.now){}
  private now(){const value=this.clock();return Number.isSafeInteger(value)&&value>=0&&value<Number.MAX_SAFE_INTEGER-OAUTH_ATTEMPT_TTL_MS?value:null}
- async start(request:Request):Promise<{location:string;setCookie:string}|null>{
-  const ctx=context(this.config);const now=this.now();
+ async start(request:Request,intent:OAuthIntent='login'):Promise<{location:string;setCookie:string}|null>{
+  const ctx=context(this.config,intent);const now=this.now();
   if(!ctx||now===null||request.url.length>8192||new URL(request.url).pathname!=='/api/auth/start'||!isSameOriginPost(request,this.config.origin))return null;
   try{
    const verifier=base64url.encode(crypto.getRandomValues(new Uint8Array(32)));
@@ -45,8 +48,8 @@ export class BrowserOAuthFlow {
   }catch{return null}
  }
  /** Claimed secrets are for server-side exchange only, never a JSON response or log. */
- async claim(request:Request):Promise<{kind:'code';code:string;verifier:string;nonce:string;clearCookie:string}|{kind:'denied';clearCookie:string}|null>{
-  const ctx=context(this.config);const now=this.now();if(!ctx||now===null||request.url.length>8192)return null;
+ async claim(request:Request,intent:OAuthIntent='login'):Promise<{kind:'code';code:string;verifier:string;nonce:string;clearCookie:string}|{kind:'denied';clearCookie:string}|null>{
+  const ctx=context(this.config,intent);const now=this.now();if(!ctx||now===null||request.url.length>8192)return null;
   try{
    const url=new URL(request.url);if(request.method!=='GET'||url.origin!==this.config.origin||url.pathname!=='/api/auth/callback')return null;
    const params=url.searchParams;
