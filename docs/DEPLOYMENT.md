@@ -105,3 +105,6 @@ Local/test0011 adds two unique owner-stop marker tables and atomic hidden/status
 
 
 Cycle36's recent-project feed is confined to the fictional local editor build and fixture. It adds no schema or production route, and does not apply pending remote migrations. Public sample asset bytes must remain identical; local discovery/stop checks do not establish actual CDN/cache/log protection or real publication availability. See PROJECT-DISCOVERY.md and its independent QA record.
+
+
+Cycle39 pending-registration work reuses the existing private account schema only in local tests. It adds no production route, secret/key configuration, actual account, role, migration or deployment. Dedicated Google project/client creation and real callback protection remain separate confirmed-operation gates. Never deploy the private test harness or serialize its identity/session JSON through a public endpoint.

@@ -1,7 +1,9 @@
-import {BrowserOAuthFlow,type BrowserFlowConfig} from './browser-flow';
+import {BrowserOAuthFlow,type BrowserFlowConfig,type OAuthIntent} from './browser-flow';
 import {verifySchoolGoogleIdToken} from './google-identity';
+import {PendingRegistrationStore} from './pending-registration';
 import {SessionStore} from './sessions';
 export interface GoogleLoginConfig extends BrowserFlowConfig {clientSecret:string}
+export type GoogleRegistrationResult={kind:'pending-receipt';clearCookie:string}|{kind:'failed';clearCookie:string};
 export type GoogleLoginResult = {kind:'failed';clearCookie:string}|({kind:'authenticated';clearCookie:string}&NonNullable<Awaited<ReturnType<SessionStore['create']>>>);
 const TOKEN_URL='https://oauth2.googleapis.com/token';
 const MAX_BODY=32*1024;
@@ -22,9 +24,12 @@ async function readToken(response:Response):Promise<string|null>{
 export class GoogleLoginBroker {
  constructor(private readonly db:D1Database,private readonly config:GoogleLoginConfig,private readonly clock:()=>number=Date.now){}
  async start(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request):null}
- async callback(request:Request):Promise<GoogleLoginResult|null>{
+ async startRegistration(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request,'pending-registration'):null}
+ async callback(request:Request):Promise<GoogleLoginResult|null>{return this.complete(request,'login') as Promise<GoogleLoginResult|null>}
+ async registrationCallback(request:Request):Promise<GoogleRegistrationResult|null>{return this.complete(request,'pending-registration') as Promise<GoogleRegistrationResult|null>}
+ private async complete(request:Request,intent:OAuthIntent):Promise<GoogleLoginResult|GoogleRegistrationResult|null>{
   if(!configured(this.config))return null;
-  const claim=await new BrowserOAuthFlow(this.db,this.config,this.clock).claim(request);if(!claim)return null;
+  const claim=await new BrowserOAuthFlow(this.db,this.config,this.clock).claim(request,intent);if(!claim)return null;
   const failure:GoogleLoginResult={kind:'failed',clearCookie:claim.clearCookie};if(claim.kind==='denied')return failure;
   const abort=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
   const deadline=new Promise<null>(resolve=>{timer=setTimeout(()=>{abort.abort();resolve(null)},5000)});
@@ -37,6 +42,7 @@ export class GoogleLoginBroker {
    const token=await Promise.race([exchange,deadline]);if(!token||abort.signal.aborted)return failure;
    clearTimeout(timer);abort.abort();
    const identity=await verifySchoolGoogleIdToken(token,{clientId:this.config.clientId,expectedNonce:claim.nonce});if(!identity)return failure;
+   if(intent==='pending-registration'){const receipt=await new PendingRegistrationStore(this.db,this.clock).record(identity);return receipt?{kind:'pending-receipt',clearCookie:claim.clearCookie}:failure}
    const session=await new SessionStore(this.db,this.config.origin,this.clock).create(identity);
    return session?{kind:'authenticated',...session,clearCookie:claim.clearCookie}:failure;
   }catch{return failure}finally{clearTimeout(timer);abort.abort()}

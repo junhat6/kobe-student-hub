@@ -9,3 +9,6 @@ Workerd supports manual redirect handling rather than `redirect: 'error'`; the b
 Matched failure returns a generic private result and attempt-cookie removal. Provider bodies, error details, code, verifier, secret, identity and tokens are not included in failure results or application logs. Success returns private cookie/CSRF/actor data to trusted server code only. Future controllers must set both cookies independently, use no-store responses and a clean safe redirect, and never serialize this broker result as a public JSON endpoint. The JSON test harness is deliberately private and never deployable.
 
 Tests use ephemeral RSA keys and fixed-endpoint outbound stubs in local Workers/D1. They are not live Google, browser-cookie, account-admission, platform-log or student-value verification. Remote migration 0004, dedicated Google configuration and [actual logging gate](LOGGING-GATE.md) remain outstanding before enabling login. Posting additionally requires stored-owner checks, draft/media privacy and moderation/operational policy.
+
+
+初回の資格確認待ち申請は、通常ログインとは別のローカルserver-only経路で検証します。[PENDING-REGISTRATION.md](PENDING-REGISTRATION.md)を参照。pendingの受付は在籍認定・active化・session発行ではなく、実登録・実ログインの提供でもありません。
