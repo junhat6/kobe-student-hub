@@ -14,7 +14,10 @@
     "deploy:check": "npm run build && wrangler deploy --dry-run",
     "deploy:production": "node scripts/prepare-deploy.mjs --for-deploy && npm run build && wrangler deploy --config .wrangler/preview.deploy.json",
     "types": "wrangler types --include-runtime=false",
-    "deploy:prepare": "node scripts/prepare-deploy.mjs"
+    "deploy:prepare": "node scripts/prepare-deploy.mjs",
+    "editor:build": "vite build --config vite.editor.config.ts",
+    "editor:preview": "node scripts/editor-preview.mjs",
+    "test:editor": "playwright test --config playwright.editor.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -184,3 +184,11 @@ Source checkpoint: PR #25, `24b18dc900cc75b997408b91a8d8e9672a331ae2`. Root fina
 - [Independent QA](QA-DRAFT-HTTP.md):41 relevant tests passed (6.46s), fixed source hashes and explicit local/synthetic-stream limits.
 - Root128 tests passed (11.15s),38 desktop/mobile regressions passed (8.0s),build and deployment dry-run passed. Content-Length is checked against received bytes; UTF8/media/encoding, fixed-buffer/chunk caps, delayed-body/no-insert, epoch change during acquisition and private error behavior were tested.
 - Production worker/index.ts and frontend assets unchanged, private routes still closed. No remote migration/configuration/credentials/grants/contracts or deployment; no real browser/cache/log or student-value result.
+
+## Cycle 16 — local authoring UI
+
+- [Scope/operation](EDITOR-LAB.md): actual local private HTTP/session/D1 editor, isolated from production, manual save only; actual school OAuth and publication remain unavailable.
+- Root full134 tests (11.17s),38 existing public PC/mobile regressions (8.0s),build and deploy dry-run passed. Six new client cases validate request/CAS payloads,DTO/list/size/identity constraints,unknown failure and timeout without automatic retry.
+- [Independent browser QA](QA-EDITOR.md): final editor rebuild and14 PC/mobile cases passed (13.1s),9 source SHA256 entries and10 visually inspected app-only screenshots. [Desktop edit](evidence/editor/02-navigation-restored-desktop.png),[mobile edit](evidence/editor/02-navigation-restored-mobile.png),[failure keeps text](evidence/editor/03-read-failure-keeps-text-desktop.png),[explicit recovery](evidence/editor/04-explicit-recovery-desktop.png). Three additional local images (04-mobile and05-desktop/mobile) await individual public-sharing approval and are not included in the repository; their hashes and operation results remain in the QA report.
+- Review fixed navigation-during-typing loss,skiplink overlay and ambiguous saved-success messaging. Root viewed all10 final images. Historical stale-build tests/images are not presented as final-source evidence.
+- No realGoogle/physicaldevice/student-value/log/cache claim. Production main/routes/assets and actual sample preview source4d87f44 remain unchanged; no remote schema/configuration/credential/grant/contract/deployment operation.

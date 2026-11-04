@@ -26,6 +26,8 @@ jobs:
       - run: npm run db:local
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run editor:build
+      - run: npm run test:editor
       - run: npm run deploy:check
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
@@ -34,4 +36,6 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            playwright-report-editor/
+            test-results-editor*/
           retention-days: 14
