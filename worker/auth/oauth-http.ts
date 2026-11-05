@@ -11,7 +11,6 @@ export function parseOAuthConfig(raw:OAuthBindings):GoogleLoginConfig|null{
 }
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow'};
 const json=(status:number,code:string)=>new Response(JSON.stringify({error:code}),{status,headers:{...headers,'Content-Type':'application/json; charset=utf-8'}});
-const CLEAR_ATTEMPT='__Host-kobe-oauth=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0';
 /** Independently testable HTTP glue. Production's separate source release gate must remain false.
  * No runtime binding can enable this factory. Its option is supplied by source/test code only. */
 export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,options:{enabled?:boolean}={},clock:()=>number=Date.now){
@@ -29,7 +28,9 @@ export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,opti
    // A matched failure already consumed its attempt. Only an unmatched claim may try the other sealed purpose.
    let result:Awaited<ReturnType<GoogleLoginBroker['callback']>>|Awaited<ReturnType<GoogleLoginBroker['registrationCallback']>>=null;
    try{if(!url.hash){result=await broker.callback(request);if(result===null)result=await broker.registrationCallback(request)}}catch{/* No provider/body/error reflection. */}
-   const response=new Response(null,{status:303,headers:{...headers,Location:config.origin+'/'}});response.headers.append('Set-Cookie',result?.clearCookie??CLEAR_ATTEMPT);
+   const response=new Response(null,{status:303,headers:{...headers,Location:config.origin+'/'}});
+   // An unmatched callback has no authority to remove another in-progress attempt.
+   if(result)response.headers.append('Set-Cookie',result.clearCookie);
    if(result?.kind==='authenticated')response.headers.append('Set-Cookie',result.setCookie);return response;
   }
   // Start commands derive no authority from a payload. Do not read or allocate an unbounded body.
