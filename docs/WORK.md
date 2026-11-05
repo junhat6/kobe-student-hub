@@ -594,3 +594,13 @@ Final root checks: build/typecheck,410 tests across51 files (11.28s),60 public P
 **Replanning:** Report this candidate and independent model review before any application implementation. Next possible unit is a local-only D1/HTTP proof of atomicity and cookie/CSRF boundaries; this model is not permission to open authentication or migrate runtime state.
 
 **Independent QA / result:** Separate review passed2files/19modeltests, including an additional252 captured-context schedules. Candidate supported for a next local-only D1/HTTP proof, with command replay/idempotency, transaction/claim ownership, all final SQL, CSRF and bootstrap transport still unresolved. Build passed; no application changes. Report before any implementation; keep this design review separate from production release approval.
+
+## Cycle48 — local D1/HTTP protocol proof, no application adoption
+
+**Planner:** Exercise the session-generation candidate through real loopback HTTP, Worker runtime and isolated D1, including parallel start/callback/logout, SQL rollback, claim ownership, final private authorization, bootstrap/reissue, expiry/replay/fixation and device isolation. Keep production, Google, keys, credentials, gates and real data untouched.
+
+**Developer:** Added test-only lab schema/Worker/helper and bounded synthetic provider, with command nonce+expected epoch, atomic trigger-bound generation/attempt creation, one-owner claim, guarded unique session completion and final read/write SQL. Old incomplete commands reject after generation changes; completed command replay only acknowledges without any Cookie. This refines the previous model's logout-command ordering. See SESSION-ORDER-D1.md for the exact changed contract and limits.
+
+**Independent QA:** Separate context rebuilt and ran4files/47tests, adding final account rechecks, context expiry during issuance,8 start/logout races and logout rollback/replay. No blocking finding within this closed fixture. QA-SESSION-ORDER-D1.md records fingerprints and unproven production boundaries.
+
+**Replanning:** Report results before any app adoption. Still require all production private SQL/legacy session conditions, account-wide in-flight-login revocation policy, actual browser/HTTPS/CSRF/protocol integration, retention/DoS and UI recovery decisions. Local candidate refuses wrong actor but may require a fresh explicit login after lost/reordered headers. No real authentication release is authorized by fixture success.
