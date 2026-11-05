@@ -1,4 +1,5 @@
-import {BrowserSessionCoordinator,COMMAND_HEADER,sameOriginCommand,emptyCommand} from './auth/browser-session';
+import {parseProofAuthorization} from '../src/shared/auth-proof';
+import {BrowserSessionCoordinator,sameOriginCommand,emptyCommand} from './auth/browser-session';
 import {SessionStore} from './auth/sessions';
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Content-Type':'application/json; charset=utf-8'};
 const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{status,headers});
@@ -16,7 +17,8 @@ export function createPrivateSessionHandler(db:D1Database,origin:string,clock:()
   const method=logout?'POST':'GET';if(request.method!==method){const response=error(405,'method_not_allowed');response.headers.set('Allow',method);return response;}
   try{
    if(!logout){const session=await sessions.inspect(request);return session.kind==='authenticated'?json({csrfToken:session.csrfToken}):session.kind==='signed-out'?error(401,'authentication_required'):error(503,'session_unavailable')}
-   const hasCommand=request.headers.has(COMMAND_HEADER);
+   const proof=parseProofAuthorization(request.headers);if(!proof)return error(401,'authentication_required');
+   const hasCommand=proof.purpose==='command';
    const authorized=hasCommand?sameOriginCommand(request,origin):await sessions.authorizeMutation(request);if(!authorized)return error(401,'authentication_required');
    const length=request.headers.get('Content-Length');
    // Workers exposes a non-null stream even for protocol-framed Content-Length: 0.

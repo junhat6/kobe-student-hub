@@ -10,7 +10,7 @@ describe('private draft browser transport',()=>{
   const client=createDraftClient(csrf,(async(p,i)=>{path=p;init=i;return Response.json({...value,version:2})}) as typeof fetch);
   expect(await client.save(value)).toEqual({...value,version:2});expect(path).toBe('/api/private/drafts/'+id);
   expect(init).toMatchObject({method:'PATCH',credentials:'same-origin',cache:'no-store',redirect:'error'});
-  expect(new Headers(init?.headers).get('X-CSRF-Token')).toBe(csrf);
+  expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer csrf.'+(csrf));
   expect(JSON.parse(init!.body as string)).toEqual({title:value.title,body:value.body,expectedVersion:1});
  });
  it('rejects invalid/private extra DTO fields, mismatched identity and save acknowledgements',async()=>{

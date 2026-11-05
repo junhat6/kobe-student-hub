@@ -1,7 +1,8 @@
+import {AUTHORIZATION_HEADER,proofAuthorization,parseProofAuthorization,hasLegacyProofHeader} from '../../src/shared/auth-proof';
 import {base64url} from 'jose';
 import type {VerifiedSchoolIdentity} from './google-identity';
 import type {ServerSessionActor} from './private-access';
-import {BrowserSessionCoordinator,COMMAND_HEADER,CONTEXT_COOKIE,singleSecretCookie,browserDigest,type BrowserClaim} from './browser-session';
+import {BrowserSessionCoordinator,CONTEXT_COOKIE,singleSecretCookie,browserDigest,type BrowserClaim} from './browser-session';
 import {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS,type SessionStorageProof} from './session-guard';
 export {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS} from './session-guard';
 const NAME='__Host-kobe-session';
@@ -37,6 +38,7 @@ export class SessionStore {
  }
  private async lookup(request:Request):Promise<SessionInspection>{
   if(!this.configured())return {kind:'unavailable'};
+  if(hasLegacyProofHeader(request.headers))return {kind:'signed-out'};
   if(new URL(request.url).origin!==this.origin)return {kind:'signed-out'};
   const raw=rawCookie(request),context=singleSecretCookie(request,CONTEXT_COOKIE);if(!raw||!context)return {kind:'signed-out'};
   const contextHash=await browserDigest('browser-v1',context);
@@ -58,7 +60,7 @@ export class SessionStore {
  }
  async authorizeMutation(request:Request){
   if(!['POST','PUT','PATCH','DELETE'].includes(request.method)||request.headers.get('Origin')!==this.origin||!['same-origin','none',null].includes(request.headers.get('Sec-Fetch-Site')))return null;
-  const supplied=request.headers.get('X-CSRF-Token');if(!supplied||!validToken(supplied))return null;
+  const proof=parseProofAuthorization(request.headers),supplied=proof?.purpose==='csrf'?proof.token:null;if(!supplied)return null;
   const session=await this.authenticate(request);return session&&equalToken(session.csrfToken,supplied)?session:null;
  }
  /** Server-private storage proof. Never serialize this value or accept it from clients.
@@ -67,7 +69,7 @@ export class SessionStore {
   if(!['GET','POST','PUT','PATCH','DELETE'].includes(request.method))return null;
   if(request.method!=='GET'&&(request.headers.get('Origin')!==this.origin||!['same-origin','none',null].includes(request.headers.get('Sec-Fetch-Site'))))return null;
   const session=await this.inspect(request),raw=rawCookie(request);if(session.kind!=='authenticated'||!raw)return null;
-  if(request.method!=='GET'){const supplied=request.headers.get('X-CSRF-Token');if(!supplied||!equalToken(session.csrfToken,supplied))return null}
+  if(request.method!=='GET'){const proof=parseProofAuthorization(request.headers),supplied=proof?.purpose==='csrf'?proof.token:null;if(!supplied||!equalToken(session.csrfToken,supplied))return null}
   const nowMs=this.now();if(nowMs===null||nowMs<session.checkedAt)return null;
   return {tokenHash:await tokenHash(raw),accountId:session.actor.accountId,contextHash:session.contextHash,nowMs,clock:this.clock};
  }
@@ -76,7 +78,7 @@ export class SessionStore {
   try{const row=await this.db.prepare('SELECT context_generation FROM auth_sessions WHERE token_hash=?').bind(proof.tokenHash).first<{context_generation:number}>();if(!row)return null;
    const coordinator=new BrowserSessionCoordinator(this.db,this.origin,this.clock);
    const command=await coordinator.command(request,'logout',row.context_generation,proof.tokenHash);if(!command)return null;
-   const h=new Headers(request.headers);h.set(COMMAND_HEADER,command.commandToken);
+   const h=new Headers(request.headers);h.set(AUTHORIZATION_HEADER,proofAuthorization('command',command.commandToken));
    const result=await coordinator.execute(new Request(request.url,{method:'POST',headers:h}),'logout',undefined,proof);
    return result.kind==='executed'?{loggedOut:true}:null;
   }catch{return null}

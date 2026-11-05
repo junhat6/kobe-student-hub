@@ -23,7 +23,7 @@ async function pendingAttempt(db:D1Database,origin:string,now:number,intent:'log
  const coordinator=new BrowserSessionCoordinator(db,origin,()=>now);
  const bootstrap=(await coordinator.bootstrap(new Request(origin+'/api/auth/bootstrap',{method:'POST',headers:{Origin:origin}})))!;
  const contextCookie=bootstrap.setCookie,headers=new Headers({Origin:origin,Cookie:contextCookie.split(';')[0]});
- const command=(await coordinator.command(new Request(origin+'/api/auth/command',{method:'POST',headers}),intent))!;headers.set('X-Session-Command',command.commandToken);
+ const command=(await coordinator.command(new Request(origin+'/api/auth/command',{method:'POST',headers}),intent))!;headers.set('Authorization','Bearer command.'+(command.commandToken));
  const flow=new BrowserOAuthFlow(db,{origin,clientId:'fixture.apps.googleusercontent.com',cookieKey:new Uint8Array(32).fill(29)},()=>now);
  const start=(await flow.start(new Request(origin+'/api/auth/start',{method:'POST',headers}),intent))!;
  const state=new URL(start.location).searchParams.get('state')!;
@@ -94,7 +94,7 @@ describe('independent populated legacy migration and revocation fence',()=>{
  it('retains floors while an old command is live and preserves its original stamp on delayed execution',async()=>{
   const db=await database(),coordinator=new BrowserSessionCoordinator(db,ORIGIN,()=>NOW);
   const bootstrap=(await coordinator.bootstrap(new Request(ORIGIN,{method:'POST',headers:{Origin:ORIGIN}})))!;
-  const headers=new Headers({Origin:ORIGIN,Cookie:bootstrap.setCookie.split(';')[0]});const command=(await coordinator.command(new Request(ORIGIN,{method:'POST',headers}),'login'))!;headers.set('X-Session-Command',command.commandToken);
+  const headers=new Headers({Origin:ORIGIN,Cookie:bootstrap.setCookie.split(';')[0]});const command=(await coordinator.command(new Request(ORIGIN,{method:'POST',headers}),'login'))!;headers.set('Authorization','Bearer command.'+(command.commandToken));
   await db.prepare("UPDATE private_accounts SET session_epoch=session_epoch+1 WHERE id='a'").run();expect(await coordinator.cleanupRevocations()).toBe(0);
   expect((await db.prepare('SELECT minimum_generation FROM auth_revocation_fence').first())?.minimum_generation).toBe(0);
   expect(await coordinator.execute(new Request(ORIGIN,{method:'POST',headers}),'login',{stateHash:'d'.repeat(64),browserHash:'e'.repeat(64),nonce:'n'.repeat(43)})).toEqual({kind:'executed'});
@@ -112,7 +112,7 @@ describe('independent populated legacy migration and revocation fence',()=>{
   expect(await later.cleanupRevocations()).toBe(5);expect((await db.prepare('SELECT minimum_generation FROM auth_revocation_fence').first())?.minimum_generation).toBe(105);
   expect(await oldUnclaimed.flow.claim(oldUnclaimed.callback,'login')).toBeNull();
   expect(await new PendingRegistrationStore(db,()=>NOW).record(identity('retired-registration'),oldRegistration.proof)).toBeNull();
-  expect(await new BrowserSessionCoordinator(db,ORIGIN,()=>NOW).execute(new Request(ORIGIN,{method:'POST',headers:{Origin:ORIGIN,Cookie:'__Host-kobe-browser='+rawContext,'X-Session-Command':rawCommand}}),'login',{stateHash:'1'.repeat(64),browserHash:'2'.repeat(64),nonce:'3'.repeat(43)})).toEqual({kind:'rejected'});
+  expect(await new BrowserSessionCoordinator(db,ORIGIN,()=>NOW).execute(new Request(ORIGIN,{method:'POST',headers:{Origin:ORIGIN,Cookie:'__Host-kobe-browser='+rawContext,Authorization:'Bearer command.'+(rawCommand)}}),'login',{stateHash:'1'.repeat(64),browserHash:'2'.repeat(64),nonce:'3'.repeat(43)})).toEqual({kind:'rejected'});
   expect(await new SessionStore(db,ORIGIN,()=>NOW).create(identity(),oldClaim.proof)).toBeNull();
   expect(await createFixtureSession(db,ORIGIN,()=>NOW,identity())).not.toBeNull();
  });
@@ -131,7 +131,7 @@ describe('independent populated legacy migration and revocation fence',()=>{
   const guarded=new Proxy(db,{get(target,key){if(key==='prepare')return (sql:string)=>{if(sql.includes('private_article_drafts')){finalQueries++;now=advance}return target.prepare(sql)};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value}});
   const drafts=new PrivateDraftStore(guarded,ORIGIN,()=>now);
   expect(await drafts.read(request(session),draftId)).toBeNull();expect(finalQueries).toBe(1);
-  now=NOW;const headers=new Headers(request(session).headers);headers.set('Origin',ORIGIN);headers.set('X-CSRF-Token',session.csrfToken);
+  now=NOW;const headers=new Headers(request(session).headers);headers.set('Origin',ORIGIN);headers.set('Authorization','Bearer csrf.'+(session.csrfToken));
   expect(await drafts.update(new Request(ORIGIN+'/private',{method:'PUT',headers}),draftId,{title:'must not persist',body:'must not persist',expectedVersion:1})).toBeNull();expect(finalQueries).toBe(2);
   expect(await db.prepare('SELECT title,body,version FROM private_article_drafts WHERE id=?').bind(draftId).first()).toEqual({title:'original',body:'private fixture',version:1});
  });

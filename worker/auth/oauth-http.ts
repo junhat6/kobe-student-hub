@@ -1,3 +1,4 @@
+import {hasLegacyProofHeader} from '../../src/shared/auth-proof';
 import {base64url} from 'jose';
 import {BrowserSessionCoordinator,type BrowserAction} from './browser-session';
 import {GoogleLoginBroker,type GoogleLoginConfig} from './google-login';
@@ -20,6 +21,7 @@ export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,opti
   const url=new URL(request.url),auth=url.pathname.startsWith('/api/auth/'),session=url.pathname.startsWith('/api/private/session')||url.pathname.startsWith('/api/private/logout');if(!auth&&!session)return null;
   const config=parseOAuthConfig(bindings);if(!config)return json(503,'authentication_unavailable');
   if(url.origin!==config.origin)return json(404,'authentication_unavailable');
+  if(hasLegacyProofHeader(request.headers))return json(400,'authentication_unavailable');
   if(session)return createPrivateSessionHandler(db,config.origin,clock)(request);
   const coordinator=new BrowserSessionCoordinator(db,config.origin,clock);
   if(url.pathname==='/api/auth/bootstrap'||url.pathname==='/api/auth/command'){

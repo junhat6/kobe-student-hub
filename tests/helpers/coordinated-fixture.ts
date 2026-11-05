@@ -1,8 +1,9 @@
+import {AUTHORIZATION_HEADER,proofAuthorization} from '../../src/shared/auth-proof';
 // Test-only identity/schema preparation. Never import from worker/ or production bundles.
 import migration from '../../migrations/0012_browser_session_order.sql';
 import sessionSchema from '../../migrations/0004_private_sessions.sql';
 import attempts from '../../migrations/0003_oauth_attempts.sql';
-import {BrowserSessionCoordinator,COMMAND_HEADER} from '../../worker/auth/browser-session';
+import {BrowserSessionCoordinator} from '../../worker/auth/browser-session';
 import {BrowserOAuthFlow,type OAuthIntent,isSameOriginPost} from '../../worker/auth/browser-flow';
 import {SessionStore} from '../../worker/auth/sessions';
 import type {VerifiedSchoolIdentity} from '../../worker/auth/google-identity';
@@ -18,7 +19,7 @@ export async function fixtureStartRequest(db:D1Database,request:Request,origin:s
  await ensureFixtureOrderSchema(db);const coordinator=new BrowserSessionCoordinator(db,origin,()=>now);
  const bootstrap=await coordinator.bootstrap(new Request(origin+'/api/auth/bootstrap',{method:'POST',headers:{Origin:origin}}));if(!bootstrap)return {request,contextCookie:''};
  const contextCookie=bootstrap.setCookie,headers=new Headers(request.headers);headers.set('Cookie',contextCookie.split(';')[0]);
- const proof=await coordinator.command(new Request(origin+'/api/auth/command',{method:'POST',headers}),action);if(!proof)return {request,contextCookie};headers.set(COMMAND_HEADER,proof.commandToken);
+ const proof=await coordinator.command(new Request(origin+'/api/auth/command',{method:'POST',headers}),action);if(!proof)return {request,contextCookie};headers.set(AUTHORIZATION_HEADER,proofAuthorization('command',proof.commandToken));
  return {request:new Request(request.url,{method:request.method,headers}),contextCookie};
 }
 export async function fixtureClaim(db:D1Database,origin:string,now:number,intent:OAuthIntent='login'){

@@ -36,7 +36,7 @@ test('lost successful acknowledgement keeps input until manual GET confirms the 
 });
 test('a different stored profile is displayed without overwriting it or discarding the held input',async({page})=>{
  const {region,csrf}=await open(page);await fill(page,'保持している入力','上書きせず保持する紹介');
- const status=await page.evaluate(async token=>(await fetch('/api/private/profile',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':token},body:JSON.stringify({displayName:'先に登録された名前',department:'',yearLabel:'',bio:'すでに登録された紹介',confirmPublic:true})})).status,csrf());expect(status).toBe(201);
+ const status=await page.evaluate(async token=>(await fetch('/api/private/profile',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer csrf.'+(token)},body:JSON.stringify({displayName:'先に登録された名前',department:'',yearLabel:'',bio:'すでに登録された紹介',confirmPublic:true})})).status,csrf());expect(status).toBe(201);
  await confirm(page).check();await create(page).click();await expect(region.getByText('作成結果を確認できませんでした。入力内容は残しています。再送せず、登録状態を確認してください。',{exact:true})).toBeVisible();await region.getByRole('button',{name:'登録状態を確認',exact:true}).click();
  await expect(region.getByText('異なる内容のプロフィールが登録されています。この画面から上書きしません。手元の入力は残しています。',{exact:true})).toBeVisible();await expect(region.getByRole('article',{name:'登録されたプロフィール'})).toContainText('先に登録された名前');await expect(page.getByLabel('表示名',{exact:false})).toHaveValue('保持している入力');await expect(page.getByLabel('自己紹介（任意）',{exact:true})).toHaveValue('上書きせず保持する紹介');await expect(create(page)).toHaveCount(0);
 });

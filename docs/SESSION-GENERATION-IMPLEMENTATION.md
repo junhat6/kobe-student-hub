@@ -11,7 +11,7 @@
 ## ブラウザとHTTPの契約
 
 - `POST /api/auth/bootstrap`は同一Originの空コマンド。匿名contextだけを一度発行する。既存有効contextを再発行・refreshしない。host-onlyの`__Host-kobe-browser`はSecure/HttpOnly/SameSite=Lax、最大8時間。受領後の明示操作からstartを行う。
-- `POST /api/auth/command?action=login|pending-registration`はcontext/action/発行時generation/失効順序stamp/最大60秒に結び付いた一回用nonceを返す。actor・学校メール・sessionは返さない。start/registerは`X-Session-Command`を必要とする。
+- `POST /api/auth/command?action=login|pending-registration`はcontext/action/発行時generation/失効順序stamp/最大60秒に結び付いた一回用nonceを返す。actor・学校メール・sessionは返さない。start/registerは`Authorization: Bearer command.<proof>`を必要とする。旧customproofheaderへのfallbackはない。[現在のproof transport](AUTH-PROOF-TRANSPORT.md)を参照。
 - nonceの条件付きUPDATEとtriggerがgeneration更新・attempt作成を一つのDB操作へ結び付ける。新しいstartは同じcontextの古いsessionと保留attemptを無効にする。Google取消や失敗で以前のsessionへ自動復帰しない。古いnonceの再送からCookieを再発行しない。
 - callbackは従来のJWE/state/browser binding/PKCE/nonce/purpose/署名検証を保持する。DB claimを獲得した一つのownerだけが完了でき、最終session INSERTが現在のcontext/generation、失効方針、active accountを再確認する。attempt単位のUNIQUEと完了markerで重複発行を防ぐ。callbackは試行Cookie・context Cookieを書き換えない。
 - 古いA成功応答のsession CookieがB完了後に届いても、Aのgenerationが古いので認証・私的SQLは拒否する。**ブラウザのCookie上書きそのものを防ぐ保証ではない。** Bのsessionを自動再発行せず、明示した新しいログインで回復する。

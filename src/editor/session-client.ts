@@ -1,3 +1,4 @@
+import {proofAuthorization} from '../shared/auth-proof';
 export class SessionClientError extends Error {
  constructor(readonly kind:'signed-out'|'unavailable'='unavailable'){super('セッションの確認結果を取得できませんでした。');this.name='SessionClientError'}
 }
@@ -13,7 +14,7 @@ export function createSessionClient(fetcher:typeof fetch=fetch){
   signal?.addEventListener('abort',externalAbort,{once:true});if(signal?.aborted)externalAbort();
   const operation=(async()=>{
    if(controller.signal.aborted)throw new SessionClientError();
-   const response=await fetcher(logoutToken?'/api/private/logout':'/api/private/session',{method:logoutToken?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:logoutToken?{Accept:'application/json','X-CSRF-Token':logoutToken}:{Accept:'application/json'}});
+   const response=await fetcher(logoutToken?'/api/private/logout':'/api/private/session',{method:logoutToken?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:logoutToken?{Accept:'application/json',Authorization:proofAuthorization('csrf',logoutToken)}:{Accept:'application/json'}});
    if(expired||controller.signal.aborted||response.status!==200||!response.body||!/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type')??'')){void response.body?.cancel().catch(()=>{});throw new SessionClientError(response.status===401?'signed-out':'unavailable')}
    const length=response.headers.get('Content-Length');if(length!==null&&(!/^\d+$/.test(length)||!Number.isSafeInteger(Number(length))||Number(length)>4096)){void response.body.cancel().catch(()=>{});throw new SessionClientError()}
    reader=response.body.getReader();const bytes=new Uint8Array(4096);let size=0,count=0;

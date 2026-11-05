@@ -30,7 +30,7 @@ async function seed(db:D1Database,n:number){
 }
 async function claim(db:D1Database,now:number){
  const coordinator=new BrowserSessionCoordinator(db,O,()=>now),boot=(await coordinator.bootstrap(new Request(O,{method:'POST',headers:{Origin:O}})))!;
- const headers=new Headers({Origin:O,Cookie:boot.setCookie.split(';')[0]});const command=(await coordinator.command(new Request(O,{method:'POST',headers}),'login'))!;headers.set('X-Session-Command',command.commandToken);
+ const headers=new Headers({Origin:O,Cookie:boot.setCookie.split(';')[0]});const command=(await coordinator.command(new Request(O,{method:'POST',headers}),'login'))!;headers.set('Authorization','Bearer command.'+(command.commandToken));
  const flow=new BrowserOAuthFlow(db,{origin:O,clientId:'fixture.apps.googleusercontent.com',cookieKey:new Uint8Array(32).fill(9)},()=>now),start=(await flow.start(new Request(O+'/api/auth/start',{method:'POST',headers})))!;
  const state=new URL(start.location).searchParams.get('state')!,callback=new Request(O+'/api/auth/callback?state='+state+'&code=fictional',{headers:{Cookie:boot.setCookie.split(';')[0]+'; '+start.setCookie.split(';')[0]}});
  const result=await flow.claim(callback);if(result?.kind!=='code')throw Error('missing fictional claim');return {proof:result.proof,contextCookie:boot.setCookie,flow,callback};
