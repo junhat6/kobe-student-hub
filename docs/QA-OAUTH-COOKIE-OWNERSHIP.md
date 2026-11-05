@@ -41,3 +41,7 @@ DB claim 例外は browser flow が捕捉して null とするため Cookie は�
 | worker/auth/google-login.ts | c5e1217a2c78b6069b2d20de0c0c57470671fd8b95715c0419b8a1642859be11 |
 | worker/auth/browser-flow.ts | 8441c45c1e4709e1009981256b61cba1168ef3b71d8739e61007b9b17f5b30d1 |
 | tests/oauth-http-cookie.test.ts | 37bea405e0cc46ac0373a11cbeeb5bb9bc53d9fd99cbd33f2157d9c4730203f2 |
+
+## Cycle46 superseding scope
+
+The Cycle45 matched-clear contract above is historical. An already-claimed callback can still arrive after a newer start. Cycle46 removes all callback writes to the shared attempt cookie and retains original expiry. See [current contract and unresolved session response race](OAUTH-HTTP.md) and [separate QA](QA-OAUTH-LATE-RESPONSE.md). Prior tests did not prove that a later response preserves a newer session identity.

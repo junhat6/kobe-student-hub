@@ -576,3 +576,11 @@ An ignored one-case deterministic probe passed (12.5s): hold the initial list GE
 **Verification / limits:** Nine cookie-jar tests include the original A/B regression plus replay, concurrent responses, matched failures, session and sealed-purpose boundaries; independent QA added DB claim refusal and malformed-cookie preservation. Separate context rebuilt fixtures and passed67 tests across7 files (11.03s). See QA-OAUTH-COOKIE-OWNERSHIP. No browser/real provider/platform-log claim. A matched A response delayed beyond a later B start is a separate response-order race; ambiguous DB outcomes do not authorize claim reset/retry. CI precedes main reflection. This is a closed adapter correction, with no real credential/key/Google/schema/gate/Issue operation or public deployment.
 
 Final root checks: build/typecheck,410 tests across51 files (11.28s),60 public PC/mobile cases (11.1s), and deployment dry-run passed. No editor/local auth browser UI or live OAuth check is claimed; normal CI covers the unchanged editor suite.
+
+## Cycle46 — delayed OAuth response ordering
+
+**Planner:** Reproduce both already-claimed A failure arriving after B start and A session headers arriving after B completes as another active identity. Keep real Google and production authentication disconnected.
+
+**Developer:** HTTP callbacks never mutate the shared attempt cookie; its original600-second expiry applies. Lower-level claim API, encryption, DB consumption, schema, configuration and disabled production gate remain unchanged. Added controlled response-application fixture, retention/expiry/replay checks and an explicit executable reproduction of the unresolved session overwrite.
+
+**Replanning:** Attempt deletion and session identity replacement are separate problems. The latter blocks authentication release. Compare server-side browser generations, guarded finalization, stale-session rejection and safe recovery before any implementation or activation. Browser locks or ignoring stale response bodies alone are insufficient. No real provider/key/remote setting, deployment or refused Issue operation is part of this cycle. Final QA/check evidence is recorded in EVIDENCE and QA-OAUTH-LATE-RESPONSE.
