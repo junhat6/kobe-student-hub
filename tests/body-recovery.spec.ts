@@ -7,7 +7,7 @@ test('failed body chunk preserves navigation and recovers after reload',async({p
  await expect(page.getByRole('heading',{name:'この記事は、こんな人へ'})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath('body-unavailable.png'),fullPage:true,scale:'css'});
- await page.getByRole('link',{name:'ほかの記事を探す'}).click();
+ await page.getByRole('link',{name:'ほかの記事・作品を探す'}).click();
  await expect(page.getByRole('heading',{name:'新しい知恵と、つくったもの'})).toBeVisible();
  await page.getByRole('heading',{name:'commitの次に知りたい、ブランチの考え方'}).getByRole('link').click();
  await expect(page.getByRole('alert')).toContainText('本文を読み込めませんでした');

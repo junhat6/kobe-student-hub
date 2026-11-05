@@ -12,5 +12,5 @@ test('same samples and order, optional context, direct link and back',async({pag
  await page.goto('/');await expect(page.locator('.card-reader-context')).toHaveCount(0);
 });
 test('study failure recovery does not pretend to record responses',async({page})=>{
- await page.route('**/api/catalog',r=>r.fulfill({status:503,body:'{}'}));await page.goto('/study/cards?variant=b');await expect(page.getByRole('heading',{name:'記事を読み込めませんでした'})).toBeVisible();await page.unroute('**/api/catalog');await page.getByRole('button',{name:'再読み込み'}).click();await expect(page.locator('.card-reader-context')).toHaveCount(3);await expect(page.getByText(/回答収集や選択イベント送信/)).toBeVisible();
+ await page.route('**/api/catalog',r=>r.fulfill({status:503,body:'{}'}));await page.goto('/study/cards?variant=b');await expect(page.getByRole('heading',{name:'記事・作品を読み込めませんでした'})).toBeVisible();await page.unroute('**/api/catalog');await page.getByRole('button',{name:'再読み込み'}).click();await expect(page.locator('.card-reader-context')).toHaveCount(3);await expect(page.getByText(/回答収集や選択イベント送信/)).toBeVisible();
 });

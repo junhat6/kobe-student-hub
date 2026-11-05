@@ -400,3 +400,10 @@ Independent focused50 passed (10.83s) using unchanged final root-built fixtures.
 - Root build/typecheck and selected configuration dry-run passed; source OAuthfalse and production sample asset bytes remain unchanged. Old full runtime/browser suites are verified by normal CI rather than redundant local execution. No preparation command performs deployment, network, SQL or credential actions.
 - Separately authorized dedicated empty-DB creation/bootstrap was identity-checked; only public schema/sample data and0001/0002 ledger were initialized. Verified4/2 fictional rows, no auth/private schema and preview untouched. This does not prove deployment or authentication. Actual remote/live results are recorded privately and summarized only after separate verification.
 - Google client/secret/key/token, secret insertion/version/deploy effects, IAM, policy/status changes, paid contract/upgrade, real accounts, refused Issue writes and PR approval remain outside this unit. Actual callback logging, admission and operating/privacy gates are not satisfied by these local checks.
+
+
+# Cycle 43 evidence — content-kind wording
+
+The public detail now calls a project a project and its creator a student who made it, while article wording remains article-specific. Empty search names article/project/both according to the existing selected kind. Shared catalog/recovery/missing/related-empty copy names both kinds. Filtering, route and data semantics are unchanged.
+
+Local final build/typecheck,401 tests across50 files (11.16s),60 public Chromium desktop/mobile cases (10.2s), and deployment dry-run passed. The two initial new mobile sidebar assertions were corrected to match its pre-existing hidden layout; final checks pass without product layout or timeout/retry changes. Separate-context QA adds22 focused browser checks and independently runs the12 new desktop/mobile cases (3.6s). Local captures remain private. See QA-CONTENT-KIND-COPY.md. CI/release results will be recorded in the PR after they actually complete. This does not verify real users/OAuth, student value or physical mobile devices.
