@@ -18,6 +18,7 @@
 | ゲート／現状 | 完了判断に必要な証拠 | 次の具体的な作業・参照 |
 | --- | --- | --- |
 | 学校Google認証・ブラウザ接続：部品とローカル試験あり、実接続未完了 | 登録したリダイレクト先、サーバーでの交換・署名検証、一回限りの試行、PKCE・ブラウザ結合、失敗・再送・期限・並行操作の検証。実コントローラーでCookie・CSRF・ログアウトまで確認 | 許可された専用設定を用意し、実経路を接続・独立QA。[GOOGLE-LOGIN.md](GOOGLE-LOGIN.md)、[OAUTH-ATTEMPTS.md](OAUTH-ATTEMPTS.md)、[SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md) |
+| セッション応答順：未解決・認証公開停止 | Bのログイン完了後に古いAの成功応答が到着しても、Aとして認証しないこと。期限・再送・複数タブ・ログアウトと安全な回復も検証 | callbackの試行Cookie削除廃止だけでは未解決。サーバー側世代管理／確定プロトコルを設計・独立QAする。[OAUTH-HTTP.md](OAUTH-HTTP.md) Cycle46 |
 | 在籍・卒業・アカウント回復：判断待ち | 現役学生の書込資格、年度境界・補正、卒業後の修正／削除と本人確認の決定、サーバー側の許可・拒否例 | 学校ドメインやactive状態だけで資格を確定しない。未決定のケースを決めてから接続。[AUTH-BOUNDARY.md](AUTH-BOUNDARY.md)、[DECISIONS.md](DECISIONS.md) |
 | 私的データと公開操作：ローカル旅程あり、実接続未完了 | 他人の下書きへの拒否、競合・通信失敗でも文章を保護、確認した保存版と本人入力プロフィールだけの公開、私的識別子の非公開。実セッション切替後の境界も確認 | 実認証の下で編集・プロフィール・公開・匿名閲覧を一続きに検証。プロフィールの修正／削除と実際の同意・規約は別途整理。[PRIVATE-DRAFTS.md](PRIVATE-DRAFTS.md)、[PUBLIC-PROFILE.md](PUBLIC-PROFILE.md)、[PUBLICATION-JOURNEY.md](PUBLICATION-JOURNEY.md)、[本人の公開記録](OWN-PUBLICATION-RECORDS.md)、[本人のローカル公開停止](PUBLICATION-STOPS.md)。保存状態や停止記録は理由説明・通知・異議対応・消去の完成ではない |
 | 通報・不正利用対策：ローカル受付と非公開化あり | 認証済み本人の受付確認、重複扱い、入力制限、一時非公開。実在籍・再登録・濫用時の制限と対応を含む検証 | 同一アカウントの重複防止を別人の証明にしない。未決の利用資格・濫用対策を具体化。[MODERATION-INTAKE.md](MODERATION-INTAKE.md)、[MODERATION-JOURNEY.md](MODERATION-JOURNEY.md) |

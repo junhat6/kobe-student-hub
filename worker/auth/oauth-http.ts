@@ -29,8 +29,8 @@ export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,opti
    let result:Awaited<ReturnType<GoogleLoginBroker['callback']>>|Awaited<ReturnType<GoogleLoginBroker['registrationCallback']>>=null;
    try{if(!url.hash){result=await broker.callback(request);if(result===null)result=await broker.registrationCallback(request)}}catch{/* No provider/body/error reflection. */}
    const response=new Response(null,{status:303,headers:{...headers,Location:config.origin+'/'}});
-   // An unmatched callback has no authority to remove another in-progress attempt.
-   if(result)response.headers.append('Set-Cookie',result.clearCookie);
+   // Never mutate the shared attempt cookie: even a claimed response can arrive after a newer start.
+   // Its original expiry remains in force; consumed attempts cannot be replayed.
    if(result?.kind==='authenticated')response.headers.append('Set-Cookie',result.setCookie);return response;
   }
   // Start commands derive no authority from a payload. Do not read or allocate an unbounded body.
