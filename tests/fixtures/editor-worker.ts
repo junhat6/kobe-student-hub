@@ -1,3 +1,4 @@
+import {createFixtureSession} from '../helpers/coordinated-fixture';
 import {createPrivatePublicationStopHandler} from '../../worker/publication-stops-http';
 import {createPrivateOwnPublicationsHandler} from '../../worker/own-publications-http';
 import {createPrivateProjectReportHandler} from '../../worker/project-reports-http';
@@ -35,23 +36,23 @@ export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LO
   if(request.method!=='POST'||request.headers.get('Origin')!==ORIGIN)return Response.json({error:'unavailable'},{status:403,headers:privateHeaders});
   try{const id=crypto.randomUUID();const subject='profile-lab-fictional-'+id;
    await env.DB.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)").bind('profile-lab-'+id,subject,'profile-lab-fictional@st.kobedenshi.ac.jp',Date.now()).run();
-   const session=await new SessionStore(env.DB,ORIGIN).create({provider:'google',subject,email:'profile-lab-fictional@st.kobedenshi.ac.jp'});
+   const session=await createFixtureSession(env.DB,ORIGIN,Date.now,{provider:'google',subject,email:'profile-lab-fictional@st.kobedenshi.ac.jp'});
    if(!session)return Response.json({error:'unavailable'},{status:503,headers:privateHeaders});
-   return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
+   const response=Response.json({csrfToken:session.csrfToken},{headers:privateHeaders});response.headers.append('Set-Cookie',session.contextCookie);response.headers.append('Set-Cookie',session.setCookie);return response;
   }catch{return Response.json({error:'unavailable'},{status:503,headers:privateHeaders})}
  }
  // Explicit tests-only operator bootstrap. The trusted allowlist below is fictional and localhost-only.
  if(path==='/__fixture/operator-session'){
   if(request.method!=='POST'||request.headers.get('Origin')!==ORIGIN)return Response.json({error:'unavailable'},{status:403,headers:privateHeaders});
-  const session=await new SessionStore(env.DB,ORIGIN).create({provider:'google',subject:'editor-fictional-operator',email:'editor-operator@st.kobedenshi.ac.jp'});
+  const session=await createFixtureSession(env.DB,ORIGIN,Date.now,{provider:'google',subject:'editor-fictional-operator',email:'editor-operator@st.kobedenshi.ac.jp'});
   if(!session)return Response.json({error:'unavailable'},{status:503,headers:privateHeaders});
-  return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
+  const response=Response.json({csrfToken:session.csrfToken},{headers:privateHeaders});response.headers.append('Set-Cookie',session.contextCookie);response.headers.append('Set-Cookie',session.setCookie);return response;
  }
  if(path==='/__fixture/session'){
   if(request.method!=='POST'||request.headers.get('Origin')!==ORIGIN)return Response.json({error:'unavailable'},{status:403,headers:privateHeaders});
   try{const text=await request.text();if(text.length>100)return Response.json({error:'unavailable'},{status:400,headers:privateHeaders});const input=JSON.parse(text) as {account?:unknown};if(input.account!=='a'&&input.account!=='b')return Response.json({error:'unavailable'},{status:400,headers:privateHeaders});
-   const session=await new SessionStore(env.DB,ORIGIN).create({provider:'google',subject:'editor-fictional-'+input.account,email:'editor-fictional@st.kobedenshi.ac.jp'});if(!session)return Response.json({error:'unavailable'},{status:503,headers:privateHeaders});
-   return Response.json({csrfToken:session.csrfToken},{headers:{...privateHeaders,'Set-Cookie':session.setCookie}});
+   const session=await createFixtureSession(env.DB,ORIGIN,Date.now,{provider:'google',subject:'editor-fictional-'+input.account,email:'editor-fictional@st.kobedenshi.ac.jp'});if(!session)return Response.json({error:'unavailable'},{status:503,headers:privateHeaders});
+   const response=Response.json({csrfToken:session.csrfToken},{headers:privateHeaders});response.headers.append('Set-Cookie',session.contextCookie);response.headers.append('Set-Cookie',session.setCookie);return response;
   }catch{return Response.json({error:'unavailable'},{status:400,headers:privateHeaders})}
  }
  // Anonymous standalone project discovery; no session or automatic identity creation.

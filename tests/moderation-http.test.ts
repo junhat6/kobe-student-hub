@@ -3,8 +3,8 @@ import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import type {ModerationCase,ModerationSummary} from '../worker/moderation';
 const ORIGIN='https://app.example.invalid';const NOW=1800000000000;let mf:Miniflare;
-type Session={setCookie:string;csrfToken:string};let users:Session[];let operator:Session;
-const headers=(s:Session)=>({Cookie:s.setCookie.split(';')[0],Origin:ORIGIN,'X-CSRF-Token':s.csrfToken,'Content-Type':'application/json'});
+type Session={setCookie:string;contextCookie:string;csrfToken:string};let users:Session[];let operator:Session;
+const headers=(s:Session)=>({Cookie:[s.setCookie,s.contextCookie].map(v=>v.split(';')[0]).join('; '),Origin:ORIGIN,'X-CSRF-Token':s.csrfToken,'Content-Type':'application/json'});
 async function session(who:string){return await(await mf.dispatchFetch(ORIGIN+'/fixture/session',{headers:{'X-Test-Who':who}})).json() as Session}
 async function request(path:string,method='GET',s=users[0],body?:unknown,extra:Record<string,string|undefined>={}){const r=await mf.dispatchFetch(ORIGIN+path,{method,headers:{...headers(s),...extra} as Record<string,string>,...(body===undefined?{}:{body:JSON.stringify(body)})});for(const [k,v] of Object.entries({'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Content-Type':'application/json; charset=utf-8'}))expect(r.headers.get(k)).toBe(v);for(const k of ['Set-Cookie','Location','Access-Control-Allow-Origin'])expect(r.headers.has(k)).toBe(false);return r}
 const path=(id:string)=>'/api/private/reports/'+id;

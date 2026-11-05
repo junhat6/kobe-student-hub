@@ -5,11 +5,11 @@ import {jwtDecrypt} from 'jose';
 import {googleFixture,TEST_CLIENT_ID} from './helpers/google-fixtures';
 import {pkceChallenge} from '../worker/auth/browser-flow';
 const ORIGIN='https://app.example.invalid';const NOW=Date.now();const key=crypto.getRandomValues(new Uint8Array(32));
-type Start={location:string;setCookie:string};type Result={kind:string;setCookie?:string;csrfToken?:string;actor?:unknown;clearCookie:string};
+type Start={location:string;setCookie:string;contextCookie:string};type Result={kind:string;setCookie?:string;csrfToken?:string;actor?:unknown;clearCookie:string};
 let mf:Miniflare;let fixture:Awaited<ReturnType<typeof googleFixture>>;let response:()=>Promise<Response>;let exchanges=0;let form:URLSearchParams;const destinations:string[]=[];
 async function call<T>(input:Record<string,unknown>):Promise<T>{return await (await mf.dispatchFetch('https://fixture.test',{method:'POST',body:JSON.stringify({now:NOW,key:Array.from(key),clientSecret:'synthetic-test-only-secret',...input})})).json() as T}
 const start=(extra={})=>call<Start|null>({action:'start',url:ORIGIN+'/api/auth/start',method:'POST',headers:{Origin:ORIGIN},...extra});
-const callback=(a:Start,extra={})=>call<Result|null>({action:'callback',url:ORIGIN+'/api/auth/callback?state='+new URL(a.location).searchParams.get('state')+'&code=synthetic-code',headers:{Cookie:a.setCookie.split(';')[0]},...extra});
+const callback=(a:Start,extra={})=>call<Result|null>({action:'callback',url:ORIGIN+'/api/auth/callback?state='+new URL(a.location).searchParams.get('state')+'&code=synthetic-code',headers:{Cookie:[a.setCookie,a.contextCookie].map(v=>v.split(';')[0]).join('; ')},...extra});
 async function signed(a:Start,patch={}){return fixture.sign({nonce:new URL(a.location).searchParams.get('nonce'),...patch})}
 const failure=(r:Result|null)=>expect(r).toEqual({kind:'failed',clearCookie:expect.stringContaining('Max-Age=0')});
 beforeAll(async()=>{

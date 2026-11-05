@@ -1,0 +1,64 @@
+# Independent auth SQL guard inventory
+
+Audit date: 2026-11-05. Scope: nine private repositories, SessionStore, OAuth attempt/flow issuance, account revocation triggers. This inventory starts from the pre-integration implementation and records the required generation-aware integration boundary. No remote database, real identity, OAuth secret, or provider was used.
+
+## Central invariant
+
+Every private SQL read, mutation, receipt, and empty-list sentinel must check the live session in the same statement that releases data or commits a write. A successful earlier HTTP authentication is insufficient. The central `worker/auth/session-guard.ts` predicate and bindings must cover token hash, account identity, active account and matching account epoch, session revocation, creation/last-seen/idle/absolute expiry, and live browser context identity/generation/expiry. Context-less historical rows fail closed; there is no legacy fallback.
+
+Ownership remains an additional predicate, not a replacement for the session guard. Operator identity comes only from server configuration after storage authorization. Public readers intentionally have no session guard and must retain publication/provenance/bounded DTO checks.
+
+## Complete repository statement inventory
+
+Counts refer to `db.prepare` calls, including private helpers and public readers. Trigger statements are separate below.
+
+| File | Private methods and SQL sites | Public SQL exceptions | Ownership / race notes |
+| --- | --- | --- | --- |
+| `worker/drafts.ts` | `create` INSERT; `read` SELECT; `list` authorized sentinel SELECT; `update` UPDATE RETURNING; `delete` DELETE RETURNING (5) | None | Owner ID on every existing-row operation; version and nonfuture timestamp on edits/deletion. |
+| `worker/public-profile.ts` | `current` sentinel SELECT; `create` batch: public profile INSERT SELECT, mapping INSERT subquery, aborting final assertion (4) | None | Mapping constrained to proof account; all three batch statements need central guard; assertion preserves rollback if an earlier conditional insert produces nothing. |
+| `worker/publication.ts` | `publish` retry receipt SELECT and INSERT SELECT; `getOwnReceipt` SELECT (3) | `readPublished` (1), `readPublishedSelection` (1), `boundedPublications` (2) | Draft owner, mapping owner, publication owner/profile consistency, source version, bounded immutable snapshot. Retry receipt is private and needs same guard as INSERT. |
+| `worker/projects.ts` | `createDraft`, `getDraft`, `listDrafts`, `saveDraft` (4); `publish` early draft SELECT and INSERT (2); `receiptRow` SELECT (1); `getOwnReceipt` SELECT (1): 8 | `readPublished` (1), `readAuthor` (2), `readRecentPublished` (2) | **Corrected baseline gap:** early draft SELECT in `publish` now uses the central guard as well as ownership. Final INSERT pins loaded snapshot, source version, mapping and public profile; fallback receipt is independently guarded. |
+| `worker/own-publications.ts` | `list` authorized CTE + owner-filtered article/project union (1) | None | Guarded sentinel distinguishes authorized empty list from failed authentication. Both source arms need owner proof. |
+| `worker/publication-stops.ts` | `state` SELECT (1); `stop` marker INSERT SELECT (1) | None | Marker owner/version/published time; SQL triggers atomically hide publication. Follow-up `state` is another final guarded read. |
+| `worker/likes.ts` | `getOwn` SELECT (1); `setOwn` unlike batch DELETE + aborting assertion, like INSERT SELECT (3): 4 | `readPublic` (3) | Unlike assertion must stay transactional. Like pins target and own public profile snapshot. Public liked list explicitly exposes public intent; it uses active profile owner and final accepted-profile/accepted-likes snapshot revalidation. |
+| `worker/moderation.ts` | `report` INSERT SELECT; `getOwnReport` SELECT; `queue` sentinel SELECT; `readCase` SELECT (4) | None | Reporter receipt filtered by proof account. Queue/case require configured operator account allowlist plus final live session. Report triggers atomically count, notify outbox, and hide. |
+| `worker/project-reports.ts` | `report` INSERT SELECT; `getOwnReceipt` existing-receipt SELECT + fresh-public-target SELECT (2); `queue` sentinel SELECT; `readCase` SELECT (5) | None | Receipt reporter account; public-target snapshot is pinned again in final SQL. Queue/case operator allowlist. Hidden/deleted target receipt still requires live session. |
+
+Total: 36 private and 12 public repository SQL sites (48). Baseline 35/36 private sites contained expiry/account/revocation checks, all duplicated; the early project draft SELECT was the exception. The integrated implementation now replaces every duplicate with the central context/generation-aware guard, including that early read.
+
+## Auth SQL and HTTP boundary inventory
+
+- `SessionStore.create`: INSERT SELECT active account by verified provider subject, copying account epoch. New signature must require a server-issued claim; insertion must atomically consume/finalize its context generation and issued revocation stamp against the verified subject floor. A plain verified identity must not issue a session.
+- `SessionStore.lookup`: UPDATE last_seen RETURNING account, with token/revoked/time and active account/epoch check. Must also require exact browser context cookie and current generation in that same UPDATE. Authentication failure must not refresh idle expiry.
+- `storageAuthorization`: GET authenticates; writes authenticate plus method/origin/fetch-site/CSRF. Repositories receive a server-private proof with token/account/time/context/generation; never trust request JSON for these values.
+- `logout`: baseline UPDATE only token hash and null revocation after earlier authorization. Context generation transition and session invalidation must be atomic and replay safe. A stale logout cannot invalidate a later sign-in, and logout before identity completion must invalidate pending claims.
+- `cleanupExpired`: bounded DELETE (100) by absolute or idle expiration; housekeeping has no browser session predicate and does not disclose private rows.
+- `OAuthAttemptStore.start`: INSERT hashed state/browser binding plus nonce and TTL. `consume`: conditional UPDATE with exact state/browser hash, unconsumed state, created/expiry bounds; only winner receives nonce. `cleanupExpired`: bounded DELETE (100). Integration must tie attempts to server context generation/fence and recheck these at final issuance, including after provider exchange.
+- `BrowserOAuthFlow.start/claim`: same-origin POST start, exact callback URL/state, PKCE, encrypted HttpOnly cookie and one-use attempt claim. Baseline has no persistent context generation: callback-cookie validation alone cannot prevent a late response from restoring a superseded session.
+- `PendingRegistrationStore.record`: pending-only account INSERT/upsert with email collision refusal; never an active-account admission or session. If retained in integrated callback flow, claim validity must be checked at its final write too.
+- `private-access.ts`: `mayReadPrivateRecord` is a pure owner/status helper, with no SQL, expiration, revocation, or browser generation enforcement. It cannot authorize storage itself.
+
+## Migration and trigger inventory
+
+`0004_private_sessions.sql`: account status change increments `session_epoch`; sessions FK cascade on account deletion; active status + copied epoch reject suspended/deleted or manually epoch-revoked sessions. `0005`/`0009`: private drafts cascade on account deletion. `0006`/`0010`: reports require active reporter at INSERT; article report outbox/hide trigger runs in same statement. `0007`: article publication snapshot trigger checks draft ownership/version/profile and aborts absent snapshot. `0008`: likes FK owner cascade. `0011`: stop-marker validity checks owner/account/status/version then atomically hides; no-republish triggers protect stopped snapshots. None of these trigger checks replace the session/context guard.
+
+Migration 0012 integration now uses persistent browser context/generation and fails old session/attempt rows closed. The global revision advances on account epoch/status changes or deletion, but serves as an ordering stamp: final verified-subject writes compare the original attempt stamp with that subject’s revocation floor plus the permanent minimum watermark. Unrelated account revocation does not invalidate pending login or established sessions. See [pending revocation design](PENDING-ATTEMPT-REVOCATION.md) and [migration QA](QA-SESSION-GENERATION-MIGRATION.md) for deletion/recreation, cleanup and overflow evidence. Account-local epoch/status rules still govern established sessions.
+
+## Regression coverage and limits
+
+`tests/auth-guard-inventory.test.ts` inventories every prepare statement in the nine repositories, requires central SQL and matching binding helper at every private site, rejects locally duplicated auth table checks, and permits only the enumerated public methods/counts. Changes to SQL shape or new methods deliberately require an inventory update. This static check catches omissions; it does not prove placeholder order, SQL semantics, transactionality, or elapsed-time behavior.
+
+Runtime tests must inject changes after storage authorization and before the final SQL: context generation advance/logout/newer login; session revoked; account epoch/status/deletion; absolute/idle/context expiry. Exercise reads and mutations across all nine stores, authorized empty sentinels, both receipt retry paths, transactional unlike/profile batches, and stop marker/final read. A read already committed before logout cannot be retracted; the guarantee is evaluation against state at the final statement. The final central binding helper now rereads the trusted clock for each statement, rejecting unsafe values or rollback below the storage proof timestamp. This covers elapsed time across awaits before binding, including fallback receipts and follow-up reads. SQL parameters still capture dispatch time; this is not a database-engine clock evaluated at commit.
+
+Initial evidence: standalone scanner enumerated all 48 prepare calls with no unparsed calls and matched every per-method count above. `npx vitest run tests/auth-guard-inventory.test.ts` initially ran 10 checks: the totals check passed; nine repository checks failed because the central imports had not yet been integrated. This is the intended pre-refactor red baseline, not a completed integration pass. Rerun after the repository refactor before acceptance.
+
+
+## Integrated runtime context race evidence
+
+Resource-only fixtures can inject `race='context'` / `X-Test-Race: context` by advancing the authenticated account’s browser context generation after a successful last-seen UPDATE. Header fixtures support `X-Test-Race-At` so HTTP preflight can finish before the repository’s final storage proof is invalidated (normally lookup 2; publication/report paths with an extra proof use lookup 3). The lookup returns its already-authenticated result before the injected change; final private SQL must therefore reject it. No production code or remote state is changed by these injectors.
+
+Coverage: all five draft operations; profile read and create batch; article publish insert/retry and own receipt; project create/read/list/save/publish/receipt; own-publication list; publication-stop state and marker write; like read/insert and transactional unlike; article report write and operator queue/case; project report write, own receipt and operator queue/case. Failed writes assert unchanged counts, draft versions/snapshots, or publication visibility as appropriate. Public readers remain session-independent.
+
+Final independent evidence (2026-11-05): `node scripts/build-test-fixtures.mjs` completed; `npx tsc --noEmit` passed; the inventory plus nine resource suites passed **108/108 tests in 10 files** using local Miniflare/D1. The stronger race injection initially exposed a test expectation mismatch (final storage rejection is 404, versus preflight 401); adjusting that assertion yielded the full pass. No central-guard hole was observed in these covered paths. Local sandbox execution could not bind 127.0.0.1 (`EPERM`); the approved local-listener test run completed successfully. No remote/provider operation was attempted.
+
+Freeze recheck after final clock change (2026-11-05): independently reviewed `liveSessionBindings` and `storageAuthorization`; the helper samples the trusted clock at each final SQL binding, rejects unsafe/rollback values, and supplies the fresh time to every context/session expiration predicate. Fixture rebuild and `npx tsc --noEmit` passed. The same inventory plus nine repository suites passed **108/108 tests in 10 files (7.95s)**. No resource source or test changes were needed for this recheck. This rerun confirms regressions remain green; it does not independently add elapsed-clock fault injection.

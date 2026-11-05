@@ -4,10 +4,10 @@ import {readFileSync} from 'node:fs';
 import {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS} from '../worker/auth/sessions';
 const ORIGIN='https://app.example.invalid';const NOW=1_800_000_000_000;
 const identity=(who='a')=>({provider:'google',subject:'subject-'+who,email:'fixture-'+who+'@st.kobedenshi.ac.jp'});
-type Session={setCookie:string;csrfToken:string;actor:{accountId:string;accountStatus:string}};
+type Session={setCookie:string;contextCookie:string;csrfToken:string;actor:{accountId:string;accountStatus:string}};
 let mf:Miniflare;
 async function call<T>(input:Record<string,unknown>,target=mf):Promise<T>{const r=await target.dispatchFetch('https://fixture.test',{method:'POST',body:JSON.stringify({now:NOW,url:ORIGIN+'/private',...input})});return await r.json() as T;}
-const create=(extra={})=>call<Session|null>({action:'create',identity:identity(),...extra});const cookie=(s:Session)=>s.setCookie.split(';')[0];
+const create=(extra={})=>call<Session|null>({action:'create',identity:identity(),...extra});const cookie=(s:Session)=>[s.setCookie,s.contextCookie].map(v=>v.split(';')[0]).join('; ');
 const auth=(s:Session,extra={})=>call<{actor:Session['actor'];csrfToken:string}|null>({action:'auth',headers:{Cookie:cookie(s)},...extra});
 const headers=(s:Session)=>({Cookie:cookie(s),Origin:ORIGIN,'X-CSRF-Token':s.csrfToken,'Sec-Fetch-Site':'same-origin'});
 beforeAll(async()=>{
@@ -18,7 +18,7 @@ beforeAll(async()=>{
 afterAll(async()=>{await mf?.dispose()});
 describe('private opaque sessions and request-bound CSRF',()=>{
  it('issues fresh Host cookies, stores only domain-separated hashes, and returns no identity in cookies',async()=>{
-  const a=(await create())!;const b=(await create())!;expect(a.setCookie).not.toBe(b.setCookie);expect(a.csrfToken).not.toBe(b.csrfToken);const raw=cookie(a).split('=')[1];expect(raw).toMatch(/^[A-Za-z0-9_-]{43}$/);expect(a.csrfToken).toMatch(/^[A-Za-z0-9_-]{43}$/);expect(a.csrfToken).not.toBe(raw);
+  const a=(await create())!;const b=(await create())!;expect(a.setCookie).not.toBe(b.setCookie);expect(a.csrfToken).not.toBe(b.csrfToken);const raw=a.setCookie.split(';')[0].split('=')[1];expect(raw).toMatch(/^[A-Za-z0-9_-]{43}$/);expect(a.csrfToken).toMatch(/^[A-Za-z0-9_-]{43}$/);expect(a.csrfToken).not.toBe(raw);
   for(const flag of ['__Host-kobe-session=','Path=/','Secure','HttpOnly','SameSite=Lax','Max-Age=28800'])expect(a.setCookie).toContain(flag);expect(a.setCookie).not.toMatch(/subject|@|Domain=/);
   const db=await mf.getD1Database('DB');const stored=JSON.stringify((await db.prepare('SELECT * FROM auth_sessions').all()).results);expect(stored).not.toContain(raw);expect(stored).not.toContain(a.csrfToken);expect(a.actor).toEqual({accountId:'account-a',accountStatus:'active'});
  });
@@ -38,9 +38,9 @@ describe('private opaque sessions and request-bound CSRF',()=>{
   for(const h of [{Cookie:cookie(a)},{...headers(a),Origin:'null'},{...headers(a),Origin:'https://other.invalid'},{...headers(a),'Sec-Fetch-Site':'cross-site'},{...headers(a),'X-CSRF-Token':b.csrfToken},{...headers(a),'X-CSRF-Token':'x'.repeat(43)}])expect(await call({action:'mutation',method:'POST',headers:h})).toBeNull();
   expect(await call({action:'mutation',method:'GET',headers:headers(a)})).toBeNull();for(const method of ['POST','PUT','PATCH','DELETE'])expect((await call<Session>({action:'mutation',method,headers:headers(a)})).actor.accountId).toBe('account-a');
  });
- it('CSRF-protects logout, revokes only the current session and clears its Host cookie',async()=>{
+ it('CSRF-protects browser logout without a delayed Cookie deletion',async()=>{
   const a=(await create())!;const other=(await create())!;expect(await call({action:'logout',method:'GET',headers:headers(a)})).toBeNull();expect(await call({action:'logout',method:'POST',headers:{Cookie:cookie(a),Origin:ORIGIN}})).toBeNull();expect(await auth(a)).not.toBeNull();
-  expect(await call({action:'logout',method:'POST',headers:headers(a)})).toEqual({clearCookie:expect.stringContaining('Max-Age=0')});expect(await auth(a)).toBeNull();expect(await auth(other)).not.toBeNull();
+  expect(await call({action:'logout',method:'POST',headers:headers(a)})).toEqual({loggedOut:true});expect(await auth(a)).toBeNull();expect(await auth(other)).not.toBeNull();
  });
  it('rejects at the idle deadline and before creation/after a backwards clock',async()=>{
   const a=(await create())!;expect(await auth(a,{now:NOW-1})).toBeNull();expect(await auth(a,{now:NOW+SESSION_IDLE_MS})).toBeNull();const b=(await create())!;expect(await auth(b,{now:NOW+1000})).not.toBeNull();expect(await auth(b,{now:NOW+999})).toBeNull();

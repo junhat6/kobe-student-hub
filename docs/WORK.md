@@ -584,3 +584,35 @@ Final root checks: build/typecheck,410 tests across51 files (11.28s),60 public P
 **Developer:** HTTP callbacks never mutate the shared attempt cookie; its original600-second expiry applies. Lower-level claim API, encryption, DB consumption, schema, configuration and disabled production gate remain unchanged. Added controlled response-application fixture, retention/expiry/replay checks and an explicit executable reproduction of the unresolved session overwrite.
 
 **Replanning:** Attempt deletion and session identity replacement are separate problems. The latter blocks authentication release. Compare server-side browser generations, guarded finalization, stale-session rejection and safe recovery before any implementation or activation. Browser locks or ignoring stale response bodies alone are insufficient. No real provider/key/remote setting, deployment or refused Issue operation is part of this cycle. Final QA/check evidence is recorded in EVIDENCE and QA-OAUTH-LATE-RESPONSE.
+
+## Cycle47 — session ordering design before implementation
+
+**Planner:** Compare server-side candidates for the reproduced A-after-B identity overwrite. Work is limited to analysis and a closed synthetic model; do not implement the application protocol or change auth gate/schema/Google/keys/access/data.
+
+**Developer:** Proposed anonymous bootstrap-only context, per-context generation advanced at start/logout, exact final-session and all-private-operation guards, separate context action CSRF, no context reissue and explicit fresh-login recovery. SESSION-ORDER-DESIGN.md compares alternatives, availability/fixation/multi-device/replay/bootstrap risks and unproven assumptions. Added in-memory protocol fixtures with deterministic non-credential labels, no production imports.
+
+**Replanning:** Report this candidate and independent model review before any application implementation. Next possible unit is a local-only D1/HTTP proof of atomicity and cookie/CSRF boundaries; this model is not permission to open authentication or migrate runtime state.
+
+**Independent QA / result:** Separate review passed2files/19modeltests, including an additional252 captured-context schedules. Candidate supported for a next local-only D1/HTTP proof, with command replay/idempotency, transaction/claim ownership, all final SQL, CSRF and bootstrap transport still unresolved. Build passed; no application changes. Report before any implementation; keep this design review separate from production release approval.
+
+## Cycle48 — local D1/HTTP protocol proof, no application adoption
+
+**Planner:** Exercise the session-generation candidate through real loopback HTTP, Worker runtime and isolated D1, including parallel start/callback/logout, SQL rollback, claim ownership, final private authorization, bootstrap/reissue, expiry/replay/fixation and device isolation. Keep production, Google, keys, credentials, gates and real data untouched.
+
+**Developer:** Added test-only lab schema/Worker/helper and bounded synthetic provider, with command nonce+expected epoch, atomic trigger-bound generation/attempt creation, one-owner claim, guarded unique session completion and final read/write SQL. Old incomplete commands reject after generation changes; completed command replay only acknowledges without any Cookie. This refines the previous model's logout-command ordering. See SESSION-ORDER-D1.md for the exact changed contract and limits.
+
+**Independent QA:** Separate context rebuilt and ran4files/47tests, adding final account rechecks, context expiry during issuance,8 start/logout races and logout rollback/replay. No blocking finding within this closed fixture. QA-SESSION-ORDER-D1.md records fingerprints and unproven production boundaries.
+
+**Replanning:** Report results before any app adoption. Still require all production private SQL/legacy session conditions, account-wide in-flight-login revocation policy, actual browser/HTTPS/CSRF/protocol integration, retention/DoS and UI recovery decisions. Local candidate refuses wrong actor but may require a fresh explicit login after lost/reordered headers. No real authentication release is authorized by fixture success.
+
+## Cycle49 — gated application session-generation integration
+
+**Planner / inventory first:** Before adoption, independently classified all48 SQL sites in9private repositories (36private/12public), existing session time/epoch/revocation/ownership rules, bootstrap/claim/logout and migration compatibility. Found an unguarded early private project read; require a shared final guard and regression inventory rather than controller-only proof.
+
+**Developer:** Implemented server-owned browser contexts, one-use action/expected-generation commands, atomic generation+attempt creation and claim-owner completion. All private statements now use central context/session/account/expiry guards, with a fresh monotonic clock at final binding. Current CSRF logout and stale-session context-command logout invalidate the browser generation without delayed Cookie deletion. Legacy rows require reauthentication; no fallback. Migration0012 and fixture adapters are local preparation only.
+
+**User steering / replanning:** Do not impose unrelated students' re-login on every account revocation. Replaced the initial blanket pending fence with a global ordering stamp and per-verified-subject floors, independently compared alternatives, abuse/impact and deletion/recreation. Only the revoked subject's old login/registration fails. Bounded opportunistic floor GC plus a permanent minimum stamp prevents clock rollback revival. Query workload and quiet-service identifier retention remain explicit production gates; do not claim real deletion/DoS completion.
+
+**Independent QA:** All9repository guard/race suites108passed; migration/cleanup/time suite15passed (38with OAuth-attempt/browser-flow); real Chromium HTTPS5passed including actual AccountSessionLab. The UI closes stale private editing on401 and requires explicit verification/continuation after fresh login. Existing public/student-value/physical-device/realGoogle/logging boundaries remain distinct.
+
+**Result:** Final frozen source: build/typecheck;58files/496unit tests;60public browser cases;164editor browser cases;deploy dry-run pass. Added auth-browser CI and source fingerprints. Two obsolete Cookie-deletion expectations were updated to retained-but-invalid Cookie checks. A separate local held-stream test was interrupted by a source hot reload; fixed-source rerun passed all164 without relaxing its assertion. No real provider/key/credential/grant/runtime data/config/DB/deployment or refused Issue operation. Proceed only through reviewed PR and green CI; auth source gate staysfalse after main merge.

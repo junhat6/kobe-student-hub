@@ -8,8 +8,8 @@ beforeAll(async()=>{
  mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/index.js',compatibilityDate:'2026-11-03',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
  const db=await mf.getD1Database('DB');
  for(const f of readdirSync('migrations').filter(f=>f.endsWith('.sql')).sort()){
-  const sql=readFileSync(`migrations/${f}`,'utf8').replace(/^--.*$/gm,'');
-  for(const statement of sql.split(/;\s*(?:\n|$)/).filter(s=>s.trim()))await db.prepare(statement).run();
+  const raw=readFileSync(`migrations/${f}`,'utf8');const sql=raw.replace(/^--.*$/gm,'');
+  for(const statement of (f==='0012_browser_session_order.sql'?raw.split(/^-- @statement\s*$/m).map(s=>s.replace(/^--.*$/gm,'')):sql.split(/;\s*(?:\n|$)/)).filter(s=>s.trim()))await db.prepare(statement).run();
  }
  bootstrapGitBody=(await db.prepare("SELECT body FROM content WHERE id='git-branches'").first<{body:string}>())!.body;
  const revision=readFileSync('content-revisions/0001_git_practice.sql','utf8').replace(/^--.*$/gm,'').trim();await db.prepare(revision).run();

@@ -3,9 +3,9 @@ import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import type {Entry,Profile} from '../src/types';
 const ORIGIN='https://app.example.invalid';const NOW=1800000000000;let mf:Miniflare;
-type Session={setCookie:string;csrfToken:string};type Receipt={publication:null|{contentId:string;sourceVersion:number;entry:Entry;author:Profile}};let users:Session[];
+type Session={setCookie:string;contextCookie:string;csrfToken:string};type Receipt={publication:null|{contentId:string;sourceVersion:number;entry:Entry;author:Profile}};let users:Session[];
 const meta={expectedVersion:1,confirmPublic:true,summary:'explicit summary',tags:[' ＡＩ ','学び'],minutes:3};
-const headers=(s:Session)=>({Cookie:s.setCookie.split(';')[0],Origin:ORIGIN,'X-CSRF-Token':s.csrfToken,'Content-Type':'application/json'});
+const headers=(s:Session)=>({Cookie:[s.setCookie,s.contextCookie].map(v=>v.split(';')[0]).join('; '),Origin:ORIGIN,'X-CSRF-Token':s.csrfToken,'Content-Type':'application/json'});
 async function session(who:number){return await(await mf.dispatchFetch(ORIGIN+'/fixture/session',{headers:{'X-Test-Who':String(who)}})).json() as Session}
 async function action<T>(action:string,n=0,input?:unknown,id?:string,method='POST'){return await(await mf.dispatchFetch(ORIGIN+'/fixture/store',{method:'POST',body:JSON.stringify({action,input,id,method,headers:headers(users[n])})})).json() as T}
 const draft=(n=0,title='Saved title',body='# Saved body')=>action<{id:string}>('draft',n,{title,body});

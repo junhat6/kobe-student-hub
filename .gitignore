@@ -21,3 +21,7 @@ test-results-independent-editor*/
 /docs/evidence/editor/04-explicit-recovery-mobile.png
 /docs/evidence/editor/05-unknown-outcome-confirmed-desktop.png
 /docs/evidence/editor/05-unknown-outcome-confirmed-mobile.png
+
+# Ephemeral OAuth ordering browser fixture outputs
+.generation-preview/
+test-results-generation/

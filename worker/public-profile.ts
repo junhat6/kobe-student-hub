@@ -1,4 +1,5 @@
-import {SessionStore,SESSION_IDLE_MS} from './auth/sessions';
+import {liveSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
+import {SessionStore} from './auth/sessions';
 export interface OwnPublicProfile {id:string;displayName:string;department:string;yearLabel:string;bio:string;initials:string}
 export interface OwnProfileResult {profile:OwnPublicProfile|null}
 type Input={displayName:string;department:string;yearLabel:string;bio:string;initials:string};
@@ -10,8 +11,6 @@ function canonical(value:unknown):Input|null{
  for(const [key,max] of [['department',80],['yearLabel',32],['bio',800]] as const)if(Object.hasOwn(v,key)&&!text(v[key],max))return null;
  return {displayName:v.displayName,department:v.department as string??'',yearLabel:v.yearLabel as string??'',bio:v.bio as string??'',initials:Array.from(v.displayName.trim())[0]};
 }
-const live=`EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.account_id=? AND a.status='active' AND a.session_epoch=s.account_epoch AND s.revoked_at_ms IS NULL AND s.created_at_ms<=? AND s.last_seen_ms<=? AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
-const bindings=(p:Proof)=>[p.tokenHash,p.accountId,p.nowMs,p.nowMs,p.nowMs-SESSION_IDLE_MS,p.nowMs];
 const validProfile=`p.is_sample=0 AND length(p.id) BETWEEN 1 AND 128 AND instr(p.id,char(0))=0 AND p.id NOT GLOB '*[^A-Za-z0-9_-]*' AND substr(p.id,1,1) GLOB '[A-Za-z0-9]' AND length(CAST(p.id AS BLOB))<=128 AND length(CAST(p.display_name AS BLOB))<=320 AND length(CAST(p.department AS BLOB))<=320 AND length(CAST(p.year_label AS BLOB))<=128 AND length(CAST(p.bio AS BLOB))<=3200 AND length(CAST(p.initials AS BLOB))<=32 AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=p.id OR private_id.google_subject=p.id)`;
 type Row={id:string;display_name:string;department:string;year_label:string;bio:string;initials:string};
 function dto(r:Row):OwnPublicProfile|null{return typeof r.id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(r.id)&&text(r.display_name,80)&&r.display_name.trim()&&text(r.department,80)&&text(r.year_label,32)&&text(r.bio,800)&&text(r.initials,8)?{id:r.id,displayName:r.display_name,department:r.department,yearLabel:r.year_label,bio:r.bio,initials:r.initials}:null}

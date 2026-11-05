@@ -19,7 +19,8 @@
     "editor:preview": "node scripts/editor-preview.mjs",
     "test:editor": "playwright test --config playwright.editor.config.ts",
     "deploy:preview": "node scripts/prepare-deploy.mjs --for-deploy && npm run build && wrangler deploy --config .wrangler/preview.deploy.json",
-    "production:prepare": "node scripts/prepare-production.mjs"
+    "production:prepare": "node scripts/prepare-production.mjs",
+    "test:auth-browser": "playwright test --config playwright.generation.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

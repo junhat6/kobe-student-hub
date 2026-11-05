@@ -1,8 +1,9 @@
 import {base64url} from 'jose';
 import type {VerifiedSchoolIdentity} from './google-identity';
 import type {ServerSessionActor} from './private-access';
-export const SESSION_ABSOLUTE_MS=28_800_000;
-export const SESSION_IDLE_MS=1_800_000;
+import {BrowserSessionCoordinator,COMMAND_HEADER,CONTEXT_COOKIE,singleSecretCookie,browserDigest,type BrowserClaim} from './browser-session';
+import {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS,type SessionStorageProof} from './session-guard';
+export {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS} from './session-guard';
 const NAME='__Host-kobe-session';
 const validToken=(v:string)=>/^[A-Za-z0-9_-]{43}$/.test(v);
 const cookie=(value:string,age:number)=>`${NAME}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${age}`;
@@ -15,33 +16,37 @@ function rawCookie(request:Request){
 }
 function equalToken(a:string,b:string){if(!validToken(a)||!validToken(b))return false;let diff=0;for(let i=0;i<43;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0}
 /** Server-private result; never serialize its actor or storage state directly. */
-export type SessionInspection={kind:'authenticated';actor:ServerSessionActor;csrfToken:string}|{kind:'signed-out'}|{kind:'unavailable'};
+export type SessionInspection={kind:'authenticated';actor:ServerSessionActor;csrfToken:string;contextHash:string;generation:number;checkedAt:number}|{kind:'signed-out'}|{kind:'unavailable'};
 /** No production endpoint uses this repository. Identity must come from real server verification. */
 export class SessionStore {
  constructor(private readonly db:D1Database,private readonly origin:string,private readonly clock:()=>number=Date.now){}
  private now(){const n=this.clock();return Number.isSafeInteger(n)&&n>=0&&n<Number.MAX_SAFE_INTEGER-SESSION_ABSOLUTE_MS?n:null}
  private configured(){try{return new URL(this.origin).protocol==='https:'&&new URL(this.origin).origin===this.origin}catch{return false}}
  /** Creates no account/admission. Caller must never construct identity from client input. */
- async create(identity:VerifiedSchoolIdentity):Promise<{setCookie:string;csrfToken:string;actor:ServerSessionActor}|null>{
-  if(!this.configured()||identity?.provider!=='google'||typeof identity.subject!=='string'||(!identity.subject.trim()||identity.subject.length>255)||typeof identity.email!=='string'||identity.email.length>320||!/^[^@\s]+@st\.kobedenshi\.ac\.jp$/i.test(identity.email))return null;
+ async create(identity:VerifiedSchoolIdentity,claim:BrowserClaim):Promise<{setCookie:string;csrfToken:string;actor:ServerSessionActor}|null>{
+  if(!claim||!this.configured()||identity?.provider!=='google'||typeof identity.subject!=='string'||(!identity.subject.trim()||identity.subject.length>255)||typeof identity.email!=='string'||identity.email.length>320||!/^[^@\s]+@st\.kobedenshi\.ac\.jp$/i.test(identity.email))return null;
   try{
    const raw=base64url.encode(crypto.getRandomValues(new Uint8Array(32)));const digest=await tokenHash(raw);const csrfToken=await csrf(raw);const now=this.now();if(now===null)return null;
-   const row=await this.db.prepare(`INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms)
-    SELECT ?,id,session_epoch,?,?,? FROM private_accounts WHERE google_subject=? AND status='active' RETURNING account_id`)
-    .bind(digest,now,now,now+SESSION_ABSOLUTE_MS,identity.subject).first<{account_id:string}>();
+   const row=await this.db.prepare(`INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash)
+    SELECT ?1,a.id,a.session_epoch,?2,?2,min(?3,c.expires_at_ms),c.context_hash,c.generation,t.state_hash FROM private_accounts a JOIN oauth_attempts t ON t.state_hash=?4 JOIN auth_browser_contexts c ON c.context_hash=t.context_hash JOIN auth_revocation_fence f ON f.id=1
+    WHERE a.google_subject=?5 AND a.status='active' AND t.intent='login' AND t.claim_owner=?6 AND t.completed_at_ms IS NULL AND t.consumed_at_ms<=?2 AND t.created_at_ms<=?2 AND t.expires_at_ms>?2
+    AND c.context_hash=?7 AND c.generation=?8 AND t.context_generation=c.generation AND c.created_at_ms<=?2 AND c.expires_at_ms>?2 AND t.revocation_fence=?9 AND t.revocation_fence>=f.minimum_generation AND NOT EXISTS(SELECT 1 FROM auth_subject_fences b WHERE b.google_subject=a.google_subject AND b.generation>t.revocation_fence) RETURNING account_id`)
+    .bind(digest,now,now+SESSION_ABSOLUTE_MS,claim.stateHash,identity.subject,claim.owner,claim.contextHash,claim.generation,claim.fence).first<{account_id:string}>();
    return row?{setCookie:cookie(raw,SESSION_ABSOLUTE_MS/1000),csrfToken,actor:{accountId:row.account_id,accountStatus:'active'}}:null;
   }catch{return null}
  }
  private async lookup(request:Request):Promise<SessionInspection>{
   if(!this.configured())return {kind:'unavailable'};
   if(new URL(request.url).origin!==this.origin)return {kind:'signed-out'};
-  const raw=rawCookie(request);if(!raw)return {kind:'signed-out'};
+  const raw=rawCookie(request),context=singleSecretCookie(request,CONTEXT_COOKIE);if(!raw||!context)return {kind:'signed-out'};
+  const contextHash=await browserDigest('browser-v1',context);
   const digest=await tokenHash(raw);const csrfToken=await csrf(raw);const now=this.now();if(now===null)return {kind:'unavailable'};
   const row=await this.db.prepare(`UPDATE auth_sessions SET last_seen_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL
+    AND context_hash=? AND EXISTS(SELECT 1 FROM auth_browser_contexts c WHERE c.context_hash=auth_sessions.context_hash AND c.generation=auth_sessions.context_generation AND c.created_at_ms<=? AND c.expires_at_ms>?)
     AND created_at_ms<=? AND last_seen_ms<=? AND last_seen_ms>? AND expires_at_ms>?
     AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status='active' AND a.session_epoch=auth_sessions.account_epoch)
-    RETURNING account_id`).bind(now,digest,now,now,now-SESSION_IDLE_MS,now).first<{account_id:string}>();
-  return row?{kind:'authenticated',actor:{accountId:row.account_id,accountStatus:'active'},csrfToken}:{kind:'signed-out'};
+    RETURNING account_id,context_generation`).bind(now,digest,contextHash,now,now,now,now,now-SESSION_IDLE_MS,now).first<{account_id:string;context_generation:number}>();
+  return row?{kind:'authenticated',actor:{accountId:row.account_id,accountStatus:'active'},csrfToken,contextHash,generation:row.context_generation,checkedAt:now}:{kind:'signed-out'};
  }
  /** Existing fail-closed API: storage/configuration failures retain the original null behavior. */
  async authenticate(request:Request):Promise<{actor:ServerSessionActor;csrfToken:string}|null>{
@@ -58,16 +63,23 @@ export class SessionStore {
  }
  /** Server-private storage proof. Never serialize this value or accept it from clients.
   * Repositories must recheck this session and account inside their final SQL statement. */
- async storageAuthorization(request:Request):Promise<{tokenHash:string;accountId:string;nowMs:number}|null>{
+ async storageAuthorization(request:Request):Promise<SessionStorageProof|null>{
   if(!['GET','POST','PUT','PATCH','DELETE'].includes(request.method))return null;
-  const session=request.method==='GET'?await this.authenticate(request):await this.authorizeMutation(request);
-  const raw=rawCookie(request);if(!session||!raw)return null;
-  const digest=await tokenHash(raw);const nowMs=this.now();if(nowMs===null)return null;
-  return {tokenHash:digest,accountId:session.actor.accountId,nowMs};
+  if(request.method!=='GET'&&(request.headers.get('Origin')!==this.origin||!['same-origin','none',null].includes(request.headers.get('Sec-Fetch-Site'))))return null;
+  const session=await this.inspect(request),raw=rawCookie(request);if(session.kind!=='authenticated'||!raw)return null;
+  if(request.method!=='GET'){const supplied=request.headers.get('X-CSRF-Token');if(!supplied||!equalToken(session.csrfToken,supplied))return null}
+  const nowMs=this.now();if(nowMs===null||nowMs<session.checkedAt)return null;
+  return {tokenHash:await tokenHash(raw),accountId:session.actor.accountId,contextHash:session.contextHash,nowMs,clock:this.clock};
  }
- async logout(request:Request):Promise<{clearCookie:string}|null>{
-  const session=await this.authorizeMutation(request);const raw=rawCookie(request);if(!session||!raw)return null;
-  try{const digest=await tokenHash(raw);const now=this.now();if(now===null)return null;const r=await this.db.prepare('UPDATE auth_sessions SET revoked_at_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL').bind(now,digest).run();return r.success&&r.meta.changes===1?{clearCookie:cookie('',0)}:null}catch{return null}
+ async logout(request:Request):Promise<{loggedOut:true}|null>{
+  const proof=await this.storageAuthorization(request);if(!proof)return null;
+  try{const row=await this.db.prepare('SELECT context_generation FROM auth_sessions WHERE token_hash=?').bind(proof.tokenHash).first<{context_generation:number}>();if(!row)return null;
+   const coordinator=new BrowserSessionCoordinator(this.db,this.origin,this.clock);
+   const command=await coordinator.command(request,'logout',row.context_generation,proof.tokenHash);if(!command)return null;
+   const h=new Headers(request.headers);h.set(COMMAND_HEADER,command.commandToken);
+   const result=await coordinator.execute(new Request(request.url,{method:'POST',headers:h}),'logout',undefined,proof);
+   return result.kind==='executed'?{loggedOut:true}:null;
+  }catch{return null}
  }
  async cleanupExpired():Promise<number|null>{
   try{const now=this.now();if(now===null)return null;const r=await this.db.prepare(`DELETE FROM auth_sessions WHERE token_hash IN(SELECT token_hash FROM auth_sessions WHERE expires_at_ms<=? OR last_seen_ms<=? ORDER BY expires_at_ms LIMIT 100)`).bind(now,now-SESSION_IDLE_MS).run();return r.success?r.meta.changes:null}catch{return null}

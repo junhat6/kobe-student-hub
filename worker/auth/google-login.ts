@@ -42,8 +42,8 @@ export class GoogleLoginBroker {
    const token=await Promise.race([exchange,deadline]);if(!token||abort.signal.aborted)return failure;
    clearTimeout(timer);abort.abort();
    const identity=await verifySchoolGoogleIdToken(token,{clientId:this.config.clientId,expectedNonce:claim.nonce});if(!identity)return failure;
-   if(intent==='pending-registration'){const receipt=await new PendingRegistrationStore(this.db,this.clock).record(identity);return receipt?{kind:'pending-receipt',clearCookie:claim.clearCookie}:failure}
-   const session=await new SessionStore(this.db,this.config.origin,this.clock).create(identity);
+   if(intent==='pending-registration'){const receipt=await new PendingRegistrationStore(this.db,this.clock).record(identity,claim.proof);return receipt?{kind:'pending-receipt',clearCookie:claim.clearCookie}:failure}
+   const session=await new SessionStore(this.db,this.config.origin,this.clock).create(identity,claim.proof);
    return session?{kind:'authenticated',...session,clearCookie:claim.clearCookie}:failure;
   }catch{return failure}finally{clearTimeout(timer);abort.abort()}
  }
