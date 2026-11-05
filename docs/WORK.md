@@ -584,3 +584,13 @@ Final root checks: build/typecheck,410 tests across51 files (11.28s),60 public P
 **Developer:** HTTP callbacks never mutate the shared attempt cookie; its original600-second expiry applies. Lower-level claim API, encryption, DB consumption, schema, configuration and disabled production gate remain unchanged. Added controlled response-application fixture, retention/expiry/replay checks and an explicit executable reproduction of the unresolved session overwrite.
 
 **Replanning:** Attempt deletion and session identity replacement are separate problems. The latter blocks authentication release. Compare server-side browser generations, guarded finalization, stale-session rejection and safe recovery before any implementation or activation. Browser locks or ignoring stale response bodies alone are insufficient. No real provider/key/remote setting, deployment or refused Issue operation is part of this cycle. Final QA/check evidence is recorded in EVIDENCE and QA-OAUTH-LATE-RESPONSE.
+
+## Cycle47 — session ordering design before implementation
+
+**Planner:** Compare server-side candidates for the reproduced A-after-B identity overwrite. Work is limited to analysis and a closed synthetic model; do not implement the application protocol or change auth gate/schema/Google/keys/access/data.
+
+**Developer:** Proposed anonymous bootstrap-only context, per-context generation advanced at start/logout, exact final-session and all-private-operation guards, separate context action CSRF, no context reissue and explicit fresh-login recovery. SESSION-ORDER-DESIGN.md compares alternatives, availability/fixation/multi-device/replay/bootstrap risks and unproven assumptions. Added in-memory protocol fixtures with deterministic non-credential labels, no production imports.
+
+**Replanning:** Report this candidate and independent model review before any application implementation. Next possible unit is a local-only D1/HTTP proof of atomicity and cookie/CSRF boundaries; this model is not permission to open authentication or migrate runtime state.
+
+**Independent QA / result:** Separate review passed2files/19modeltests, including an additional252 captured-context schedules. Candidate supported for a next local-only D1/HTTP proof, with command replay/idempotency, transaction/claim ownership, all final SQL, CSRF and bootstrap transport still unresolved. Build passed; no application changes. Report before any implementation; keep this design review separate from production release approval.
