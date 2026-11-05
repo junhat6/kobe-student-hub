@@ -18,13 +18,15 @@ async function database(){
 const count=async(db:D1Database,table:string)=>(await db.prepare(`SELECT count(*) n FROM ${table}`).first<{n:number}>())!.n;
 async function seed(db:D1Database,n:number){
  await db.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('a','fictional-subject','fictional@st.kobedenshi.ac.jp','active',?)").bind(NOW-1000).run();
- const hashes=Array.from({length:n},(_,i)=>i.toString(16).padStart(64,'0'));
- for(let from=0;from<n;from+=50)await db.batch(hashes.slice(from,from+50).flatMap(hash=>[
-  db.prepare('INSERT INTO auth_browser_contexts(context_hash,created_at_ms,expires_at_ms) VALUES(?,?,?)').bind(hash,NOW-1000,NOW),
-  db.prepare('INSERT INTO oauth_attempts(state_hash,browser_hash,nonce,created_at_ms,expires_at_ms,context_hash) VALUES(?,?,?,?,?,?)').bind(hash,hash,'n'.repeat(43),NOW-1000,NOW,hash),
-  db.prepare("INSERT INTO auth_browser_commands(command_hash,context_hash,action,expected_generation,revocation_fence,created_at_ms,expires_at_ms) VALUES(?,?,'login',0,0,?,?)").bind(hash,hash,NOW-1000,NOW),
-  db.prepare('INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash) VALUES(?,\'a\',0,?,?,?,?,0,?)').bind(hash,NOW-1000,NOW-1000,NOW,hash,hash)
- ]));
+ // Generate the same n real rows per category inside SQLite. Avoid thousands of
+ // client-side prepared statements/serialized RPC payloads during finite-backlog setup.
+ const seq='WITH RECURSIVE seq(i) AS(SELECT 0 WHERE ?1>0 UNION ALL SELECT i+1 FROM seq WHERE i+1<?1) ';
+ await db.batch([
+  db.prepare(seq+"INSERT INTO auth_browser_contexts(context_hash,created_at_ms,expires_at_ms) SELECT printf('%064x',i),?2,?3 FROM seq").bind(n,NOW-1000,NOW),
+  db.prepare(seq+"INSERT INTO oauth_attempts(state_hash,browser_hash,nonce,created_at_ms,expires_at_ms,context_hash) SELECT printf('%064x',i),printf('%064x',i),?4,?2,?3,printf('%064x',i) FROM seq").bind(n,NOW-1000,NOW,'n'.repeat(43)),
+  db.prepare(seq+"INSERT INTO auth_browser_commands(command_hash,context_hash,action,expected_generation,revocation_fence,created_at_ms,expires_at_ms) SELECT printf('%064x',i),printf('%064x',i),'login',0,0,?2,?3 FROM seq").bind(n,NOW-1000,NOW),
+  db.prepare(seq+"INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash) SELECT printf('%064x',i),'a',0,?2,?2,?3,printf('%064x',i),0,printf('%064x',i) FROM seq").bind(n,NOW-1000,NOW)
+ ]);
 }
 async function claim(db:D1Database,now:number){
  const coordinator=new BrowserSessionCoordinator(db,O,()=>now),boot=(await coordinator.bootstrap(new Request(O,{method:'POST',headers:{Origin:O}})))!;
