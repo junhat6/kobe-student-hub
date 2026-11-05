@@ -4,7 +4,13 @@ Verified 2026-11-05 in a separate implementation context. Scope: `AuthMaintenanc
 
 ## Actual result
 
-`npx vitest run tests/auth-maintenance.test.ts tests/auth-maintenance-independent.test.ts tests/session-generation-migration.test.ts`: **28 passed across3files**, duration6.68seconds. This is developer10 maintenance cases, independent3 additional cases and existing15 migration cases. `npx tsc --noEmit`: **passed**. Miniflare loopback ran through the existing authorized local-test execution path.
+`npx vitest run tests/auth-maintenance.test.ts tests/auth-maintenance-independent.test.ts tests/session-generation-migration.test.ts`: **28 passed across3files**, final fixture rerun duration3.96seconds. This is developer10 maintenance cases, independent3 additional cases and existing15 migration cases. `npx tsc --noEmit`: **passed**. Miniflare loopback ran through the existing authorized local-test execution path.
+
+## CI fixture setup correction
+
+The parent reported PR87 CI41998521538 timed out at the existing five-second test deadline while creating the1000-per-category backlog (534passed/1failed). This report does not claim a first-hand CI diagnosis or a passing replacement CI run. Independent comparison of commit345cded to its parent confirms the only test change is `seed`: four recursive `INSERT SELECT` statements replace4000 client-side prepared statements for that backlog. Counts, field values, foreign keys, real SQLite triggers, query-plan/deletion assertions and test deadlines are unchanged. `printf('%064x',i)` produces the same lowercase64-character identifiers as the prior hexadecimal padding for all exercised nonnegative indices. The inserts remain actual D1 writes, not mock rows or precomputed query results. Seed setup is now one batch rather than many50-row client batches; no setup failure/transactionality claim is made by these tests.
+
+Independent execution of the final fixture: the same28 tests passed in3.96seconds. Maintenance implementation, migration0014 and the independent test fingerprints are unchanged. This fixes setup/RPC overhead without reducing the finite backlog or weakening assertions; CI success still must be verified by the parent.
 
 No blocking correctness defect found within this bounded scope. Production source gate remains false, and the public Worker does not import or route the maintenance store.
 
@@ -33,7 +39,7 @@ Indexes and LIMIT100 bound selected/deleted rows, not all query work. Correlated
 | --- | --- |
 | worker/auth/maintenance.ts | fa7588858afd2875f7f8c20ebb74c1a8c4aefb3d6a27cfb3ace4427b5a397b37 |
 | migrations/0014_auth_maintenance.sql | e19d6056d1e1412376fac29f6e00edbdc57435f6b2594e5cceea937032035f27 |
-| tests/auth-maintenance.test.ts | 514f91c1eb3f017f31576889df7459f48c6167b5731c8c506b50a91e18e6f2f1 |
+| tests/auth-maintenance.test.ts | 6f0f0a66665f26065782af8166507ce59bffeeb5c58374391d9b2e8c4bbbb966 |
 | tests/auth-maintenance-independent.test.ts | d7a69d7fb6fcd9c50dbe791061128b1b965d42c146df7751274786e344d7c11d |
 | docs/AUTH-MAINTENANCE.md | 6597fb25ae3a2f2061b66888ccd2559c06f2756da6fbad09856c5f41b0306976 |
 | worker/auth/oauth-attempts.ts | 2a8c87b3418e6fc7183d0016e3472b375d3b16ba617cbbb9d6ddfa1db5f9e895 |
