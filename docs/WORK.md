@@ -643,3 +643,8 @@ Final root checks: build/typecheck,410 tests across51 files (11.28s),60 public P
 **Final Developer checks:** Public build, editor build, typecheck, diffcheck and deployment dry-run passed. Unit/Worker65files/560tests passed19.89s; public60passed10.3s after initializing the new worktree's existing local synthetic fixture database; synthetic auth browser5passed5.8s; editor164passed3.5min. The initial uninitialized-local-DB public run failed and was corrected by local fixture setup without changing assertions/configuration. Independent QA14files/116tests plus typecheck/diffcheck passed.
 
 **Replanning:** Keep authentication gated and let the normal PR/CI process review this source transport change. No additional remote probe is required for this bounded migration; local browser emulation is not physical-device or real-user acceptance.
+## Cycle57 — bounded maintenance fixture setup
+
+The post-merge CI reported one five-second timeout in the 1000-subject-floor backlog test while the other559 tests passed. Replace its ten batches of100 client-prepared INSERTs with one recursive SQLite INSERT SELECT. The same1000 subject/generation pairs, query-plan checks, retained backlog,100-row deletion limit and original timeout remain. This changes only test setup; no production/authentication/schema behavior changes.
+
+Local build and full65-file/560-test run passed (15.60s). Independent3-file/28-test run passed (3.70s), and all1000 rows matched the original fixture definition exactly. The failed run does not isolate phase timing, so no quantified setup CPU claim is made. Fix attempt1 of at most3; keep production deployment blocked until the corrected main passes CI.

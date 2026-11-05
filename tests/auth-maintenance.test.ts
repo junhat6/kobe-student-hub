@@ -99,7 +99,9 @@ describe('explicit local authentication maintenance',()=>{
  });
  it('indexes subject-floor checks and conservatively retains a larger floor backlog behind a live old attempt',async()=>{
   const db=await database();await db.prepare('UPDATE auth_revocation_fence SET generation=1000').run();
-  for(let from=0;from<1000;from+=100)await db.batch(Array.from({length:100},(_,i)=>db.prepare('INSERT INTO auth_subject_fences(google_subject,generation) VALUES(?,?)').bind('fictional-floor-'+(from+i),from+i+1)));
+  // Keep the same 1000 real floor rows without preparing/serializing 1000
+  // client-side statements inside this test's unchanged five-second budget.
+  await db.prepare("WITH RECURSIVE seq(i) AS(SELECT 0 UNION ALL SELECT i+1 FROM seq WHERE i<999) INSERT INTO auth_subject_fences(google_subject,generation) SELECT 'fictional-floor-'||i,i+1 FROM seq").run();
   await db.prepare('INSERT INTO oauth_attempts(state_hash,browser_hash,nonce,created_at_ms,expires_at_ms,revocation_fence) VALUES(?,?,?,?,?,0)').bind('f'.repeat(64),'e'.repeat(64),'n'.repeat(43),NOW,NOW+600000).run();
   const plan=(await db.prepare('EXPLAIN QUERY PLAN SELECT b.generation FROM auth_subject_fences b WHERE NOT EXISTS(SELECT 1 FROM oauth_attempts t WHERE t.revocation_fence<b.generation AND t.expires_at_ms>?) AND NOT EXISTS(SELECT 1 FROM auth_browser_commands q WHERE q.revocation_fence<b.generation AND q.executed_at_ms IS NULL AND q.expires_at_ms>?) ORDER BY b.generation LIMIT 100').bind(NOW,NOW).all<{detail:string}>()).results.map(r=>r.detail).join('\n');
   expect(plan).toContain('auth_subject_floor_generation');expect(plan).toContain('auth_attempt_fence_expiry');expect(plan).toContain('auth_command_live_fence_expiry');
