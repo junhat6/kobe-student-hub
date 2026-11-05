@@ -1,6 +1,7 @@
 import {BrowserOAuthFlow,type BrowserFlowConfig,type OAuthIntent} from './browser-flow';
 import {verifySchoolGoogleIdToken} from './google-identity';
 import {PendingRegistrationStore} from './pending-registration';
+import type {VerifiedSchoolIdentity} from './google-identity';
 import {SessionStore} from './sessions';
 export interface GoogleLoginConfig extends BrowserFlowConfig {clientSecret:string}
 export type GoogleRegistrationResult={kind:'pending-receipt';clearCookie:string}|{kind:'failed';clearCookie:string};
@@ -26,8 +27,8 @@ export class GoogleLoginBroker {
  async start(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request):null}
  async startRegistration(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request,'pending-registration'):null}
  async callback(request:Request):Promise<GoogleLoginResult|null>{return this.complete(request,'login') as Promise<GoogleLoginResult|null>}
- async registrationCallback(request:Request):Promise<GoogleRegistrationResult|null>{return this.complete(request,'pending-registration') as Promise<GoogleRegistrationResult|null>}
- private async complete(request:Request,intent:OAuthIntent):Promise<GoogleLoginResult|GoogleRegistrationResult|null>{
+ async registrationCallback(request:Request,allowIdentity?:(identity:VerifiedSchoolIdentity)=>boolean):Promise<GoogleRegistrationResult|null>{return this.complete(request,'pending-registration',allowIdentity) as Promise<GoogleRegistrationResult|null>}
+ private async complete(request:Request,intent:OAuthIntent,allowIdentity?:(identity:VerifiedSchoolIdentity)=>boolean):Promise<GoogleLoginResult|GoogleRegistrationResult|null>{
   if(!configured(this.config))return null;
   const claim=await new BrowserOAuthFlow(this.db,this.config,this.clock).claim(request,intent);if(!claim)return null;
   const failure:GoogleLoginResult={kind:'failed',clearCookie:claim.clearCookie};if(claim.kind==='denied')return failure;
@@ -42,7 +43,7 @@ export class GoogleLoginBroker {
    const token=await Promise.race([exchange,deadline]);if(!token||abort.signal.aborted)return failure;
    clearTimeout(timer);abort.abort();
    const identity=await verifySchoolGoogleIdToken(token,{clientId:this.config.clientId,expectedNonce:claim.nonce});if(!identity)return failure;
-   if(intent==='pending-registration'){const receipt=await new PendingRegistrationStore(this.db,this.clock).record(identity,claim.proof);return receipt?{kind:'pending-receipt',clearCookie:claim.clearCookie}:failure}
+   if(intent==='pending-registration'){if(allowIdentity&&!allowIdentity(identity))return failure;const receipt=await new PendingRegistrationStore(this.db,this.clock).record(identity,claim.proof);return receipt?{kind:'pending-receipt',clearCookie:claim.clearCookie}:failure}
    const session=await new SessionStore(this.db,this.config.origin,this.clock).create(identity,claim.proof);
    return session?{kind:'authenticated',...session,clearCookie:claim.clearCookie}:failure;
   }catch{return failure}finally{clearTimeout(timer);abort.abort()}

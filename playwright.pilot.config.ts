@@ -1,0 +1,2 @@
+import {defineConfig,devices} from '@playwright/test';
+export default defineConfig({testDir:'tests',testMatch:'pending-pilot-browser.spec.ts',workers:1,outputDir:'test-results-pilot',use:{...devices['Desktop Chrome'],baseURL:'https://127.0.0.1:8791',ignoreHTTPSErrors:true},webServer:{command:'node scripts/pending-pilot-browser-preview.mjs',url:'https://127.0.0.1:8791/api/auth/pilot',ignoreHTTPSErrors:true,reuseExistingServer:false},reporter:[['list']]});

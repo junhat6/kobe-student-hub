@@ -25,3 +25,6 @@ test-results-independent-editor*/
 # Ephemeral OAuth ordering browser fixture outputs
 .generation-preview/
 test-results-generation/
+
+# Ephemeral pending-pilot browser output
+test-results-pilot/
