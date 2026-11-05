@@ -1,11 +1,10 @@
-import {SessionStore,SESSION_IDLE_MS} from './auth/sessions';
+import {liveSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
+import {SessionStore} from './auth/sessions';
 type Proof=NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
 export interface ModerationSummary {contentId:string;title:string;status:'published'|'hidden';reportCount:number;latestReportAt:number}
 export interface ModerationCase extends ModerationSummary {body:string;reports:{reason:string;detail:string;createdAt:number}[]}
 const idValid=(id:unknown):id is string=>typeof id==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id);
 const text=(v:unknown,max:number):v is string=>typeof v==='string'&&v.length<=max*2&&!v.includes('\0')&&Array.from(v).length<=max&&new TextDecoder().decode(new TextEncoder().encode(v))===v;
-const live=`EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.account_id=? AND a.status='active' AND a.session_epoch=s.account_epoch AND s.revoked_at_ms IS NULL AND s.created_at_ms<=? AND s.last_seen_ms<=? AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
-const bindings=(p:Proof)=>[p.tokenHash,p.accountId,p.nowMs,p.nowMs,p.nowMs-SESSION_IDLE_MS,p.nowMs];
 function reportInput(v:unknown):v is {reason:string;detail?:string}{
  if(v===null||typeof v!=='object'||Array.isArray(v)||Object.getPrototypeOf(v)!==Object.prototype)return false;
  const keys=Reflect.ownKeys(v);if(!keys.includes('reason')||keys.some(k=>k!=='reason'&&k!=='detail'))return false;

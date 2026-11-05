@@ -3,8 +3,8 @@ import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import type {PublicDiscovery} from '../src/types';
 const ORIGIN='https://app.example.invalid';const NOW=1800000000000;let mf:Miniflare;
-type Session={setCookie:string;csrfToken:string};let a:Session,b:Session;let authorA:string,authorB:string;let firstA:string,firstB:string;
-const headers=(s:Session)=>({Cookie:s.setCookie.split(';')[0],Origin:ORIGIN,'X-CSRF-Token':s.csrfToken});
+type Session={setCookie:string;contextCookie:string;csrfToken:string};let a:Session,b:Session;let authorA:string,authorB:string;let firstA:string,firstB:string;
+const headers=(s:Session)=>({Cookie:[s.setCookie,s.contextCookie].map(v=>v.split(';')[0]).join('; '),Origin:ORIGIN,'X-CSRF-Token':s.csrfToken});
 async function call<T>(input:Record<string,unknown>):Promise<T>{return await(await mf.dispatchFetch('https://fixture.test',{method:'POST',body:JSON.stringify(input)})).json() as T}
 const recent=(extra={})=>call<PublicDiscovery|null>({action:'recent',...extra});
 async function publish(title:string,s=a){const d=await call<{id:string}>({action:'draft',headers:headers(s),input:{title,body:'# Public body omitted from discovery'}});return await call<{contentId:string}>({action:'publish',headers:headers(s),draft:d.id,input:{expectedVersion:1,confirmPublic:true,summary:'Explicit public summary',tags:['学び'],audience:'audience',prerequisite:'prerequisite',outcome:'outcome',minutes:3}})}

@@ -2,6 +2,10 @@
 
 This is local integration preparation, not a live login/signup release. The production entry keeps an explicit source-controlled release gate disabled. Runtime configuration alone cannot open authentication, even if every value is valid. The existing anonymous sample catalog and `writesEnabled:false` remain unchanged. Real callback protection must pass [LOGGING-GATE.md](LOGGING-GATE.md); configuration and local tests cannot attest platform secrecy or student eligibility.
 
+## Cycle49 current implementation
+
+The server-generation protocol is now implemented behind the unchanged disabled production source gate. See [current contract, subject-scoped revocation, migration and release limits](SESSION-GENERATION-IMPLEMENTATION.md). Bootstrap and action-bound command proof are required before OAuth start. Every final private SQL checks context generation. Late old cookies are rejected as signed-out and may require fresh login. Historical Cycle45/46 sections below do not describe the current session acceptance rule. This is synthetic local/provider/browser evidence, not real authentication release.
+
 ## Configuration contract
 
 The adapter accepts optional request-scoped bindings rather than reading process environment or keeping mutable configuration globally. No actual origin, provider project/client, user contact, key or secret is committed. The deployment configuration and generated Env still describe the existing sample bindings. Optional authentication input types describe validation, not installed secrets or a new secret store.
@@ -21,11 +25,14 @@ With an explicitly enabled local adapter and fully valid fictional configuration
 
 | Endpoint | Behavior |
 | --- | --- |
-| `POST /api/auth/start` | Same-origin command starts the existing login purpose; no payload-derived authority |
-| `POST /api/auth/register` | Same-origin command starts the existing pending-registration purpose |
+| `POST /api/auth/bootstrap` | Anonymous one-time context only; no account/session/attempt |
+| `POST /api/auth/command?action=<intent>` | Action/context/generation-bound one-use start command; no actor or session recovery |
+| `POST /api/auth/start` | Same-origin command with X-Session-Command starts the existing login purpose; no payload-derived authority |
+| `POST /api/auth/register` | Same-origin command with X-Session-Command starts the existing pending-registration purpose |
 | `GET /api/auth/callback` | Tries login claim, then only an unmatched claim may try registration; consumed failures never restart exchange. Every handled outcome redirects to the same fixed clean root. Callbacks never write the attempt cookie; its original expiry applies. Only authenticated active login appends a session cookie |
 | `GET /api/private/session` | Reuses existing private handler: CSRF only on authenticated inspection; missing/invalid and unavailable remain distinct |
-| `POST /api/private/logout` | Reuses existing current-token CSRF/logout handler, including its empty-body and final-write checks |
+| `POST /api/private/logout-command` | One-use context/action/generation command, usable with an obsolete session Cookie; no actor/session authority |
+| `POST /api/private/logout` | Confirms context generation invalidation with current-session CSRF or a one-use context logout command; no Cookie deletion |
 
 Matched transport responses use private/no-store, Cookie variance, no-referrer, nosniff and noindex. Invalid configuration returns a generic unavailable response before database or provider work; an unexpected origin is refused. Production does not enter this adapter while its release gate is false, preserving the previous API fallback rather than exposing a configuration probe. A malformed callback never reflects its query, and the redirect has no caller-selected return URL.
 
@@ -52,7 +59,7 @@ Callbacks now never set or delete `__Host-kobe-oauth`, including matched denial,
 
 The encrypted cookie can remain for the rest of its original maximum600-second browser lifetime after consumption, instead of being removed early. It contains state, browser binding and PKCE verifier plus JWT context/time claims, without code, provider tokens, client secret or session token. AES-GCM encryption and host-only Secure/HttpOnly/SameSite=Lax attributes remain; callbacks neither refresh the cookie nor its JWT expiry. Atomic DB consumption still rejects replay, and JWT/DB expiry refuses an unconsumed old attempt even if a client ignores browser expiry. Retention is a tradeoff: encrypted verification material accompanies later same-origin requests during that remainder and could appear in Cookie/header logging. HttpOnly does not protect platform logs; compromise of the operational encryption key could reveal captured ciphertext. No such key is created by these tests. Existing [logging gate](LOGGING-GATE.md) must still cover Cookie headers, callback URLs and platform/error traces; absence of app logging is insufficient evidence.
 
-**NOT SATISFIED: latest-identity session response ordering.** A success response prepared for active identity A, held until active B completes, replaces the shared session cookie with A when applied last. Both sessions remain independently valid server-side. This candidate fixes attempt deletion only. The executable fixture deliberately asserts that hazardous A-after-B result as a release-blocker reproduction, not a safe acceptance condition. The production source release gate stays false, with no real Google flow or remote changes. See [independent QA](QA-OAUTH-LATE-RESPONSE.md).
+**Historical Cycle46 finding, superseded by the gated Cycle49 implementation:** latest-identity session response ordering was not satisfied. A success response prepared for active identity A, held until active B completes, replaces the shared session cookie with A when applied last. Both sessions remain independently valid server-side. This candidate fixes attempt deletion only. The executable fixture deliberately asserts that hazardous A-after-B result as a release-blocker reproduction, not a safe acceptance condition. The production source release gate stays false, with no real Google flow or remote changes. See [independent QA](QA-OAUTH-LATE-RESPONSE.md).
 
 Before enabling authentication, choose and validate a server-side coordination protocol. A candidate uses a browser coordination generation, atomically records the verified result for that generation, and finalizes through a same-origin CSRF-protected command rather than issuing the session directly in the provider callback. Every authenticated request must reject sessions from an obsolete generation. A finalization CAS alone is insufficient: a response authorized before B may still arrive after B. Generation validation can fail closed on stale A but can leave the browser signed out; recovery and the user's intended identity require explicit acceptance tests. A stable anonymous coordination cookie needs fixation, rotation, stolen-cookie and multi-device review and must not become a reusable authentication credential. This requires separately reviewed state/schema design, not an unreviewed gate flip.
 

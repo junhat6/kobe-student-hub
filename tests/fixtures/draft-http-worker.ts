@@ -1,9 +1,10 @@
+import {createFixtureSession} from '../helpers/coordinated-fixture';
 import {SessionStore} from '../../worker/auth/sessions';
 import {createPrivateDraftHandler} from '../../worker/draft-http';
 // Test-only session and stream controls, never production routes.
 export default {async fetch(request:Request,env:{DB:D1Database}){
  const now=Number(request.headers.get('X-Test-Now')??1800000000000);const origin=request.headers.get('X-Test-Origin')??'https://app.example.invalid';
- if(new URL(request.url).pathname==='/fixture/session')return Response.json(await new SessionStore(env.DB,'https://app.example.invalid',()=>now).create({provider:'google',subject:request.headers.get('X-Test-Subject')??'subject-a',email:'fixture@st.kobedenshi.ac.jp'}));
+ if(new URL(request.url).pathname==='/fixture/session')return Response.json(await createFixtureSession(env.DB,'https://app.example.invalid',()=>now,{provider:'google',subject:request.headers.get('X-Test-Subject')??'subject-a',email:'fixture@st.kobedenshi.ac.jp'}));
  let authenticated:()=>void=()=>{};const authReady=new Promise<void>(resolve=>{authenticated=resolve});
  const failing=request.headers.get('X-Test-Fail-Store')==='yes';const db=failing?new Proxy(env.DB,{get(target,key){if(key==='prepare')return (sql:string)=>{if(sql.includes('private_article_drafts'))throw new Error('synthetic private storage failure');return target.prepare(sql)};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value}}):env.DB;
  const tracked=new Proxy(db,{get(target,key){if(key==='prepare')return (sql:string)=>{const wrap=(stmt:D1PreparedStatement):D1PreparedStatement=>new Proxy(stmt,{get(statement,prop){if(prop==='bind')return (...values:unknown[])=>wrap(statement.bind(...values));if(prop==='first')return async(...args:Parameters<D1PreparedStatement['first']>)=>{const result=await statement.first(...args);if(sql.startsWith('UPDATE auth_sessions SET last_seen_ms='))authenticated();return result};const value=Reflect.get(statement,prop);return typeof value==='function'?value.bind(statement):value}});return wrap(target.prepare(sql))};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value}});

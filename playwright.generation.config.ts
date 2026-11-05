@@ -1,0 +1,2 @@
+import {defineConfig,devices} from '@playwright/test';
+export default defineConfig({testDir:'tests',testMatch:'session-generation-browser.spec.ts',workers:1,fullyParallel:false,timeout:30000,outputDir:'test-results-generation',use:{...devices['Desktop Chrome'],baseURL:'https://127.0.0.1:8790',ignoreHTTPSErrors:true,trace:'retain-on-failure'},webServer:{command:'node scripts/session-browser-preview.mjs',url:'https://127.0.0.1:8790/__control/health',ignoreHTTPSErrors:true,reuseExistingServer:false,timeout:60000},reporter:[['list']]});

@@ -3,10 +3,10 @@ import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import type {PrivateDraft} from '../worker/drafts';
 const ORIGIN='https://app.example.invalid';const NOW=1800000000000;let mf:Miniflare;
-type Session={setCookie:string;csrfToken:string};let a:Session,b:Session;
+type Session={setCookie:string;contextCookie:string;csrfToken:string};let a:Session,b:Session;
 const privacy={'cache-control':'private, no-store','vary':'Cookie','referrer-policy':'no-referrer','x-content-type-options':'nosniff','x-robots-tag':'noindex, nofollow','content-type':'application/json; charset=utf-8'};
 function check<T extends {headers:{get(name:string):string|null;has(name:string):boolean}}>(r:T){for(const [k,v] of Object.entries(privacy))expect(r.headers.get(k)).toBe(v);for(const k of ['Set-Cookie','Location','Access-Control-Allow-Origin'])expect(r.headers.has(k)).toBe(false);return r}
-const headers=(s=a)=>({Cookie:s.setCookie.split(';')[0],'X-CSRF-Token':s.csrfToken,Origin:ORIGIN,'Content-Type':'application/json'});
+const headers=(s=a)=>({Cookie:[s.setCookie,s.contextCookie].map(v=>v.split(';')[0]).join('; '),'X-CSRF-Token':s.csrfToken,Origin:ORIGIN,'Content-Type':'application/json'});
 async function req(path='/api/private/drafts',method='GET',body?:unknown,extra:Record<string,string|undefined>={},s=a){const r=await mf.dispatchFetch(ORIGIN+path,{method,headers:{...headers(s),...extra} as Record<string,string>,...(body===undefined?{}:{body:JSON.stringify(body)})});return check(r)}
 async function session(who='a'):Promise<Session>{return await(await mf.dispatchFetch(ORIGIN+'/fixture/session',{headers:{'X-Test-Subject':'subject-'+who}})).json() as Session}
 async function create(title='private',body='markdown'){const r=await req(undefined,'POST',{title,body});expect(r.status).toBe(201);return await r.json() as PrivateDraft}

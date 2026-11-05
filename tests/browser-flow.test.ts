@@ -5,10 +5,10 @@ import {jwtDecrypt,EncryptJWT} from 'jose';
 import {pkceChallenge,isSameOriginPost} from '../worker/auth/browser-flow';
 const ORIGIN='https://app.example.invalid';const NOW=1_800_000_000_000;const CLIENT='fixture.apps.googleusercontent.com';
 const key=crypto.getRandomValues(new Uint8Array(32));let mf:Miniflare;
-type Start={location:string;setCookie:string};type Claim={kind:string;code?:string;verifier?:string;nonce?:string;clearCookie:string};
+type Start={location:string;setCookie:string;contextCookie:string};type Claim={kind:string;code?:string;verifier?:string;nonce?:string;clearCookie:string};
 async function call<T>(input:Record<string,unknown>):Promise<T>{const r=await mf.dispatchFetch('https://fixture.test',{method:'POST',body:JSON.stringify({now:NOW,key:Array.from(key),...input})});return await r.json() as T;}
 const start=(extra={})=>call<Start|null>({action:'start',url:ORIGIN+'/api/auth/start',method:'POST',headers:{Origin:ORIGIN,'Sec-Fetch-Site':'same-origin'},...extra});
-const cookie=(a:Start)=>a.setCookie.split(';')[0];
+const cookie=(a:Start)=>[a.setCookie,a.contextCookie].map(v=>v.split(';')[0]).join('; ');
 const state=(a:Start)=>new URL(a.location).searchParams.get('state')!;
 const callback=(a:Start,query='code=synthetic-code')=>ORIGIN+'/api/auth/callback?state='+state(a)+'&'+query;
 const claim=(a:Start,extra={})=>call<Claim|null>({action:'claim',url:callback(a),headers:{Cookie:cookie(a)},...extra});
@@ -24,7 +24,7 @@ describe('PKCE and server-only browser-bound attempt flow',()=>{
  it('creates a fresh encrypted Host cookie and a minimal fixed-provider authorization request',async()=>{
   const a=(await start())!;const b=(await start())!;const url=new URL(a.location);expect(url.origin+url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth');expect(url.searchParams.get('scope')).toBe('openid email');expect(url.searchParams.get('response_type')).toBe('code');expect(url.searchParams.get('redirect_uri')).toBe(ORIGIN+'/api/auth/callback');expect(url.searchParams.get('code_challenge_method')).toBe('S256');expect(state(a)).not.toBe(state(b));
   expect(a.setCookie).toMatch(/^__Host-kobe-oauth=/);for(const attr of ['Path=/','HttpOnly','Secure','SameSite=Lax','Max-Age=600'])expect(a.setCookie).toContain(attr);expect(a.setCookie).not.toContain('Domain=');
-  const sealed=cookie(a).split('=')[1];const {payload}=await jwtDecrypt(sealed,key,{currentDate:new Date(NOW)});expect(payload.state).toBe(state(a));expect(url.searchParams.get('code_challenge')).toBe(await pkceChallenge(payload.verifier as string));expect(a.location).not.toContain(payload.verifier);expect(sealed).not.toContain(payload.browserBinding);
+  const sealed=a.setCookie.split(';')[0].split('=')[1];const {payload}=await jwtDecrypt(sealed,key,{currentDate:new Date(NOW)});expect(payload.state).toBe(state(a));expect(url.searchParams.get('code_challenge')).toBe(await pkceChallenge(payload.verifier as string));expect(a.location).not.toContain(payload.verifier);expect(sealed).not.toContain(payload.browserBinding);
   const db=await mf.getD1Database('DB');const row=await db.prepare('SELECT * FROM oauth_attempts WHERE nonce=?').bind(url.searchParams.get('nonce')).first();expect(JSON.stringify(row)).not.toContain(payload.verifier);expect(JSON.stringify(row)).not.toContain(payload.browserBinding);
  });
  it('fails closed before a DB write when trusted configuration is missing or invalid',async()=>{
@@ -51,7 +51,7 @@ describe('PKCE and server-only browser-bound attempt flow',()=>{
  });
  it('rejects future/expired cookie times and wrong signed payload fields',async()=>{
   const a=(await start())!;expect(await claim(a,{now:NOW-1000})).toBeNull();expect(await claim(a,{now:NOW+600000})).toBeNull();
-  const {payload}=await jwtDecrypt(cookie(a).split('=')[1],key,{currentDate:new Date(NOW)});const forged=await new EncryptJWT({...payload,verifier:'short'}).setProtectedHeader({alg:'dir',enc:'A256GCM',typ:'JWT'}).encrypt(key);expect(await claim(a,{headers:{Cookie:'__Host-kobe-oauth='+forged}})).toBeNull();expect((await claim(a))?.kind).toBe('code');
+  const {payload}=await jwtDecrypt(a.setCookie.split(';')[0].split('=')[1],key,{currentDate:new Date(NOW)});const forged=await new EncryptJWT({...payload,verifier:'short'}).setProtectedHeader({alg:'dir',enc:'A256GCM',typ:'JWT'}).encrypt(key);expect(await claim(a,{headers:{Cookie:'__Host-kobe-oauth='+forged}})).toBeNull();expect((await claim(a))?.kind).toBe('code');
  });
  it('rejects duplicate, ambiguous, malformed and oversized callback parameters',async()=>{
   const a=(await start())!;for(const query of ['code=x&code=y','code=x&error=access_denied','error=x&error=y','code=','code=x&state='+state(a),'code=%00bad','code='+ 'x'.repeat(2049),'other='+'x'.repeat(8200)])expect(await claim(a,{url:callback(a,query)})).toBeNull();expect(await claim(a,{method:'POST'})).toBeNull();expect(await claim(a,{url:callback(a).replace('/callback','/other')})).toBeNull();expect((await claim(a))?.kind).toBe('code');

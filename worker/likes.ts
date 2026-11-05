@@ -1,12 +1,11 @@
-import {SessionStore,SESSION_IDLE_MS} from './auth/sessions';
+import {liveSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
+import {SessionStore} from './auth/sessions';
 import {PublicProfileStore} from './public-profile';
 import {ArticlePublicationStore,publicArticleSqlBounds,publicProfileSqlBounds,decodePublicProfile} from './publication';
 import type {PublicLikedArticles,PublishedArticleSummary} from '../src/types';
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v);
 const slug=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(v);
 type Proof=NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
-const live=`EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.account_id=? AND a.status='active' AND a.session_epoch=s.account_epoch AND s.revoked_at_ms IS NULL AND s.created_at_ms<=? AND s.last_seen_ms<=? AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
-const bindings=(p:Proof)=>[p.tokenHash,p.accountId,p.nowMs,p.nowMs,p.nowMs-SESSION_IDLE_MS,p.nowMs];
 const mappedProfile=`${publicProfileSqlBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts identity WHERE identity.id=p.id OR identity.google_subject=p.id)`;
 type ProfileRow={owner_account_id:string;author_id:string;display_name:string;department:string;year_label:string;bio:string;initials:string};
 const profileColumns='m.owner_account_id,p.id author_id,p.display_name,p.department,p.year_label,p.bio,p.initials';

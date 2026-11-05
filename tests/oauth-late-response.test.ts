@@ -1,3 +1,4 @@
+import {applyOrderSchema} from './helpers/order-schema';
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
@@ -7,6 +8,7 @@ import {googleFixture,TEST_CLIENT_ID} from './helpers/google-fixtures';
 const O='https://late-cookie.example.test',NOW=Date.now(),key=new Uint8Array(32).fill(23);
 const bindings={AUTH_ORIGIN:O,GOOGLE_CLIENT_ID:TEST_CLIENT_ID,GOOGLE_CLIENT_SECRET:'synthetic-late-fixture',OAUTH_COOKIE_KEY:base64url.encode(key)};
 let mf:Miniflare,signer:Awaited<ReturnType<typeof googleFixture>>,exchanges=0;
+let lastStartResponse:Awaited<ReturnType<Miniflare['dispatchFetch']>>;
 const tokens=new Map<string,string>(),failCodes=new Set<string>();
 type Held={entered:()=>void;release:Promise<void>};const held=new Map<string,Held>();
 class Jar{
@@ -16,9 +18,13 @@ class Jar{
  apply(r:{headers:{getSetCookie():string[]}}){for(const raw of r.headers.getSetCookie()){const pair=raw.split(';')[0],at=pair.indexOf('='),name=pair.slice(0,at),age=Number(raw.match(/Max-Age=(\d+)/)?.[1]);if(age===0)this.values.delete(name);else this.values.set(name,{value:pair.slice(at+1),expires:this.now+age*1000})}}
 }
 async function call(jar:Jar,path:string,method='GET',apply=true,extra={}){const r=await mf.dispatchFetch('https://fixture.invalid',{method:'POST',redirect:'manual',body:JSON.stringify({url:O+path,method,headers:{Cookie:jar.header(),...(method==='POST'?{Origin:O}:{})},bindings,enabled:true,now:jar.now,...extra})});if(apply)jar.apply(r);return r}
-async function start(jar:Jar,subject='late-a'){const r=await call(jar,'/api/auth/start','POST');expect(r.status).toBe(303);const url=new URL(r.headers.get('Location')!),state=url.searchParams.get('state')!;tokens.set(state,await signer.sign({sub:subject,email:subject+'@st.kobedenshi.ac.jp',nonce:url.searchParams.get('nonce')}));return state}
+async function start(jar:Jar,subject='late-a'){
+ await applyOrderSchema(await mf.getD1Database('DB'));
+ if(!jar.header().includes('__Host-kobe-browser='))await call(jar,'/api/auth/bootstrap','POST');
+ const commandResponse=await call(jar,'/api/auth/command?action='+'login','POST');const {commandToken}=await commandResponse.json() as {commandToken:string};
+const r=await call(jar,'/api/auth/start','POST',true,{headers:{Origin:O,Cookie:jar.header(),'X-Session-Command':commandToken}});expect(r.status).toBe(303);const url=new URL(r.headers.get('Location')!),state=url.searchParams.get('state')!;lastStartResponse=r;tokens.set(state,await signer.sign({sub:subject,email:subject+'@st.kobedenshi.ac.jp',nonce:url.searchParams.get('nonce')}));return state}
 const callback=(jar:Jar,state:string,apply=true)=>call(jar,'/api/auth/callback?state='+state+'&code='+state,'GET',apply);
-async function actor(jar:Jar){const token=jar.value('__Host-kobe-session');if(!token)return null;const hash=createHash('sha256').update('session-v1:'+token).digest('hex');return(await(await mf.getD1Database('DB')).prepare('SELECT account_id FROM auth_sessions WHERE token_hash=? AND revoked_at_ms IS NULL').bind(hash).first<{account_id:string}>())?.account_id??null}
+async function actor(jar:Jar){if((await call(jar,'/api/private/session')).status!==200)return null;const token=jar.value('__Host-kobe-session');if(!token)return null;const hash=createHash('sha256').update('session-v1:'+token).digest('hex');return(await(await mf.getD1Database('DB')).prepare('SELECT account_id FROM auth_sessions WHERE token_hash=? AND revoked_at_ms IS NULL').bind(hash).first<{account_id:string}>())?.account_id??null}
 function pause(code:string){let entered!:()=>void,release!:()=>void;const ready=new Promise<void>(r=>entered=r),wait=new Promise<void>(r=>release=r);held.set(code,{entered,release:wait});return{ready,release}}
 beforeAll(async()=>{signer=await googleFixture();mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/oauth-http-test.js',compatibilityDate:'2026-11-03',d1Databases:['DB'],outboundService:async r=>{if(r.url==='https://www.googleapis.com/oauth2/v3/certs')return Response.json(signer.jwks);expect(r.url).toBe('https://oauth2.googleapis.com/token');exchanges++;const form=new URLSearchParams(await r.text()),code=form.get('code')!;const gate=held.get(code);if(gate){gate.entered();await gate.release;held.delete(code)}return failCodes.has(code)?new Response('synthetic-provider-denial',{status:400}):Response.json({id_token:tokens.get(code)})}}));const db=await mf.getD1Database('DB');for(const f of ['0003_oauth_attempts.sql','0004_private_sessions.sql'])for(const sql of readFileSync('migrations/'+f,'utf8').replace(/^--.*$/gm,'').split(/;\s*(?:\n|$)/).filter(s=>s.trim()))await db.prepare(sql).run();for(const sub of ['late-a','late-b'])await db.prepare('INSERT INTO private_accounts VALUES(?,?,?,?,?,?)').bind(sub+'-id',sub,sub+'@st.kobedenshi.ac.jp','active',0,NOW).run()});afterAll(async()=>{await mf?.dispose()});
 it('preserves B when the already-claimed A failure response arrives after B start',async()=>{
@@ -27,9 +33,9 @@ it('preserves B when the already-claimed A failure response arrives after B star
  const saved=jar.value('__Host-kobe-oauth');jar.apply(late!);const preserved=jar.value('__Host-kobe-oauth')===saved;await callback(jar,b);
  expect({aCookieWrites:late!.headers.getSetCookie().length,bPreserved:preserved,finalActor:await actor(jar)}).toEqual({aCookieWrites:0,bPreserved:true,finalActor:'late-b-id'});
 });
-it('records the unresolved release blocker: late A session headers replace B identity',async()=>{
+it('rejects late A session headers after B instead of accepting A identity',async()=>{
  const jar=new Jar(),a=await start(jar),late=await callback(jar,a,false);const b=await start(jar,'late-b');await callback(jar,b);const before=await actor(jar);jar.apply(late);
- expect({before,after:await actor(jar)}).toEqual({before:'late-b-id',after:'late-a-id'});
+ expect({before,after:await actor(jar)}).toEqual({before:'late-b-id',after:null});
 });
 it('retains only sealed verification material until original expiry without callback renewal or replay',async()=>{
  const jar=new Jar(),state=await start(jar),original=jar.values.get('__Host-kobe-oauth')!;
@@ -51,7 +57,7 @@ it('refuses an unconsumed expired sealed attempt even if a client retains it bey
  const r=await callback(jar,state);expect(r.headers.getSetCookie()).toEqual([]);expect(exchanges).toBe(before);expect(await actor(jar)).toBeNull();
 });
 it('sets bounded host-only secure HttpOnly attempt attributes at start only',async()=>{
- const jar=new Jar(),r=await call(jar,'/api/auth/start','POST'),raw=r.headers.getSetCookie();expect(raw).toHaveLength(1);
+ const jar=new Jar();await start(jar);const raw=lastStartResponse!.headers.getSetCookie();expect(raw).toHaveLength(1);
  expect(raw[0]).toMatch(/^__Host-kobe-oauth=.+; Path=\/; HttpOnly; Secure; SameSite=Lax; Max-Age=600$/);
  expect(raw[0]).not.toMatch(/Domain=/i);
 });

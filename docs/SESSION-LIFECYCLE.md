@@ -2,7 +2,11 @@
 
 Issue #47 addresses the already required #4/#38 logout/session-change boundary while external school Google settings and operating decisions remain unavailable. The selected unit is an observable local author session shell, not another unconnected policy placeholder. Source PRD is unchanged. This is not actual Google integration or proof that real-user data protection is complete.
 
-## Current-token HTTP
+## Cycle49 browser-context supersession
+
+[Current implementation](SESSION-GENERATION-IMPLEMENTATION.md) adds mandatory browser contexts and per-context generations to every session and final private SQL. Logout now invalidates this browser context and its pending attempts; other contexts remain independent. It emits no deletion Cookie. A separate action/expected-generation command supports logout with a stale session Cookie. The earlier current-token-only contract below is historical; existing UI consumption guards remain in use.
+
+## Historical current-token HTTP
 
 The unconnected GET `/api/private/session` authenticates an existing cookie and returns only its CSRF value. It does not create an account, return actor/email/provider identifiers or grant authority. The value also distinguishes a particular session for UI remounting; it is not a new authentication credential or proof of which human is present.
 

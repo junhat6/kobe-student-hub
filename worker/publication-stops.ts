@@ -1,11 +1,10 @@
-import {SessionStore,SESSION_IDLE_MS} from './auth/sessions';
+import {liveSessionSql as live,liveSessionBindings as binds} from './auth/session-guard';
+import {SessionStore} from './auth/sessions';
 import type {PublicationStopState} from '../src/publication-stop-types';
 type Kind='article'|'project';
 const uuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v);
 const version=(v:unknown):v is number=>typeof v==='number'&&Number.isSafeInteger(v)&&v>0;
-const live=`EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.account_id=? AND a.status='active' AND a.session_epoch=s.account_epoch AND s.revoked_at_ms IS NULL AND s.created_at_ms<=? AND s.last_seen_ms<=? AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
 type Proof=NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
-const binds=(p:Proof)=>[p.tokenHash,p.accountId,p.nowMs,p.nowMs,p.nowMs-SESSION_IDLE_MS,p.nowMs];
 const config=(kind:Kind)=>kind==='article'?{records:'article_publications',key:'content_id',markers:'article_publication_stops',markerKey:'content_id',join:'JOIN content c ON c.id=r.content_id',status:'c.status',consistent:"c.kind='article' AND c.is_sample=0 AND c.author_id=r.public_profile_id"}:{records:'project_publications',key:'id',markers:'project_publication_stops',markerKey:'project_id',join:'',status:'r.status',consistent:'1=1'};
 type Row={source_version:number;status:PublicationStopState['status'];published_at_ms:number;marker_id:string|null;marker_owner:string|null;marker_version:number|null;stopped_at_ms:number|null};
 /** Local explicit owner stop; no restore, deletion or public-edit API. */

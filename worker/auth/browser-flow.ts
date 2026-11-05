@@ -1,5 +1,7 @@
 import {EncryptJWT,jwtDecrypt,base64url} from 'jose';
-import {OAuthAttemptStore,OAUTH_ATTEMPT_TTL_MS} from './oauth-attempts';
+import {OAUTH_ATTEMPT_TTL_MS} from './oauth-attempts';
+import {BrowserSessionCoordinator,freshBrowserSecret,type BrowserClaim} from './browser-session';
+const plainHash=async(v:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v))),x=>x.toString(16).padStart(2,'0')).join('');
 const COOKIE='__Host-kobe-oauth';
 const ISSUER='kobe-student-hub:oauth-attempt';
 const secret=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9_-]{43}$/.test(v);
@@ -37,18 +39,19 @@ export class BrowserOAuthFlow {
   if(!ctx||now===null||request.url.length>8192||new URL(request.url).pathname!=='/api/auth/start'||!isSameOriginPost(request,this.config.origin))return null;
   try{
    const verifier=base64url.encode(crypto.getRandomValues(new Uint8Array(32)));
-   const attempt=await new OAuthAttemptStore(this.db,()=>now).start();if(!attempt)return null;
+   const attempt={state:freshBrowserSecret(),browserBinding:freshBrowserSecret(),nonce:freshBrowserSecret()};
    const issued=Math.floor(now/1000);
    const sealed=await new EncryptJWT({state:attempt.state,browserBinding:attempt.browserBinding,verifier}).setProtectedHeader({alg:'dir',enc:'A256GCM',typ:'JWT'}).setIssuer(ISSUER).setAudience(ctx.audience).setIssuedAt(issued).setExpirationTime(issued+600).encrypt(this.config.cookieKey);
    const challenge=await pkceChallenge(verifier);if(!challenge)return null;
    const readyAt=this.now();if(readyAt===null||readyAt<now||readyAt>=(issued+600)*1000)return null;
    const location=new URL('https://accounts.google.com/o/oauth2/v2/auth');
    for(const [key,value] of Object.entries({client_id:this.config.clientId,redirect_uri:ctx.redirect,response_type:'code',scope:'openid email',hd:'st.kobedenshi.ac.jp',state:attempt.state,nonce:attempt.nonce,code_challenge:challenge,code_challenge_method:'S256'}))location.searchParams.set(key,value);
+   const executed=await new BrowserSessionCoordinator(this.db,this.config.origin,this.clock).execute(request,intent,{stateHash:await plainHash(attempt.state),browserHash:await plainHash(attempt.browserBinding),nonce:attempt.nonce});if(executed.kind!=='executed')return null;
    return {location:location.toString(),setCookie:cookie(sealed,600)};
   }catch{return null}
  }
  /** Claimed secrets are for server-side exchange only, never a JSON response or log. */
- async claim(request:Request,intent:OAuthIntent='login'):Promise<{kind:'code';code:string;verifier:string;nonce:string;clearCookie:string}|{kind:'denied';clearCookie:string}|null>{
+ async claim(request:Request,intent:OAuthIntent='login'):Promise<{kind:'code';code:string;verifier:string;nonce:string;clearCookie:string;proof:BrowserClaim}|{kind:'denied';clearCookie:string}|null>{
   const ctx=context(this.config,intent);const now=this.now();if(!ctx||now===null||request.url.length>8192)return null;
   try{
    const url=new URL(request.url);if(request.method!=='GET'||url.origin!==this.config.origin||url.pathname!=='/api/auth/callback')return null;
@@ -61,9 +64,9 @@ export class BrowserOAuthFlow {
    if(!secret(payload.state)||!secret(payload.browserBinding)||!secret(payload.verifier)||payload.state!==params.get('state'))return null;
    const claimedAt=this.now();
    if(claimedAt===null||claimedAt<now||typeof payload.exp!=='number'||claimedAt>=payload.exp*1000)return null;
-   const claimed=await new OAuthAttemptStore(this.db,()=>claimedAt).consume({state:payload.state,browserBinding:payload.browserBinding});if(!claimed)return null;
+   const claimed=await new BrowserSessionCoordinator(this.db,this.config.origin,()=>claimedAt).claim(request,payload.state,payload.browserBinding,intent);if(!claimed)return null;
    const clearCookie=cookie('',0);
-   return error!==null?{kind:'denied',clearCookie}:{kind:'code',code:code!,verifier:payload.verifier,nonce:claimed.nonce,clearCookie};
+   return error!==null?{kind:'denied',clearCookie}:{kind:'code',code:code!,verifier:payload.verifier,nonce:claimed.nonce,clearCookie,proof:claimed.proof};
   }catch{return null}
  }
 }

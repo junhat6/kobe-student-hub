@@ -1,4 +1,5 @@
-import {SessionStore,SESSION_IDLE_MS} from './auth/sessions';
+import {liveSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
+import {SessionStore} from './auth/sessions';
 export interface PrivateDraft {id:string;title:string;body:string;version:number;updatedAt:number}
 export type PrivateDraftSummary=Omit<PrivateDraft,'body'>;
 type Proof=NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
@@ -9,10 +10,6 @@ const dto=(r:Row):PrivateDraft=>({id:r.id,title:r.title,body:r.body,version:r.ve
 function fields(value:unknown,keys:string[]):value is Record<string,unknown>{return value!==null&&typeof value==='object'&&!Array.isArray(value)&&(Object.getPrototypeOf(value)===Object.prototype||Object.getPrototypeOf(value)===null)&&Reflect.ownKeys(value).length===keys.length&&keys.every(k=>Object.prototype.hasOwnProperty.call(value,k))}
 function content(value:Record<string,unknown>){return typeof value.title==='string'&&value.title.length<=400&&Array.from(value.title).length<=200&&typeof value.body==='string'&&value.body.length<=262144&&new TextEncoder().encode(value.body).byteLength<=262144}
 // Each final statement checks ownership and current stored session/account state atomically.
-const live=`EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id
- WHERE s.token_hash=? AND s.account_id=? AND a.status='active' AND a.session_epoch=s.account_epoch
- AND s.revoked_at_ms IS NULL AND s.created_at_ms<=? AND s.last_seen_ms<=? AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
-const bindings=(p:Proof)=>[p.tokenHash,p.accountId,p.nowMs,p.nowMs,p.nowMs-SESSION_IDLE_MS,p.nowMs];
 /** Private server repository only. No route or account/publication admission policy. */
 export class PrivateDraftStore {
  private readonly sessions:SessionStore;

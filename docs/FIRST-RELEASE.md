@@ -18,12 +18,13 @@
 | ゲート／現状 | 完了判断に必要な証拠 | 次の具体的な作業・参照 |
 | --- | --- | --- |
 | 学校Google認証・ブラウザ接続：部品とローカル試験あり、実接続未完了 | 登録したリダイレクト先、サーバーでの交換・署名検証、一回限りの試行、PKCE・ブラウザ結合、失敗・再送・期限・並行操作の検証。実コントローラーでCookie・CSRF・ログアウトまで確認 | 許可された専用設定を用意し、実経路を接続・独立QA。[GOOGLE-LOGIN.md](GOOGLE-LOGIN.md)、[OAUTH-ATTEMPTS.md](OAUTH-ATTEMPTS.md)、[SESSION-LIFECYCLE.md](SESSION-LIFECYCLE.md) |
-| セッション応答順：未解決・認証公開停止 | Bのログイン完了後に古いAの成功応答が到着しても、Aとして認証しないこと。期限・再送・複数タブ・ログアウトと安全な回復も検証 | callbackの試行Cookie削除廃止だけでは未解決。サーバー側世代管理／確定プロトコルを設計・独立QAする。[OAUTH-HTTP.md](OAUTH-HTTP.md) Cycle46 |
+| セッション応答順：本体の閉じた検証済み・実接続未完了 | Bのログイン完了後に古いAの成功応答が到着しても、Aとして認証しないこと。期限・再送・複数タブ・ログアウトと安全な回復も検証 | 世代管理と全private SQLを適用し、架空provider＋実Chromiumで古いCookie拒否を確認。実Google・ログ・在籍・保持／負荷等は未完了で公開ゲートはfalse。[現在の実装と限界](SESSION-GENERATION-IMPLEMENTATION.md) |
 | 在籍・卒業・アカウント回復：判断待ち | 現役学生の書込資格、年度境界・補正、卒業後の修正／削除と本人確認の決定、サーバー側の許可・拒否例 | 学校ドメインやactive状態だけで資格を確定しない。未決定のケースを決めてから接続。[AUTH-BOUNDARY.md](AUTH-BOUNDARY.md)、[DECISIONS.md](DECISIONS.md) |
 | 私的データと公開操作：ローカル旅程あり、実接続未完了 | 他人の下書きへの拒否、競合・通信失敗でも文章を保護、確認した保存版と本人入力プロフィールだけの公開、私的識別子の非公開。実セッション切替後の境界も確認 | 実認証の下で編集・プロフィール・公開・匿名閲覧を一続きに検証。プロフィールの修正／削除と実際の同意・規約は別途整理。[PRIVATE-DRAFTS.md](PRIVATE-DRAFTS.md)、[PUBLIC-PROFILE.md](PUBLIC-PROFILE.md)、[PUBLICATION-JOURNEY.md](PUBLICATION-JOURNEY.md)、[本人の公開記録](OWN-PUBLICATION-RECORDS.md)、[本人のローカル公開停止](PUBLICATION-STOPS.md)。保存状態や停止記録は理由説明・通知・異議対応・消去の完成ではない |
 | 通報・不正利用対策：ローカル受付と非公開化あり | 認証済み本人の受付確認、重複扱い、入力制限、一時非公開。実在籍・再登録・濫用時の制限と対応を含む検証 | 同一アカウントの重複防止を別人の証明にしない。未決の利用資格・濫用対策を具体化。[MODERATION-INTAKE.md](MODERATION-INTAKE.md)、[MODERATION-JOURNEY.md](MODERATION-JOURNEY.md) |
 | 運営・通知：読取専用試作あり、実担当・配送未接続 | 限定した実運営権限、失効、理由付き判断・監査、通知の送信・到達・失敗・再送の記録 | 責任を持つ運営と非公開の通知先・方式を決め、実配送を検証。受付やpending記録を送信成功と表示しない。[MODERATION-JOURNEY.md](MODERATION-JOURNEY.md) |
 | 復元・削除・異議・問い合わせ：方針待ち | 復元後の再通報、保持／消去、本人への安全な説明、異議受付・所有者確認・返答の実導線 | 既存の判断表に沿って決定する。宛先や保持期間を推測せず、状態だけ戻す復元を実装しない。[MODERATION-JOURNEY.md](MODERATION-JOURNEY.md) |
+| 認証失効記録の保持・濫用・負荷：実運用未検証 | subject floorの物理削除時期、quiet時の保持、query planとレート制限、失敗／復旧の実運用証拠 | 次の認証操作時の最大100件削除は固定時間の消去SLAではない。実削除・在籍運用前に検証。[失効方針比較](PENDING-ATTEMPT-REVOCATION.md)、[実装](SESSION-GENERATION-IMPLEMENTATION.md) |
 | ログ・配信・キャッシュ：実利用の保護ゲート未完了 | 実経路の各ログ層で必要な秘密情報を保護した範囲の証拠。非公開／削除後の新規記事・一覧・関連表示・キャッシュからの除外 | [LOGGING-GATE.md](LOGGING-GATE.md) を完了してから実callbackを接続。設定やサンプルでの未観測を保護の証明にしない。既に受信した内容の消去とは区別する |
 | 画像：私的ライフサイクルの設計・接続待ち | 所有者・公開状態を毎回検証する取得、形式／容量等の検査、下書き・非公開化・削除・キャッシュ遷移、失敗時の片付け | 初期対象と未決制限を定め、条件に合う保存先を接続。費用・契約・権限は適用確認に従う。[MEDIA-PLAN.md](MEDIA-PLAN.md) |
 | 独立作品：画像なしのローカル旅程あり、実接続未完了 | 記事なしの投稿者による保存・公開・匿名閲覧と私的版の分離。実公開前には作品を対象とする通報・運営、必要な画像と関連記事、公開後の修正／取消・保持方針を具体化し検証 | 記事の通報・いいね仕様を自動適用しない。ローカル作品の成功を実投稿提供と扱わない。[STANDALONE-PROJECTS.md](STANDALONE-PROJECTS.md)、[ローカル作品受付の範囲](PROJECT-REPORT-REVIEW.md)、[新着作品からの発見](PROJECT-DISCOVERY.md)。受付・読取確認だけでは自動非公開・通知・運営判断は完了しない |

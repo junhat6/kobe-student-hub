@@ -54,9 +54,10 @@ export class OAuthAttemptStore {
     try {
       const now = this.now(); if (now === null) return null;
       const result = await this.db.prepare(`DELETE FROM oauth_attempts WHERE state_hash IN
-        (SELECT state_hash FROM oauth_attempts WHERE expires_at_ms <= ? ORDER BY expires_at_ms LIMIT 100)`)
-        .bind(now).run();
-      return result.success ? result.meta.changes : null;
+        (SELECT state_hash FROM oauth_attempts WHERE expires_at_ms <= ? ORDER BY expires_at_ms LIMIT 100) RETURNING state_hash`)
+        .bind(now).all<{state_hash:string}>();
+      // meta.changes also counts FK SET NULL side effects; report deleted attempts only.
+      return result.success ? result.results.length : null;
     } catch { return null; }
   }
 }

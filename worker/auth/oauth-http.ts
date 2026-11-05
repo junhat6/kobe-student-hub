@@ -1,4 +1,5 @@
 import {base64url} from 'jose';
+import {BrowserSessionCoordinator,type BrowserAction} from './browser-session';
 import {GoogleLoginBroker,type GoogleLoginConfig} from './google-login';
 import {createPrivateSessionHandler} from '../session-http';
 /** Optional binding names only. This does not create secrets or alter generated Env/configuration. */
@@ -20,6 +21,13 @@ export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,opti
   const config=parseOAuthConfig(bindings);if(!config)return json(503,'authentication_unavailable');
   if(url.origin!==config.origin)return json(404,'authentication_unavailable');
   if(session)return createPrivateSessionHandler(db,config.origin,clock)(request);
+  const coordinator=new BrowserSessionCoordinator(db,config.origin,clock);
+  if(url.pathname==='/api/auth/bootstrap'||url.pathname==='/api/auth/command'){
+   if(request.method!=='POST')return json(405,'method_not_allowed');
+   try{if(url.pathname.endsWith('bootstrap')){if(url.search||url.hash)return json(404,'authentication_unavailable');const result=await coordinator.bootstrap(request);return result?new Response(null,{status:204,headers:{...headers,'Set-Cookie':result.setCookie}}):json(409,'authentication_restart_required')}
+    const action=url.searchParams.get('action');if(url.hash||url.searchParams.getAll('action').length!==1||[...url.searchParams.keys()].some(k=>k!=='action')||!['login','pending-registration'].includes(action??''))return json(400,'authentication_unavailable');const result=await coordinator.command(request,action as BrowserAction);return result?new Response(JSON.stringify(result),{headers:{...headers,'Content-Type':'application/json; charset=utf-8'}}):json(409,'authentication_restart_required');
+   }catch{return json(503,'authentication_unavailable')}
+  }
   const callback=url.pathname==='/api/auth/callback',login=url.pathname==='/api/auth/start',register=url.pathname==='/api/auth/register';
   if(!callback&&!login&&!register||!callback&&(url.hash||url.search))return json(404,'authentication_unavailable');
   const method=callback?'GET':'POST';if(request.method!==method){const r=json(405,'method_not_allowed');r.headers.set('Allow',method);return r}

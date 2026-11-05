@@ -1,4 +1,5 @@
-import {SessionStore,SESSION_IDLE_MS} from './auth/sessions';
+import {liveSessionSql as live,liveSessionBindings as binds} from './auth/session-guard';
+import {SessionStore} from './auth/sessions';
 import {ProjectStore,decodeProjectSnapshot} from './projects';
 import {publicProfileSqlBounds} from './publication';
 import type {ProjectReportCaseSummary as ProjectCaseSummary,ProjectReportCase} from '../src/project-report-types';
@@ -7,8 +8,6 @@ const slug=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9][A-Za-z0-9
 const text=(v:unknown,n:number):v is string=>typeof v==='string'&&v.length<=n*2&&!v.includes('\0')&&Array.from(v).length<=n&&new TextDecoder().decode(new TextEncoder().encode(v))===v;
 function input(v:unknown):v is {reason:string;detail?:string}{if(!v||typeof v!=='object'||Object.getPrototypeOf(v)!==Object.prototype)return false;const x=v as Record<string,unknown>,k=Reflect.ownKeys(v);return k.includes('reason')&&k.every(k=>k==='reason'||k==='detail')&&text(x.reason,200)&&!!x.reason.trim()&&(!k.includes('detail')||text(x.detail,2000)&&new TextEncoder().encode(x.detail).length<=8000)}
 type Proof=NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
-const live=`EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.account_id=? AND a.status='active' AND a.session_epoch=s.account_epoch AND s.revoked_at_ms IS NULL AND s.created_at_ms<=? AND s.last_seen_ms<=? AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
-const binds=(p:Proof)=>[p.tokenHash,p.accountId,p.nowMs,p.nowMs,p.nowMs-SESSION_IDLE_MS,p.nowMs];
 const profile=`${publicProfileSqlBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts identity WHERE identity.id=p.id OR identity.google_subject=p.id)`;
 const bounded=`length(CAST(r.title AS BLOB))<=800 AND length(CAST(r.description AS BLOB))<=16384 AND length(CAST(r.github_url AS BLOB))<=2048 AND length(CAST(r.demo_url AS BLOB))<=2048`;
 const cols='p.id author_id,p.display_name,p.department,p.year_label,p.bio,p.initials';
