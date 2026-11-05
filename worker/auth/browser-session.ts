@@ -1,6 +1,6 @@
 import {AUTHORIZATION_HEADER,parseProofAuthorization,hasLegacyProofHeader} from '../../src/shared/auth-proof';
 import {base64url} from 'jose';
-import {liveSessionSql,liveSessionBindings,type SessionStorageProof} from './session-guard';
+import {liveRestrictedSessionSql,liveSessionBindings,type SessionStorageProof} from './session-guard';
 export const CONTEXT_COOKIE='__Host-kobe-browser';
 export {AUTHORIZATION_HEADER};
 export const CONTEXT_LIFETIME_MS=28_800_000;
@@ -26,7 +26,7 @@ export class BrowserSessionCoordinator{
   const context=await this.context(request);if(!context)return {kind:'rejected'} as const;
   const hash=await browserDigest('command-v1',token);
   const rs=await this.db.batch([
-   this.db.prepare(`UPDATE auth_browser_commands SET executed_at_ms=?1,state_hash=?2,browser_hash=?3,nonce=?4,attempt_expires_at_ms=?5 WHERE command_hash=?6 AND context_hash=?7 AND action=?8 AND executed_at_ms IS NULL AND created_at_ms<=?1 AND expires_at_ms>?1 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=auth_browser_commands.context_hash AND c.generation=auth_browser_commands.expected_generation AND c.generation<9007199254740991 AND c.created_at_ms<=?1 AND c.expires_at_ms>?1 AND f.id=1 AND auth_browser_commands.revocation_fence>=f.minimum_generation) AND ${authorization?liveSessionSql:'1'} RETURNING expected_generation`).bind(now,attempt?.stateHash??null,attempt?.browserHash??null,attempt?.nonce??null,attempt?now+600000:null,hash,context.hash,action,...(authorization?liveSessionBindings(authorization):[])),
+   this.db.prepare(`UPDATE auth_browser_commands SET executed_at_ms=?1,state_hash=?2,browser_hash=?3,nonce=?4,attempt_expires_at_ms=?5 WHERE command_hash=?6 AND context_hash=?7 AND action=?8 AND executed_at_ms IS NULL AND created_at_ms<=?1 AND expires_at_ms>?1 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=auth_browser_commands.context_hash AND c.generation=auth_browser_commands.expected_generation AND c.generation<9007199254740991 AND c.created_at_ms<=?1 AND c.expires_at_ms>?1 AND f.id=1 AND auth_browser_commands.revocation_fence>=f.minimum_generation) AND ${authorization?liveRestrictedSessionSql(authorization):'1'} RETURNING expected_generation`).bind(now,attempt?.stateHash??null,attempt?.browserHash??null,attempt?.nonce??null,attempt?now+600000:null,hash,context.hash,action,...(authorization?liveSessionBindings(authorization):[])),
    this.db.prepare('SELECT executed_at_ms FROM auth_browser_commands WHERE command_hash=? AND context_hash=? AND action=? AND created_at_ms<=? AND expires_at_ms>?').bind(hash,context.hash,action,now,now)
   ]);
   if(rs[0].results.length)return {kind:'executed'} as const;

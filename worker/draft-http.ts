@@ -1,3 +1,4 @@
+import type {SessionRestrictionReader} from './auth/session-guard';
 import {SessionStore} from './auth/sessions';
 import {PrivateDraftStore} from './drafts';
 const PREFIX='/api/private/drafts';
@@ -29,8 +30,8 @@ async function input(request:Request):Promise<Body>{
  try{return await Promise.race([read,deadline])}finally{clearTimeout(timer)}
 }
 /** Unconnected HTTP boundary. Production must not mount this before the logging/auth gates. */
-export function createPrivateDraftHandler(db:D1Database,origin:string,clock:()=>number=Date.now){
- const sessions=new SessionStore(db,origin,clock);const drafts=new PrivateDraftStore(db,origin,clock);
+export function createPrivateDraftHandler(db:D1Database,origin:string,clock:()=>number=Date.now,restriction?:SessionRestrictionReader){
+ const sessions=new SessionStore(db,origin,clock,restriction);const drafts=new PrivateDraftStore(db,origin,clock,restriction);
  return async(request:Request):Promise<Response|null>=>{
   const url=new URL(request.url);if(!url.pathname.startsWith(PREFIX))return null;
   if(!canonicalOrigin(origin))return error(503,'draft_unavailable');

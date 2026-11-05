@@ -1,4 +1,5 @@
-import {liveSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
+import type {SessionRestrictionReader} from './auth/session-guard';
+import {liveRestrictedSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
 import {SessionStore} from './auth/sessions';
 export interface PrivateDraft {id:string;title:string;body:string;version:number;updatedAt:number}
 export type PrivateDraftSummary=Omit<PrivateDraft,'body'>;
@@ -13,35 +14,35 @@ function content(value:Record<string,unknown>){return typeof value.title==='stri
 /** Private server repository only. No route or account/publication admission policy. */
 export class PrivateDraftStore {
  private readonly sessions:SessionStore;
- constructor(private readonly db:D1Database,origin:string,clock:()=>number=Date.now){this.sessions=new SessionStore(db,origin,clock)}
+ constructor(private readonly db:D1Database,origin:string,clock:()=>number=Date.now,restriction?:SessionRestrictionReader){this.sessions=new SessionStore(db,origin,clock,restriction)}
  private async proof(request:Request,methods:string[]){return methods.includes(request.method)?this.sessions.storageAuthorization(request):null}
  async create(request:Request,input:unknown):Promise<PrivateDraft|null>{
   if(!fields(input,['title','body'])||!content(input))return null;
   try{const p=await this.proof(request,['POST']);if(!p)return null;
    const row=await this.db.prepare(`INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms)
-    SELECT ?,?,?,?,1,? WHERE ${live} RETURNING id,title,body,version,updated_at_ms`).bind(crypto.randomUUID(),p.accountId,input.title,input.body,p.nowMs,...bindings(p)).first<Row>();return row?dto(row):null;
+    SELECT ?,?,?,?,1,? WHERE ${live(p)} RETURNING id,title,body,version,updated_at_ms`).bind(crypto.randomUUID(),p.accountId,input.title,input.body,p.nowMs,...bindings(p)).first<Row>();return row?dto(row):null;
   }catch{return null}
  }
  async read(request:Request,id:unknown):Promise<PrivateDraft|null>{
   if(!idValid(id))return null;
-  try{const p=await this.proof(request,['GET']);if(!p)return null;const row=await this.db.prepare(`SELECT id,title,body,version,updated_at_ms FROM private_article_drafts WHERE id=? AND owner_account_id=? AND ${live}`).bind(id,p.accountId,...bindings(p)).first<Row>();return row?dto(row):null}catch{return null}
+  try{const p=await this.proof(request,['GET']);if(!p)return null;const row=await this.db.prepare(`SELECT id,title,body,version,updated_at_ms FROM private_article_drafts WHERE id=? AND owner_account_id=? AND ${live(p)}`).bind(id,p.accountId,...bindings(p)).first<Row>();return row?dto(row):null}catch{return null}
  }
  async list(request:Request):Promise<PrivateDraftSummary[]|null>{
   try{const p=await this.proof(request,['GET']);if(!p)return null;
-   const result=await this.db.prepare(`SELECT d.id,d.title,d.version,d.updated_at_ms FROM (SELECT 1 WHERE ${live}) authorized LEFT JOIN private_article_drafts d ON d.owner_account_id=? ORDER BY d.updated_at_ms DESC,d.id ASC LIMIT 20`).bind(...bindings(p),p.accountId).all<Omit<Row,'body'>>();
+   const result=await this.db.prepare(`SELECT d.id,d.title,d.version,d.updated_at_ms FROM (SELECT 1 WHERE ${live(p)}) authorized LEFT JOIN private_article_drafts d ON d.owner_account_id=? ORDER BY d.updated_at_ms DESC,d.id ASC LIMIT 20`).bind(...bindings(p),p.accountId).all<Omit<Row,'body'>>();
    return result.results.length?result.results.filter(r=>r.id!==null).map(r=>({id:r.id,title:r.title,version:r.version,updatedAt:r.updated_at_ms})):null;
   }catch{return null}
  }
  async update(request:Request,id:unknown,input:unknown):Promise<PrivateDraft|null>{
   if(!idValid(id)||!fields(input,['title','body','expectedVersion'])||!content(input)||(!versionValid(input.expectedVersion)||input.expectedVersion>=Number.MAX_SAFE_INTEGER))return null;
   try{const p=await this.proof(request,['PUT','PATCH']);if(!p)return null;
-   const row=await this.db.prepare(`UPDATE private_article_drafts SET title=?,body=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${live} RETURNING id,title,body,version,updated_at_ms`).bind(input.title,input.body,p.nowMs,id,p.accountId,input.expectedVersion,p.nowMs,...bindings(p)).first<Row>();return row?dto(row):null;
+   const row=await this.db.prepare(`UPDATE private_article_drafts SET title=?,body=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${live(p)} RETURNING id,title,body,version,updated_at_ms`).bind(input.title,input.body,p.nowMs,id,p.accountId,input.expectedVersion,p.nowMs,...bindings(p)).first<Row>();return row?dto(row):null;
   }catch{return null}
  }
  async delete(request:Request,id:unknown,input:unknown):Promise<{deleted:true}|null>{
   if(!idValid(id)||!fields(input,['expectedVersion'])||!versionValid(input.expectedVersion))return null;
   try{const p=await this.proof(request,['DELETE']);if(!p)return null;
-   const row=await this.db.prepare(`DELETE FROM private_article_drafts WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${live} RETURNING id`).bind(id,p.accountId,input.expectedVersion,p.nowMs,...bindings(p)).first();return row?{deleted:true}:null;
+   const row=await this.db.prepare(`DELETE FROM private_article_drafts WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${live(p)} RETURNING id`).bind(id,p.accountId,input.expectedVersion,p.nowMs,...bindings(p)).first();return row?{deleted:true}:null;
   }catch{return null}
  }
 }

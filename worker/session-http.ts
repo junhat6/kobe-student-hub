@@ -1,3 +1,4 @@
+import type {SessionRestrictionReader} from './auth/session-guard';
 import {parseProofAuthorization} from '../src/shared/auth-proof';
 import {BrowserSessionCoordinator,sameOriginCommand,emptyCommand} from './auth/browser-session';
 import {SessionStore} from './auth/sessions';
@@ -6,8 +7,8 @@ const json=(value:unknown,status=200)=>new Response(JSON.stringify(value),{statu
 const error=(status:number,code:string)=>json({error:code},status);
 function configured(origin:string){try{return new URL(origin).protocol==='https:'&&new URL(origin).origin===origin}catch{return false}}
 /** Unconnected browser-session boundary. It creates no identity; other browser contexts stay independent. */
-export function createPrivateSessionHandler(db:D1Database,origin:string,clock:()=>number=Date.now){
- const sessions=new SessionStore(db,origin,clock);
+export function createPrivateSessionHandler(db:D1Database,origin:string,clock:()=>number=Date.now,restriction?:SessionRestrictionReader){
+ const sessions=new SessionStore(db,origin,clock,restriction);
  return async(request:Request):Promise<Response|null>=>{
   const url=new URL(request.url);if(!url.pathname.startsWith('/api/private/session')&&!url.pathname.startsWith('/api/private/logout'))return null;
   if(!configured(origin))return error(503,'session_unavailable');

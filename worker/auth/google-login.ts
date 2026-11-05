@@ -1,3 +1,4 @@
+import type {SessionRestrictionReader} from './session-guard';
 import {BrowserOAuthFlow,type BrowserFlowConfig,type OAuthIntent} from './browser-flow';
 import {verifySchoolGoogleIdToken} from './google-identity';
 import {PendingRegistrationStore} from './pending-registration';
@@ -23,7 +24,7 @@ async function readToken(response:Response):Promise<string|null>{
 }
 /** Server-private only. No route, account admission, or provider payload is exposed. */
 export class GoogleLoginBroker {
- constructor(private readonly db:D1Database,private readonly config:GoogleLoginConfig,private readonly clock:()=>number=Date.now){}
+ constructor(private readonly db:D1Database,private readonly config:GoogleLoginConfig,private readonly clock:()=>number=Date.now,private readonly restriction?:SessionRestrictionReader){}
  async start(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request):null}
  async startRegistration(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request,'pending-registration'):null}
  async callback(request:Request):Promise<GoogleLoginResult|null>{return this.complete(request,'login') as Promise<GoogleLoginResult|null>}
@@ -44,7 +45,7 @@ export class GoogleLoginBroker {
    clearTimeout(timer);abort.abort();
    const identity=await verifySchoolGoogleIdToken(token,{clientId:this.config.clientId,expectedNonce:claim.nonce});if(!identity)return failure;
    if(intent==='pending-registration'){if(allowIdentity&&!allowIdentity(identity))return failure;const receipt=await new PendingRegistrationStore(this.db,this.clock).record(identity,claim.proof);return receipt?{kind:'pending-receipt',clearCookie:claim.clearCookie}:failure}
-   const session=await new SessionStore(this.db,this.config.origin,this.clock).create(identity,claim.proof);
+   const session=await new SessionStore(this.db,this.config.origin,this.clock,this.restriction).create(identity,claim.proof);
    return session?{kind:'authenticated',...session,clearCookie:claim.clearCookie}:failure;
   }catch{return failure}finally{clearTimeout(timer);abort.abort()}
  }
