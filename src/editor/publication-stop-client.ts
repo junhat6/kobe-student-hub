@@ -1,3 +1,4 @@
+import {proofAuthorization} from '../shared/auth-proof';
 import type {PublicationStopState} from '../publication-stop-types';
 import type {OwnPublicationSummary} from '../own-publication-types';
 import {publicKeys} from './public-author-client';
@@ -14,7 +15,7 @@ export function createPublicationStopClient(fetcher:typeof fetch=fetch){
   signal?.addEventListener('abort',externalAbort,{once:true});if(signal?.aborted)externalAbort();
   const operation=(async()=>{
    if(controller.signal.aborted)throw new PublicationStopClientError();
-   const response=await fetcher('/api/private/publication-stops/'+kind+'/'+publicId,{method:expectedVersion===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:expectedVersion===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json','X-CSRF-Token':csrf},...(expectedVersion===undefined?{}:{body:JSON.stringify({expectedSourceVersion:expectedVersion,confirmStop:true})})});
+   const response=await fetcher('/api/private/publication-stops/'+kind+'/'+publicId,{method:expectedVersion===undefined?'GET':'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:expectedVersion===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json',Authorization:proofAuthorization('csrf',csrf)},...(expectedVersion===undefined?{}:{body:JSON.stringify({expectedSourceVersion:expectedVersion,confirmStop:true})})});
    if(expired||controller.signal.aborted||response.status!==200||!response.body||!/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type')??'')){void response.body?.cancel().catch(()=>{});throw new PublicationStopClientError()}
    const length=response.headers.get('Content-Length');if(length!==null&&(!/^\d+$/.test(length)||!Number.isSafeInteger(Number(length))||Number(length)>65536)){void response.body.cancel().catch(()=>{});throw new PublicationStopClientError()}
    reader=response.body.getReader();const bytes=new Uint8Array(65536);let size=0,count=0;

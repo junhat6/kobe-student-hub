@@ -3,7 +3,7 @@ import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync,readdirSync} from 'node:fs';
 import type {OwnPublications} from '../src/own-publication-types';
 const O='https://app.example.invalid',NOW=1800000000000,PATH='/api/private/own-publications';let mf:Miniflare;type Session={setCookie:string;contextCookie:string;csrfToken:string};let users:Session[];
-const h=(n=0)=>({Cookie:[users[n].setCookie,users[n].contextCookie].map(v=>v.split(';')[0]).join('; '),Origin:O,'X-CSRF-Token':users[n].csrfToken,'Content-Type':'application/json'});
+const h=(n=0)=>({Cookie:[users[n].setCookie,users[n].contextCookie].map(v=>v.split(';')[0]).join('; '),Origin:O,Authorization:'Bearer csrf.'+(users[n].csrfToken),'Content-Type':'application/json'});
 async function login(n:number){return await(await mf.dispatchFetch(O+'/fixture/session',{headers:{'X-Test-Who':String(n)}})).json() as Session}
 async function action<T>(action:string,input:unknown={},id?:string,n=0):Promise<T>{return await(await mf.dispatchFetch(O+'/fixture/action',{method:'POST',headers:h(n),body:JSON.stringify({action,input,id})})).json() as T}
 async function req(n=0,extra:Record<string,string>={},path=PATH,method='GET'){const r=await mf.dispatchFetch(O+path,{method,headers:{...h(n),...extra}});if(path.startsWith(PATH)){for(const [k,v] of Object.entries({'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow','Content-Type':'application/json; charset=utf-8'}))expect(r.headers.get(k)).toBe(v);for(const k of ['Set-Cookie','Location','Access-Control-Allow-Origin'])expect(r.headers.has(k)).toBe(false)}return r}

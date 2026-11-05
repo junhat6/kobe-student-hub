@@ -9,7 +9,7 @@ let mf:Miniflare;
 async function call<T>(input:Record<string,unknown>,target=mf):Promise<T>{const r=await target.dispatchFetch('https://fixture.test',{method:'POST',body:JSON.stringify({now:NOW,url:ORIGIN+'/private',...input})});return await r.json() as T;}
 const create=(extra={})=>call<Session|null>({action:'create',identity:identity(),...extra});const cookie=(s:Session)=>[s.setCookie,s.contextCookie].map(v=>v.split(';')[0]).join('; ');
 const auth=(s:Session,extra={})=>call<{actor:Session['actor'];csrfToken:string}|null>({action:'auth',headers:{Cookie:cookie(s)},...extra});
-const headers=(s:Session)=>({Cookie:cookie(s),Origin:ORIGIN,'X-CSRF-Token':s.csrfToken,'Sec-Fetch-Site':'same-origin'});
+const headers=(s:Session)=>({Cookie:cookie(s),Origin:ORIGIN,Authorization:'Bearer csrf.'+(s.csrfToken),'Sec-Fetch-Site':'same-origin'});
 beforeAll(async()=>{
  mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/session-test.js',compatibilityDate:'2026-11-03',d1Databases:['DB']}));const db=await mf.getD1Database('DB');
  for(const s of readFileSync('migrations/0004_private_sessions.sql','utf8').replace(/^--.*$/gm,'').split(/;\s*(?:\n|$)/).filter(x=>x.trim()))await db.prepare(s).run();
@@ -35,7 +35,7 @@ describe('private opaque sessions and request-bound CSRF',()=>{
  });
  it('requires exact Origin, safe Fetch Metadata and session-specific CSRF on every unsafe operation',async()=>{
   const a=(await create())!;const b=(await create({identity:identity('b')}))!;
-  for(const h of [{Cookie:cookie(a)},{...headers(a),Origin:'null'},{...headers(a),Origin:'https://other.invalid'},{...headers(a),'Sec-Fetch-Site':'cross-site'},{...headers(a),'X-CSRF-Token':b.csrfToken},{...headers(a),'X-CSRF-Token':'x'.repeat(43)}])expect(await call({action:'mutation',method:'POST',headers:h})).toBeNull();
+  for(const h of [{Cookie:cookie(a)},{...headers(a),Origin:'null'},{...headers(a),Origin:'https://other.invalid'},{...headers(a),'Sec-Fetch-Site':'cross-site'},{...headers(a),Authorization:'Bearer csrf.'+(b.csrfToken)},{...headers(a),Authorization:'Bearer csrf.'+('x'.repeat(43))}])expect(await call({action:'mutation',method:'POST',headers:h})).toBeNull();
   expect(await call({action:'mutation',method:'GET',headers:headers(a)})).toBeNull();for(const method of ['POST','PUT','PATCH','DELETE'])expect((await call<Session>({action:'mutation',method,headers:headers(a)})).actor.accountId).toBe('account-a');
  });
  it('CSRF-protects browser logout without a delayed Cookie deletion',async()=>{

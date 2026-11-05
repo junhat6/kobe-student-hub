@@ -1,3 +1,4 @@
+import {proofAuthorization} from '../shared/auth-proof';
 import {publicKeys} from './public-author-client';
 export class LikeClientError extends Error{constructor(){super('いいねの状態を確認できませんでした。');this.name='LikeClientError'}}
 export function createLikesClient(csrfToken:string,fetcher:typeof fetch=fetch){
@@ -10,7 +11,7 @@ export function createLikesClient(csrfToken:string,fetcher:typeof fetch=fetch){
   signal?.addEventListener('abort',externalAbort,{once:true});if(signal?.aborted)externalAbort();
   const operation=(async()=>{
    if(controller.signal.aborted)throw new LikeClientError();
-   const response=await fetcher('/api/private/article-likes/'+contentId,{method:desired===undefined?'GET':'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:desired===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json','X-CSRF-Token':csrfToken},...(desired===undefined?{}:{body:JSON.stringify(desired?{liked:true,confirmPublic:true}:{liked:false})})});
+   const response=await fetcher('/api/private/article-likes/'+contentId,{method:desired===undefined?'GET':'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:desired===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json',Authorization:proofAuthorization('csrf',csrfToken)},...(desired===undefined?{}:{body:JSON.stringify(desired?{liked:true,confirmPublic:true}:{liked:false})})});
    if(expired||controller.signal.aborted||response.status!==200||!response.body||!/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type')??'')){void response.body?.cancel().catch(()=>{});throw new LikeClientError()}
    const length=response.headers.get('Content-Length');if(length!==null&&(!/^\d+$/.test(length)||!Number.isSafeInteger(Number(length))||Number(length)>4096)){void response.body.cancel().catch(()=>{});throw new LikeClientError()}
    reader=response.body.getReader();const bytes=new Uint8Array(4096);let size=0,count=0;

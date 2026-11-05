@@ -17,11 +17,11 @@ async function setup(){
 async function account(db:D1Database,id:string,status='pending',epoch=0){await db.prepare('INSERT INTO private_accounts(id,google_subject,email,status,session_epoch,created_at_ms) VALUES(?,?,?,?,?,?)').bind(id,id+'-sub',id+'@st.kobedenshi.ac.jp',status,epoch,NOW).run()}
 async function session(db:D1Database,id:string){
  const c=new BrowserSessionCoordinator(db,O,()=>NOW),b=(await c.bootstrap(new Request(O,{method:'POST',headers:{Origin:O}})))!;
- const h=new Headers({Origin:O,Cookie:b.setCookie.split(';')[0]});const command=(await c.command(new Request(O,{method:'POST',headers:h}),'login'))!;h.set('X-Session-Command',command.commandToken);
+ const h=new Headers({Origin:O,Cookie:b.setCookie.split(';')[0]});const command=(await c.command(new Request(O,{method:'POST',headers:h}),'login'))!;h.set('Authorization','Bearer command.'+(command.commandToken));
  const flow=new BrowserOAuthFlow(db,{origin:O,clientId:'synthetic.apps.googleusercontent.com',cookieKey:new Uint8Array(32).fill(23)},()=>NOW),start=(await flow.start(new Request(O+'/api/auth/start',{method:'POST',headers:h}),'login'))!;
  const r=await flow.claim(new Request(O+'/api/auth/callback?state='+new URL(start.location).searchParams.get('state')+'&code=synthetic',{headers:{Cookie:b.setCookie.split(';')[0]+'; '+start.setCookie.split(';')[0]}}),'login');if(r?.kind!=='code')throw Error('independent claim failed');
  const result=(await new SessionStore(db,O,()=>NOW).create({provider:'google',subject:id+'-sub',email:id+'@st.kobedenshi.ac.jp'},r.proof))!;
- const headers={Origin:O,Cookie:[b.setCookie,result.setCookie].map(s=>s.split(';')[0]).join('; '),'X-CSRF-Token':result.csrfToken};return {contextCookie:b.setCookie,headers,request:()=>new Request(O+'/private/admission',{method:'POST',headers})};
+ const headers={Origin:O,Cookie:[b.setCookie,result.setCookie].map(s=>s.split(';')[0]).join('; '),Authorization:'Bearer csrf.'+(result.csrfToken)};return {contextCookie:b.setCookie,headers,request:()=>new Request(O+'/private/admission',{method:'POST',headers})};
 }
 const decide=(id:string)=>({targetId:id,expectedEpoch:0,action:'approve' as const,reviewReference:crypto.randomUUID()});
 it('independent purge preserves pending with prior activation, operator grant, or session reference',async()=>{

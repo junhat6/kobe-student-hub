@@ -1,3 +1,4 @@
+import {proofAuthorization} from '../shared/auth-proof';
 export interface DraftSummary {id:string;title:string;version:number;updatedAt:number}
 export interface EditorDraft extends DraftSummary {body:string}
 const ROOT='/api/private/drafts';
@@ -14,7 +15,7 @@ export function createDraftClient(csrfToken:string,fetcher:typeof fetch=fetch){
   const controller=new AbortController();let reader:ReadableStreamDefaultReader<Uint8Array>|undefined;let timer:ReturnType<typeof setTimeout>|undefined;let expired=false;
   const cancel=()=>{controller.abort();if(reader)void reader.cancel().catch(()=>{})};
   const operation=(async()=>{
-   const response=await fetcher(path,{method,credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:body===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json; charset=utf-8','X-CSRF-Token':csrfToken},...(body===undefined?{}:{body:JSON.stringify(body)})});
+   const response=await fetcher(path,{method,credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:body===undefined?{Accept:'application/json'}:{Accept:'application/json','Content-Type':'application/json; charset=utf-8',Authorization:proofAuthorization('csrf',csrfToken)},...(body===undefined?{}:{body:JSON.stringify(body)})});
    if(expired){void response.body?.cancel().catch(()=>{});throw new DraftClientError()}
    if(response.status!==(method==='POST'?201:200)||!response.body||!/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type')??'')){void response.body?.cancel().catch(()=>{});throw new DraftClientError()}
    const length=response.headers.get('Content-Length');if(length!==null&&(!/^\d+$/.test(length)||Number(length)>LIMIT)){void response.body.cancel().catch(()=>{});throw new DraftClientError()}

@@ -6,6 +6,10 @@ This is local integration preparation, not a live login/signup release. The prod
 
 The server-generation protocol is now implemented behind the unchanged disabled production source gate. See [current contract, subject-scoped revocation, migration and release limits](SESSION-GENERATION-IMPLEMENTATION.md). Bootstrap and action-bound command proof are required before OAuth start. Every final private SQL checks context generation. Late old cookies are rejected as signed-out and may require fresh login. Historical Cycle45/46 sections below do not describe the current session acceptance rule. This is synthetic local/provider/browser evidence, not real authentication release.
 
+## Current proof transport
+
+Browser command and CSRF proofs now use the shared purpose-bound Authorization format; old custom proof fields are rejected without fallback. [Transport grammar, logout dispatch and privacy limits](AUTH-PROOF-TRANSPORT.md). The source release gate remains false.
+
 ## Configuration contract
 
 The adapter accepts optional request-scoped bindings rather than reading process environment or keeping mutable configuration globally. No actual origin, provider project/client, user contact, key or secret is committed. The deployment configuration and generated Env still describe the existing sample bindings. Optional authentication input types describe validation, not installed secrets or a new secret store.
@@ -27,8 +31,8 @@ With an explicitly enabled local adapter and fully valid fictional configuration
 | --- | --- |
 | `POST /api/auth/bootstrap` | Anonymous one-time context only; no account/session/attempt |
 | `POST /api/auth/command?action=<intent>` | Action/context/generation-bound one-use start command; no actor or session recovery |
-| `POST /api/auth/start` | Same-origin command with X-Session-Command starts the existing login purpose; no payload-derived authority |
-| `POST /api/auth/register` | Same-origin command with X-Session-Command starts the existing pending-registration purpose |
+| `POST /api/auth/start` | Same-origin command with `Authorization: Bearer command.<proof>` starts the existing login purpose; no payload-derived authority |
+| `POST /api/auth/register` | Same-origin command with `Authorization: Bearer command.<proof>` starts the existing pending-registration purpose |
 | `GET /api/auth/callback` | Tries login claim, then only an unmatched claim may try registration; consumed failures never restart exchange. Every handled outcome redirects to the same fixed clean root. Callbacks never write the attempt cookie; its original expiry applies. Only authenticated active login appends a session cookie |
 | `GET /api/private/session` | Reuses existing private handler: CSRF only on authenticated inspection; missing/invalid and unavailable remain distinct |
 | `POST /api/private/logout-command` | One-use context/action/generation command, usable with an obsolete session Cookie; no actor/session authority |

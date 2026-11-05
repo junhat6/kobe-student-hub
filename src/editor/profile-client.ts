@@ -1,3 +1,4 @@
+import {proofAuthorization} from '../shared/auth-proof';
 export interface ProfileInput {displayName:string;department:string;yearLabel:string;bio:string}
 export interface PublicProfile extends ProfileInput {id:string;initials:string}
 export class ProfileClientError extends Error {constructor(){super('プロフィールの操作結果を確認できませんでした。');this.name='ProfileClientError'}}
@@ -13,7 +14,7 @@ export function createProfileClient(csrfToken:string,fetcher:typeof fetch=fetch)
   const controller=new AbortController();let reader:ReadableStreamDefaultReader<Uint8Array>|undefined;let timer:ReturnType<typeof setTimeout>|undefined;let expired=false;
   const cancel=()=>{controller.abort();if(reader)void reader.cancel().catch(()=>{})};
   const operation=(async()=>{
-   const response=await fetcher('/api/private/profile',{method:value?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:value?{Accept:'application/json','Content-Type':'application/json; charset=utf-8','X-CSRF-Token':csrfToken}:{Accept:'application/json'},...(value?{body:JSON.stringify({...value,confirmPublic:true})}:{})});
+   const response=await fetcher('/api/private/profile',{method:value?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:controller.signal,headers:value?{Accept:'application/json','Content-Type':'application/json; charset=utf-8',Authorization:proofAuthorization('csrf',csrfToken)}:{Accept:'application/json'},...(value?{body:JSON.stringify({...value,confirmPublic:true})}:{})});
    if(expired||response.status!==(value?201:200)||!response.body||!/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type')??'')){void response.body?.cancel().catch(()=>{});throw new ProfileClientError()}
    const length=response.headers.get('Content-Length');if(length!==null&&(!/^\d+$/.test(length)||!Number.isSafeInteger(Number(length))||Number(length)>16384)){void response.body.cancel().catch(()=>{});throw new ProfileClientError()}
    reader=response.body.getReader();const bytes=new Uint8Array(16384);let size=0;let count=0;

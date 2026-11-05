@@ -6,13 +6,13 @@ async function bootstrap(p:Page){await p.goto('/');expect((await call(p,'/api/au
 async function start(p:Page,actor:string){const proof=await call(p,'/api/auth/command?action=login','POST');expect(proof.status).toBe(200);const token=JSON.parse(proof.body).commandToken;
  // Browser fetch follows Google's URL only if redirected; a form-free navigation response is captured through a same-origin server endpoint by observing the response header.
  const responsePromise=p.waitForResponse(r=>r.url().endsWith('/api/auth/start'));
- await p.evaluate(token=>{void fetch('/api/auth/start',{method:'POST',headers:{'X-Session-Command':token},redirect:'manual'})},token);
+ await p.evaluate(token=>{void fetch('/api/auth/start',{method:'POST',headers:{Authorization:'Bearer command.'+(token)},redirect:'manual'})},token);
  const response=await responsePromise;expect(response.status()).toBe(303);const location=new URL((await response.allHeaders()).location);const state=location.searchParams.get('state')!;
  expect((await call(p,'/__control/token?'+new URLSearchParams({state,nonce:location.searchParams.get('nonce')!,actor}))).status).toBe(200);return state;
 }
 async function complete(p:Page,state:string,hold?:string){await p.goto('/api/auth/callback?'+new URLSearchParams({state,code:state,...hold?{hold}:{}}))}
 async function actor(p:Page,expected:string){const r=await call(p,'/fixture/private');expect(r.status).toBe(200);expect(JSON.parse(r.body).actor).toBe(expected)}
-async function logout(p:Page){const s=await call(p,'/api/private/session');const csrf=JSON.parse(s.body).csrfToken;expect((await call(p,'/api/private/logout','POST',{'X-CSRF-Token':csrf})).status).toBe(200)}
+async function logout(p:Page){const s=await call(p,'/api/private/session');const csrf=JSON.parse(s.body).csrfToken;expect((await call(p,'/api/private/logout','POST',{Authorization:'Bearer csrf.'+(csrf)})).status).toBe(200)}
 async function waitHeld(p:Page,tag:string){await expect.poll(async()=>JSON.parse((await call(p,'/__control/ready?tag='+tag)).body).entered).toBe(true)}
 test('real delayed A headers overwrite B cookie but private access fails closed and explicit B login recovers',async({page,context})=>{
  await bootstrap(page);const a=await start(page,A),other=await context.newPage();await other.goto('/');const delayed=complete(other,a,'late-a');await waitHeld(page,'late-a');
@@ -24,7 +24,7 @@ test('real delayed A headers overwrite B cookie but private access fails closed 
 });
 test('pending A callback after logout cannot restore access; stale session command logout recovers',async({page,context})=>{
  await bootstrap(page);await complete(page,await start(page,B));const a=await start(page,A),other=await context.newPage();await other.goto('/');const delayed=complete(other,a,'logout-a');await waitHeld(page,'logout-a');
- const proof=await call(page,'/api/private/logout-command','POST');expect(proof.status).toBe(200);expect((await call(page,'/api/private/logout','POST',{'X-Session-Command':JSON.parse(proof.body).commandToken})).status).toBe(200);
+ const proof=await call(page,'/api/private/logout-command','POST');expect(proof.status).toBe(200);expect((await call(page,'/api/private/logout','POST',{Authorization:'Bearer command.'+(JSON.parse(proof.body).commandToken)})).status).toBe(200);
  await call(page,'/__control/release?tag=logout-a');await delayed;expect((await call(page,'/fixture/private')).status).toBe(401);
  await complete(page,await start(page,B));await actor(page,B);await logout(page);expect((await call(page,'/fixture/private')).status).toBe(401);
 });
