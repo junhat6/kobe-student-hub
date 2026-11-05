@@ -658,3 +658,7 @@ Cycle59 Developer local results: full66unit/Worker files565tests passed16.87s; f
 Pilot routing follow-up: `/api/auth/pilot` and its external JS run inside the existing `/api/*` worker-first assets rule, before the generic auth handler. A local actual-production-entry browser check loads the configured static asset SPA fallback, then the pilot, and completes after a pre-existing context/bootstrap409; command issuance still validates that context. Late canonical GET callbacks after policy expiry/removal clean-redirect without DB/provider access. Other disabled factory and general route contracts remain closed.
 
 Final routing/recovery verification:66files566unit/Worker tests passed17.75s; focused16passed661ms; production-entry plus configured static assets/SPA/worker-first Chromium flow1passed1.5s, including pre-existing context retry. Typecheck/diffcheck and refreshed deployment dry-run passed. Earlier565 count predates the added removed-policy callback case. Two legacy production callback assertions were updated to require the new explicit no-policy clean303 while preserving no DB/provider/Cookie behavior and closed405 for all other routes.
+
+## 限定下書きローカル検証（Issue #4）
+
+1人限定の既存active資格・期限・取消を確認し、本人の下書き保存と再開を架空GoogleおよびローカルD1で検証した。独立QAと制約は [QA記録](QA-LIMITED-DRAFT-LOCAL.md)、設計は [ローカル設計](LIMITED-DRAFT-LOCAL.md)。本番には接続しておらず、運営判断・実DB schema・grant運用と実環境検証が残る。

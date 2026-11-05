@@ -3,7 +3,7 @@ import {base64url} from 'jose';
 import type {VerifiedSchoolIdentity} from './google-identity';
 import type {ServerSessionActor} from './private-access';
 import {BrowserSessionCoordinator,CONTEXT_COOKIE,singleSecretCookie,browserDigest,type BrowserClaim} from './browser-session';
-import {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS,type SessionStorageProof} from './session-guard';
+import {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS,type SessionStorageProof,type SessionRestrictionReader,readSessionRestriction,sessionRestrictionSql,sessionRestrictionBindings} from './session-guard';
 export {SESSION_ABSOLUTE_MS,SESSION_IDLE_MS} from './session-guard';
 const NAME='__Host-kobe-session';
 const validToken=(v:string)=>/^[A-Za-z0-9_-]{43}$/.test(v);
@@ -20,7 +20,7 @@ function equalToken(a:string,b:string){if(!validToken(a)||!validToken(b))return 
 export type SessionInspection={kind:'authenticated';actor:ServerSessionActor;csrfToken:string;contextHash:string;generation:number;checkedAt:number}|{kind:'signed-out'}|{kind:'unavailable'};
 /** No production endpoint uses this repository. Identity must come from real server verification. */
 export class SessionStore {
- constructor(private readonly db:D1Database,private readonly origin:string,private readonly clock:()=>number=Date.now){}
+ constructor(private readonly db:D1Database,private readonly origin:string,private readonly clock:()=>number=Date.now,private readonly restriction?:SessionRestrictionReader){}
  private now(){const n=this.clock();return Number.isSafeInteger(n)&&n>=0&&n<Number.MAX_SAFE_INTEGER-SESSION_ABSOLUTE_MS?n:null}
  private configured(){try{return new URL(this.origin).protocol==='https:'&&new URL(this.origin).origin===this.origin}catch{return false}}
  /** Creates no account/admission. Caller must never construct identity from client input. */
@@ -29,10 +29,10 @@ export class SessionStore {
   try{
    const raw=base64url.encode(crypto.getRandomValues(new Uint8Array(32)));const digest=await tokenHash(raw);const csrfToken=await csrf(raw);const now=this.now();if(now===null)return null;
    const row=await this.db.prepare(`INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash)
-    SELECT ?1,a.id,a.session_epoch,?2,?2,min(?3,c.expires_at_ms),c.context_hash,c.generation,t.state_hash FROM private_accounts a JOIN oauth_attempts t ON t.state_hash=?4 JOIN auth_browser_contexts c ON c.context_hash=t.context_hash JOIN auth_revocation_fence f ON f.id=1
+    SELECT ?1,a.id,a.session_epoch,?2,?2,min(?3,c.expires_at_ms,?15),c.context_hash,c.generation,t.state_hash FROM private_accounts a JOIN oauth_attempts t ON t.state_hash=?4 JOIN auth_browser_contexts c ON c.context_hash=t.context_hash JOIN auth_revocation_fence f ON f.id=1
     WHERE a.google_subject=?5 AND a.status='active' AND t.intent='login' AND t.claim_owner=?6 AND t.completed_at_ms IS NULL AND t.consumed_at_ms<=?2 AND t.created_at_ms<=?2 AND t.expires_at_ms>?2
-    AND c.context_hash=?7 AND c.generation=?8 AND t.context_generation=c.generation AND c.created_at_ms<=?2 AND c.expires_at_ms>?2 AND t.revocation_fence=?9 AND t.revocation_fence>=f.minimum_generation AND NOT EXISTS(SELECT 1 FROM auth_subject_fences b WHERE b.google_subject=a.google_subject AND b.generation>t.revocation_fence) RETURNING account_id`)
-    .bind(digest,now,now+SESSION_ABSOLUTE_MS,claim.stateHash,identity.subject,claim.owner,claim.contextHash,claim.generation,claim.fence).first<{account_id:string}>();
+    AND c.context_hash=?7 AND c.generation=?8 AND t.context_generation=c.generation AND c.created_at_ms<=?2 AND c.expires_at_ms>?2 AND t.revocation_fence=?9 AND t.revocation_fence>=f.minimum_generation AND NOT EXISTS(SELECT 1 FROM auth_subject_fences b WHERE b.google_subject=a.google_subject AND b.generation>t.revocation_fence) ${this.restriction?"AND (a.id=?10 AND a.session_epoch=?11 AND ?12>?13 AND EXISTS(SELECT 1 FROM limited_draft_grants g WHERE g.account_id=a.id AND g.account_epoch=a.session_epoch AND g.expires_at_ms=?14 AND g.revoked_at_ms IS NULL AND g.expires_at_ms>CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)))":"AND ?10 IS NULL AND ?11 IS NULL AND ?12 IS NULL AND ?13>=0 AND ?14 IS NULL"} RETURNING account_id`)
+    .bind(digest,now,now+SESSION_ABSOLUTE_MS,claim.stateHash,identity.subject,claim.owner,claim.contextHash,claim.generation,claim.fence,...sessionRestrictionBindings(this.restriction,now),readSessionRestriction(this.restriction,now)?.expiresAtMs??now+SESSION_ABSOLUTE_MS).first<{account_id:string}>();
    return row?{setCookie:cookie(raw,SESSION_ABSOLUTE_MS/1000),csrfToken,actor:{accountId:row.account_id,accountStatus:'active'}}:null;
   }catch{return null}
  }
@@ -46,8 +46,8 @@ export class SessionStore {
   const row=await this.db.prepare(`UPDATE auth_sessions SET last_seen_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL
     AND context_hash=? AND EXISTS(SELECT 1 FROM auth_browser_contexts c WHERE c.context_hash=auth_sessions.context_hash AND c.generation=auth_sessions.context_generation AND c.created_at_ms<=? AND c.expires_at_ms>?)
     AND created_at_ms<=? AND last_seen_ms<=? AND last_seen_ms>? AND expires_at_ms>?
-    AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status='active' AND a.session_epoch=auth_sessions.account_epoch)
-    RETURNING account_id,context_generation`).bind(now,digest,contextHash,now,now,now,now,now-SESSION_IDLE_MS,now).first<{account_id:string;context_generation:number}>();
+    AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status='active' AND a.session_epoch=auth_sessions.account_epoch ${this.restriction?'AND '+sessionRestrictionSql('a'):'AND ? IS NULL AND ? IS NULL AND ? IS NULL AND ?>=0 AND ? IS NULL'})
+    RETURNING account_id,context_generation`).bind(now,digest,contextHash,now,now,now,now,now-SESSION_IDLE_MS,now,...sessionRestrictionBindings(this.restriction,now)).first<{account_id:string;context_generation:number}>();
   return row?{kind:'authenticated',actor:{accountId:row.account_id,accountStatus:'active'},csrfToken,contextHash,generation:row.context_generation,checkedAt:now}:{kind:'signed-out'};
  }
  /** Existing fail-closed API: storage/configuration failures retain the original null behavior. */
@@ -71,7 +71,7 @@ export class SessionStore {
   const session=await this.inspect(request),raw=rawCookie(request);if(session.kind!=='authenticated'||!raw)return null;
   if(request.method!=='GET'){const proof=parseProofAuthorization(request.headers),supplied=proof?.purpose==='csrf'?proof.token:null;if(!supplied||!equalToken(session.csrfToken,supplied))return null}
   const nowMs=this.now();if(nowMs===null||nowMs<session.checkedAt)return null;
-  return {tokenHash:await tokenHash(raw),accountId:session.actor.accountId,contextHash:session.contextHash,nowMs,clock:this.clock};
+  return {tokenHash:await tokenHash(raw),accountId:session.actor.accountId,contextHash:session.contextHash,nowMs,clock:this.clock,restriction:this.restriction};
  }
  async logout(request:Request):Promise<{loggedOut:true}|null>{
   const proof=await this.storageAuthorization(request);if(!proof)return null;

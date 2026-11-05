@@ -47,14 +47,14 @@ function importedAlias(text:string,exported:string){
 
 describe('independent private SQL guard inventory',()=>{
  for(const [file,expected] of Object.entries(inventory))it(`${file}: every private SQL site uses central predicate and bindings`,()=>{
-  const text=source(file),sqlAlias=importedAlias(text,'liveSessionSql'),bindAlias=importedAlias(text,'liveSessionBindings');
+  const text=source(file),sqlAlias=importedAlias(text,file==='drafts'?'liveRestrictedSessionSql':'liveSessionSql'),bindAlias=importedAlias(text,'liveSessionBindings');
   const actual:Record<string,number>={};
   for(const statement of statements(text)){
    actual[statement.method]=(actual[statement.method]??0)+1;
    const label=`${file}.${statement.method}`;
    if(Object.hasOwn(expected.public??{},statement.method))continue;
    expect(Object.hasOwn(expected.private,statement.method),`unclassified SQL: ${label}`).toBe(true);
-   expect(statement.sql,`${label}: final statement must recheck current context/session`).toContain('${'+sqlAlias+'}');
+   expect(statement.sql,`${label}: final statement must recheck current context/session`).toContain('${'+sqlAlias+(file==='drafts'?'(p)':'')+'}');
    expect(statement.bindings,`${label}: central proof bindings must accompany predicate`).toMatch(new RegExp(`\\.\\.\\.${bindAlias}\\s*\\(`));
    expect(statement.sql,`${label}: no copied session guard`).not.toMatch(/\b(?:FROM|JOIN)\s+auth_sessions\b/i);
   }
