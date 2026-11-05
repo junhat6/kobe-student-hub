@@ -10,7 +10,7 @@ test('home → article → author → project → related article',async({page})
 });
 test('search, tag, no results, reset and browser back',async({page})=>{
  await page.goto('/search');await page.getByRole('searchbox').fill('Git');await page.getByRole('button',{name:'検索',exact:true}).click();await expect(page.getByRole('article')).toHaveCount(1);
- await page.getByRole('searchbox').fill('該当なし');await page.getByRole('button',{name:'検索',exact:true}).click();await expect(page.getByRole('heading',{name:'ぴったりの記事が見つかりませんでした'})).toBeVisible();
+ await page.getByRole('searchbox').fill('該当なし');await page.getByRole('button',{name:'検索',exact:true}).click();await expect(page.getByRole('heading',{name:'ぴったりの記事・作品が見つかりませんでした'})).toBeVisible();
  await page.getByRole('button',{name:'すべて表示する'}).click();await expect(page.getByRole('article')).toHaveCount(4);await page.goto('/search?tag=Git');await expect(page.getByRole('article')).toHaveCount(1);
  await page.getByRole('button',{name:'Gitの絞り込みを解除'}).click();await expect(page.getByRole('article')).toHaveCount(4);await page.goBack();await expect(page.getByRole('article')).toHaveCount(1);
 });
@@ -21,7 +21,7 @@ test('deep links, malformed route, no overflow and honest preview',async({page})
  await page.goto('/about');await expect(page.getByRole('heading',{name:'まだ提供していないこと'})).toBeVisible();
 });
 test('API outage has retry and independent about page',async({page})=>{
- await page.route('**/api/catalog',r=>r.fulfill({status:503,contentType:'application/json',body:'{}'}));await page.goto('/');await expect(page.getByRole('heading',{name:'記事を読み込めませんでした'})).toBeVisible();
+ await page.route('**/api/catalog',r=>r.fulfill({status:503,contentType:'application/json',body:'{}'}));await page.goto('/');await expect(page.getByRole('heading',{name:'記事・作品を読み込めませんでした'})).toBeVisible();
  await page.goto('/about');await expect(page.getByRole('heading',{name:'まだ提供していないこと'})).toBeVisible();
  await page.unroute('**/api/catalog');await page.goto('/');await expect(page.getByRole('article')).toHaveCount(4);
 });
