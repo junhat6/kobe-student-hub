@@ -1,5 +1,7 @@
 # Independent QA: OAuth HTTP adapter and closed release gate (Cycle40)
 
+Historical Cycle40 evidence: the unconditional callback-cookie-clear behavior below is superseded by [Cycle45 ownership QA](QA-OAUTH-COOKIE-OWNERSHIP.md) and the current [adapter contract](OAUTH-HTTP.md#attempt-cookie-ownership-cycle45). Other original evidence remains historical.
+
 No blocking finding remains in the tested fictional local HTTP scope. This is HTTP glue around existing verified login, pending registration and current-session boundaries. The production source gate remains false, including with complete configuration and enable-like runtime input. No real authentication or posting was activated.
 
 ## Final independent execution

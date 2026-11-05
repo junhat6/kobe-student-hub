@@ -23,7 +23,7 @@ With an explicitly enabled local adapter and fully valid fictional configuration
 | --- | --- |
 | `POST /api/auth/start` | Same-origin command starts the existing login purpose; no payload-derived authority |
 | `POST /api/auth/register` | Same-origin command starts the existing pending-registration purpose |
-| `GET /api/auth/callback` | Tries login claim, then only an unmatched claim may try registration; consumed failures never restart exchange. Every handled outcome clears the attempt cookie and redirects to the same fixed clean root. Only authenticated active login appends a session cookie |
+| `GET /api/auth/callback` | Tries login claim, then only an unmatched claim may try registration; consumed failures never restart exchange. Every handled outcome redirects to the same fixed clean root. Only a matched claimed outcome clears the attempt cookie; unmatched/null callbacks emit no Set-Cookie. Only authenticated active login appends a session cookie |
 | `GET /api/private/session` | Reuses existing private handler: CSRF only on authenticated inspection; missing/invalid and unavailable remain distinct |
 | `POST /api/private/logout` | Reuses existing current-token CSRF/logout handler, including its empty-body and final-write checks |
 
@@ -36,3 +36,12 @@ Local signed provider responses and D1 data are fictional. Test-only signing, id
 Actual Google browser redirects, SameSite/cross-site behavior, platform/CDN/browser logging, physical devices and student-value validation remain unverified by local HTTP tests. A successful current-session read discloses only CSRF to its same-origin holder; it is not a public identity API. Logout revokes the current session with existing CSRF and final-write checks; it does not revoke every session or undo completed writes. The existing session lifetime still applies to a previously issued session replaced by a later browser login.
 
 Before any real release: select the exact origin and callback, confirm provider/public information and credential custody, verify dedicated deployment/database targets, separately authorize required remote changes, finish actual log/transport audit and eligibility/operating policy, then review the source gate and browser lifecycle under real configuration. No environment flag is a substitute for those steps.
+
+
+## Attempt-cookie ownership (Cycle45)
+
+A later start replaces the single browser attempt cookie. A stale callback carrying that newer cookie has no authority to clear it: only a non-null broker result, after a matching one-time claim, supplies attempt removal. Malformed/missing/mismatched callbacks, replay losers and unconfirmed claim failures retain the same clean303/private headers without any Set-Cookie. Matched denial, verification/exchange failure and successful completion still remove the claimed attempt; only active login adds a session. Existing session cookies are not removed by callback failure.
+
+The fixture regression applies every response's Set-Cookie to a shared jar before the next request. It reproduces A-start/B-start/stale-A-with-B-cookie and verifies B can complete after the stale response, along with matched failures, cross-purpose registration/login, replay, concurrent callbacks and DB/cookie refusals. These are local signed fictional provider/Worker/D1 tests, not a browser SameSite or real Google test. See [independent QA](QA-OAUTH-COOKIE-OWNERSHIP.md).
+
+This is request-time ownership, not an atomic browser compare-and-delete. If A already matched and claimed with cookie A, then B starts before A's delayed clearing response arrives, the shared cookie name can still be affected by response order; that separate race is not solved here. [RFC6265 storage and concurrent-response semantics](https://httpwg.org/specs/rfc6265.html#storage-model) describe replacement by cookie identity rather than by its previous value. A null result after an ambiguous DB failure does not prove whether a claim committed. Do not reset consumed markers or automatically replay an exchange; the attempt may require a fresh start or expire. No new cookie format, schema, provider configuration, operational key or production gate change is made.

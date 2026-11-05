@@ -414,3 +414,10 @@ Local final build/typecheck,401 tests across50 files (11.16s),60 public Chromium
 Reused existing context-return and content-kind-copy behavior evidence without rerunning those journeys. Read CARD-STUDY/DECISIONS/DISCOVERY and Issue5's body/four development comments; no new student-trial result is established by those records. Checked official Qiita search and Behance search/project-creation help on2026-11-05. DISCOVERY-NEXT separates documented mechanisms, existing originator input, source-sample limits and proposed value/priority. Only docs change; no fresh app/browser/operational/student test is claimed. Independent source/claim/link review and documentation checks precede merge; CI results belong in the PR.
 
 Independent planning QA read all three official source pages and checked the H02/decisions/QA/seed evidence, relative links, E23 anchor and claim limits; no blocking finding. Issue5's body/comments were read by the implementer, not independently re-fetched by QA. No new application test or participant evidence is claimed.
+
+
+# Cycle 45 evidence — callback attempt-cookie ownership
+
+Before changing product source, one new shared-jar fixture case failed: stale callback wrote1 deletion, B-preserved=false/B-session=false/exchanges0. After the minimum adapter fix, focused developer65 tests and independent67 across7 files passed (independent includes2 added cases). Cookie updates are applied before later requests rather than reusing the original start cookie. Independent QA records the exact code/tests, privacy/session assertions and request-time/response-order/DB ambiguity limits. The production source gate remains false and no real provider/config/key/schema or deployment is involved. Full local/CI results are recorded after execution; UI assets are byte-equal to an isolated build of baseline9990116.
+
+Final root checks: build/typecheck,410 tests across51 files (11.28s),60 public PC/mobile cases (11.1s), and deployment dry-run passed. No editor/local auth browser UI or live OAuth check is claimed; normal CI covers the unchanged editor suite.
