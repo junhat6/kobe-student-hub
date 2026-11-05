@@ -78,4 +78,4 @@ URLは `https://127.0.0.1:8788`。自己署名証明書を使い、ブラウザ�
 認証HTTPの接続準備は、production entryの無効ゲートを維持したローカル試験です。設定値の投入だけではログインを開放せず、公開サンプルと書込み停止を維持します。[HTTPとsecret bindingの設計](docs/OAUTH-HTTP.md)を参照してください。
 
 
-配置コマンドは `deploy:preview` が既存preview専用です。旧 `deploy:production` は誤配備を避けて停止します。専用本番の準備CLIは未選定の対象を使わないよう閉鎖したままです。[分離した配置準備と残条件](docs/PRODUCTION-CONFIG.md)を参照してください。
+配置コマンドは `deploy:preview` が既存preview専用です。旧 `deploy:production` は誤配備を避けて停止します。専用本番の準備CLIは、固定パスの非公開manifestと閉じた認証ゲートを検証し、サンプル専用設定だけを生成します。実deployやSQLは自動実行しません。[分離した配置準備と残条件](docs/PRODUCTION-CONFIG.md)を参照してください。

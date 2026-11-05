@@ -114,4 +114,11 @@ Cycle40 prepares the [OAuth HTTP adapter and optional binding contract](OAUTH-HT
 
 ## Closed dedicated production preparation
 
-The [production preparation boundary](PRODUCTION-CONFIG.md) is separate from the existing preview settings. Its CLI remains source-disabled and unconfigured, with no real target loader or production deploy command. Tests exercise strict validation and private local artifacts using fictional targets only. No actual origin, resource identifier, secret binding installation, resource creation, remote SQL or deployment is included. Matching local account/resource inputs is not remote ownership or authorization evidence.
+The [production preparation boundary](PRODUCTION-CONFIG.md) is separate from the existing preview settings. Cycle41 introduced a closed entry; Cycle42 adds the fixed private selection loader and sample-only preparation. There is still no automatic production deploy command. Tests use fictional targets; any real selection/configuration remains ignored and private. No actual origin, resource identifier, secret binding installation, resource creation, remote SQL or deployment is included. Matching local account/resource inputs is not remote ownership or authorization evidence.
+
+
+## Privately selected sample-only production target
+
+`production:prepare` reads only the owned mode0600 `.wrangler/production-target.private.json`, validates the exact selected/expected target and closed OAuth source, and writes `.wrangler/production.prepare.json` privately. It invokes no deployment, network, SQL or credential flow. Dedicated public sample hosting is enabled in that generated config; authentication remains source-disabled. See [PRODUCTION-CONFIG.md](PRODUCTION-CONFIG.md) and [local independent QA](QA-PRIVATE-PRODUCTION-TARGET.md). Runtime IDs/origin and operational deployment evidence must not be published here.
+
+A deployment must use the reviewed main archive/build, matching manifest/config fingerprints, verified dedicated resources and successful main CI. New empty-database bootstrap is a separate explicitly verified operation: only public sample schema/data and their migration records, not later auth/private schemas. Verify actual live health/catalog/denials and unchanged preview separately after deployment. Configuration preparation and successful tests do not prove a live release.

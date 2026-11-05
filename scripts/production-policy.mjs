@@ -1,3 +1,3 @@
-// No production target has been selected/reviewed. Runtime environment cannot enable this policy.
-// Actual account/resource/origin values must never be committed here.
-export const productionPolicy=Object.freeze({configured:false,releaseEnabled:false});
+// Only local preparation of a privately selected dedicated sample target is enabled.
+// This never enables OAuth, deploys code, creates resources, runs SQL or stores credentials.
+export const productionPolicy=Object.freeze({sampleOnlyPreparationEnabled:true});
