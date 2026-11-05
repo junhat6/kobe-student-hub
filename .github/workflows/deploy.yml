@@ -33,7 +33,7 @@ jobs:
           CLOUDFLARE_EXPECTED_ACCOUNT_ID: ${{ vars.CLOUDFLARE_EXPECTED_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
           CLOUDFLARE_EXPECTED_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_EXPECTED_D1_DATABASE_ID }}
-      - run: npm run deploy:production
+      - run: npm run deploy:preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
