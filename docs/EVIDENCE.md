@@ -407,3 +407,10 @@ Independent focused50 passed (10.83s) using unchanged final root-built fixtures.
 The public detail now calls a project a project and its creator a student who made it, while article wording remains article-specific. Empty search names article/project/both according to the existing selected kind. Shared catalog/recovery/missing/related-empty copy names both kinds. Filtering, route and data semantics are unchanged.
 
 Local final build/typecheck,401 tests across50 files (11.16s),60 public Chromium desktop/mobile cases (10.2s), and deployment dry-run passed. The two initial new mobile sidebar assertions were corrected to match its pre-existing hidden layout; final checks pass without product layout or timeout/retry changes. Separate-context QA adds22 focused browser checks and independently runs the12 new desktop/mobile cases (3.6s). Local captures remain private. See QA-CONTENT-KIND-COPY.md. CI/release results will be recorded in the PR after they actually complete. This does not verify real users/OAuth, student value or physical mobile devices.
+
+
+# Cycle 44 evidence — discovery comparison update
+
+Reused existing context-return and content-kind-copy behavior evidence without rerunning those journeys. Read CARD-STUDY/DECISIONS/DISCOVERY and Issue5's body/four development comments; no new student-trial result is established by those records. Checked official Qiita search and Behance search/project-creation help on2026-11-05. DISCOVERY-NEXT separates documented mechanisms, existing originator input, source-sample limits and proposed value/priority. Only docs change; no fresh app/browser/operational/student test is claimed. Independent source/claim/link review and documentation checks precede merge; CI results belong in the PR.
+
+Independent planning QA read all three official source pages and checked the H02/decisions/QA/seed evidence, relative links, E23 anchor and claim limits; no blocking finding. Issue5's body/comments were read by the implementer, not independently re-fetched by QA. No new application test or participant evidence is claimed.
