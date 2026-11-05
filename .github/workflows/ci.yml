@@ -26,6 +26,7 @@ jobs:
       - run: npm run db:local
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run test:pending-pilot
       - run: npm run test:auth-browser
       - run: npm run editor:build
       - run: npm run test:editor
