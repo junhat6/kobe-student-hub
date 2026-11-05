@@ -108,3 +108,5 @@ Cycle36's recent-project feed is confined to the fictional local editor build an
 
 
 Cycle39 pending-registration work reuses the existing private account schema only in local tests. It adds no production route, secret/key configuration, actual account, role, migration or deployment. Dedicated Google project/client creation and real callback protection remain separate confirmed-operation gates. Never deploy the private test harness or serialize its identity/session JSON through a public endpoint.
+
+Cycle40 prepares the [OAuth HTTP adapter and optional binding contract](OAUTH-HTTP.md). The production entry's source release gate remains false; even complete runtime inputs cannot activate it. No actual origin/client/secret/key, new Worker/database, binding installation or deployment is included. Optional input types do not create secret storage. Existing preview configuration and generated Env remain unchanged. Real callback publication still requires actual log/transport, origin, eligibility and operating checks; do not flip the source gate or add deployment settings as a shortcut.

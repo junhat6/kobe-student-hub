@@ -1,9 +1,13 @@
+import {createOAuthHttpHandler,type OAuthBindings} from './auth/oauth-http';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
+// Release remains blocked: real logging, admission and origin gates are not satisfied.
+const OAUTH_HTTP_RELEASE_ENABLED=false;
 const app = new Hono<{ Bindings: Env }>();
 app.use('*', secureHeaders({ contentSecurityPolicy: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'data:'], connectSrc: ["'self'"], objectSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'none'"] }, referrerPolicy:'no-referrer' }));
 app.use('/api/*', async (c,next) => { c.header('Cache-Control','no-store'); c.header('X-Robots-Tag','noindex, nofollow'); await next(); });
+app.use('/api/*',async(c,next)=>{if(OAUTH_HTTP_RELEASE_ENABLED){const response=await createOAuthHttpHandler(c.env.DB,c.env as Env&OAuthBindings,{enabled:OAUTH_HTTP_RELEASE_ENABLED})(c.req.raw);if(response)return response}await next()});
 app.get('/api/health', c => c.json({status:'ok',stage:'development-preview',writesEnabled:false}));
 app.get('/api/catalog', async c => {
   // Explicit public projection: no identity, emails, drafts, history, or report data.
