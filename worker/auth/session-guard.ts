@@ -17,4 +17,4 @@ export function readSessionRestriction(read:SessionRestrictionReader|undefined,n
 export function sessionRestrictionSql(alias:string){return `(${alias}.id=? AND ${alias}.session_epoch=? AND ?>? AND EXISTS(SELECT 1 FROM limited_draft_grants g WHERE g.account_id=${alias}.id AND g.account_epoch=${alias}.session_epoch AND g.expires_at_ms=? AND g.revoked_at_ms IS NULL AND g.expires_at_ms>CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)))`}
 export function sessionRestrictionBindings(read:SessionRestrictionReader|undefined,now:number){const p=readSessionRestriction(read,now);return [p?.accountId??null,p?.accountEpoch??null,p?.expiresAtMs??null,now,p?.expiresAtMs??null]}
 
-export function liveRestrictedSessionSql(p:SessionStorageProof){return p.restriction?liveSessionSql.slice(0,-1)+` AND ${sessionRestrictionSql('a')})`:liveSessionSql}
+export function liveRestrictedSessionSql(p:SessionStorageProof){return p.restriction?liveSessionSql.replace("a.status='active'","a.status='pending'").slice(0,-1)+` AND ${sessionRestrictionSql('a')})`:liveSessionSql}

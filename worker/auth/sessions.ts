@@ -30,10 +30,10 @@ export class SessionStore {
    const raw=base64url.encode(crypto.getRandomValues(new Uint8Array(32)));const digest=await tokenHash(raw);const csrfToken=await csrf(raw);const now=this.now();if(now===null)return null;
    const row=await this.db.prepare(`INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash)
     SELECT ?1,a.id,a.session_epoch,?2,?2,min(?3,c.expires_at_ms,?15),c.context_hash,c.generation,t.state_hash FROM private_accounts a JOIN oauth_attempts t ON t.state_hash=?4 JOIN auth_browser_contexts c ON c.context_hash=t.context_hash JOIN auth_revocation_fence f ON f.id=1
-    WHERE a.google_subject=?5 AND a.status='active' AND t.intent='login' AND t.claim_owner=?6 AND t.completed_at_ms IS NULL AND t.consumed_at_ms<=?2 AND t.created_at_ms<=?2 AND t.expires_at_ms>?2
+    WHERE a.google_subject=?5 AND a.status=${this.restriction?"'pending'":"'active'"} AND t.intent='login' AND t.claim_owner=?6 AND t.completed_at_ms IS NULL AND t.consumed_at_ms<=?2 AND t.created_at_ms<=?2 AND t.expires_at_ms>?2
     AND c.context_hash=?7 AND c.generation=?8 AND t.context_generation=c.generation AND c.created_at_ms<=?2 AND c.expires_at_ms>?2 AND t.revocation_fence=?9 AND t.revocation_fence>=f.minimum_generation AND NOT EXISTS(SELECT 1 FROM auth_subject_fences b WHERE b.google_subject=a.google_subject AND b.generation>t.revocation_fence) ${this.restriction?"AND (a.id=?10 AND a.session_epoch=?11 AND ?12>?13 AND EXISTS(SELECT 1 FROM limited_draft_grants g WHERE g.account_id=a.id AND g.account_epoch=a.session_epoch AND g.expires_at_ms=?14 AND g.revoked_at_ms IS NULL AND g.expires_at_ms>CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)))":"AND ?10 IS NULL AND ?11 IS NULL AND ?12 IS NULL AND ?13>=0 AND ?14 IS NULL"} RETURNING account_id`)
     .bind(digest,now,now+SESSION_ABSOLUTE_MS,claim.stateHash,identity.subject,claim.owner,claim.contextHash,claim.generation,claim.fence,...sessionRestrictionBindings(this.restriction,now),readSessionRestriction(this.restriction,now)?.expiresAtMs??now+SESSION_ABSOLUTE_MS).first<{account_id:string}>();
-   return row?{setCookie:cookie(raw,SESSION_ABSOLUTE_MS/1000),csrfToken,actor:{accountId:row.account_id,accountStatus:'active'}}:null;
+   return row?{setCookie:cookie(raw,SESSION_ABSOLUTE_MS/1000),csrfToken,actor:{accountId:row.account_id,accountStatus:this.restriction?'pending':'active'}}:null;
   }catch{return null}
  }
  private async lookup(request:Request):Promise<SessionInspection>{
@@ -46,9 +46,9 @@ export class SessionStore {
   const row=await this.db.prepare(`UPDATE auth_sessions SET last_seen_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL
     AND context_hash=? AND EXISTS(SELECT 1 FROM auth_browser_contexts c WHERE c.context_hash=auth_sessions.context_hash AND c.generation=auth_sessions.context_generation AND c.created_at_ms<=? AND c.expires_at_ms>?)
     AND created_at_ms<=? AND last_seen_ms<=? AND last_seen_ms>? AND expires_at_ms>?
-    AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status='active' AND a.session_epoch=auth_sessions.account_epoch ${this.restriction?'AND '+sessionRestrictionSql('a'):'AND ? IS NULL AND ? IS NULL AND ? IS NULL AND ?>=0 AND ? IS NULL'})
+    AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status=${this.restriction?"'pending'":"'active'"} AND a.session_epoch=auth_sessions.account_epoch ${this.restriction?'AND '+sessionRestrictionSql('a'):'AND ? IS NULL AND ? IS NULL AND ? IS NULL AND ?>=0 AND ? IS NULL'})
     RETURNING account_id,context_generation`).bind(now,digest,contextHash,now,now,now,now,now-SESSION_IDLE_MS,now,...sessionRestrictionBindings(this.restriction,now)).first<{account_id:string;context_generation:number}>();
-  return row?{kind:'authenticated',actor:{accountId:row.account_id,accountStatus:'active'},csrfToken,contextHash,generation:row.context_generation,checkedAt:now}:{kind:'signed-out'};
+  return row?{kind:'authenticated',actor:{accountId:row.account_id,accountStatus:this.restriction?'pending':'active'},csrfToken,contextHash,generation:row.context_generation,checkedAt:now}:{kind:'signed-out'};
  }
  /** Existing fail-closed API: storage/configuration failures retain the original null behavior. */
  async authenticate(request:Request):Promise<{actor:ServerSessionActor;csrfToken:string}|null>{

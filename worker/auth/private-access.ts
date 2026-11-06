@@ -1,7 +1,7 @@
 /** Future callers must load this actor from a verified server-side session, never request JSON. */
 export interface ServerSessionActor {
   accountId: string;
-  accountStatus: 'active' | 'suspended' | 'deleted';
+  accountStatus: 'active' | 'pending' | 'suspended' | 'deleted';
 }
 
 /** A narrow ownership policy, not a session authenticator or an administrator override. */
