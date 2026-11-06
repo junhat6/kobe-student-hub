@@ -17,7 +17,7 @@ const headers={'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Pol
 const json=(status:number,code:string)=>new Response(JSON.stringify({error:code}),{status,headers:{...headers,'Content-Type':'application/json; charset=utf-8'}});
 /** Independently testable HTTP glue. Production's separate source release gate must remain false.
  * Normal login remains source-gated. Explicit pendingPilot mode requires a valid private policy. */
-export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,options:{enabled?:boolean;pendingPilot?:boolean;restriction?:SessionRestrictionReader;loginOnly?:boolean;authorizationJson?:boolean}={},clock:()=>number=Date.now){
+export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,options:{enabled?:boolean;pendingPilot?:boolean;restriction?:SessionRestrictionReader;loginOnly?:boolean;authorizationJson?:boolean;trialReturn?:boolean}={},clock:()=>number=Date.now){
  return async(request:Request):Promise<Response|null>=>{
   const pilot=options.pendingPilot===true?parsePendingPilot(bindings.OAUTH_PENDING_PILOT,clock()):null;
   if(options.enabled!==true&&!pilot){
@@ -47,7 +47,7 @@ export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,opti
    // A matched failure already consumed its attempt. Only an unmatched claim may try the other sealed purpose.
    let result:Awaited<ReturnType<GoogleLoginBroker['callback']>>|Awaited<ReturnType<GoogleLoginBroker['registrationCallback']>>=null;
    try{if(!url.hash){if(pilot)result=await broker.registrationCallback(request,identity=>identity.email===pilot.allowedEmail&&parsePendingPilot(bindings.OAUTH_PENDING_PILOT,clock())!==null);else{result=await broker.callback(request);if(result===null&&!options.loginOnly)result=await broker.registrationCallback(request)}}}catch{/* No provider/body/error reflection. */}
-   const response=new Response(null,{status:303,headers:{...headers,Location:config.origin+(pilot?'/api/auth/pilot#'+(result?.kind==='pending-receipt'?'received':'unavailable'):'/')}});
+   const response=new Response(null,{status:303,headers:{...headers,Location:config.origin+(pilot?'/api/auth/pilot#'+(result?.kind==='pending-receipt'?'received':'unavailable'):(options.trialReturn===true?'/api/auth/draft-trial':'/'))}});
    // Never mutate the shared attempt cookie: even a claimed response can arrive after a newer start.
    // Its original expiry remains in force; consumed attempts cannot be replayed.
    if(result?.kind==='authenticated')response.headers.append('Set-Cookie',result.setCookie);return response;

@@ -1,4 +1,5 @@
 import {createLimitedDraftHandler} from '../../worker/limited-draft-http';
+import {createPrivateSessionHandler} from '../../worker/session-http';
 import {type OAuthBindings} from '../../worker/auth/oauth-http';
 import type {SessionRestriction} from '../../worker/auth/session-guard';
 // Fictional local controls only. Never imported by the production entry.
@@ -19,5 +20,6 @@ export default {async fetch(r:Request,env:{DB:D1Database}){
   c.enqueue(new TextEncoder().encode(i.body));c.close();
  }});
  const target=new Request(i.url,{method:i.method,headers:i.headers,body});
+ if(i.url.endsWith('/fixture/ordinary-session')){const ordinary=new Request(new URL('/api/private/session',i.url),{method:'GET',headers:i.headers});return await createPrivateSessionHandler(db,new URL(i.url).origin,()=>now)(ordinary)??new Response('',{status:404})}
  return createLimitedDraftHandler(db,i.bindings,reader,()=>now)(target);
 }};
