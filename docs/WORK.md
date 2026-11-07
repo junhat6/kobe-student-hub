@@ -662,3 +662,13 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 ## 限定下書きローカル検証（Issue #4）
 
 1人限定の既存active資格・期限・取消を確認し、本人の下書き保存と再開を架空GoogleおよびローカルD1で検証した。独立QAと制約は [QA記録](QA-LIMITED-DRAFT-LOCAL.md)、設計は [ローカル設計](LIMITED-DRAFT-LOCAL.md)。本番には接続しておらず、運営判断・実DB schema・grant運用と実環境検証が残る。
+
+## Limited login interruption recovery
+
+**Planner:** A stalled bootstrap, command or start response/body must not leave the limited login permanently locked or navigate after the user has cancelled or moved on. Preserve the separate unpublished production connection changes without publishing or deploying them.
+
+**Developer:** Isolated frontend change adds a single 10-second deadline through JSON EOF, explicit cancellation, abort propagation and per-operation invalidation at every asynchronous boundary. The UI exposes cancel/retry and invalidates stale work on navigation/hidden/unmount. No automatic authentication retries or server-side rollback claim. See [scope and verification](LIMITED-LOGIN-RECOVERY.md).
+
+**Verification:** Developer typecheck/build/dry-run, 599 unit/Worker tests, 60 public browser cases and 30 limited browser cases passed. Browser cases use Chromium PC/mobile viewport emulation with fictional local data. Independent QA remains separate. No source publication or production operation was performed.
+
+**Replanning:** Complete independent QA on an isolated copy, then integrate the bounded patch with the existing unpublished production-routing work only through the authorized review/publication process. Keep the existing publication approval blocker and production activation conditions separate.

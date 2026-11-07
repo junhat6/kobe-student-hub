@@ -2,6 +2,7 @@ import {beforeAll,afterAll,it,expect} from 'vitest';
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import {googleFixture,TEST_CLIENT_ID,TEST_EMAIL} from './helpers/google-fixtures';
+import {readSessionRestriction,TRIAL_GRANT_MAX_MS,SESSION_ABSOLUTE_MS} from '../worker/auth/session-guard';
 import {applyOrderSchema} from './helpers/order-schema';
 const O='https://limited.example.test',N=Date.now(),E=N+600000;
 const policy={accountId:'account-a',accountEpoch:0,expiresAtMs:E};
@@ -56,7 +57,7 @@ it('owner cannot read, edit or remove another owner draft',async()=>{
  expect(JSON.stringify(await(await req('/api/private/drafts','GET',{Cookie:a.cookie})).json())).not.toContain('secret');
 });
 it('policy absent, malformed, wrong account/epoch and expired deny existing sessions',async()=>{
- for(const p of [null,{}, {...policy,accountId:'account-b'},{...policy,accountEpoch:1},{...policy,expiresAtMs:N},{...policy,expiresAtMs:N+86400001}])expect([401,404]).toContain((await req('/api/private/session','GET',{Cookie:a.cookie},undefined,{policy:p})).status);
+ for(const p of [null,{}, {...policy,accountId:'account-b'},{...policy,accountEpoch:1},{...policy,expiresAtMs:N},{...policy,expiresAtMs:N+TRIAL_GRANT_MAX_MS+1}])expect([401,404]).toContain((await req('/api/private/session','GET',{Cookie:a.cookie},undefined,{policy:p})).status);
 });
 it('expiry or removal during request body processing cannot commit a draft',async()=>{
  for(const race of ['expiry','remove'])expect([401,404]).toContain((await req('/api/private/drafts','POST',h(a),{title:'must not commit',body:''},{race})).status);
@@ -92,4 +93,21 @@ it('a grant revoked or expired after binding cannot commit a private draft',asyn
 it('database execution clock rejects naturally expired grant after bind',async()=>{
  const db=await mf.getD1Database('DB'),expiresAtMs=Date.now()+600;await db.prepare('UPDATE limited_draft_grants SET expires_at_ms=?,revoked_at_ms=NULL').bind(expiresAtMs).run();
  const r=await req('/api/private/drafts','POST',h(a),{title:'expired-clock',body:''},{policy:{...policy,expiresAtMs},race:'final-clock'});expect(r.status).toBe(404);expect(await db.prepare("SELECT id FROM private_article_drafts WHERE title='expired-clock'").first()).toBeNull();
+});
+
+it('trial grant permits at most 100 hours while session absolute lifetime stays 8 hours',()=>{
+ expect(TRIAL_GRANT_MAX_MS).toBe(100*3600000);expect(SESSION_ABSOLUTE_MS).toBe(8*3600000);
+ expect(readSessionRestriction(()=>({...policy,expiresAtMs:N+TRIAL_GRANT_MAX_MS}),N)?.expiresAtMs).toBe(N+TRIAL_GRANT_MAX_MS);
+ expect(()=>readSessionRestriction(()=>({...policy,expiresAtMs:N+TRIAL_GRANT_MAX_MS+1}),N)).toThrow();
+ expect(()=>readSessionRestriction(()=>({...policy,expiresAtMs:N}),N)).toThrow();
+});
+it('100-hour grant issues at most an eight-hour session without changing the pending account',async()=>{
+ const db=await mf.getD1Database('DB');const expiry=N+TRIAL_GRANT_MAX_MS;
+ await db.prepare("UPDATE private_accounts SET status='pending',session_epoch=0 WHERE id='account-a'").run();
+ await db.prepare('UPDATE limited_draft_grants SET expires_at_ms=?,revoked_at_ms=NULL WHERE account_id=?').bind(expiry,'account-a').run();
+ const r=await login('fictional-google-subject',{policy:{...policy,expiresAtMs:expiry}});
+ expect(r.response.headers.getSetCookie().length).toBeGreaterThan(0);
+ const row=await db.prepare("SELECT expires_at_ms FROM auth_sessions WHERE account_id='account-a' ORDER BY rowid DESC LIMIT 1").first<{expires_at_ms:number}>();
+ expect(row?.expires_at_ms).toBe(N+SESSION_ABSOLUTE_MS);
+ expect(await db.prepare("SELECT status,session_epoch FROM private_accounts WHERE id='account-a'").first()).toEqual({status:'pending',session_epoch:0});
 });

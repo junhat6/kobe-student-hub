@@ -122,3 +122,8 @@ The [production preparation boundary](PRODUCTION-CONFIG.md) is separate from the
 `production:prepare` reads only the owned mode0600 `.wrangler/production-target.private.json`, validates the exact selected/expected target and closed OAuth source, and writes `.wrangler/production.prepare.json` privately. It invokes no deployment, network, SQL or credential flow. Dedicated public sample hosting is enabled in that generated config; authentication remains source-disabled. See [PRODUCTION-CONFIG.md](PRODUCTION-CONFIG.md) and [local independent QA](QA-PRIVATE-PRODUCTION-TARGET.md). Runtime IDs/origin and operational deployment evidence must not be published here.
 
 A deployment must use the reviewed main archive/build, matching manifest/config fingerprints, verified dedicated resources and successful main CI. New empty-database bootstrap is a separate explicitly verified operation: only public sample schema/data and their migration records, not later auth/private schemas. Verify actual live health/catalog/denials and unchanged preview separately after deployment. Configuration preparation and successful tests do not prove a live release.
+
+
+## Limited trial assets
+
+The opt-in trial package is assembled locally with `node scripts/build-trial-assets.mjs` after the normal build. Its output is added beneath `dist/trial-assets` and uses the existing `ASSETS` binding. Production configuration must route both `/api/*` and `/trial-assets/*` through the Worker first; otherwise static assets can bypass the trial policy. This packaging step does not deploy, change DB data, or activate the trial.
