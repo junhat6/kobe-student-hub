@@ -6,6 +6,7 @@ import DraftEditor from './DraftEditor';
 import PublicProfileSetup from './PublicProfileSetup';
 import {createAuthorSessionGuard,createSessionClient,SessionClientError,type AuthorSessionGuard} from './session-client';
 import './session-lab.css';
+// Screen phases do not change account eligibility; a trial account remains pending.
 type Phase='checking'|'active'|'review'|'signed-out'|'unverified'|'logout-pending'|'logout-unknown';
 export default function AccountSessionLab({privateOnly=false,trial=false}:{privateOnly?:boolean;trial?:boolean}){
  const client=useMemo(()=>createSessionClient(),[]);const mounted=useRef(true);const revision=useRef(0);const checkingRef=useRef(false);const logoutRef=useRef(false);const inspection=useRef<AbortController|null>(null);

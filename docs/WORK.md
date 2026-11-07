@@ -680,3 +680,13 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 **Change:** Require an active visible page to reveal, invalidate inspection generations on hidden/pagehide, and require a fresh proof on return. Preserve the same-session unsaved buffer and retain existing invalid/changed/logout destruction and unknown-result concealment. Interrupted initial checks and explicit continuation are included. No auth policy, schema, grant, expiry or deployed logging/key configuration changes are included.
 
 **Verification:** Targeted lifecycle and existing session checks, separate-context independent QA and the serial aggregate pipeline are required on the final source before release. The actual-tab regression avoids Playwright's forced visibility override. See [scope, test methods and limits](QA-DRAFT-SESSION-VISIBILITY.md). Release evidence is recorded in the reviewed PR; local-only screenshots and runtime inputs are excluded.
+
+## Pending trial documentation reconciliation
+
+**Goal:** Continue the existing pending-only private-draft trial without confusing it with enrollment, general login or publishing. No additional implementation is needed.
+
+**Change:** Make PENDING-DRAFT-TRIAL the current specification; supersede the old active/operator operational proposal and local design. Align README/FIRST-RELEASE, relevant historical records and explanatory source comments with the opt-in production route. Distinguish the parser's 100-hour ceiling from an actual deadline, session absolute/idle limits, DB revocation from configuration removal, reissue from login, unsaved memory from stored drafts, and deployment observations from actual-user success. Runtime identifiers, private evidence and settings are excluded.
+
+**Validation:** Separate-context review of all 19 changed files found no required correction. All 124 local Markdown links resolve; the six changed source files produce identical esbuild output to main `6bcfe8f` after comments are removed. Typecheck and diffcheck passed. Public PR #94/#95 merge and matching main CI success were read back from GitHub. No executable code, tests, schema, policy, rights, data, expiry, credential, Issue or deployment is changed. Existing #94/#95 CI evidence is cited for its original scope; local browser suites were not rerun for prose/comments alone.
+
+**Next decision:** Review this documentation draft before any ready/merge step. Separately collect authorized actual-user/device trial feedback and resolve retention/deletion/reissue operations; do not grant active/operator status as a shortcut or infer current production data from code/CI. Additional browser developer-tool access remains pending and is not used here.
