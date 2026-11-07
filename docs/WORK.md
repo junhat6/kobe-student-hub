@@ -672,3 +672,11 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 **Verification:** Developer typecheck/build/dry-run, 599 unit/Worker tests, 60 public browser cases and 30 limited browser cases passed. Browser cases use Chromium PC/mobile viewport emulation with fictional local data. Independent QA remains separate. No source publication or production operation was performed.
 
 **Replanning:** Complete independent QA on an isolated copy, then integrate the bounded patch with the existing unpublished production-routing work only through the authorized review/publication process. Keep the existing publication approval blocker and production activation conditions separate.
+
+## Draft session visibility race
+
+**Problem:** A same-session inspection could complete after a real tab became hidden and reveal private editor DOM. Concealment alone did not invalidate the in-flight proof.
+
+**Change:** Require an active visible page to reveal, invalidate inspection generations on hidden/pagehide, and require a fresh proof on return. Preserve the same-session unsaved buffer and retain existing invalid/changed/logout destruction and unknown-result concealment. Interrupted initial checks and explicit continuation are included. No auth policy, schema, grant, expiry or deployed logging/key configuration changes are included.
+
+**Verification:** Targeted lifecycle and existing session checks, separate-context independent QA and the serial aggregate pipeline are required on the final source before release. The actual-tab regression avoids Playwright's forced visibility override. See [scope, test methods and limits](QA-DRAFT-SESSION-VISIBILITY.md). Release evidence is recorded in the reviewed PR; local-only screenshots and runtime inputs are excluded.
