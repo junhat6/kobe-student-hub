@@ -4,6 +4,7 @@ import {
 } from './auth/student-participation';
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
+import type { Profile } from '../src/types';
 import { normalizeProjectFields } from '../src/project-input';
 import { decodePublicProfile, publicProfileSqlBounds } from './publication';
 import type {
@@ -13,6 +14,7 @@ import type {
   PublicProjectReader,
   PublicAuthorProjects,
   PublicProjectDiscovery,
+  PublicProjectSummary,
 } from '../src/project-types';
 const uuid = (x: unknown): x is string =>
   typeof x === 'string' &&
@@ -331,7 +333,9 @@ export class ProjectStore {
       return null;
     }
   }
-  async readAuthor(id: unknown): Promise<PublicAuthorProjects | null> {
+  async readAuthorSelection(
+    id: unknown,
+  ): Promise<{ author: Profile | null; projects: PublicProjectSummary[] } | null> {
     if (typeof id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id)) return null;
     try {
       const candidates = await this.db
@@ -340,7 +344,8 @@ export class ProjectStore {
         )
         .bind(id)
         .all<{ id: string }>();
-      if (!candidates.results.length || candidates.results.some((r) => !uuid(r.id))) return null;
+      if (!candidates.results.length) return { author: null, projects: [] };
+      if (candidates.results.some((r) => !uuid(r.id))) return null;
       const ids = candidates.results.map((r) => r.id);
       const rows = await this.db
         .prepare(
@@ -369,6 +374,13 @@ export class ProjectStore {
     } catch {
       return null;
     }
+  }
+  /** Preserve the existing single-kind author contract for lab and project-only clients. */
+  async readAuthor(id: unknown): Promise<PublicAuthorProjects | null> {
+    const value = await this.readAuthorSelection(id);
+    return value?.author && value.projects.length
+      ? { author: value.author, projects: value.projects }
+      : null;
   }
   /** Anonymous local recent projects. A malformed selected snapshot fails the whole bounded projection. */
   async readRecentPublished(): Promise<PublicProjectDiscovery | null> {

@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { PublicSurface } from '../shared/public-paths';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import {
   createModerationClient,
@@ -6,12 +7,24 @@ import {
   validReportInput,
 } from './moderation-client';
 import './moderation.css';
-export default function ReportPanel({ contentId }: { contentId: string }) {
-  const client = useMemo(() => createModerationClient(), []);
+export default function ReportPanel({
+  contentId,
+  surface = 'lab',
+  fetcher = fetch,
+  embedded = false,
+  onNavigationRiskChange,
+}: {
+  contentId: string;
+  surface?: PublicSurface;
+  fetcher?: typeof fetch;
+  embedded?: boolean;
+  onNavigationRiskChange?: (risk: boolean) => void;
+}) {
+  const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
   const panelId = useId();
   const mounted = useRef(true);
   const lock = useRef(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [csrf, setCsrf] = useState('');
@@ -63,7 +76,9 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
           );
           setMessage(
             error instanceof ModerationClientError && error.kind === 'authentication'
-              ? '通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。'
+              ? surface === 'ordinary'
+                ? '通報するにはログインしてください。'
+                : '通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。'
               : '通報状態を確認できませんでした。未送信とは判断せず、入力も自動で再送しません。',
           );
         }
@@ -103,7 +118,15 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (embedded) void check();
+  }, [embedded, client, contentId]);
   const hasUnsaved = (!received && (Boolean(input.reason) || Boolean(input.detail))) || uncertain;
+  useLayoutEffect(
+    () => onNavigationRiskChange?.(hasUnsaved || busy),
+    [hasUnsaved, busy, onNavigationRiskChange],
+  );
+  useEffect(() => () => onNavigationRiskChange?.(false), [onNavigationRiskChange]);
   useEffect(() => {
     if (!hasUnsaved && !busy) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -117,31 +140,48 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
     setInput((current) => ({ ...current, [key]: value }));
     setConfirmed(false);
   }
+  const Container = embedded ? 'div' : 'section';
   return (
-    <section className="report-panel" aria-label="記事の通報">
-      <Button
-        aria-expanded={open}
-        aria-controls={panelId}
-        disabled={busy}
-        onClick={() => {
-          if (open) setOpen(false);
-          else {
-            setOpen(true);
-            void check();
-          }
-        }}
-      >
-        {open ? '通報の確認を閉じる' : 'この記事を通報する（ローカル検証）'}
-      </Button>
-      {open && (
+    <Container
+      className={embedded ? undefined : 'report-panel'}
+      aria-label={embedded ? undefined : '記事の通報'}
+    >
+      {!embedded && (
+        <Button
+          aria-expanded={open}
+          aria-controls={panelId}
+          disabled={busy}
+          onClick={() => {
+            if (open) setOpen(false);
+            else {
+              setOpen(true);
+              void check();
+            }
+          }}
+        >
+          {open
+            ? '通報の確認を閉じる'
+            : surface === 'ordinary'
+              ? 'この記事を通報する'
+              : 'この記事を通報する（ローカル検証）'}
+        </Button>
+      )}
+      {(embedded || open) && (
         <div id={panelId} className="report-panel-content">
-          <h2>記事の通報</h2>
-          <p className="moderation-local-notice">
-            架空のデータによるローカル専用の検証です。実際の学校ログインや運営への連絡機能は提供していません。
-          </p>
+          {!embedded && <h2>記事の通報</h2>}
+          {surface === 'lab' && (
+            <p className="moderation-local-notice">
+              架空のデータによるローカル専用の検証です。実際の学校ログインや運営への連絡機能は提供していません。
+            </p>
+          )}
           <p className="moderation-message" aria-live="polite" aria-atomic="true">
             {message}
           </p>
+          {authRequired && surface === 'ordinary' && (
+            <p>
+              <a href="/login">ログインする</a>
+            </p>
+          )}
           {authRequired && (
             <p className="moderation-warning">
               この画面でアカウントを自動作成したり、ログイン状態を変更したりすることはありません。
@@ -213,10 +253,14 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
             </form>
           )}
           <p className="moderation-scope-note">
-            通報理由・詳細は、この記事や一般の読者には表示しません。実際の通知先、運営判断、復元・削除、異議申立ての窓口は未設定です。受付を、対応やメール送信の完了として扱いません。
+            通報理由・詳細は、この記事や一般の読者には表示しません。
+            {surface === 'lab'
+              ? '実際の通知先、運営判断、復元・削除、異議申立ての窓口は未設定です。'
+              : ''}
+            受付を、対応やメール送信の完了として扱いません。
           </p>
         </div>
       )}
-    </section>
+    </Container>
   );
 }

@@ -1,3 +1,4 @@
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { PublicLikedArticles } from '../types';
 import { readAnonymousJson } from './anonymous-public-read';
 import { publicKeys, publicSlug, publicText, validPublicSummary } from './public-author-client';
@@ -28,12 +29,15 @@ function valid(value: unknown, id: string): value is PublicLikedArticles {
     value.entries.every(validPublicSummary)
   );
 }
-export function createPublicLikesClient(fetcher: typeof fetch = fetch) {
+export function createPublicLikesClient(
+  fetcher: typeof fetch = fetch,
+  surface: PublicSurface = 'lab',
+) {
   return {
     async read(id: string, signal?: AbortSignal): Promise<PublicLikedArticles> {
       try {
         if (!publicSlug(id)) throw new PublicLikesClientError();
-        const value = await readAnonymousJson('/__lab/likes/' + id, fetcher, signal);
+        const value = await readAnonymousJson(publicPaths(surface).likesApi(id), fetcher, signal);
         if (!valid(value, id)) throw new PublicLikesClientError();
         return value;
       } catch {

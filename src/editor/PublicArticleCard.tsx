@@ -1,10 +1,13 @@
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { PublishedArticleSummary, PublicArticleAuthor } from '../types';
 export default function PublicArticleCard({
   entry,
   author,
+  surface = 'lab',
 }: {
   entry: PublishedArticleSummary;
   author?: PublicArticleAuthor;
+  surface?: PublicSurface;
 }) {
   return (
     <article className="author-lab-card">
@@ -13,10 +16,10 @@ export default function PublicArticleCard({
         <time dateTime={entry.updatedAt}>{entry.updatedAt}</time>
       </div>
       <h3>
-        <a href={'/lab/articles/' + entry.id}>{entry.title}</a>
+        <a href={publicPaths(surface).article(entry.id)}>{entry.title}</a>
       </h3>
       {author && (
-        <a className="discovery-author" href={'/lab/authors/' + author.id}>
+        <a className="discovery-author" href={publicPaths(surface).author(author.id)}>
           {author.name}
           {(author.department || author.year) && (
             <span>{[author.department, author.year].filter(Boolean).join(' · ')}</span>

@@ -12,10 +12,18 @@ import PublicAuthorLab from '../../src/editor/PublicAuthorLab';
 import PublicDiscoveryLab from '../../src/editor/PublicDiscoveryLab';
 import ModerationLab from '../../src/editor/ModerationLab';
 import AccountSessionLab from '../../src/editor/AccountSessionLab';
+import ModerationPage from '../../src/account/ModerationPage';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 const root = createRoot(document.getElementById('root')!);
 root.render(<p>ローカル専用の実験環境を準備しています。</p>);
 if (location.origin !== 'https://127.0.0.1:8788')
   root.render(<p>この実験環境は指定のローカルURLでのみ動きます。</p>);
+else if (location.pathname === '/moderation')
+  root.render(
+    <RouterProvider
+      router={createBrowserRouter([{ path: '/moderation', element: <ModerationPage /> }])}
+    />,
+  );
 else if (location.pathname === '/lab/account') root.render(<AccountSessionLab />);
 else if (location.pathname.startsWith('/lab/account'))
   root.render(<p>この検証画面を表示できません。</p>);

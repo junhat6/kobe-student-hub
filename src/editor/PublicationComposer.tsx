@@ -12,14 +12,16 @@ import {
   type PublicationReceipt,
 } from './publication-client';
 import './publication.css';
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 interface Props {
+  surface?: PublicSurface;
   fetcher?: typeof fetch;
   draft: EditorDraft;
   csrfToken: string;
   dirty: boolean;
   parentBusy: boolean;
   canStart: () => boolean;
-  onPending: (value: boolean) => void;
+  onPending: (value: boolean, mutating?: boolean) => void;
   onUnsavedPreparation: (value: boolean) => void;
 }
 class SavedPreviewBoundary extends React.Component<
@@ -40,6 +42,7 @@ class SavedPreviewBoundary extends React.Component<
 }
 const empty = { summary: '', tags: '', minutes: '', audience: '', prerequisite: '', outcome: '' };
 export default function PublicationComposer({
+  surface = 'lab',
   fetcher = fetch,
   draft,
   csrfToken,
@@ -49,11 +52,13 @@ export default function PublicationComposer({
   onPending,
   onUnsavedPreparation,
 }: Props) {
+  const ordinary = surface === 'ordinary';
   const client = useMemo(() => createPublicationClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const profiles = useMemo(() => createProfileClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const [fields, setFields] = useState(empty);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mutationPending, setMutationPending] = useState(false);
   const [known, setKnown] = useState(false);
   const [readError, setReadError] = useState(false);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
@@ -82,7 +87,11 @@ export default function PublicationComposer({
   const metadata = checkedMetadata({
     summary: fields.summary,
     tags: tags ?? [null],
-    minutes: /^\d{1,3}$/.test(fields.minutes) ? Number(fields.minutes) : NaN,
+    minutes: /^\d{1,3}$/.test(fields.minutes)
+      ? Number(fields.minutes)
+      : ordinary && !fields.minutes
+        ? Math.min(240, Math.max(1, Math.ceil(Array.from(draft.body).length / 600)))
+        : NaN,
     audience: fields.audience,
     prerequisite: fields.prerequisite,
     outcome: fields.outcome,
@@ -96,17 +105,21 @@ export default function PublicationComposer({
         new TextDecoder('utf-8', { fatal: true }).decode(new TextEncoder().encode(value)) === value,
     ),
   );
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, mutating = false) {
     if (lock.current || !canStart()) return;
     lock.current = true;
     setBusy(true);
-    onPending(true);
+    setMutationPending(mutating);
+    onPending(true, mutating);
     try {
       await action();
     } finally {
       lock.current = false;
       onPending(false);
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setBusy(false);
+        setMutationPending(false);
+      }
     }
   }
   async function refresh() {
@@ -127,7 +140,7 @@ export default function PublicationComposer({
               ? matchesPublication(existing, attempt)
                 ? `確認した保存済みの版 ${existing.sourceVersion} の公開を確認しました。手元の追加編集は公開していません。`
                 : '異なる内容の公開記録が見つかりました。上書きや再公開は行いません。手元の編集は残しています。'
-              : `保存済みの版 ${existing.sourceVersion} は、すでにローカルで公開されています。下書きの更新は公開記事に反映しません。`,
+              : `保存済みの版 ${existing.sourceVersion} は、すでに${ordinary ? '' : 'ローカルで'}公開されています。下書きの更新は公開記事に反映しません。`,
           );
         else {
           setAttempt(null);
@@ -174,14 +187,14 @@ export default function PublicationComposer({
       (!receipt || Boolean(attempt && !matchesPublication(receipt, attempt))));
   useEffect(() => onUnsavedPreparation(hasPreparation), [hasPreparation, onUnsavedPreparation]);
   useEffect(() => {
-    if (!busy && !uncertain && !hasPreparation) return;
+    if (!mutationPending && !uncertain && !hasPreparation) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [busy, uncertain, hasPreparation]);
+  }, [mutationPending, uncertain, hasPreparation]);
   async function publish() {
     if (
       !known ||
@@ -204,7 +217,9 @@ export default function PublicationComposer({
     await run(async () => {
       setAttempt(snapshot);
       setConfirmed(false);
-      setMessage(`保存済みの版 ${snapshot.draft.version} をローカルで公開しています…`);
+      setMessage(
+        `保存済みの版 ${snapshot.draft.version} を${ordinary ? '' : 'ローカルで'}公開しています…`,
+      );
       try {
         const id = await client.publish(
           snapshot.draft.id,
@@ -221,7 +236,7 @@ export default function PublicationComposer({
         setUncertain(false);
         setMessage(
           matchesPublication(existing, snapshot)
-            ? `確認した保存済みの版 ${existing.sourceVersion} をローカルで公開しました。手元の追加編集は公開していません。`
+            ? `確認した保存済みの版 ${existing.sourceVersion} を${ordinary ? '' : 'ローカルで'}公開しました。手元の追加編集は公開していません。`
             : '異なる内容の公開記録が見つかりました。上書きや再公開は行いません。手元の編集は残しています。',
         );
       } catch {
@@ -232,7 +247,7 @@ export default function PublicationComposer({
           );
         }
       }
-    });
+    }, true);
   }
   function change(key: keyof typeof fields, value: string) {
     onUnsavedPreparation(true);
@@ -242,14 +257,19 @@ export default function PublicationComposer({
   const showForm = !receipt || Boolean(attempt && !matchesPublication(receipt, attempt));
   const readOnly = Boolean(receipt) || uncertain;
   return (
-    <section className="publication-composer" aria-label="保存済み版のローカル公開">
+    <section
+      className="publication-composer"
+      aria-label={ordinary ? '保存済み版の公開' : '保存済み版のローカル公開'}
+    >
       <details>
-        <summary>公開前の確認（ローカル専用）</summary>
+        <summary>{ordinary ? '記事を公開する' : '公開前の確認（ローカル専用）'}</summary>
         <div className="publication-content">
-          <h3>保存した版を確認して、ローカルで公開</h3>
-          <p className="publication-local-notice">
-            架空のデータを使うローカル検証です。実際の学校サービスや本番への公開ではありません。
-          </p>
+          <h3>保存した版を確認して、{ordinary ? '' : 'ローカルで'}公開</h3>
+          {!ordinary && (
+            <p className="publication-local-notice">
+              架空のデータを使うローカル検証です。実際の学校サービスや本番への公開ではありません。
+            </p>
+          )}
           <p className="publication-message" aria-live="polite" aria-atomic="true">
             {message}
           </p>
@@ -268,7 +288,13 @@ export default function PublicationComposer({
           )}
           {known && !profile && (
             <p className="publication-warning">
-              公開プロフィールがまだありません。画面下の「公開プロフィールを準備する」で作成し、そのあと公開準備を確認してください。
+              公開プロフィールがまだありません。
+              {ordinary ? (
+                <a href="/account#profile">アカウントでプロフィールを作成</a>
+              ) : (
+                '画面下の「公開プロフィールを準備する」で作成'
+              )}
+              し、そのあと公開準備を確認してください。
             </p>
           )}
           {readError && (
@@ -295,16 +321,20 @@ export default function PublicationComposer({
               <p>{receipt.entry.title}</p>
               <p>{receipt.entry.summary}</p>
               <p>
-                初回公開のみの検証です。この記事の編集・公開取消・再公開は、この画面では行えません。
+                {ordinary ? (
+                  <a href="/account#publications">自分の公開記録・公開停止を確認</a>
+                ) : (
+                  '初回公開のみの検証です。この記事の編集・公開取消・再公開は、この画面では行えません。'
+                )}
               </p>
               <a
-                href={'/lab/articles/' + receipt.contentId}
+                href={publicPaths(surface).article(receipt.contentId)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 ログインなしの読者画面を開く ↗
               </a>
-              <a href="/lab/discover" target="_blank" rel="noopener noreferrer">
+              <a href={publicPaths(surface).feed} target="_blank" rel="noopener noreferrer">
                 新しい公開記事の一覧を開く ↗
               </a>
             </section>
@@ -366,10 +396,14 @@ export default function PublicationComposer({
                     min={1}
                     max={240}
                     readOnly={readOnly}
-                    value={fields.minutes}
+                    value={fields.minutes || (ordinary ? String(metadata?.minutes ?? '') : '')}
                     onChange={(event) => change('minutes', event.target.value)}
                   />
-                  <small>1〜240分。自分で目安を入力してください。</small>
+                  <small>
+                    {ordinary
+                      ? '本文から目安を計算しています。1〜240分の範囲で変更できます。'
+                      : '1〜240分。自分で目安を入力してください。'}
+                  </small>
                   {(['audience', 'prerequisite', 'outcome'] as const).map((key) => (
                     <div key={key}>
                       <label htmlFor={'publication-' + key}>
@@ -417,7 +451,8 @@ export default function PublicationComposer({
                     }}
                   />
                   <span>
-                    保存済みの版と公開情報を確認し、ログインしていない読者にも見える記事としてローカルで公開します
+                    保存済みの版と公開情報を確認し、ログインしていない読者にも見える記事として
+                    {ordinary ? '' : 'ローカルで'}公開します
                   </span>
                 </label>
                 <Button
@@ -436,13 +471,15 @@ export default function PublicationComposer({
                     readOnly
                   }
                 >
-                  確認した保存済み版をローカルで公開
+                  確認した保存済み版を{ordinary ? '' : 'ローカルで'}公開
                 </Button>
               </form>
             </>
           )}
           <p className="publication-scope-note">
-            在籍確認・通報通知・運営対応などの実サービスの条件は未完了です。この操作は本番の投稿利用を許可するものではありません。
+            {ordinary
+              ? '公開するのは確認した保存版だけです。下書きの続きは、公開後も本人だけが読めます。'
+              : '在籍確認・通報通知・運営対応などの実サービスの条件は未完了です。この操作は本番の投稿利用を許可するものではありません。'}
           </p>
         </div>
       </details>

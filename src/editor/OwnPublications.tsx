@@ -1,6 +1,7 @@
 import PublicationStop from './PublicationStop';
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { OwnPublicationSummary } from '../own-publication-types';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import type { OwnPublications as PublicationList } from '../own-publication-types';
 import { createOwnPublicationsClient } from './own-publications-client';
@@ -16,9 +17,13 @@ const stamp = (value: number) =>
 export default function OwnPublications({
   fetcher = fetch,
   csrfToken,
+  surface = 'lab',
+  onNavigationRiskChange,
 }: {
   fetcher?: typeof fetch;
   csrfToken: string;
+  surface?: PublicSurface;
+  onNavigationRiskChange?: (risk: boolean) => void;
 }) {
   const client = useMemo(() => createOwnPublicationsClient(fetcher), [fetcher]),
     mounted = useRef(true),
@@ -77,6 +82,11 @@ export default function OwnPublications({
     }
   }
   refreshRef.current = refresh;
+  useLayoutEffect(
+    () => onNavigationRiskChange?.(stopBusy || stopUncertain),
+    [stopBusy, stopUncertain, onNavigationRiskChange],
+  );
+  useEffect(() => () => onNavigationRiskChange?.(false), [onNavigationRiskChange]);
   useEffect(() => {
     mounted.current = true;
     void refresh();
@@ -91,7 +101,8 @@ export default function OwnPublications({
     <section className="own-publications" aria-label="自分の公開記録">
       <h2>自分の公開記録</h2>
       <p className="own-publications-local">
-        架空データによるローカル限定の確認です。記事・画像なし作品の公開記録を合わせて、新しい初回公開時刻から最大20件表示します。
+        {surface === 'lab' ? '架空データによるローカル限定の確認です。' : ''}
+        記事・画像なし作品の公開記録を合わせて、新しい初回公開時刻から最大20件表示します。
       </p>
       <p role="status" aria-live="polite">
         {message}
@@ -141,9 +152,10 @@ export default function OwnPublications({
                   {row.status === 'published' && (
                     <a
                       href={
-                        '/lab/' +
-                        (row.kind === 'article' ? 'articles/' : 'projects/') +
-                        row.publicId
+                        row.kind === 'article'
+                          ? publicPaths(surface).article(row.publicId)
+                          : (surface === 'ordinary' ? '/projects/' : '/lab/projects/') +
+                            row.publicId
                       }
                       target="_blank"
                       rel="noopener noreferrer"
@@ -173,6 +185,7 @@ export default function OwnPublications({
         <PublicationStop
           key={selected.kind + ':' + selected.publicId}
           record={selected}
+          surface={surface}
           csrfToken={csrfToken}
           fetcher={fetcher}
           parentBusy={busy}

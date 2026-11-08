@@ -51,7 +51,7 @@ const inventory: Record<string, Inventory> = {
       receiptRow: ['student'],
       getOwnReceipt: ['base'],
     },
-    public: { readPublished: 1, readAuthor: 2, readRecentPublished: 2 },
+    public: { readPublished: 1, readAuthorSelection: 2, readRecentPublished: 2 },
   },
   'own-publications': { className: 'OwnPublicationStore', private: { list: ['base'] } },
   'publication-stops': {
@@ -65,7 +65,15 @@ const inventory: Record<string, Inventory> = {
   },
   moderation: {
     className: 'ArticleModerationStore',
-    private: { report: ['student'], getOwnReport: ['base'], queue: ['base'], readCase: ['base'] },
+    private: {
+      report: ['student'],
+      getOwnReport: ['base'],
+      queue: ['base'],
+      readCase: ['base'],
+      decisionState: ['base'],
+      decisionReceipt: ['base'],
+      decide: ['base'],
+    },
   },
   'project-reports': {
     className: 'ProjectReportStore',
@@ -416,10 +424,10 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 40 private SQL sites (24 base, 15 student, one explicit choice) and 12 public sites', () => {
+  it('inventory is exactly 43 private SQL sites (27 base, 15 student, one explicit choice) and 12 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(40);
-    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(24);
+    expect(guards).toHaveLength(43);
+    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(27);
     expect(guards.filter((guard) => guard === 'student')).toHaveLength(15);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(

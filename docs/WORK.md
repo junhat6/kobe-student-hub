@@ -1,5 +1,9 @@
 # Current work and replanning
 
+## 完成優先の12時間（2026-11-09 16:25 JSTを目安）
+
+文書の重複記録をやめ、実装・検証の詳細はPRへ集約する。[PR #112](https://github.com/junhat6/kobe-student-hub/pull/112)で整形とcommit hookを導入。既存部品を通常アプリへつなぎ、登録→本人プロフィール→保存版公開→匿名閲覧→公開停止を一続きにする。受入条件は私的な追記の非公開・通報後の除外・失敗時の入力保持を含むPC/mobile browser QA。実認証の公開gateは閉じたまま、次は独立QAと運営の判断・通知処理、必要DB更新と実Google接続を仕上げる。試用機能は再作成せず、学生価値・実端末の検証をAI試験で代替しない。
+
 ## 制作ノートを読後課題なしで参照できる形にする
 
 **前回判定／現在地:** [PR #110の完了記録](https://github.com/junhat6/kobe-student-hub/pull/110)でmain `e88b25e`の両CI・一回配備・独立本番QAまで完了した。通常表示／OAuth／draftの4gateはfalse、実認証・投稿は未提供のまま。以下の前cycleのCI待ち表記は当時の経過である。

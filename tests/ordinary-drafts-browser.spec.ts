@@ -152,9 +152,10 @@ test('ordinary drafts offers signed-out login and is independent of catalog fail
 test('ordinary signup to account to drafts saves and reopens without requiring a public profile', async ({
   page,
 }, info) => {
-  let profileCalls = 0;
+  let profileWrites = 0;
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/api/private/profile') profileCalls++;
+    if (new URL(request.url()).pathname === '/api/private/profile' && request.method() !== 'GET')
+      profileWrites++;
   });
   await register(page, info);
   await enterDrafts(page);
@@ -163,9 +164,12 @@ test('ordinary signup to account to drafts saves and reopens without requiring a
   await expect(page.locator('footer')).toHaveCount(1);
   await expect(page.locator('.editor-header,.editor-footer,.editor-local-notice')).toHaveCount(0);
   await expect(
-    page.getByText('保存した下書きは本人だけに表示されます。記事の公開はまだ利用できません。', {
-      exact: true,
-    }),
+    page.getByText(
+      '下書きは本人だけに表示されます。公開するには、保存済みの版とプロフィールを確認してください。',
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
   await expect(page.locator('.publication-composer')).toHaveCount(0);
   await create(page);
@@ -189,7 +193,8 @@ test('ordinary signup to account to drafts saves and reopens without requiring a
   await page.getByRole('button', { name: 'AIと技術を選んだ理由', exact: true }).click();
   await assertPrivateBuffer(page, 'AIと技術を選んだ理由');
   await expect(body(page)).toHaveValue(/100万行/);
-  expect(profileCalls).toBe(0);
+  expect(profileWrites).toBe(0);
+  expect(await (await page.request.get('/api/private/profile')).json()).toEqual({ profile: null });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -241,6 +246,36 @@ test('browser Forward cancel retains edits and reload or close asks before losin
   await closing;
   expect(page.isClosed()).toBe(false);
   await assertPrivateBuffer(page, 'Forwardでも残す');
+});
+
+test('a pending read of publication status does not block leaving an unchanged saved draft', async ({
+  page,
+}, info) => {
+  await register(page, info);
+  await enterDrafts(page);
+  const entered = latch(),
+    released = latch();
+  let dialogs = 0;
+  page.on('dialog', async (dialog) => {
+    dialogs++;
+    await dialog.dismiss();
+  });
+  await page.route('**/api/private/publications/*', async (route) => {
+    expect(route.request().method()).toBe('GET');
+    const response = await route.fetch();
+    entered.release();
+    await released.promise;
+    await route.fulfill({ response });
+  });
+  try {
+    await create(page);
+    await entered.promise;
+    await home(page).click();
+    await expect(page).toHaveURL(ORIGIN + '/');
+    expect(dialogs).toBe(0);
+  } finally {
+    released.release();
+  }
 });
 
 test('pending creation is guarded and a late acknowledgement is not duplicated after cancel', async ({

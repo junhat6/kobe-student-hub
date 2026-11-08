@@ -102,7 +102,20 @@ mf = new Miniflare(
         const path =
           u.pathname === '/lab/account'
             ? 'tests/generation-editor/index.html'
-            : ['/', '/signup', '/login', '/account', '/drafts'].includes(u.pathname)
+            : [
+                  '/',
+                  '/search',
+                  '/signup',
+                  '/login',
+                  '/account',
+                  '/drafts',
+                  '/works',
+                  '/works/new',
+                  '/moderation',
+                ].includes(u.pathname) ||
+                /^\/(?:(?:articles|projects)\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
+                  u.pathname,
+                )
               ? 'index.html'
               : u.pathname.slice(1);
         if (
@@ -146,6 +159,7 @@ for (const f of [
   '0012_browser_session_order.sql',
   '0016_self_declared_enrollment.sql',
   '0017_self_registration.sql',
+  '0018_article_moderation_decisions.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

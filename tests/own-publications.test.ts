@@ -78,13 +78,16 @@ beforeAll(async () => {
   );
   const db = await mf.getD1Database('DB');
   for (const file of readdirSync('migrations')
-    .filter((f) => /^00(?:0[1-9]|10)_/.test(f))
-    .sort())
-    for (const sql of readFileSync('migrations/' + file, 'utf8')
-      .replace(/^--.*$/gm, '')
-      .split(/;\s*(?:\n|$)/)
-      .filter((s) => s.trim()))
-      await db.prepare(sql).run();
+    .filter((name) => name.endsWith('.sql'))
+    .sort()) {
+    const raw = readFileSync('migrations/' + file, 'utf8');
+    const statements = (
+      raw.includes('-- @statement') ? raw.split(/^-- @statement\s*$/m) : raw.split(/;\s*(?:\n|$)/)
+    )
+      .map((sql) => sql.replace(/^--.*$/gm, '').trim())
+      .filter(Boolean);
+    await db.batch(statements.map((sql) => db.prepare(sql)));
+  }
   users = [];
   for (let n = 0; n < 5; n++) {
     await db

@@ -14,15 +14,17 @@ import {
   SessionClientError,
   type AuthorSessionGuard,
 } from './session-client';
-/** Local project-report surfaces only. Preserve hidden same-session buffers; never create an identity. */
+/** Shared report-session boundary. Preserve hidden same-session buffers; never create an identity. */
 export default function ProjectSessionScope({
   children,
   initial = false,
   label,
+  signedOutMessage = '現在ログインしていません。前の入力・通報内容は閉じています。このローカル検証では学校Googleログインは利用できません。',
 }: {
   children: (session: { csrf: string; fetcher: typeof fetch }) => ReactNode;
   initial?: boolean;
   label: string;
+  signedOutMessage?: ReactNode;
 }) {
   const client = useMemo(() => createSessionClient(), []);
   const guard = useRef<AuthorSessionGuard | null>(null),
@@ -32,12 +34,14 @@ export default function ProjectSessionScope({
     lock = useRef(false),
     privatePanel = useRef<HTMLDivElement>(null),
     token = useRef<string | null>(null),
-    review = useRef(false);
+    review = useRef(false),
+    pageActive = useRef(true),
+    resumeInspection = useRef(initial);
   const [session, setSession] = useState<{ csrf: string; generation: number } | null>(null),
     [candidate, setCandidate] = useState<string | null>(null),
     [concealed, setConcealed] = useState(true),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(''),
+    [message, setMessage] = useState<ReactNode>(''),
     [inspectionGeneration, setInspectionGeneration] = useState(0);
   function conceal() {
     if (privatePanel.current) {
@@ -46,16 +50,26 @@ export default function ProjectSessionScope({
     }
     setConcealed(true);
   }
-  function reset() {
+  const canReveal = () =>
+    mounted.current && pageActive.current && document.visibilityState === 'visible';
+  function reveal() {
+    if (canReveal()) setConcealed(false);
+    else conceal();
+  }
+  function cancelInspection() {
     revision.current++;
     request.current?.abort();
     request.current = null;
     lock.current = false;
     setBusy(false);
+  }
+  function reset() {
+    cancelInspection();
+    resumeInspection.current = false;
     guard.current?.invalidate();
     guard.current = null;
   }
-  function discard(text: string) {
+  function discard(text: ReactNode) {
     conceal();
     reset();
     token.current = null;
@@ -101,7 +115,8 @@ export default function ProjectSessionScope({
     [],
   );
   async function check() {
-    if (lock.current) return;
+    if (!canReveal() || lock.current) return;
+    resumeInspection.current = false;
     lock.current = true;
     conceal();
     const run = revision.current,
@@ -111,11 +126,11 @@ export default function ProjectSessionScope({
     setMessage('既存のセッションを確認しています…');
     try {
       const csrf = await client.peek(controller.signal);
-      if (!mounted.current || run !== revision.current) return;
+      if (!canReveal() || run !== revision.current) return;
       if (csrf === token.current) {
         if (!guard.current) install(csrf);
         setCandidate(null);
-        setConcealed(false);
+        reveal();
         setMessage('同じセッションを確認しました。保持した入力・通報内容を再開しています。');
       } else if (token.current !== null) {
         discard(
@@ -129,17 +144,15 @@ export default function ProjectSessionScope({
         );
       } else {
         install(csrf);
-        setConcealed(false);
+        reveal();
         setMessage(
           '有効な既存セッションを確認しました。この画面からログイン・権限付与は行いません。',
         );
       }
     } catch (error) {
-      if (mounted.current && run === revision.current) {
+      if (canReveal() && run === revision.current) {
         if (error instanceof SessionClientError && error.kind === 'signed-out')
-          discard(
-            '現在ログインしていません。前の入力・通報内容は閉じています。このローカル検証では学校Googleログインは利用できません。',
-          );
+          discard(signedOutMessage);
         else unknown();
       }
     } finally {
@@ -147,11 +160,12 @@ export default function ProjectSessionScope({
         lock.current = false;
         setBusy(false);
         setInspectionGeneration((value) => value + 1);
+        if (request.current === controller) request.current = null;
       }
     }
   }
   async function proceed() {
-    if (!candidate || lock.current) return;
+    if (!canReveal() || !candidate || lock.current) return;
     lock.current = true;
     setBusy(true);
     const expected = candidate,
@@ -160,7 +174,7 @@ export default function ProjectSessionScope({
     request.current = controller;
     try {
       const csrf = await client.peek(controller.signal);
-      if (!mounted.current || run !== revision.current) return;
+      if (!canReveal() || run !== revision.current) return;
       if (csrf !== expected) {
         setCandidate(csrf);
         setMessage('確認後にセッションが変わりました。もう一度続行を確認してください。');
@@ -168,10 +182,10 @@ export default function ProjectSessionScope({
       }
       install(csrf);
       setCandidate(null);
-      setConcealed(false);
+      reveal();
       setMessage('確認したセッションの状態を新しく開きました。前の入力は引き継いでいません。');
     } catch (error) {
-      if (mounted.current && run === revision.current) {
+      if (canReveal() && run === revision.current) {
         if (error instanceof SessionClientError && error.kind === 'signed-out')
           discard('セッションが無効です。入力・通報内容は開いていません。');
         else unknown();
@@ -181,28 +195,44 @@ export default function ProjectSessionScope({
         lock.current = false;
         setBusy(false);
         setInspectionGeneration((value) => value + 1);
+        if (request.current === controller) request.current = null;
       }
     }
   }
   useLayoutEffect(() => {
     if (privatePanel.current) {
-      privatePanel.current.hidden = concealed;
-      privatePanel.current.inert = concealed;
+      const hidden = concealed || !canReveal();
+      privatePanel.current.hidden = hidden;
+      privatePanel.current.inert = hidden;
     }
   }, [concealed, session, inspectionGeneration]);
   useEffect(() => {
     mounted.current = true;
+    pageActive.current = true;
     if (initial) void check();
     const recheck = () => {
-      if (token.current) void check();
+      if (token.current || resumeInspection.current) void check();
+    };
+    const suspend = () => {
+      conceal();
+      resumeInspection.current = resumeInspection.current || request.current !== null;
+      cancelInspection();
     };
     const visibility = () => {
-      if (!token.current) return;
       if (document.visibilityState === 'visible') recheck();
-      else conceal();
+      else suspend();
+    };
+    const pagehide = () => {
+      pageActive.current = false;
+      suspend();
+    };
+    const pageshow = () => {
+      pageActive.current = true;
+      recheck();
     };
     window.addEventListener('focus', recheck);
-    window.addEventListener('pageshow', recheck);
+    window.addEventListener('pageshow', pageshow);
+    window.addEventListener('pagehide', pagehide);
     document.addEventListener('visibilitychange', visibility);
     return () => {
       mounted.current = false;
@@ -211,7 +241,8 @@ export default function ProjectSessionScope({
       guard.current?.invalidate();
       lock.current = false;
       window.removeEventListener('focus', recheck);
-      window.removeEventListener('pageshow', recheck);
+      window.removeEventListener('pageshow', pageshow);
+      window.removeEventListener('pagehide', pagehide);
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);

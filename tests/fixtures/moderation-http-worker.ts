@@ -4,6 +4,7 @@ import { PrivateDraftStore } from '../../worker/drafts';
 import { ArticlePublicationStore } from '../../worker/publication';
 import { PublicProfileStore } from '../../worker/public-profile';
 import { createModerationHandler } from '../../worker/moderation-http';
+import { PublicationStopStore } from '../../worker/publication-stops';
 // Test-only fictional sessions, transport injection, and after-auth races. Never mount in production.
 export default {
   async fetch(request: Request, env: { DB: D1Database }) {
@@ -109,6 +110,15 @@ export default {
       if (i.action === 'read-public')
         return Response.json(
           await new ArticlePublicationStore(db, origin, () => now).readPublished(i.id),
+        );
+      if (i.action === 'stop')
+        return Response.json(
+          await new PublicationStopStore(db, origin, () => now).stop(
+            target,
+            'article',
+            i.id,
+            i.input,
+          ),
         );
       const store = new PublicProfileStore(db, origin, () => now);
       return Response.json(

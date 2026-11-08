@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { PublicSurface } from '../shared/public-paths';
 import { Button } from '@base-ui/react/button';
 import {
   createProfileClient,
@@ -33,9 +34,13 @@ function ProfileCard({ value, preview = false }: { value: ProfileInput; preview?
 export default function PublicProfileSetup({
   csrfToken,
   fetcher = fetch,
+  surface = 'lab',
+  onNavigationRiskChange,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
+  surface?: PublicSurface;
+  onNavigationRiskChange?: (risk: boolean) => void;
 }) {
   const client = useMemo(() => createProfileClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const mounted = useRef(true);
@@ -64,6 +69,10 @@ export default function PublicProfileSetup({
         ? '使用できない文字が含まれています。'
         : '';
   const hasUnsaved = Object.values(text).some(Boolean) && (!profile || conflict);
+  useLayoutEffect(() => {
+    onNavigationRiskChange?.(hasUnsaved || uncertain);
+  }, [hasUnsaved, uncertain, onNavigationRiskChange]);
+  useEffect(() => () => onNavigationRiskChange?.(false), [onNavigationRiskChange]);
   async function run(action: () => Promise<void>) {
     if (lock.current) return;
     lock.current = true;
@@ -158,7 +167,11 @@ export default function PublicProfileSetup({
           setConflict(false);
           setUncertain(false);
           setFailed(false);
-          setMessage('公開プロフィールを作成しました。このローカル検証内でのみ保存されています。');
+          setMessage(
+            surface === 'ordinary'
+              ? '公開プロフィールを作成しました。'
+              : '公開プロフィールを作成しました。このローカル検証内でのみ保存されています。',
+          );
         }
       } catch {
         if (mounted.current) {
@@ -193,12 +206,14 @@ export default function PublicProfileSetup({
         </summary>
         <div className="profile-setup-content">
           <div className="profile-setup-heading">
-            <p>PUBLIC PROFILE · LOCAL LAB</p>
+            {surface === 'lab' && <p>PUBLIC PROFILE · LOCAL LAB</p>}
             <h2>読者に見せる情報を、自分で選ぶ。</h2>
           </div>
-          <p className="profile-local-note">
-            架空アカウントによるローカル専用の検証です。一般閲覧への接続や実際の公開は行っていません。
-          </p>
+          {surface === 'lab' && (
+            <p className="profile-local-note">
+              架空アカウントによるローカル専用の検証です。一般閲覧への接続や実際の公開は行っていません。
+            </p>
+          )}
           <p className="profile-setup-status" aria-live="polite" aria-atomic="true">
             {message}
           </p>
@@ -211,7 +226,9 @@ export default function PublicProfileSetup({
             <>
               <ProfileCard value={profile} />
               <p className="profile-create-limit">
-                作成後の編集・削除は、この検証ではまだ利用できません。
+                {surface === 'ordinary'
+                  ? '作成後の編集・削除は、まだ利用できません。'
+                  : '作成後の編集・削除は、この検証ではまだ利用できません。'}
               </p>
             </>
           )}

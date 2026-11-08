@@ -14,6 +14,30 @@ export interface ModerationCase extends ModerationSummary {
   body: string;
   reports: { reason: string; detail: string; createdAt: number }[];
 }
+export interface ModerationDecisionState {
+  contentId: string;
+  round: number;
+  version: number;
+  status: 'published' | 'hidden' | 'deleted';
+  reportCount: number;
+}
+export interface ModerationDecisionInput {
+  decisionId: string;
+  expectedRound: number;
+  expectedVersion: number;
+  action: 'restore' | 'delete';
+  reason: string;
+}
+export interface ModerationDecisionReceipt {
+  decisionId: string;
+  contentId: string;
+  action: 'restore' | 'delete';
+  reason: string;
+  resultStatus: 'published' | 'deleted';
+  resultRound: number;
+  resultVersion: number;
+  notification: 'pending';
+}
 export class ModerationClientError extends Error {
   constructor(readonly kind: 'authentication' | 'unavailable' = 'unavailable') {
     super('確認結果を取得できませんでした。');
@@ -81,9 +105,63 @@ export const validReportInput = (value: unknown): value is ReportInput =>
   Boolean(value.reason.trim()) &&
   text(value.detail, 2000) &&
   new TextEncoder().encode(value.detail).byteLength <= 8000;
+const version = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isSafeInteger(v) && v > 0 && v < 9007199254740990;
+export const validDecisionInput = (value: unknown): value is ModerationDecisionInput =>
+  keys(value, ['decisionId', 'expectedRound', 'expectedVersion', 'action', 'reason']) &&
+  typeof value.decisionId === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.decisionId) &&
+  version(value.expectedRound) &&
+  version(value.expectedVersion) &&
+  (value.action === 'restore' || value.action === 'delete') &&
+  text(value.reason, 1000) &&
+  !!value.reason.trim() &&
+  new TextEncoder().encode(value.reason).byteLength <= 4000;
+function decisionReceipt(
+  value: unknown,
+  targetId: string,
+  input: ModerationDecisionInput,
+): value is ModerationDecisionReceipt {
+  return (
+    keys(value, [
+      'decisionId',
+      'contentId',
+      'action',
+      'reason',
+      'resultStatus',
+      'resultRound',
+      'resultVersion',
+      'notification',
+    ]) &&
+    value.decisionId === input.decisionId &&
+    value.contentId === targetId &&
+    value.action === input.action &&
+    value.reason === input.reason &&
+    value.resultStatus === (input.action === 'restore' ? 'published' : 'deleted') &&
+    value.resultRound === input.expectedRound + (input.action === 'restore' ? 1 : 0) &&
+    value.resultVersion === input.expectedVersion + 1 &&
+    value.notification === 'pending'
+  );
+}
+function decisionState(value: unknown, targetId: string): value is ModerationDecisionState {
+  return (
+    keys(value, ['contentId', 'round', 'version', 'status', 'reportCount']) &&
+    value.contentId === targetId &&
+    version(value.round) &&
+    version(value.version) &&
+    (value.status === 'published' || value.status === 'hidden' || value.status === 'deleted') &&
+    Number.isInteger(value.reportCount) &&
+    Number(value.reportCount) >= 0 &&
+    Number(value.reportCount) <= 3
+  );
+}
 /** Existing-cookie transport only. Never creates an identity or retries a report automatically. */
 export function createModerationClient(fetcher: typeof fetch = fetch) {
-  async function request(path: string, body?: ReportInput, csrfToken?: string): Promise<unknown> {
+  async function request(
+    path: string,
+    body?: ReportInput | ModerationDecisionInput,
+    csrfToken?: string,
+  ): Promise<unknown> {
     const controller = new AbortController();
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -213,6 +291,44 @@ export function createModerationClient(fetcher: typeof fetch = fetch) {
       if (!id(targetId)) throw new ModerationClientError();
       const result = await request('/api/private/moderation/cases/' + targetId);
       if (!caseDto(result) || result.contentId !== targetId) throw new ModerationClientError();
+      return result;
+    },
+    async decisionState(targetId: string): Promise<ModerationDecisionState> {
+      if (!id(targetId)) throw new ModerationClientError();
+      const result = await request('/api/private/moderation/cases/' + targetId + '/decision');
+      if (!decisionState(result, targetId)) throw new ModerationClientError();
+      return result;
+    },
+    async decide(
+      targetId: string,
+      input: ModerationDecisionInput,
+      csrfToken: string,
+      confirmed: boolean,
+    ): Promise<ModerationDecisionReceipt> {
+      if (
+        !id(targetId) ||
+        !confirmed ||
+        !validDecisionInput(input) ||
+        !/^[A-Za-z0-9_-]{43}$/.test(csrfToken)
+      )
+        throw new ModerationClientError();
+      const result = await request(
+        '/api/private/moderation/cases/' + targetId + '/decision',
+        input,
+        csrfToken,
+      );
+      if (!decisionReceipt(result, targetId, input)) throw new ModerationClientError();
+      return result;
+    },
+    async readDecision(
+      targetId: string,
+      input: ModerationDecisionInput,
+    ): Promise<ModerationDecisionReceipt> {
+      if (!id(targetId) || !validDecisionInput(input)) throw new ModerationClientError();
+      const result = await request(
+        '/api/private/moderation/cases/' + targetId + '/decisions/' + input.decisionId,
+      );
+      if (!decisionReceipt(result, targetId, input)) throw new ModerationClientError();
       return result;
     },
   };

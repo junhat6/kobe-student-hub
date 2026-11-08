@@ -153,7 +153,7 @@ beforeAll(async () => {
   );
   const db = await mf.getD1Database('DB');
   for (const file of readdirSync('migrations')
-    .filter((file) => /^\d{4}_.*\.sql$/.test(file) && file < '0017_')
+    .filter((file) => /^\d{4}_.*\.sql$/.test(file))
     .sort()) {
     const sql = readFileSync('migrations/' + file, 'utf8');
     for (const statement of sql

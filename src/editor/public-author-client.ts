@@ -1,3 +1,4 @@
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { readAnonymousJson } from './anonymous-public-read';
 import type { PublicAuthorArticles } from '../types';
 import { canonicalTags } from './publication-client';
@@ -59,22 +60,26 @@ export function validPublicSummary(
     Number(entry.minutes) <= 240
   );
 }
+export function validPublicProfile(
+  author: unknown,
+  authorId: string,
+): author is import('../types').Profile {
+  return (
+    publicKeys(author, ['id', 'name', 'department', 'year', 'bio', 'initials']) &&
+    author.id === authorId &&
+    publicSlug(author.id) &&
+    publicText(author.name, 80) &&
+    Boolean(author.name.trim()) &&
+    publicText(author.department, 80) &&
+    publicText(author.year, 32) &&
+    publicText(author.bio, 800) &&
+    publicText(author.initials, 8)
+  );
+}
 function valid(value: unknown, authorId: string): value is PublicAuthorArticles {
   if (
     !publicKeys(value, ['author', 'entries']) ||
-    !publicKeys(value.author, ['id', 'name', 'department', 'year', 'bio', 'initials'])
-  )
-    return false;
-  const author = value.author;
-  if (
-    author.id !== authorId ||
-    !publicSlug(author.id) ||
-    !publicText(author.name, 80) ||
-    !author.name.trim() ||
-    !publicText(author.department, 80) ||
-    !publicText(author.year, 32) ||
-    !publicText(author.bio, 800) ||
-    !publicText(author.initials, 8) ||
+    !validPublicProfile(value.author, authorId) ||
     !Array.isArray(value.entries) ||
     value.entries.length < 1 ||
     value.entries.length > 20
@@ -86,12 +91,19 @@ function valid(value: unknown, authorId: string): value is PublicAuthorArticles 
   );
 }
 /** Anonymous, bounded read only. No session bootstrap, CSRF or cookie transmission. */
-export function createPublicAuthorClient(fetcher: typeof fetch = fetch) {
+export function createPublicAuthorClient(
+  fetcher: typeof fetch = fetch,
+  surface: PublicSurface = 'lab',
+) {
   return {
     async read(authorId: string, signal?: AbortSignal): Promise<PublicAuthorArticles> {
       try {
         if (!publicSlug(authorId)) throw new PublicAuthorClientError();
-        const result = await readAnonymousJson('/__lab/authors/' + authorId, fetcher, signal);
+        const result = await readAnonymousJson(
+          publicPaths(surface).authorApi(authorId),
+          fetcher,
+          signal,
+        );
         if (!valid(result, authorId)) throw new PublicAuthorClientError();
         return result;
       } catch {

@@ -4,12 +4,46 @@ import { PrivateDraftStore } from '../../worker/drafts';
 import { ArticlePublicationStore } from '../../worker/publication';
 import { PublicProfileStore } from '../../worker/public-profile';
 import { createPrivatePublicationHandler } from '../../worker/publication-http';
+import { createOrdinaryDraftHandler } from '../../worker/ordinary-drafts-http';
+import production from '../../worker/index';
+import { parseModerationOperators } from '../../worker/moderation-http';
 // Test-only fictional sessions, transport injection, and after-auth races. Never mount in production.
 export default {
   async fetch(request: Request, env: { DB: D1Database }) {
     const url = new URL(request.url);
     const now = Number(request.headers.get('X-Test-Now') ?? 1800000000000);
     const origin = 'https://app.example.invalid';
+    const ordinary = request.headers.get('X-Test-Ordinary');
+    if (ordinary || request.headers.has('X-Test-Production')) {
+      let calls = 0;
+      const db = new Proxy(env.DB, {
+        get(target, key) {
+          const value = Reflect.get(target, key);
+          if (typeof value !== 'function') return value;
+          return (...args: unknown[]) => {
+            calls++;
+            if (request.headers.has('X-Test-Forbid-Db')) throw Error('Fixture DB access forbidden');
+            return value.apply(target, args);
+          };
+        },
+      });
+      const response = request.headers.has('X-Test-Production')
+        ? await production.fetch(request, { ...env, DB: db } as Env)
+        : ((await createOrdinaryDraftHandler(
+            db,
+            request.headers.get('X-Test-Origin') ?? origin,
+            {
+              enabled: ordinary === 'enabled',
+              operatorIds: parseModerationOperators({
+                MODERATION_OPERATOR_ACCOUNT_IDS:
+                  request.headers.get('X-Test-Operators') ?? undefined,
+              }),
+            },
+            () => now,
+          )(request)) ?? new Response('unmatched', { status: 418 }));
+      response.headers.set('X-Fixture-Db-Calls', String(calls));
+      return response;
+    }
     if (url.pathname === '/fixture/session')
       return Response.json(
         await createFixtureSession(env.DB, origin, () => now, {
