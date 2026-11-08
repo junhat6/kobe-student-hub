@@ -120,6 +120,10 @@ export default function EmailNotifications({
                   ? '一時非公開の通知'
                   : `${item.reportCount}件目の通報通知`}
               </strong>
+              <p>{item.title || '無題の記事'}</p>
+              <time dateTime={new Date(item.createdAt).toISOString()}>
+                {new Date(item.createdAt).toLocaleString('ja-JP')}
+              </time>
               <p>
                 {labels[item.state]} · 送信試行 {item.attempts}/3回
               </p>

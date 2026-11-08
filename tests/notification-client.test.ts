@@ -12,6 +12,7 @@ const notice = {
 const delivery = {
   outboxId: id,
   contentId: id,
+  title: 'Article',
   event: 'temporarily_hidden',
   reportCount: 3,
   createdAt: 1800000000000,

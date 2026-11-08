@@ -2,6 +2,7 @@ export type EmailDeliveryState = 'pending' | 'ready' | 'leased' | 'accepted' | '
 export interface EmailDeliverySummary {
   outboxId: string;
   contentId: string;
+  title: string;
   event: 'report_received' | 'temporarily_hidden';
   reportCount: number;
   createdAt: number;

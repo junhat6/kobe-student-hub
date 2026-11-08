@@ -167,6 +167,7 @@ function emailSummary(v: unknown): v is EmailDeliverySummary {
     keys(v, [
       'outboxId',
       'contentId',
+      'title',
       'event',
       'reportCount',
       'createdAt',
@@ -176,6 +177,7 @@ function emailSummary(v: unknown): v is EmailDeliverySummary {
     ]) &&
     id(v.outboxId) &&
     id(v.contentId) &&
+    text(v.title, 200) &&
     typeof v.event === 'string' &&
     ['report_received', 'temporarily_hidden'].includes(v.event) &&
     Number.isInteger(v.reportCount) &&
