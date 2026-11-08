@@ -1,11 +1,21 @@
 # Current work and replanning
 
+## 通常アプリから下書きの保存・再開へ接続する
+
+**現在地と前回判定:** 前turnは[PR #105](https://github.com/junhat6/kobe-student-hub/pull/105#issuecomment-6720753283)でsource main `fe97bbe`へ統合し、対象sample一件の本番更新・独立GET-only QAまで完了したprogress。最新main CIも成功。今turnのread-only再確認で、PR #96/#84/#85はOPEN/Draft、重複する実装PRはない。PRDを再読し、公開本体は改稿済み4件／2人・書込停止を維持していた。Draft解除を試みず、契約不明のログ収集率も変更しない。
+
+**Planner / 仮説:** 登録後の学生が本体アカウントから下書きの作成・保存・再開へ進めれば、共有する経験を書き始めるまでの断絶を減らせるのではないか。既存editor／HTTP処理は検証用旅程に閉じているため、通常アプリへ同じ処理を接続する。新しいlabや本人限定試用は作らない。[範囲と受入条件](ORDINARY-DRAFTS.md)。
+
+**Developer / 検証予定:** `/drafts`と既存accountの導線、共通session境界、未保存／通信中の移動保護、共通server compositionを実装する。通常公開UIとserverのsource gateはfalseのまま、実認証・remote schema・設定・権限・契約は変更しない。実装者と別contextでHTTP・PC/mobile・画像をQAし、証拠と正確なcheck結果を保存する。未実行を成功と記録しない。
+
+**Replanning:** 実ログ・学校Google・運営等は未完了。今回の合成環境での動作を実サービス提供や学生価値の成功とは扱わず、既存の公開条件に沿って接続を進める。
+
 ## 現在地 — 2026-11-08
 
 [本番サンプル](https://hub.junhat6.com/)は架空の記事・作品4件／プロフィール2件の閲覧用。一般ログイン・投稿は有効化していない。以下のCycleは各作業時点の記録で、当時の「未配備」「準備中」を現在の状態と混同しない。
 
 - 本人限定の下書き試用は、専用機能・配信物・有効化設定の撤去と旧URL拒否まで完了した。[PR #98の本番完了記録](https://github.com/junhat6/kobe-student-hub/pull/98#issuecomment-6716702252)。再作成しない。
-- 制作ノートの架空サンプルは、理由・記入例・学びの説明例・記録枠を追加し、本番の対象1件だけを更新済み。source main `5177d95`、PR/main CI成功、独立の本番GET-only QAにも阻害所見なし。[PR #99の完了記録](https://github.com/junhat6/kobe-student-hub/pull/99#issuecomment-6717645879)。この反映はeditorial SQLで、Workerの再配備やschema/auth変更ではない。
+- 制作ノートの架空サンプルは、AIと行う技術選定の条件・参考実測と「条件・判断・確認」の3項目、次の制作／作品説明への使用例へ改稿し、本番の対象1件だけを更新済み。source main `fe97bbe`、PR/main CI成功、独立の本番GET-only QAにも阻害所見なし。[PR #105の完了記録](https://github.com/junhat6/kobe-student-hub/pull/105#issuecomment-6720753283)。反映はeditorial SQLで、Worker再配備・schema/auth変更ではない。
 - PR #96はDraft・未マージ。過去のDraft解除拒否を回避しない。#84/#85の別Draftも未マージ。
 
 **再計画:** 通常参加の条件を[学校Google本人確認＋参加年度申告](adr/0001-self-declared-enrollment.md)へ更新する。在籍確認の追加根拠や手動承認を入会の必須条件として待つ段階は終了した。2項目の申告とサーバー判定を既存認証・本人管理へ接続する。改稿記事の実際の利用価値は別に確認し、私的回答は公開しない。実ログ・運営権限・通知／問い合わせ等の[未完了ゲート](FIRST-RELEASE.md)は残る。
