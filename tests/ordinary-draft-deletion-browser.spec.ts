@@ -47,6 +47,7 @@ test('ordinary deletion confirms the saved version, cancels without DELETE and r
  await image(page,info,'delete-confirm');await page.getByRole('button',{name:'キャンセル',exact:true}).click();expect(deletes).toBe(0);await assertPrivate(page,'未保存の変更も確認する');await expect(remove(page)).toBeFocused();
  await remove(page).click();await confirm(page).click();await expect(page.getByText('下書きを削除しました。公開済みの記事は変更していません。',{exact:true})).toBeVisible();
  expect(deletes).toBe(1);await expect(page.locator('.editor-draft-list li')).toHaveCount(1);await expect(title(page)).toHaveCount(0);expect(refreshes).toBeGreaterThan(0);
+ await expect(newDraft(page)).toBeFocused();
  await page.getByRole('button',{name:'残す制作記録',exact:true}).click();await assertPrivate(page,'残す制作記録');await page.reload();await expect(newDraft(page)).toBeEnabled();await expect(page.locator('.editor-draft-list li')).toHaveCount(1);
 });
 
