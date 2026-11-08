@@ -75,6 +75,8 @@ URLは `https://127.0.0.1:8788`。自己署名証明書を使い、ブラウザ�
 
 通常の参加方針は、学校Google本人確認と必須の非公開2年度（入学年度・卒業予定年度）の自己申告です。手動の在籍審査や証明書提出を必須にしません。[採用判断](docs/adr/0001-self-declared-enrollment.md)を参照してください。通常登録と年度訂正・最終投稿資格の接続は[ローカル実装・独立QA済み](docs/QA-SELF-DECLARED-ENROLLMENT.md)で、一般ログイン・投稿はまだ有効化していません。
 
+通常の登録・ログイン・account画面は、本体entryと既存の合成認証環境を使って接続しています。2年度入力、一度の明示Google操作、固定着地後の本人確認と年度訂正を扱います。既定のfrontend visibilityとserver公開gateはfalseのままです。[通常導線と公開条件](docs/ORDINARY-REGISTRATION.md)を参照してください。
+
 旧方式の資格確認待ち登録は、署名検証からpending受付までのローカルserver-only試験です。通常のactiveアカウント向けログインと分離し、実際の登録・認証は有効にしません。[初回申請の境界](docs/PENDING-REGISTRATION.md)を参照してください。
 
 認証HTTPの接続準備は、production entryの無効ゲートを維持したローカル試験です。設定値の投入だけではログインを開放せず、公開サンプルと書込み停止を維持します。[HTTPとsecret bindingの設計](docs/OAUTH-HTTP.md)を参照してください。

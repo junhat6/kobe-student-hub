@@ -26,6 +26,22 @@
 
 **Replanning:** 手動の在籍証明を待つ実装条件は解消した。次は通常account/signup入口と実認証の公開接続を、既存の実ログ保護・運営／通知・本人管理の条件に沿って具体化する。source gateはfalseのまま、remote0016/0017・新しい権限・本番設定の変更は行っていない。登録負担や改稿記事の実践価値の改善は未実測で、架空fixtureの成功から推定しない。
 
+## 通常の登録画面と登録後の本人確認（ローカル実装・独立QA済み）
+
+前サイクルは[PR #101](https://github.com/junhat6/kobe-student-hub/pull/101#issuecomment-6718412135)、main `4f3fe88`へ統合済み。PR/main CIとも74files/658unit、公開60・pilot1・retired8・auth5・editor197passed/既存skip1が成功。PR #96はOPEN/Draftのままで変更しない。前サイクルはauthoritative stateを変更したprogressで、単なる待機や未実行計画ではない。
+
+**Planner / 仮説:** 非公開の2年度入力→一回の明示Google操作→保存状態の確認が既存アプリ内でつながれば、手動審査や二重入力を増やさず通常参加へ進めるのではないか。公開サンプルの導線は維持し、登録負担や離脱率の改善は別途本人に確かめる。
+
+**受入条件:** `/signup`・`/login`・`/account`をcatalog障害から独立させ、同じ本体entryを既存8790合成ブラウザ環境で確認する。既定buildの通常UI visibilityはfalse、OAuth source gateもfalseのまま。2年度は空欄から必須入力、開始clientはbootstrap→command→register/startを期限・EOF・取消・遅着・重複拒否付きで一度だけ実行し、private proofをstorageやURLへ残さない。通常ブラウザcallbackは成否とも固定clean `/account`へ着地し、sessionとguarded年度readで状態を確認してから表示する。
+
+既存のsession隠蔽・同一sessionでの入力保持・変更sessionでの破棄と明示続行・logoutを通常accountと旧検証画面で共用する。新しい本人限定試用やlabを追加しない。失敗・拒否・通信結果不明を成功表示せず、消費済callbackの再送や自動再認証をしない。実装者と別のtransport／画面QA、実ブラウザPC/mobileと既存回帰suite、通常CIの証拠を保存してからmainへ統合する。remote schema・credential／grant・本番配備・実callbackの開放はこの単位では行わない。
+
+**Developer / Evidence:** 本体の通常3ルート、JSON start client、固定account着地、共有session境界と本人の年度確認を接続した。build・typecheck、76files/686unit、公開62、auth suite36（source gate確認2件を含む）、editor197passed/既存skip1、pilot1、retired8、deploy dry-runが成功。最初の追加public testの句点誤りと、旧session-order helperのJSON本文待ちをtest側だけで修正し、該当suiteを全件再実行した。既存の拒否・順序・Cookieのassertionを維持している。
+
+**Independent QA:** transport4files49件、別担当の通常導線14件と独立browser12件が成功。fresh finish reviewerはsignup/account5画像と、別にlogin／unknown／signed-out6画像を開き、提示範囲で`ship`。独立documenterも既存DESIGNを継承したextensionと確認し、既存driftは未修正。[範囲・source照合・失敗診断・限界](QA-ORDINARY-REGISTRATION.md)。一時server／子process／全対象portの待受終了を確認済み。PR/main CIは実行後に完了コメントへ記録する。
+
+**Replanning:** 通常の入口が別demoに閉じている不足は、本体entryと既存合成環境の接続で解消した。次は既存の実ログ経路・認証設定・公開条件を、許可済み接続のread-only確認と実接続の証拠に基づいて具体化する。source準備だけを実サービスの完成としない。追加の在籍審査や私的窓口の推測を行わず、source gate・frontend visibility・public writesは閉じたまま。実Google／実ログ／実運用、学生価値、物理端末の不足を新しい合成試用の追加へ置き換えない。
+
 ## Cycle 01
 
 **Planner:** H01 — reader context plus author/project relationships can help a student choose an article and carry away a next action. Minimal target: browse → article/project → author/related, on mobile and PC. Fictional data only.
