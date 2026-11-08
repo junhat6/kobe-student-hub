@@ -6,6 +6,8 @@ A later [single queryless control](QA-LOG-CONTROL.md) also returned zero stored 
 
 A separate [bounded real-time control](QA-REALTIME-LOG-CONTROL.md) first stopped before correlation, then a reviewed binary-representation correction correlated one closed fallback invocation with its request and version. Owned Tail/process cleanup and unchanged settings were verified separately. This is narrow real-time evidence; stored-log, sensitive-field and OAuth-branch coverage remain unresolved. The release criteria below are unchanged.
 
+A later [four-position synthetic POST](QA-SENSITIVE-LOG-INPUTS.md) received the expected closed response but no Tail frame within its capture lease. All eight synthetic fields remain unassessed. A separate [outer Worker exception boundary](WORKER-ERROR-BOUNDARY.md) handles non-Error rejections without inspecting or logging the caught value; this source protection does not attest platform logs, callback URL shedding, private-data retention or actual OAuth branches.
+
 ## Why app-level silence is insufficient
 
 Cloudflare's [Workers Logs documentation](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) describes invocation logs with request/response metadata. Application logger redaction or the absence of console.log cannot establish what an edge/access log, invocation record, tracing layer, exception collector or downstream drain stored. A normal URL redirect or no-referrer header also does not erase earlier request records. Query-to-body changes alone do not prove that bodies/cookies are omitted.

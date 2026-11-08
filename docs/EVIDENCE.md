@@ -655,3 +655,13 @@ private0600のactual指紋は`3d7f70a8d6dd84eb1ef46fdd821242d9a0da6e7d9dd152bd75
 使用libraryのbinary表現に合わせるv3は別namespace／GOで準備した。12focused確認、decoder10例、receiver8例、6module／shellの構文確認が成功。初回の準備用relative path誤りはsource複製前の失敗として訂正し、成功へ加算していない。独立担当は29確認と4代表検証で、Bufferのview範囲、fatal UTF-8、診断への本文混入拒否、型の強制を確認した。新実行は2026-11-08 15:51 UTCに一度だけ。Buffer2999byteのframe1を厳密decodeし、GET1／405と完全URL・時刻・script／versionを相関した。key／value等の上限付きwalkは206nodeで完了し、truncationなし、log／exception0。raw frameは保存しない。
 
 v3のAPI論理呼出しも8で、所有Tail削除・remote不存在、他Tailとpin不変、consumer終了・PID不存在を確認。actual指紋は`54d5638d9c3505946ef1597884cb442ad72259b0b57e671165b15d19042c2915`、新ledger期限は2026-11-09 15:51:48.514 UTC。独立事後32確認に阻害所見なし、QA指紋は`3db754d8c335b881d53005cf53c798bb8b8e75d0e5e03505eb8570032b43f843`。このturnはv2＋v3の2unitで終了し、追加control／query／再送は行わない。陽性は閉鎖fallbackのリアルタイム1件に限り、stored／敏感な入力位置／OAuth branchの保護と一般公開は未達のまま。
+
+## 四つの入力位置の合成照合とWorker外側の例外境界 — 2026-11-09 JST
+
+base main `371ab10`と成功CI、PR #96／#84／#85のDraftを再確認し、PRDを再読した。公開home→learning-notesは独立PC/mobile4群、browser GET各6／計12、direct GET0。sample DTO4件／2人、各3observed assetsの前配備archive byte一致を確認した。HTML raw不一致と既知module beacon／空白の分類一致を分けた。4画像を独立担当、代表2画像をrootが開き、8地点overflow0、未知error0、既知CSP各1。auth／private・書込・外部送信・preview controlは0、所有browser／Node・観測子processとdebug待受は終了。実学生価値・実端末の検証ではない。完了記録SHAは`03af46a4c65d1cb4c51e6c582c96aa1aec502b39ff51ee26e8916de44f1ca317`。
+
+別の閉鎖preview POST一件へ、独立pathとquery3／body3／Cookie1／Authorization1の合成値を用意した。実装者21確認と独立47確認後に一度だけ実行。405・固定JSON・EOF、Cookie／Locationなし、socket1・client write callbackを確認したがframe0で停止し、8値はすべて未確認。API論理呼出し8で所有Tail削除・remote不存在、他Tail／pin不変、consumer終了・PID不存在を確認。停止は公称deadline＋4ms。独立事後38確認で、この結論・指紋・保持期限・transaction temp0を照合した。[方法・artifact指紋・限界](QA-SENSITIVE-LOG-INPUTS.md)。固定24h期限は2026-11-09 16:43:36.821 UTC、root手動cleanup・daemonなし。旧4件の期限も維持し、追加要求／query／再送は0。
+
+source監査はbase mainの41対象fileの指紋、9credential sink、7catch境界を読取確認し、Hono非Error経路、nonce等のDB保持とscheduler不在、config不明時のcallback URL残存等を区別した。意図したURL／Cookie／token formはactual platform証拠を要し、アプリのlog不使用だけで保護済みとしない。private source監査SHAは`bf15cd055a60ee90273bcb4d75aafd80af1ed35fd925b72d776162df415c2e1a`。
+
+非Error経路だけをsource `aa2f219`で修正した。実装者build・typecheck・localDB・78files／708unit（23.80秒）・公開62（14.9秒）・dry-run成功。別worktreeの独立実export／Worker/D1／不正値31件（1.22秒）、typecheck・diffcheckも成功。初回typecheckと独立QAの2期待不備は原記録に残し、Honoの既存Error応答を維持した。[修正と検証範囲](WORKER-ERROR-BOUNDARY.md)。CI・実配備・独立本番QAは実行後に対応PRへ記録する。実認証・投稿、schema、sampling／obs／WAF、credential／grant／契約は変更しない。
