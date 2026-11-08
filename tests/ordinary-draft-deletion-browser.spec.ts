@@ -40,12 +40,15 @@ async function replaceSession(context:BrowserContext){
 
 test('ordinary deletion confirms the saved version, cancels without DELETE and removes only that draft',async({page},info)=>{
  await register(page,info);await createSaved(page,'残す制作記録');await createSaved(page,'片付ける保存版');await title(page).fill('未保存の変更も確認する');
- let deletes=0,refreshes=0;page.on('request',request=>{const u=new URL(request.url());if(request.method()==='DELETE'&&u.pathname.startsWith('/api/private/drafts/'))deletes++;if(request.method()==='GET'&&u.pathname==='/api/private/drafts')refreshes++});
+ let deletes=0,refreshes=0,deletedId='';const postDeleteRefreshes=new WeakSet();page.on('request',request=>{const u=new URL(request.url());if(request.method()==='DELETE'&&u.pathname.startsWith('/api/private/drafts/')){deletes++;deletedId=u.pathname.split('/').at(-1)!}if(request.method()==='GET'&&u.origin===ORIGIN&&u.pathname==='/api/private/drafts'){refreshes++;if(deletes===1)postDeleteRefreshes.add(request)}});
  await remove(page).click();const panel=page.getByRole('region',{name:'下書きの削除確認'});
  await expect(panel).toContainText('片付ける保存版');await expect(panel).toContainText('保存版 2');await expect(panel).toContainText('未保存の変更は失われます');await expect(panel).toContainText('公開済みの記事は残ります');
  await expect(page.getByRole('button',{name:'キャンセル',exact:true})).toBeFocused();await expect(title(page)).toBeDisabled();
  await image(page,info,'delete-confirm');await page.getByRole('button',{name:'キャンセル',exact:true}).click();expect(deletes).toBe(0);await assertPrivate(page,'未保存の変更も確認する');await expect(remove(page)).toBeFocused();
+ const refreshed=page.waitForResponse(response=>postDeleteRefreshes.has(response.request()));
  await remove(page).click();await confirm(page).click();await expect(page.getByText('下書きを削除しました。公開済みの記事は変更していません。',{exact:true})).toBeVisible();
+ const response=await refreshed;expect(response.status()).toBe(200);expect(response.headers()['content-type']).toMatch(/^application\/json(?:;|$)/i);
+ const rows=await response.json() as {id:string;title:string;version:number;updatedAt:number}[];expect(rows).toEqual([expect.objectContaining({title:'残す制作記録',version:2})]);expect(rows[0].id).not.toBe(deletedId);expect(Object.keys(rows[0]).sort()).toEqual(['id','title','updatedAt','version']);
  expect(deletes).toBe(1);await expect(page.locator('.editor-draft-list li')).toHaveCount(1);await expect(title(page)).toHaveCount(0);expect(refreshes).toBeGreaterThan(0);
  await expect(newDraft(page)).toBeFocused();
  await page.getByRole('button',{name:'残す制作記録',exact:true}).click();await assertPrivate(page,'残す制作記録');await page.reload();await expect(newDraft(page)).toBeEnabled();await expect(page.locator('.editor-draft-list li')).toHaveCount(1);
