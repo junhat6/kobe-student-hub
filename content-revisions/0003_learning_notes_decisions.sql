@@ -30,8 +30,8 @@ ORDER BY period, category;
 
 | CSVから最初の集計結果まで | 3回の中央値 |
 | --- | --- |
-| DuckDB：CSVを直接SQLで集計 | 0.065秒 |
-| SQLite：PythonでCSVを取り込み、SQLで集計 | 0.741秒 |
+| DuckDB | 0.065秒 |
+| SQLite | 0.741秒 |
 
 この実験では**両方とも10秒以内**でした。そこで今回は、CSVを直接扱えて、取込工程を減らせるDuckDBを選びます。SQLiteが性能条件を満たせないから、という判断ではありません。
 
