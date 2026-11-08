@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
-test('fictional browser receives pending-only receipt through real pilot page and JOSE callback', async ({
+test('a legacy pending-only policy cannot bypass the ordinary account stage command contract', async ({
   page,
   context,
 }) => {
+  let providerVisits = 0;
   await page.route('https://accounts.google.com/**', async (route) => {
+    providerVisits++;
     const target = new URL(route.request().url());
     expect(target.searchParams.get('prompt')).toBe('select_account');
     await route.fulfill({
@@ -27,8 +29,9 @@ test('fictional browser receives pending-only receipt through real pilot page an
   await page.request.post('/api/auth/bootstrap', { headers: { Origin: 'https://127.0.0.1:8791' } });
   await page.reload();
   await page.getByRole('button', { name: 'Googleで申請する' }).click();
-  await expect(page.getByRole('status')).toContainText('申請を受け付けました');
+  await expect(page.getByRole('status')).toContainText('申請を受け付けられませんでした');
+  expect(providerVisits).toBe(0);
   expect(page.url()).toBe('https://127.0.0.1:8791/api/auth/pilot');
   expect((await context.cookies()).some((c) => c.name === '__Host-kobe-session')).toBe(false);
-  expect((await page.request.get('/api/private/session')).status()).toBe(404);
+  expect((await page.request.get('/api/private/session')).status()).toBe(401);
 });

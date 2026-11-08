@@ -165,7 +165,7 @@ describe('actual exported Worker fetch error boundary', () => {
     expect(next.headers.has('X-Untrusted-Response')).toBe(false);
     for (const log of logs) expect(log).not.toHaveBeenCalled();
   });
-  it('preserves closed ordinary and pending routes, health and retired paths without touching storage', async () => {
+  it('fails account routes closed without config and preserves closed authoring, health and retired paths without storage', async () => {
     const logs = captureLogs();
     const { env, prepare } = environment(marker, 'throw');
     const health = await worker.fetch(new Request('https://test/api/health'), env);
@@ -176,12 +176,12 @@ describe('actual exported Worker fetch error boundary', () => {
       writesEnabled: false,
     });
     for (const [path, method, status] of [
-      ['/api/auth/start', 'POST', 405],
-      ['/api/auth/callback', 'GET', 405],
-      ['/api/auth/register', 'POST', 405],
-      ['/api/private/enrollment', 'PUT', 405],
+      ['/api/auth/start', 'POST', 503],
+      ['/api/auth/callback', 'GET', 303],
+      ['/api/auth/register', 'POST', 503],
+      ['/api/private/enrollment', 'PUT', 503],
       ['/api/private/drafts', 'POST', 405],
-      ['/api/private/session', 'GET', 405],
+      ['/api/private/session', 'GET', 503],
       ['/api/auth/pilot', 'GET', 404],
       ['/api/auth/draft-trial/start', 'POST', 404],
       ['/trial-assets/retired.js', 'GET', 404],
@@ -189,7 +189,7 @@ describe('actual exported Worker fetch error boundary', () => {
       const r = await worker.fetch(new Request('https://test' + path, { method }), env);
       expect(r.status, path).toBe(status);
       expect(r.headers.has('set-cookie')).toBe(false);
-      expect(r.headers.has('location')).toBe(false);
+      expect(r.headers.get('location')).toBe(path === '/api/auth/callback' ? '/account#' : null);
       expect(await r.text()).not.toContain(marker);
     }
     expect(prepare).not.toHaveBeenCalled();

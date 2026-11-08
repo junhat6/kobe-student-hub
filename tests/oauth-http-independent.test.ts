@@ -201,18 +201,21 @@ it('independent partial absent null or wrongly typed optional configuration stay
   expect(await count('oauth_attempts')).toBe(attempts);
   expect(exchanges).toBe(before);
 });
-it('independent complete environment and enable-like input cannot cross the production source gate or touch forbidden DB', async () => {
+it('independent ordinary login stage rejects unproved identity and runtime flags cannot open authoring', async () => {
   const before = exchanges;
-  for (const path of [
-    '/api/auth/bootstrap',
-    '/api/auth/command?action=login',
-    '/api/private/logout-command',
-    '/api/auth/start',
-    '/api/auth/register',
-    '/api/auth/callback?state=PRIVATE&code=PRIVATE',
-    '/api/private/session',
-    '/api/private/logout',
-  ]) {
+  for (const [path, status] of [
+    ['/api/auth/bootstrap', 503],
+    ['/api/auth/command?action=login', 503],
+    ['/api/private/logout-command', 503],
+    ['/api/auth/start', 400],
+    ['/api/auth/register', 400],
+    ['/api/auth/callback', 200],
+    ['/api/auth/callback?state=PRIVATE&code=PRIVATE', 303],
+    ['/api/private/session', 401],
+    ['/api/private/logout', 401],
+    ['/api/private/drafts', 405],
+    ['/api/private/moderation/cases', 405],
+  ] as const) {
     const r = await req(
       path,
       path.includes('callback') || path.endsWith('session') ? 'GET' : 'POST',
@@ -224,11 +227,9 @@ it('independent complete environment and enable-like input cannot cross the prod
         bindings: { ...bindings, AUTH_ENABLED: 'true', OAUTH_HTTP_RELEASE_ENABLED: 'true' },
       },
     );
-    expect(r.status).toBe(path.includes('callback') ? 303 : 405);
+    expect(r.status).toBe(status);
     expect(r.headers.has('Set-Cookie')).toBe(false);
-    expect(r.headers.get('Location')).toBe(
-      path.includes('callback') ? O + '/api/auth/pilot#unavailable' : null,
-    );
+    expect(r.headers.get('Location')).toBe(path.includes('callback?') ? O + '/account#' : null);
   }
   expect(
     await (await req('/api/health', 'GET', {}, { production: true, forbidDb: true })).json(),

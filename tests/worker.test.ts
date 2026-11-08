@@ -153,7 +153,7 @@ describe('public data boundary on Workers and D1', () => {
         expect(await r.text()).not.toMatch(/SECRET_DRAFT|PRIVATE_ARTICLE|owner_account_id/);
       }
   });
-  it('keeps authentication and posting closed despite client-supplied identity claims', async () => {
+  it('fails closed without server authentication config and rejects client-supplied identity claims', async () => {
     const auth = await mf.dispatchFetch('http://test/api/auth/callback', {
       method: 'POST',
       headers: {
@@ -167,7 +167,7 @@ describe('public data boundary on Workers and D1', () => {
         accountId: 'owner',
       }),
     });
-    expect(auth.status).toBe(405);
+    expect(auth.status).toBe(503);
     expect(auth.headers.get('set-cookie')).toBeNull();
     for (const [method, path] of [
       ['GET', '/api/auth/start'],
@@ -188,10 +188,20 @@ describe('public data boundary on Workers and D1', () => {
       ['GET', '/api/private/reports/11111111-1111-4111-8111-111111111111'],
       ['POST', '/api/private/reports/11111111-1111-4111-8111-111111111111'],
     ]) {
-      const r = await mf.dispatchFetch('http://test' + path, { method });
-      expect(r.status).toBe(405);
+      const r = await mf.dispatchFetch('http://test' + path, { method, redirect: 'manual' });
+      const authPath =
+        path.startsWith('/api/auth/') ||
+        path === '/api/private/session' ||
+        path === '/api/private/logout';
+      expect(r.status).toBe(
+        path === '/api/auth/callback'
+          ? 303
+          : authPath || path === '/api/private/enrollment'
+            ? 503
+            : 405,
+      );
       expect(r.headers.get('set-cookie')).toBeNull();
-      expect(r.headers.get('location')).toBeNull();
+      expect(r.headers.get('location')).toBe(path === '/api/auth/callback' ? '/account#' : null);
     }
     const health = await mf.dispatchFetch('http://test/api/health');
     expect(((await health.json()) as { writesEnabled: boolean }).writesEnabled).toBe(false);

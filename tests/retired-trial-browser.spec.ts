@@ -34,7 +34,7 @@ test('worker-first denial wins over stale static files and SPA fallback', async 
   expect(spa.status()).toBe(200);
   expect(await spa.text()).toContain('<div id="root"></div>');
 });
-test('old cookies and runtime setting cannot restore private access or auth start', async ({
+test('old cookies and runtime setting cannot authenticate or restore private authoring', async ({
   request,
 }) => {
   const headers = {
@@ -47,7 +47,9 @@ test('old cookies and runtime setting cannot restore private access or auth star
     '/api/private/logout-command',
   ]) {
     const r = await request.get(path, { headers });
-    expect(r.status()).toBe(405);
+    expect(r.status()).toBe(
+      path === '/api/private/session' ? 503 : path === '/api/private/logout-command' ? 401 : 405,
+    );
     expect(r.headers()['set-cookie']).toBeUndefined();
   }
   for (const path of [
@@ -57,7 +59,9 @@ test('old cookies and runtime setting cannot restore private access or auth star
     '/api/private/drafts',
   ]) {
     const r = await request.post(path, { headers });
-    expect(r.status()).toBe(405);
+    expect(r.status()).toBe(
+      path === '/api/private/drafts' ? 405 : path === '/api/auth/start' ? 400 : 503,
+    );
     expect(r.headers()['set-cookie']).toBeUndefined();
   }
   expect((await (await request.get('/api/health')).json()).writesEnabled).toBe(false);
@@ -69,7 +73,7 @@ test('late query callbacks remove provider parameters without issuing cookies', 
     maxRedirects: 0,
   });
   expect(r.status()).toBe(303);
-  expect(r.headers()['location']).toBe('https://127.0.0.1:8792/api/auth/pilot#unavailable');
+  expect(r.headers()['location']).toBe('https://127.0.0.1:8792/account#');
   expect(r.headers()['set-cookie']).toBeUndefined();
   expect(await r.text()).toBe('');
 });

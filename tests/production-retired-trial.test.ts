@@ -48,7 +48,7 @@ it('retired trial entry and stale assets are denied even with a formerly valid r
         expect(await r.text()).not.toContain('private');
       }
 });
-it('stale trial configuration and old cookies cannot enable authentication or private writes', async () => {
+it('stale trial configuration and old cookies cannot authenticate or enable private authoring in the account stage', async () => {
   for (const path of [
     '/api/private/session',
     '/api/private/drafts',
@@ -71,9 +71,28 @@ it('stale trial configuration and old cookies cannot enable authentication or pr
         }),
         environment(stale),
       );
-      expect(r.status).toBe(405);
+      const expected = path.includes('/drafts')
+        ? 405
+        : path === '/api/private/logout-command'
+          ? method === 'POST'
+            ? 503
+            : 401
+          : path === '/api/private/session'
+            ? method === 'GET'
+              ? 503
+              : 405
+            : method !== 'POST'
+              ? 405
+              : path === '/api/private/logout'
+                ? 401
+                : path === '/api/auth/start'
+                  ? 400
+                  : 503;
+      expect(r.status, path + ' ' + method).toBe(expected);
       expect(r.headers.get('Set-Cookie')).toBeNull();
-      expect(r.headers.get('Cache-Control')).toBe('no-store');
+      expect(r.headers.get('Cache-Control')).toBe(
+        path.includes('/drafts') ? 'no-store' : 'private, no-store',
+      );
     }
 });
 it('late callbacks discard query credentials without database, provider or Cookie operations', async () => {
@@ -82,7 +101,7 @@ it('late callbacks discard query credentials without database, provider or Cooki
     environment(stale),
   );
   expect(r.status).toBe(303);
-  expect(r.headers.get('Location')).toBe(origin + '/api/auth/pilot#unavailable');
+  expect(r.headers.get('Location')).toBe(origin + '/account#');
   expect(r.headers.get('Set-Cookie')).toBeNull();
   expect(await r.text()).toBe('');
   expect(r.headers.get('Cache-Control')).toBe('private, no-store');

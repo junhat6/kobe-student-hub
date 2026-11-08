@@ -18,7 +18,7 @@ describe('ordinary draft release boundary', () => {
       }
     }
   });
-  it('keeps production closed despite complete-looking runtime inputs or enable-like headers', async () => {
+  it('keeps production authoring closed despite complete-looking runtime inputs or enable-like headers', async () => {
     const env = {
       DB: forbiddenDb,
       AUTH_ORIGIN: origin,
