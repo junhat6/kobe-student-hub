@@ -28,6 +28,10 @@ npm run deploy:check
 
 初回E2Eには `npx playwright install chromium` が必要です。`npm test` は先に `npm run build` を実行してください。Worker実行・D1境界テストを含みます。E2EはChromiumのPCとiPhone相当画面で実行し、実iPhone/Safariの確認とは区別します。
 
+## ソースの整形
+
+`npm ci`でcommit hookも設定します。`npm run format`で整形、`npm run format:check`で確認できます。commit時はstagedのソースだけを整形し、部分stageの未stage変更は保持します。CIでも整形を確認します。SQL・生成binding・lockfile・文書・秘密や検証資料は対象外です。
+
 ## 構成
 
 React + TypeScript + Vite、Tailwind CSS v4、Base UI、Hono、Cloudflare Workers Static Assets + D1。Markdownはreact-markdownでHTMLを無効化し、コード強調を行います。初期段階では画像・埋め込みを受け付けません。
