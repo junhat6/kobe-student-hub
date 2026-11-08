@@ -3,6 +3,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dispatchModerationEmails } from '../worker/moderation-email';
 import type { EmailDeliverySummary, OwnModerationNotice } from '../src/notification-types';
+import { workerModules } from './helpers/worker-modules';
 const ORIGIN = 'https://app.example.invalid',
   NOW = 1800000000000;
 type Session = { setCookie: string; contextCookie: string; csrfToken: string };
@@ -46,8 +47,7 @@ const options = (send: SendEmail['send']) => ({
 beforeAll(async () => {
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/publication-http-test.js',
+      modules: workerModules('.worker/publication-http-test.js'),
       compatibilityDate: '2026-11-03',
       d1Databases: ['DB'],
       outboundService: () => {

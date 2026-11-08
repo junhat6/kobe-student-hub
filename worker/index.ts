@@ -27,6 +27,7 @@ app.use(
       styleSrc: ["'self'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: ["'self'"],
+      frameSrc: ['https://www.youtube-nocookie.com'],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
       baseUri: ["'none'"],
@@ -177,7 +178,7 @@ export default {
             'Cache-Control': 'private, no-store',
             Vary: 'Cookie',
             'Content-Security-Policy':
-              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
             'Cross-Origin-Resource-Policy': 'same-origin',
             'Cross-Origin-Opener-Policy': 'same-origin',
             'Origin-Agent-Cluster': '?1',

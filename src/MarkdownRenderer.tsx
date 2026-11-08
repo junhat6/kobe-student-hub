@@ -5,6 +5,8 @@ import CodeBlock from './CodeBlock';
 import PrivateImage from './editor/PrivateImage';
 import { mediaId } from './shared/media';
 import './editor/media.css';
+import YouTubeEmbed from './YouTubeEmbed';
+import { youtubeVideoId } from './shared/youtube';
 export default function MarkdownRenderer({
   body,
   privateMedia,
@@ -18,6 +20,14 @@ export default function MarkdownRenderer({
       rehypePlugins={[rehypeHighlight]}
       skipHtml
       components={{
+        p: ({ node, children }) => {
+          const child = node?.children.length === 1 ? node.children[0] : null;
+          const id =
+            child?.type === 'element' && child.tagName === 'a'
+              ? youtubeVideoId(child.properties.href)
+              : null;
+          return id ? <YouTubeEmbed key={id} videoId={id} /> : <p>{children}</p>;
+        },
         pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
         a: ({ href, children }) => (
           <a href={href && /^https?:\/\//.test(href) ? href : undefined} rel="noopener noreferrer">
