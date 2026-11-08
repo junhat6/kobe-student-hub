@@ -54,6 +54,14 @@
 
 **Replanning:** [ログゲート](LOGGING-GATE.md)は未達。次は一件の非secret controlを独立に相関できる捕捉方法と、未確認のログ層の確認経路を具体化する。sampling・検索不一致・未保存を今回の0件から断定しない。実認証branchの成功／拒否／失敗、実Google・実運用・学生価値の不足を、合成試用や別機能の追加で置き換えない。通常CI成功後、この限定的な未確認結果をmainへ反映する。
 
+## 既存controlの検索完了と条件を確認する
+
+**現在地／Planner:** [PR #103](https://github.com/junhat6/kobe-student-hub/pull/103#issuecomment-6719618674)はmain `19323dd`へ統合され、PR/main CIが全成功、deployはskipped。PR #96はOPEN/Draftのまま。現在の本番ホームも4件の架空sampleと認証・投稿準備中の表示を実ブラウザで確認した。仮説は、前回のcontrolへ厳密なqueryを一度だけ適用し、実行完了と条件の一致を確認すれば、未確認事項をquery方法と実捕捉へ分けられること。通常sampling下で新規要求を増やす方針は採らない。
+
+**実施／独立QA:** 追加trafficなしの1queryでCOMPLETED・dry/account/timeframe・条件echo・前後pin一致を確認したが、row/countは0。事前条件のadhoc=trueを確認できず、false／欠落の区別も未保持のため全受入未達として終了した。実row scan・相関・関連取得は未成立。日次usageの陽性集計も今回controlの証拠にはしない。別コンテキストのQAはmethod／結果／指紋と限定的な解釈を照合し、阻害所見なし。[追試の範囲と限界](QA-CLOSED-PREVIEW-LOGS.md#既存controlのquery実行を確認する追試--2026-11-08)。privateの結果・QAをmode0600で保持し、生ログや私的回答は公開しない。serverは起動せず、確認用browser tabも終了した。
+
+**Replanning:** queryの完了／echo未記録という不足は狭まったが、実captureは未成立。既存previewで期限・保持・復元を定めたcaptureを具体化し、契約・使用枠を確認してから一件の陽性相関へ進む。設定更新の方法と復元可能性は調査済みだが、source gate、設定、配備、Tail、schema、credential／grantの変更は0。新しい本人限定試用や別機能で置き換えず、[ログ公開ゲート](LOGGING-GATE.md)を未達のまま維持する。
+
 ## Cycle 01
 
 **Planner:** H01 — reader context plus author/project relationships can help a student choose an article and carry away a next action. Minimal target: browse → article/project → author/related, on mobile and PC. Fictional data only.
