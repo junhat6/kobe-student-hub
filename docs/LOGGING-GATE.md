@@ -1,6 +1,6 @@
 # OAuth callback logging release gate
 
-Status: **NOT RUN / NOT SATISFIED**. No real callback, provider code exchange or actual-platform log audit is enabled by this document. No actual credential leakage has been established. A future implementer must complete this gate before real OAuth is connected.
+Status: **PARTIAL OPERATIONAL AUDIT / NOT SATISFIED**. A bounded synthetic probe of the existing closed preview has run; see [scope, capture results and limits](QA-CLOSED-PREVIEW-LOGS.md). It does not exercise an enabled OAuth callback or provider exchange. No actual credential leakage has been established. Complete this gate before real OAuth is connected.
 
 ## Why app-level silence is insufficient
 
