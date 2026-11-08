@@ -18,6 +18,7 @@ function provider() {
     client_id: 'fixture-client.apps.googleusercontent.com',
     redirect_uri: origin + '/api/auth/callback',
     response_type: 'code',
+    response_mode: 'fragment',
     scope: 'openid email',
     hd: 'st.kobedenshi.ac.jp',
     state: 's'.repeat(43),
@@ -206,6 +207,8 @@ describe('ordinary registration browser client', () => {
       ['redirect_uri', 'https://evil.invalid/api/auth/callback'],
       ['redirect_uri', origin + '/other'],
       ['response_type', 'token'],
+      ['response_mode', 'query'],
+      ['response_mode', 'form_post'],
       ['scope', 'openid email profile'],
       ['hd', 'other.invalid'],
       ['code_challenge_method', 'plain'],
@@ -225,6 +228,12 @@ describe('ordinary registration browser client', () => {
     const duplicate = provider();
     duplicate.searchParams.append('state', 's'.repeat(43));
     attacks.push(duplicate.toString());
+    const duplicateMode = provider();
+    duplicateMode.searchParams.append('response_mode', 'fragment');
+    attacks.push(duplicateMode.toString());
+    const missingMode = provider();
+    missingMode.searchParams.delete('response_mode');
+    attacks.push(missingMode.toString());
     const extra = provider();
     extra.searchParams.set('login_hint', 'PRIVATE_EMAIL');
     attacks.push(extra.toString());
