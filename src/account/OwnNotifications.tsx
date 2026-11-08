@@ -69,7 +69,16 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
           ))}
         </ul>
       )}
-      <p className="moderation-limit">判断についての相談・異議申立ての窓口は未設定です。</p>
+      <p className="moderation-limit">
+        <Link
+          to="/guide#contact"
+          target="_blank"
+          rel="noopener noreferrer"
+          referrerPolicy="no-referrer"
+        >
+          判断についての相談・異議申立ての案内（別のタブ）
+        </Link>
+      </p>
     </section>
   );
 }

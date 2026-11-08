@@ -329,7 +329,21 @@ export default function PublicProfileSetup({
             </form>
           )}
           <p className="profile-scope-note">
-            プロフィール作成は在籍確認、実投稿の許可、すべての利用規約への同意を意味しません。未確認の入力はこの画面のメモリ内だけに保持し、自動保存・自動再送は行いません。
+            {surface === 'ordinary' ? (
+              <>
+                ここでは公開プロフィールだけを作成します。下書きや画像は、記事・作品の公開操作まで公開されません。
+                <a
+                  href="/guide#privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  referrerPolicy="no-referrer"
+                >
+                  公開する情報の扱いを見る
+                </a>
+              </>
+            ) : (
+              'プロフィール作成は在籍確認、実投稿の許可、すべての利用規約への同意を意味しません。未確認の入力はこの画面のメモリ内だけに保持し、自動保存・自動再送は行いません。'
+            )}
           </p>
         </div>
       </details>

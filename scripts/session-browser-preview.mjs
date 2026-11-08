@@ -116,6 +116,8 @@ mf = new Miniflare(
                   '/works',
                   '/works/new',
                   '/moderation',
+                  '/guide',
+                  '/about',
                 ].includes(u.pathname) ||
                 /^\/(?:(?:articles|projects)\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
                   u.pathname,

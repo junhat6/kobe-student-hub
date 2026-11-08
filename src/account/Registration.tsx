@@ -170,6 +170,11 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
           年度は利用期間の確認に使い、公開プロフィールには載せません。
         </p>
       )}
+      <p className="account-privacy">
+        <Link to="/guide" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+          利用ルールと情報の扱い（別のタブ）
+        </Link>
+      </p>
       <p className="account-message" role="status" aria-live="polite" aria-atomic="true">
         {message}
       </p>
