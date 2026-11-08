@@ -24,7 +24,7 @@ async function login(subject='fictional-google-subject',extra={}){
  const callback=await req('/api/auth/callback?state='+state+'&code='+state,'GET',{Cookie:context+'; '+cookies(started)},undefined,extra);
  return {response:callback,cookie:context+'; '+cookies(callback)};
 }
-async function newSession(){const r=await login();expect(r.response.headers.get('Location')).toBe(O+'/api/auth/draft-trial');const check=await req('/api/private/session','GET',{Cookie:r.cookie});expect(check.status).toBe(200);return {cookie:r.cookie,csrf:(await check.json() as {csrfToken:string}).csrfToken};}
+async function newSession(){const r=await login();expect(r.response.headers.get('Location')).toBe(O+'/');const check=await req('/api/private/session','GET',{Cookie:r.cookie});expect(check.status).toBe(200);return {cookie:r.cookie,csrf:(await check.json() as {csrfToken:string}).csrfToken};}
 beforeAll(async()=>{
  signer=await googleFixture();mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/limited-draft-test.js',compatibilityDate:'2026-11-03',d1Databases:['DB'],outboundService:async r=>{
   if(r.url==='https://www.googleapis.com/oauth2/v3/certs')return Response.json(signer.jwks);
@@ -64,7 +64,7 @@ it('expiry or removal during request body processing cannot commit a draft',asyn
  expect(await(await mf.getD1Database('DB')).prepare("SELECT id FROM private_article_drafts WHERE title='must not commit'").first()).toBeNull();
 });
 it('expired callback does not exchange with provider or issue a session',async()=>{
- const before=calls;const r=await login('fictional-google-subject',{now:E});expect(r.response.status).toBe(303);expect(r.response.headers.get('Location')).toBe(O+'/api/auth/draft-trial');expect(calls).toBe(before);expect(r.response.headers.getSetCookie()).toEqual([]);
+ const before=calls;const r=await login('fictional-google-subject',{now:E});expect(r.response.status).toBe(303);expect(r.response.headers.get('Location')).toBe(O+'/');expect(calls).toBe(before);expect(r.response.headers.getSetCookie()).toEqual([]);
 });
 it('CSRF, cross-origin, registration, publication and operator paths stay denied',async()=>{
  for(const headers of [{Cookie:a.cookie},{...h(a),Origin:'https://evil.invalid'},{...h(a),Authorization:'Bearer csrf.'+'A'.repeat(43)}])expect((await req('/api/private/drafts','POST',headers,{title:'bad',body:''})).status).toBe(401);
@@ -83,7 +83,7 @@ it('stored status/epoch cancellation rejects old policy, old sessions and re-log
 });
 
 it('configuration failure removes callback query using same-origin relative redirect',async()=>{
- for(const change of [{GOOGLE_CLIENT_SECRET:undefined},{AUTH_ORIGIN:undefined}]){const r=await req('/api/auth/callback?code=synthetic&state=synthetic','GET',{},undefined,{bindings:{...bindings,...change}});expect(r.status).toBe(303);expect(r.headers.get('Location')).toBe('/api/auth/draft-trial');expect(r.headers.getSetCookie()).toEqual([])}
+ for(const change of [{GOOGLE_CLIENT_SECRET:undefined},{AUTH_ORIGIN:undefined}]){const r=await req('/api/auth/callback?code=synthetic&state=synthetic','GET',{},undefined,{bindings:{...bindings,...change}});expect(r.status).toBe(303);expect(r.headers.get('Location')).toBe('/');expect(r.headers.getSetCookie()).toEqual([])}
 });
 it('a grant revoked or expired after binding cannot commit a private draft',async()=>{
  const db=await mf.getD1Database('DB');await db.prepare("UPDATE private_accounts SET status='pending',session_epoch=0 WHERE id='account-a'").run();a=await newSession();

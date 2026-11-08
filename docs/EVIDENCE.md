@@ -504,3 +504,15 @@ PR #97の初回CI `42437892754` はlimited browser38成功／2失敗。PC/mobile
 修正後の開発側 `npm run test:limited` は40成功（30.4s）。限定削除以外のserver／guard／schema／policyは未変更。初回CIの失敗を成功扱いにせず、独立の追試と新しい通常CIを待つ。
 
 修正後の全unit/Workerは70 files /602成功（15.18s）、build/typecheckとdeploy:check成功。独立QAはfocus差分を静的レビューし、隔離build/typecheckと、変更していない成功・キャンセル・キーボード・他下書き保持のPC/mobile2ケース成功（4.8s）。最終DraftEditor指紋を独立照合し、阻害所見なし。共有editor181成功／1既存skip（3.5m）はfocus修正前の結果で、限定削除以外の共有編集へ新しい動作を追加していない。通常CIが最終headの全体を確認する。
+
+## 本人限定試用の撤去 — 開発側検証
+
+ユーザーの明示した撤去範囲に沿い、専用UI／client／起動／build／production接続を除去し、旧パスの拒否と共有機能の維持を検証する。旧試用の成功テストを消したままにせず、stale設定・Cookie・静的ファイルとSPA fallbackを含む拒否回帰へ置換する。
+
+開発側build/typecheck成功。全unit/Workerは68 files /585 tests成功（17.88s）。専用の撤去後Chromium検証はPC/mobile8 cases成功（3.7s）：旧page404、実際のASSETSに残した架空旧JSの拒否、一般SPA fallback維持、公開一覧→記事→投稿者、旧Cookie／設定によるprivate/auth拒否、遅着callbackのclean redirectを確認した。実本人のGoogle・本番書込み・本番設定変更の証明とは別である。
+
+ローカル画像・実運用値は公開しない。独立QA・共有editor・公開E2E・通常CIと本番の実施結果は実行後に記録する。
+
+独立QAは隔離build/typecheck、関連7 files /67 tests（2.08s）、追加の設定getter非参照1 test（95ms）、PC/mobile10 browser cases（3.4s）を実行して成功。開発側8件に加え、エンコードしたprefix・slash・繰返しslashのGET/HEAD拒否を確認した。4画像を目視確認し、17ファイルの指紋を照合、阻害所見なし。[独立報告](QA-RETIRED-DRAFT-TRIAL.md)。開発側公開E2E60（10.8s）・deploy:checkも成功。実際のgrant/session/binding除去と配備は、このローカルQAとは別に確認する。
+
+開発側の共有editor回帰は181 passed／1既存skip（3.4m）、auth browser5（2.5s）、pending pilot1（1.4s）が成功。generated typesに差分なし。独立にレビューした対象限定のruntime撤去手順で、本番の専用grant／既存sessionの失効、専用binding除去を実施し、配備中versionのbinding・他設定・asset経路の保持を照合した。本文・認証情報・試用設定値は取得／公開していない。実URLでは旧entry・既知の旧JS/CSS404/no-store/no-cookie、private/login GET405/no-cookie、health正常と架空catalog4件／2プロフィールを確認した。これはソース配備前のruntime閉鎖の結果であり、専用コード・assetsの配備上の撤去はgreen main後に別途記録する。

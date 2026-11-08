@@ -41,30 +41,3 @@ describe('private draft browser transport',()=>{
   release(Response.json({...value,version:2}));await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(1);
  });
 });
-
-describe('private draft deletion transport',()=>{
- const {body:_,...target}=value;
- it('uses the confirmed saved version, CSRF and exact success acknowledgement',async()=>{
-  const fetcher=vi.fn(async()=>Response.json({deleted:true}));
-  await createDraftClient(csrf,fetcher as typeof fetch).delete(target);
-  expect(fetcher).toHaveBeenCalledTimes(1);
-  const [path,init]=fetcher.mock.calls[0] as unknown as [string,RequestInit];
-  expect(path).toBe('/api/private/drafts/'+id);expect(init).toMatchObject({method:'DELETE',credentials:'same-origin',cache:'no-store',redirect:'error'});
-  expect(new Headers(init.headers).get('Authorization')).toBe('Bearer csrf.'+csrf);
-  expect(JSON.parse(init.body as string)).toEqual({expectedVersion:1});
- });
- it('rejects ambiguous acknowledgements and invalid versions without automatic mutation retries',async()=>{
-  for(const result of [{deleted:false},{},{deleted:true,body:'extra'},value]){
-   const fetcher=vi.fn(async()=>Response.json(result));
-   await expect(createDraftClient(csrf,fetcher as typeof fetch).delete(target)).rejects.toBeInstanceOf(DraftClientError);expect(fetcher).toHaveBeenCalledTimes(1);
-  }
-  for(const status of [401,404,503])await expect(createDraftClient(csrf,(async()=>Response.json({deleted:true},{status})) as typeof fetch).delete(target)).rejects.toBeInstanceOf(DraftClientError);
-  const fetcher=vi.fn();await expect(createDraftClient(csrf,fetcher as typeof fetch).delete({...target,version:0})).rejects.toBeInstanceOf(DraftClientError);expect(fetcher).not.toHaveBeenCalled();
- });
- it('times out stalled DELETE response EOF without retrying or accepting late success',async()=>{
-  vi.useFakeTimers();let end=()=>{};
-  const fetcher=vi.fn(async()=>new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('{"deleted":true}'));end=()=>{try{c.close()}catch{}}}}),{headers:{'Content-Type':'application/json'}}));
-  const pending=createDraftClient(csrf,fetcher as typeof fetch).delete(target),rejected=expect(pending).rejects.toBeInstanceOf(DraftClientError);
-  await vi.advanceTimersByTimeAsync(10000);await rejected;end();await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(1);
- });
-});

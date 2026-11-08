@@ -124,6 +124,8 @@ The [production preparation boundary](PRODUCTION-CONFIG.md) is separate from the
 A deployment must use the reviewed main archive/build, matching manifest/config fingerprints, verified dedicated resources and successful main CI. New empty-database bootstrap is a separate explicitly verified operation: only public sample schema/data and their migration records, not later auth/private schemas. Verify actual live health/catalog/denials and unchanged preview separately after deployment. Configuration preparation and successful tests do not prove a live release.
 
 
-## Limited trial assets
+## Retired draft-trial paths
 
-The opt-in trial package is assembled locally with `node scripts/build-trial-assets.mjs` after the normal build. Its output is added beneath `dist/trial-assets` and uses the existing `ASSETS` binding. Production configuration must route both `/api/*` and `/trial-assets/*` through the Worker first; otherwise static assets can bypass the trial policy. This packaging step does not deploy, change DB data, or activate the trial.
+The dedicated one-person draft trial is retired. Do not build or upload its former assets, and do not restore its runtime binding. Its UI, build command and product adapter have been removed. Keep `/api/*`, `/trial-assets`, and `/trial-assets/*` in the Worker-first assets rules: the Worker returns404/no-store for the old entry and asset paths even when stale files or SPA fallback exist. This routing is a denial rule, not a trial activation path.
+
+Remote withdrawal is separate from Worker deployment: verify the exact existing target and trusted trial selection privately, revoke only its matching grant and sessions, remove only the dedicated runtime binding while preserving other bindings/secrets and settings, then deploy the reviewed green main without old assets. Reconcile each result; never drop common schemas/accounts or erase unrelated data. Current operation evidence is recorded in the release PR; local tests do not prove remote withdrawal. See [retirement scope](RETIRED-DRAFT-TRIAL.md).
