@@ -158,6 +158,7 @@ export default function OperatorReadBoundary({
     };
     window.addEventListener('focus', conceal);
     window.addEventListener('pageshow', conceal);
+    window.addEventListener('pagehide', conceal);
     document.addEventListener('visibilitychange', conceal);
     return () => {
       mounted.current = false;
@@ -167,6 +168,7 @@ export default function OperatorReadBoundary({
       lock.current = false;
       window.removeEventListener('focus', conceal);
       window.removeEventListener('pageshow', conceal);
+      window.removeEventListener('pagehide', conceal);
       document.removeEventListener('visibilitychange', conceal);
     };
   }, []);
