@@ -2,5 +2,13 @@
   "singleQuote": true,
   "printWidth": 100,
   "embeddedLanguageFormatting": "off",
-  "htmlWhitespaceSensitivity": "strict"
+  "htmlWhitespaceSensitivity": "strict",
+  "overrides": [
+    {
+      "files": "*.jsonc",
+      "options": {
+        "trailingComma": "none"
+      }
+    }
+  ]
 }

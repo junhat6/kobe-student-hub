@@ -13,10 +13,10 @@ import {
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-// @ts-expect-error Local JavaScript fixture seam; no production target loader or deploy entry.
 import {
   validateProductionConfig,
   prepareProductionArtifact,
+  // @ts-expect-error Local JavaScript fixture seam; no production target loader or deploy entry.
 } from '../scripts/production-config.mjs';
 const template = JSON.parse(readFileSync('wrangler.jsonc', 'utf8')),
   preview = {

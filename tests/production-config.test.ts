@@ -14,10 +14,10 @@ import {
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-// @ts-expect-error Plain JavaScript helper intentionally exposes only a local fixture test seam.
 import {
   validateProductionConfig,
   prepareProductionArtifact,
+  // @ts-expect-error Plain JavaScript helper intentionally exposes only a local fixture test seam.
 } from '../scripts/production-config.mjs';
 const template = JSON.parse(readFileSync('wrangler.jsonc', 'utf8')),
   source = 'const OAUTH_HTTP_RELEASE_ENABLED=false;\n';
