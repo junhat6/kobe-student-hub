@@ -2,6 +2,8 @@
 
 Status: **PARTIAL OPERATIONAL AUDIT / NOT SATISFIED**. A bounded synthetic probe of the existing closed preview has run; see [scope, capture results and limits](QA-CLOSED-PREVIEW-LOGS.md). It does not exercise an enabled OAuth callback or provider exchange. No actual credential leakage has been established. Complete this gate before real OAuth is connected.
 
+A later [single queryless control](QA-LOG-CONTROL.md) also returned zero stored rows after a completed exact-URL query. Its query execution and condition echo were verified, but positive correlation, full-row inspection and redaction were not. The existing sampling/settings and closed authentication boundary were preserved; this additional result does not satisfy the gate.
+
 ## Why app-level silence is insufficient
 
 Cloudflare's [Workers Logs documentation](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) describes invocation logs with request/response metadata. Application logger redaction or the absence of console.log cannot establish what an edge/access log, invocation record, tracing layer, exception collector or downstream drain stored. A normal URL redirect or no-referrer header also does not erase earlier request records. Query-to-body changes alone do not prove that bodies/cookies are omitted.
