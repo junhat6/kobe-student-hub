@@ -16,4 +16,4 @@
 
 ## 実公開との境界
 
-この接続だけで、一般ログイン・投稿を有効化しない。実ログ、専用Google設定、remote schema、運営・問い合わせ等の[FIRST-RELEASE](FIRST-RELEASE.md)条件は残る。設定・権限・credential・契約・remote SQLの変更を含めず、サンプル専用の公開境界を維持する。通常の下書き削除UIや記事公開への接続は、それぞれの操作条件を確かめて後続で扱う。
+この接続だけで、一般ログイン・投稿を有効化しない。実ログ、専用Google設定、remote schema、運営・問い合わせ等の[FIRST-RELEASE](FIRST-RELEASE.md)条件は残る。設定・権限・credential・契約・remote SQLの変更を含めず、サンプル専用の公開境界を維持する。通常の下書き削除は[本人整理の別単位](ORDINARY-DRAFT-DELETION.md)で接続し、記事公開への接続は後続で扱う。

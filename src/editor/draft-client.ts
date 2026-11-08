@@ -32,5 +32,6 @@ export function createDraftClient(csrfToken:string,fetcher:typeof fetch=fetch){
   async createEmpty():Promise<EditorDraft>{const result=await request(ROOT,'POST',{title:'',body:''});if(!draft(result)||result.title!==''||result.body!==''||result.version!==1)throw new DraftClientError();return result},
   async read(id:string):Promise<EditorDraft>{const result=await request(readId(id));if(!draft(result)||result.id!==id)throw new DraftClientError();return result},
   async save(value:EditorDraft):Promise<EditorDraft>{const result=await request(readId(value.id),'PATCH',{title:value.title,body:value.body,expectedVersion:value.version});if(!draft(result)||result.id!==value.id||result.version!==value.version+1||result.title!==value.title||result.body!==value.body)throw new DraftClientError();return result},
+  async delete(id:string,expectedVersion:number):Promise<void>{if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new DraftClientError();const result=await request(readId(id),'DELETE',{expectedVersion});if(!keys(result,['deleted'])||result.deleted!==true)throw new DraftClientError()},
  };
 }

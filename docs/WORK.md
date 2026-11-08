@@ -1,5 +1,15 @@
 # Current work and replanning
 
+## 通常の本人下書きを削除・確認する
+
+**Planner / 仮説:** 通常の執筆画面で不要な下書きを本人が整理できれば、私的な制作記録を管理しやすくなるのではないか。既存DELETEのowner／session／CAS境界を使い、選択した一件だけを明示確認して削除する。公開保存版が別に残ることも確認前に示す。撤去済み本人限定試用は復活させず、新しいlabを作らない。[受入条件と範囲](ORDINARY-DRAFT-DELETION.md)。
+
+**Developer / 実行済み検証:** 通常variantに確認・送信中・結果不明の状態を接続した。厳密な200 JSON ACK後だけ対象buffer／一覧／比較／previewを消し、他の下書きを維持して一覧を更新する。結果不明では自動再送や保存・再削除を止め、本人の明示確認で回復する。既存guardによる一時非表示と同session再開、確定失効／変更時の旧private表示破棄は維持した。shared Worker／schema／fixtureと4gateは変更していない。
+
+実装者の最終build・localDB・dry-run、77files／694unit、公開62が成功。auth全66の後、移動警告文への削除追記を最終ordinary30で確認した。共有legacy editorは4files／32件成功。実D1 commit後にACKを失わせ、別本人read404／list0とUIのunknown・文章保持・DELETE一回を両画面幅で確認した。初回browserの2失敗は、通信断でguardが旧表示を隠す正しい挙動への期待不備として原記録を残し、保護を弱めず訂正した。6画像を実装者が開き、所有server／browser・子processと待受を終了した。
+
+**独立QA／再計画:** 実装者と別contextのQAを実行中。CIと独立QAの実結果を対応PRへ残してから統合・配備する。実装者の確認を独立QAや学生価値・物理端末の成功とは扱わない。通常認証・投稿の有効化、実ログ保護等の公開条件は別に残り、一般ユーザーの削除はまだ利用できない。
+
 ## 設定を変えず、閉鎖プレビューの一要求を実ログへ相関する
 
 **現在地と前回判定:** 前turnは[PR #106](https://github.com/junhat6/kobe-student-hub/pull/106#issuecomment-6721917824)のmain `d0b4cb7`統合、両CI成功、Worker一回配備と独立本番QAを完了したprogress。今turnもGitHubのmain／CIとPR #96／#84／#85のOPEN・Draftを再確認し、重複実装はなかった。PRDを再読し、本番の公開導線4群・4件／2人のサンプル、非表示の私的導線を再確認した。ブラウザ終了commandのsecondary error1件は残したまま、所有browser・子process・待受の終了を別に確認した。学生価値・実端末の再検証ではない。

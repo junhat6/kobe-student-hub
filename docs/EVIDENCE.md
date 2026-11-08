@@ -631,3 +631,13 @@ base main `d0b4cb7`、main CI成功、PR #96／#84／#85のOPEN・Draftを再確
 新対照のHTTPは一回だけ実行し、405・閉鎖JSON・Cookie／Locationなしを確認。固定窓のdiscovery一queryはCOMPLETED、dry／account／timeframe／semantic echo一致、result／runの明示ABR1でrow／reported countとも0だった。規定どおりrelated query・追加要求・再送は0で終了。HTTP前／query前／終了時のdeployment・version・settingsは一致した。試験本体はmetadata GET6、rootの予備read2は別に記録した。
 
 陽性invocation・実row scan・敏感な入力位置の検査は0であり、0件の原因や秘密情報の非保存は判断できない。独立事後QAはledgerからHTTP段階とquery条件の指紋を再構成し、30確認成立。初回QAの別々のclock値への過剰な同値期待一件は履歴を残し、正しい呼出順・同window内の判定に訂正した。運用結果の変更・追加通信はない。実行結果と有限保持ledgerの指紋をprivate0600に保持し、HTTP／claimのNodeとCloudflare実行cellは終了。local server・Tail・設定変更・配備・SQL・credential／grant作成は0。ledgerの固定24h期限は2026-11-09 13:44:26.830 UTCで、自動削除は未導入、root所有の明示cleanupが必要。[方法・実結果・独立QAと限界](QA-LOG-CONTROL.md)。
+
+## 通常の本人下書き削除 — 実装者検証
+
+base main `d0b4cb7`の通常下書き導線に、選択した一件の確認・CAS DELETE・厳密ACKと結果不明からの明示回復を接続した。実装commit `23db37d`に、code差分のないmain `5c2509c`の4文書更新を通常mergeした。server／schema／fixtureを変更せず、公開snapshotが残ること、在学期間外でも有効sessionの本人整理を許す既存境界を維持する。[受入条件・実装範囲](ORDINARY-DRAFT-DELETION.md)。
+
+実装者の最終build・db:local・deploy dry-run、77files／694unit（19.52秒）、公開62（11.2秒）、auth66（2.4分）が成功。移動警告文に削除も取消不能と追記した後、ordinary30を最終確認した。共有legacy editor4files／32件（50秒）も成功。新規7cases×2画面幅は、取消、strict ACK、競合／不正ACK、commit後ACK欠落、session変更／遅着を含む。実D1のDELETE200・厳密deleted ACK後に別本人read404／list0を確認してからclient応答を503へ置き換え、UIの文章保持とunknown・再送0を両画面幅で実証した。404や一覧不在を削除成功へ変換しない。
+
+初回new browser12件は10成功／2失敗。route.abortで既存guardが表示を隠す挙動へ可視unknownを期待していたため、同session明示再確認後の状態を確認する試験に訂正した。製品のprivacy guardは変更せず、初回失敗を最終成功へ加算していない。最終6画像を実装者が開き、overflowなしを確認。所有runner／browser・観測子processを終了し、8787／8788／8790待受なし。実データ・remote操作・画像公開は0。
+
+別contextの独立QAと新しいCIは進行中で、ここでは成功とは記録しない。実行後のsource指紋・結果・限界と本番反映の有無は対応PRへ残す。通常表示／OAuth／draftのgateはfalse、一般ログイン・投稿・削除の提供は開始していない。
