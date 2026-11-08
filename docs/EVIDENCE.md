@@ -615,3 +615,19 @@ fresh visual reviewの2点だけを通常variantに限定して修正した`cf70
 独立diagnosticで元caseをPC/mobile各1回実行し、全privacy assertionsと各6本のallHeaders、context終了まで成功。9関連ファイルの指紋は両headで一致し、元CIの停止箇所・原因は未確定のままとする。改善はtest-onlyで、段階名、5秒のheader検証、drain中の追加要求を含む明示観測窓、primary errorを覆わないcleanupとした。クリック順序・元assertion・30秒の全体予算、製品code・CI保護・artifactの公開範囲は変更していない。
 
 最終diagnostic source`3976eea`の独立focused6件が成功。private fault5件はすべて意図どおりFAILED／runner exit1で、pending headerは5秒のheader step、Cookie／CSRFと遅い追加batchのCSRFも同stepで失敗した。primary UI失敗＋secondary cleanup失敗では元の失敗を保持した。これらは検出機能の注入試験であり、元CIの再現や原因解明とは扱わない。[独立QAの追補](QA-ORDINARY-DRAFTS.md)。所有runner・context・server子processと8788待受を終了し、製品codeの修正根拠なしを維持した。新headのCIが実際に成功するまでは統合・配備しない。
+
+### 通常下書き接続の最終CI・本番配備
+
+その後、最終head `915b1fc`の[PR CI](https://github.com/junhat6/kobe-student-hub/actions/runs/42479509821)とmain `d0b4cb7`の[CI](https://github.com/junhat6/kobe-student-hub/actions/runs/42480436122)は成功。両runで77files／691unit・Worker、公開62、pilot1、retired8、auth52、editor197成功／既存skip1、types／generated差分／build／localDB／deploy dry-runを確認した。Workerは2026-11-08 12:50:01 UTCに一回配備され、SQL／schema、認証の有効化、収集率・WAF、credential／grant／契約は変更していない。
+
+独立本番QAはPC/mobile18群、公開DTO4件／2人、配信JS/CSS12個のarchive byte一致、copy4、overflow28、閉じた通常route8確認と旧試用2URLの404を確認。12画像を独立担当が開き、rootも代表3画像を確認した。既知beacon CSP拒否10件とunexpected console／page error0を区別した。取得条件によるHTML raw不一致を保持し、現行公式のmodule beacon参照一個とタグ間空白を除くcanonical一致を別に確認した。設定・binding metadata・D1と別プレビューの指紋は不変。所有する一時server／browser・子process・待受は終了した。[配備・独立QAの完了記録](https://github.com/junhat6/kobe-student-hub/pull/106#issuecomment-6721917824)。
+
+## 設定不変の新しい一要求とstored logの相関 — 2026-11-08
+
+base main `d0b4cb7`、main CI成功、PR #96／#84／#85のOPEN・Draftを再確認。PRDを再読し、本番の公開導線4群と4件／2人サンプルを通常ブラウザ操作で再確認した。終了commandのsecondary error1件をrunner exit1のまま保持し、所有browser・子process・待受が終了したことを別に確認。UIのunexpected console／page error0と、helper全体の成功を混同しない。画像3枚を独立担当、うち2枚をrootが開いた。
+
+旧対照の実値は保持資料に残っておらず、同じ検索は再実行しなかった。新しい方法は、querylessな非secret対照一件の完全URLを、二つのURL fieldの単一`in`で取得前から拘束する。独立offline11契約で実通信0のまま方法を確認し、HTTP直前の版・設定照合を実行条件とした。収集率や設定変更、実認証の開放は含めない。
+
+新対照のHTTPは一回だけ実行し、405・閉鎖JSON・Cookie／Locationなしを確認。固定窓のdiscovery一queryはCOMPLETED、dry／account／timeframe／semantic echo一致、result／runの明示ABR1でrow／reported countとも0だった。規定どおりrelated query・追加要求・再送は0で終了。HTTP前／query前／終了時のdeployment・version・settingsは一致した。試験本体はmetadata GET6、rootの予備read2は別に記録した。
+
+陽性invocation・実row scan・敏感な入力位置の検査は0であり、0件の原因や秘密情報の非保存は判断できない。独立事後QAはledgerからHTTP段階とquery条件の指紋を再構成し、30確認成立。初回QAの別々のclock値への過剰な同値期待一件は履歴を残し、正しい呼出順・同window内の判定に訂正した。運用結果の変更・追加通信はない。実行結果と有限保持ledgerの指紋をprivate0600に保持し、HTTP／claimのNodeとCloudflare実行cellは終了。local server・Tail・設定変更・配備・SQL・credential／grant作成は0。ledgerの固定24h期限は2026-11-09 13:44:26.830 UTCで、自動削除は未導入、root所有の明示cleanupが必要。[方法・実結果・独立QAと限界](QA-LOG-CONTROL.md)。
