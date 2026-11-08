@@ -1,3 +1,4 @@
+import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
@@ -90,21 +91,7 @@ beforeAll(async () => {
     }),
   );
   const db = await mf.getD1Database('DB');
-  for (const file of [
-    '0001_discovery.sql',
-    '0002_sample_content.sql',
-    '0003_oauth_attempts.sql',
-    '0004_private_sessions.sql',
-    '0005_private_article_drafts.sql',
-    '0006_article_reports.sql',
-    '0007_article_publications.sql',
-    '0008_article_likes.sql',
-  ])
-    for (const sql of readFileSync('migrations/' + file, 'utf8')
-      .replace(/^--.*$/gm, '')
-      .split(/;\s*(?:\n|$)/)
-      .filter((s) => s.trim()))
-      await db.prepare(sql).run();
+  await applyFixtureMigrations(db);
   for (let n = 0; n < 3; n++)
     await db
       .prepare(

@@ -1,3 +1,4 @@
+import type { EmailDeliverySummary, OwnModerationNotice } from '../src/notification-types';
 import {
   liveStudentSessionSql as writerLive,
   liveStudentSessionBindings as writerBindings,
@@ -90,6 +91,26 @@ function decisionInput(v: unknown): v is DecisionInput {
     text(x.reason, 1000) &&
     !!x.reason.trim() &&
     new TextEncoder().encode(x.reason).byteLength <= 4000
+  );
+}
+const emailColumns = `o.id outboxId,o.content_id contentId,(SELECT CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END FROM content c WHERE c.id=o.content_id) title,o.event,o.report_count reportCount,o.created_at_ms createdAt,CASE WHEN d.state='leased' AND d.lease_until_ms<=? THEN 'unknown' ELSE COALESCE(d.state,'pending') END state,COALESCE(d.attempts,0) attempts,d.retry_command_id retryCommandId`;
+function emailSummary(row: EmailDeliverySummary): boolean {
+  return (
+    idValid(row.outboxId) &&
+    idValid(row.contentId) &&
+    text(row.title, 200) &&
+    ['report_received', 'temporarily_hidden'].includes(row.event) &&
+    Number.isInteger(row.reportCount) &&
+    row.reportCount >= 1 &&
+    row.reportCount <= 3 &&
+    Number.isSafeInteger(row.createdAt) &&
+    row.createdAt >= 0 &&
+    row.createdAt <= 253402300799999 &&
+    ['pending', 'ready', 'leased', 'accepted', 'failed', 'unknown'].includes(row.state) &&
+    Number.isInteger(row.attempts) &&
+    row.attempts >= 0 &&
+    row.attempts <= 3 &&
+    (row.retryCommandId === null || /^[0-9a-f-]{36}$/.test(row.retryCommandId))
   );
 }
 /** Server-private reports and trusted operator decisions. Notification delivery is unconfigured. */
@@ -368,6 +389,111 @@ export class ArticleModerationStore {
         // The receipt query repeats the current authority check in either case.
       }
       return await this.decisionReceipt(p, targetId, input);
+    } catch {
+      return null;
+    }
+  }
+  async emailQueue(request: Request): Promise<EmailDeliverySummary[] | null> {
+    if (request.method !== 'GET') return null;
+    try {
+      const p = await this.operator(request);
+      if (!p) return null;
+      const rows = await this.db
+        .prepare(
+          `SELECT ${emailColumns} FROM article_report_outbox o LEFT JOIN moderation_email_deliveries d ON d.outbox_id=o.id WHERE ${live} ORDER BY o.created_at_ms DESC,o.id DESC LIMIT 20`,
+        )
+        .bind(p.clock(), ...bindings(p))
+        .all<EmailDeliverySummary>();
+      return rows.results.every(emailSummary) &&
+        new TextEncoder().encode(JSON.stringify(rows.results)).byteLength <= 32768
+        ? rows.results
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  private async emailRetryReceipt(
+    p: Proof,
+    outboxId: string,
+    retryId: string,
+  ): Promise<EmailDeliverySummary | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT ${emailColumns} FROM article_report_outbox o JOIN moderation_email_deliveries d ON d.outbox_id=o.id WHERE o.id=? AND d.retry_command_id=? AND ${live}`,
+      )
+      .bind(p.clock(), outboxId, retryId, ...bindings(p))
+      .first<EmailDeliverySummary>();
+    return row && emailSummary(row) ? row : null;
+  }
+  async retryEmail(
+    request: Request,
+    outboxId: unknown,
+    input: unknown,
+  ): Promise<EmailDeliverySummary | null> {
+    if (
+      request.method !== 'POST' ||
+      !idValid(outboxId) ||
+      !input ||
+      typeof input !== 'object' ||
+      Object.getPrototypeOf(input) !== Object.prototype ||
+      Reflect.ownKeys(input).length !== 3 ||
+      !('retryCommandId' in input) ||
+      !('expectedAttempts' in input) ||
+      !('confirmRetry' in input) ||
+      input.confirmRetry !== true ||
+      typeof input.retryCommandId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+        input.retryCommandId,
+      ) ||
+      !Number.isInteger(input.expectedAttempts) ||
+      Number(input.expectedAttempts) < 1 ||
+      Number(input.expectedAttempts) >= 3
+    )
+      return null;
+    try {
+      const p = await this.operator(request);
+      if (!p) return null;
+      const prior = await this.emailRetryReceipt(p, outboxId, input.retryCommandId);
+      if (prior) return prior;
+      await this.db
+        .prepare(
+          `UPDATE moderation_email_deliveries SET state='ready',retry_command_id=?,updated_at_ms=? WHERE outbox_id=? AND state='failed' AND attempts=? AND attempts<3 AND ${live}`,
+        )
+        .bind(input.retryCommandId, p.clock(), outboxId, input.expectedAttempts, ...bindings(p))
+        .run();
+      return await this.emailRetryReceipt(p, outboxId, input.retryCommandId);
+    } catch {
+      return null;
+    }
+  }
+  async ownNotifications(request: Request): Promise<OwnModerationNotice[] | null> {
+    if (request.method !== 'GET') return null;
+    try {
+      const p = await this.sessions.storageAuthorization(request);
+      if (!p) return null;
+      const result = await this.db
+        .prepare(
+          `WITH notices AS (
+        SELECT 'report.'||o.id id,o.content_id contentId,CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END title,'temporarily_hidden' kind,'異なる3人からの通報により、一時非公開になりました。運営が内容を確認します。' reason,o.created_at_ms createdAt FROM article_report_outbox o JOIN article_publications a ON a.content_id=o.content_id JOIN content c ON c.id=o.content_id WHERE a.owner_account_id=? AND o.event='temporarily_hidden'
+        UNION ALL SELECT 'decision.'||o.decision_id,o.content_id,CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END,o.event,CASE WHEN length(d.reason)<=1000 AND length(CAST(d.reason AS BLOB))<=4000 THEN d.reason ELSE NULL END,o.created_at_ms FROM article_moderation_outbox o JOIN article_moderation_decisions d ON d.id=o.decision_id JOIN article_publications a ON a.content_id=o.content_id JOIN content c ON c.id=o.content_id WHERE a.owner_account_id=?
+        ) SELECT id,contentId,title,kind,reason,createdAt FROM notices WHERE ${live} ORDER BY createdAt DESC,id DESC LIMIT 20`,
+        )
+        .bind(p.accountId, p.accountId, ...bindings(p))
+        .all<OwnModerationNotice>();
+      const valid = result.results.every(
+        (row) =>
+          /^(?:report|decision)\.[0-9a-f-]{36}$/.test(row.id) &&
+          idValid(row.contentId) &&
+          text(row.title, 200) &&
+          ['temporarily_hidden', 'restored', 'deleted'].includes(row.kind) &&
+          text(row.reason, 1000) &&
+          Number.isSafeInteger(row.createdAt) &&
+          row.createdAt >= 0 &&
+          row.createdAt <= 253402300799999,
+      );
+      return valid && new TextEncoder().encode(JSON.stringify(result.results)).byteLength <= 131072
+        ? result.results
+        : null;
     } catch {
       return null;
     }

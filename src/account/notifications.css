@@ -1,0 +1,45 @@
+.account-notifications {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #d6e3ed;
+}
+.notification-list {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+}
+.notification-list > li {
+  padding: 16px 0;
+  border-top: 1px solid #d6e3ed;
+  overflow-wrap: anywhere;
+}
+.notification-list button {
+  display: block;
+  max-width: 100%;
+  margin: 12px 0 0;
+  white-space: normal;
+}
+.account-notifications h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.notification-list h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.notification-list p {
+  margin: 8px 0;
+}
+.notification-list time {
+  display: block;
+  color: #596e7d;
+  font-size: 14px;
+}
+.notification-reason {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -1,3 +1,4 @@
+import { validMediaIds } from '../src/shared/media';
 import {
   liveStudentSessionSql as writerLive,
   liveStudentSessionBindings as writerBindings,
@@ -57,6 +58,7 @@ function metadata(value: unknown) {
     'prerequisite',
     'outcome',
     'minutes',
+    'mediaIds',
   ];
   if (
     Reflect.ownKeys(v).some((k) => typeof k !== 'string' || !allowed.includes(k)) ||
@@ -77,6 +79,7 @@ function metadata(value: unknown) {
     v.minutes > 240
   )
     return null;
+  if (Object.hasOwn(v, 'mediaIds') && !validMediaIds(v.mediaIds)) return null;
   const normalized = tags(v.tags);
   if (!normalized) return null;
   const optional: Record<string, string> = {};
@@ -85,6 +88,7 @@ function metadata(value: unknown) {
     optional[key] = (v[key] as string) ?? '';
   }
   return {
+    mediaJson: JSON.stringify(v.mediaIds ?? []),
     expectedVersion: v.expectedVersion,
     summary: v.summary,
     tagsJson: JSON.stringify(normalized),
@@ -232,7 +236,7 @@ export class ArticlePublicationStore {
       const existing = await this.db
         .prepare(
           `SELECT r.content_id FROM article_publications r JOIN private_article_drafts d ON d.id=r.draft_id JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id JOIN content c ON c.id=r.content_id
-    WHERE r.draft_id=? AND r.owner_account_id=? AND d.owner_account_id=r.owner_account_id AND r.public_profile_id=m.public_profile_id AND r.source_version=? AND r.summary=? AND r.tags_json=? AND r.audience=? AND r.prerequisite=? AND r.outcome=? AND r.minutes=? AND r.published_at_ms<=? AND c.kind='article' AND c.status='published' AND c.is_sample=0 AND c.author_id=r.public_profile_id AND ${profileBounds}
+    WHERE r.draft_id=? AND r.owner_account_id=? AND d.owner_account_id=r.owner_account_id AND r.public_profile_id=m.public_profile_id AND r.source_version=? AND r.summary=? AND r.tags_json=? AND r.audience=? AND r.prerequisite=? AND r.outcome=? AND r.minutes=? AND r.media_ids_json=? AND r.published_at_ms<=? AND c.kind='article' AND c.status='published' AND c.is_sample=0 AND c.author_id=r.public_profile_id AND ${profileBounds}
     AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=m.public_profile_id OR private_id.google_subject=m.public_profile_id)
     AND ${writerLive}`,
         )
@@ -246,6 +250,7 @@ export class ArticlePublicationStore {
           m.prerequisite,
           m.outcome,
           m.minutes,
+          m.mediaJson,
           p.nowMs,
           ...writerBindings(p),
         )
@@ -253,11 +258,11 @@ export class ArticlePublicationStore {
       if (existing) return { contentId: existing.content_id };
       const row = await this.db
         .prepare(
-          `INSERT INTO article_publications(content_id,owner_account_id,draft_id,public_profile_id,source_version,summary,tags_json,audience,prerequisite,outcome,minutes,published_at_ms)
-    SELECT ?,d.owner_account_id,d.id,m.public_profile_id,d.version,?,?,?,?,?,?,? FROM private_article_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id
+          `INSERT INTO article_publications(content_id,owner_account_id,draft_id,public_profile_id,source_version,summary,tags_json,audience,prerequisite,outcome,minutes,published_at_ms,media_ids_json)
+    SELECT ?,d.owner_account_id,d.id,m.public_profile_id,d.version,?,?,?,?,?,?,?,? FROM private_article_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id
     WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND length(trim(d.title,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND length(d.title)<=200 AND instr(d.title,char(0))=0 AND length(CAST(d.title AS BLOB))<=800 AND length(trim(d.body,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND instr(d.body,char(0))=0 AND length(CAST(d.body AS BLOB))<=262144 AND ${profileBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=m.public_profile_id OR private_id.google_subject=m.public_profile_id)
     AND ${writerLive}
-    ON CONFLICT(draft_id) DO UPDATE SET content_id=article_publications.content_id WHERE article_publications.owner_account_id=excluded.owner_account_id AND article_publications.public_profile_id=excluded.public_profile_id AND article_publications.source_version=excluded.source_version AND article_publications.summary=excluded.summary AND article_publications.tags_json=excluded.tags_json AND article_publications.audience=excluded.audience AND article_publications.prerequisite=excluded.prerequisite AND article_publications.outcome=excluded.outcome AND article_publications.minutes=excluded.minutes AND EXISTS(SELECT 1 FROM content c WHERE c.id=article_publications.content_id AND c.author_id=article_publications.public_profile_id AND c.kind='article' AND c.status='published' AND c.is_sample=0) RETURNING content_id`,
+    ON CONFLICT(draft_id) DO UPDATE SET content_id=article_publications.content_id WHERE article_publications.owner_account_id=excluded.owner_account_id AND article_publications.public_profile_id=excluded.public_profile_id AND article_publications.source_version=excluded.source_version AND article_publications.summary=excluded.summary AND article_publications.tags_json=excluded.tags_json AND article_publications.audience=excluded.audience AND article_publications.prerequisite=excluded.prerequisite AND article_publications.outcome=excluded.outcome AND article_publications.minutes=excluded.minutes AND article_publications.media_ids_json=excluded.media_ids_json AND EXISTS(SELECT 1 FROM content c WHERE c.id=article_publications.content_id AND c.author_id=article_publications.public_profile_id AND c.kind='article' AND c.status='published' AND c.is_sample=0) RETURNING content_id`,
         )
         .bind(
           crypto.randomUUID(),
@@ -268,6 +273,7 @@ export class ArticlePublicationStore {
           m.outcome,
           m.minutes,
           p.nowMs,
+          m.mediaJson,
           id,
           p.accountId,
           m.expectedVersion,

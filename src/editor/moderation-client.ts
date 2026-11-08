@@ -1,3 +1,4 @@
+import type { EmailDeliverySummary, OwnModerationNotice } from '../notification-types';
 import { proofAuthorization } from '../shared/auth-proof';
 export interface ReportInput {
   reason: string;
@@ -37,6 +38,11 @@ export interface ModerationDecisionReceipt {
   resultRound: number;
   resultVersion: number;
   notification: 'pending';
+}
+export interface EmailRetryInput {
+  retryCommandId: string;
+  expectedAttempts: number;
+  confirmRetry: true;
 }
 export class ModerationClientError extends Error {
   constructor(readonly kind: 'authentication' | 'unavailable' = 'unavailable') {
@@ -156,10 +162,57 @@ function decisionState(value: unknown, targetId: string): value is ModerationDec
   );
 }
 /** Existing-cookie transport only. Never creates an identity or retries a report automatically. */
+function emailSummary(v: unknown): v is EmailDeliverySummary {
+  return (
+    keys(v, [
+      'outboxId',
+      'contentId',
+      'title',
+      'event',
+      'reportCount',
+      'createdAt',
+      'state',
+      'attempts',
+      'retryCommandId',
+    ]) &&
+    id(v.outboxId) &&
+    id(v.contentId) &&
+    text(v.title, 200) &&
+    typeof v.event === 'string' &&
+    ['report_received', 'temporarily_hidden'].includes(v.event) &&
+    Number.isInteger(v.reportCount) &&
+    Number(v.reportCount) >= 1 &&
+    Number(v.reportCount) <= 3 &&
+    time(v.createdAt) &&
+    typeof v.state === 'string' &&
+    ['pending', 'ready', 'leased', 'accepted', 'failed', 'unknown'].includes(v.state) &&
+    Number.isInteger(v.attempts) &&
+    Number(v.attempts) >= 0 &&
+    Number(v.attempts) <= 3 &&
+    (v.retryCommandId === null ||
+      (typeof v.retryCommandId === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          v.retryCommandId,
+        )))
+  );
+}
+function ownNotice(v: unknown): v is OwnModerationNotice {
+  return (
+    keys(v, ['id', 'contentId', 'title', 'kind', 'reason', 'createdAt']) &&
+    typeof v.id === 'string' &&
+    /^(?:report|decision)\.[0-9a-f-]{36}$/.test(v.id) &&
+    id(v.contentId) &&
+    text(v.title, 200) &&
+    typeof v.kind === 'string' &&
+    ['temporarily_hidden', 'restored', 'deleted'].includes(v.kind) &&
+    text(v.reason, 1000) &&
+    time(v.createdAt)
+  );
+}
 export function createModerationClient(fetcher: typeof fetch = fetch) {
   async function request(
     path: string,
-    body?: ReportInput | ModerationDecisionInput,
+    body?: ReportInput | ModerationDecisionInput | EmailRetryInput,
     csrfToken?: string,
   ): Promise<unknown> {
     const controller = new AbortController();
@@ -286,6 +339,59 @@ export function createModerationClient(fetcher: typeof fetch = fetch) {
       )
         throw new ModerationClientError();
       return result as ModerationSummary[];
+    },
+    async ownNotifications(): Promise<OwnModerationNotice[]> {
+      const value = await request('/api/private/notifications');
+      if (
+        !Array.isArray(value) ||
+        value.length > 20 ||
+        !value.every(ownNotice) ||
+        new Set(value.map((v) => v.id)).size !== value.length
+      )
+        throw new ModerationClientError();
+      return value;
+    },
+    async emailQueue(): Promise<EmailDeliverySummary[]> {
+      const value = await request('/api/private/moderation/notifications');
+      if (
+        !Array.isArray(value) ||
+        value.length > 20 ||
+        !value.every(emailSummary) ||
+        new Set(value.map((v) => v.outboxId)).size !== value.length
+      )
+        throw new ModerationClientError();
+      return value;
+    },
+    async retryEmail(
+      outboxId: string,
+      input: EmailRetryInput,
+      csrfToken: string,
+    ): Promise<EmailDeliverySummary> {
+      if (
+        !id(outboxId) ||
+        !keys(input, ['retryCommandId', 'expectedAttempts', 'confirmRetry']) ||
+        input.confirmRetry !== true ||
+        !Number.isInteger(input.expectedAttempts) ||
+        input.expectedAttempts < 1 ||
+        input.expectedAttempts >= 3 ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+          input.retryCommandId,
+        ) ||
+        !/^[A-Za-z0-9_-]{43}$/.test(csrfToken)
+      )
+        throw new ModerationClientError();
+      const value = await request(
+        '/api/private/moderation/notifications/' + outboxId + '/retry',
+        input,
+        csrfToken,
+      );
+      if (
+        !emailSummary(value) ||
+        value.outboxId !== outboxId ||
+        value.retryCommandId !== input.retryCommandId
+      )
+        throw new ModerationClientError();
+      return value;
     },
     async readCase(targetId: string): Promise<ModerationCase> {
       if (!id(targetId)) throw new ModerationClientError();

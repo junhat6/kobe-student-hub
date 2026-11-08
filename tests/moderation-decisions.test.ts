@@ -185,6 +185,11 @@ beforeAll(async () => {
   legacyEvents = (await db.prepare('SELECT * FROM article_report_outbox ORDER BY id').all())
     .results;
   await db.batch(migration().map((sql) => db.prepare(sql)));
+  await db.batch(
+    statements(readFileSync('migrations/0020_private_images.sql', 'utf8')).map((sql) =>
+      db.prepare(sql),
+    ),
+  );
   users = await Promise.all(['0', '1', '2', '3'].map(signIn));
   operator = await signIn('operator');
   expect(

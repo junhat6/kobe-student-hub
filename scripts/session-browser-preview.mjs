@@ -3,7 +3,7 @@ import { build as viteBuild } from 'vite';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { enrollmentWindow } from '../src/shared/enrollment.ts';
 await viteBuild({
   configFile: resolve('vite.config.ts'),
@@ -25,7 +25,7 @@ await build({
   bundle: true,
   format: 'esm',
   platform: 'browser',
-  loader: { '.sql': 'text' },
+  loader: { '.sql': 'text', '.wasm': 'copy' },
 });
 await build({
   entryPoints: ['tests/helpers/google-fixtures.ts'],
@@ -89,8 +89,12 @@ const control = async (r) => {
 };
 mf = new Miniflare(
   convertV4MiniflareOptions({
-    modules: true,
-    scriptPath: '.worker/session-browser.js',
+    modules: [
+      { type: 'ESModule', path: '.worker/session-browser.js' },
+      ...readdirSync('.worker')
+        .filter((name) => name.endsWith('.wasm'))
+        .map((name) => ({ type: 'CompiledWasm', path: '.worker/' + name })),
+    ],
     compatibilityDate: '2026-11-03',
     host: '127.0.0.1',
     port: 8790,
@@ -160,6 +164,8 @@ for (const f of [
   '0016_self_declared_enrollment.sql',
   '0017_self_registration.sql',
   '0018_article_moderation_decisions.sql',
+  '0019_moderation_notifications.sql',
+  '0020_private_images.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

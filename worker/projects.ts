@@ -1,3 +1,4 @@
+import { validMediaIds } from '../src/shared/media';
 import {
   liveStudentSessionSql as writerLive,
   liveStudentSessionBindings as writerBindings,
@@ -37,6 +38,7 @@ type Row = {
   updated_at_ms: number;
   source_version: number;
   published_at_ms: number;
+  media_ids_json: string;
   author_id: string;
   display_name: string;
   department: string;
@@ -227,9 +229,13 @@ export class ProjectStore {
     if (
       req.method !== 'POST' ||
       !uuid(id) ||
-      !exact(input, ['expectedVersion', 'confirmPublic']) ||
+      !(
+        exact(input, ['expectedVersion', 'confirmPublic']) ||
+        exact(input, ['expectedVersion', 'confirmPublic', 'mediaIds'])
+      ) ||
       !version(input.expectedVersion) ||
-      input.confirmPublic !== true
+      input.confirmPublic !== true ||
+      (Object.hasOwn(input, 'mediaIds') && !validMediaIds(input.mediaIds))
     )
       return null;
     try {
@@ -251,7 +257,8 @@ export class ProjectStore {
         const decoded = decodeProjectSnapshot(replay);
         return decoded &&
           version(replay.source_version) &&
-          replay.source_version === input.expectedVersion
+          replay.source_version === input.expectedVersion &&
+          replay.media_ids_json === JSON.stringify(input.mediaIds ?? [])
           ? { projectId: replay.id }
           : null;
       }
@@ -263,11 +270,12 @@ export class ProjectStore {
         return null;
       const r = await this.db
         .prepare(
-          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,?,'published' FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
+          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status,media_ids_json) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,?,'published',? FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
         )
         .bind(
           crypto.randomUUID(),
           p.nowMs,
+          JSON.stringify(input.mediaIds ?? []),
           id,
           p.accountId,
           input.expectedVersion,
@@ -283,7 +291,8 @@ export class ProjectStore {
       const existing = await this.receiptRow(p, id);
       return existing &&
         decodeProjectSnapshot(existing) &&
-        existing.source_version === input.expectedVersion
+        existing.source_version === input.expectedVersion &&
+        existing.media_ids_json === JSON.stringify(input.mediaIds ?? [])
         ? { projectId: existing.id }
         : null;
     } catch {

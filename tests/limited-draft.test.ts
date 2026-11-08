@@ -84,7 +84,7 @@ async function login(subject = 'fictional-google-subject', extra = {}) {
 }
 async function newSession() {
   const r = await login();
-  expect(r.response.headers.get('Location')).toBe(O + '/');
+  expect(r.response.headers.get('Location')).toBe(O + '/#');
   const check = await req('/api/private/session', 'GET', { Cookie: r.cookie });
   expect(check.status).toBe(200);
   return { cookie: r.cookie, csrf: ((await check.json()) as { csrfToken: string }).csrfToken };

@@ -1,3 +1,4 @@
+import { workerModules } from './helpers/worker-modules';
 import { applySelfRegistrationSchema } from './helpers/order-schema';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
@@ -91,8 +92,7 @@ beforeAll(async () => {
   signer = await googleFixture();
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/oauth-http-test.js',
+      modules: workerModules('.worker/oauth-http-test.js'),
       compatibilityDate: '2026-11-03',
       d1Databases: ['DB'],
       outboundService: async (r) => {
@@ -151,7 +151,7 @@ it('preserves newer B after stale A callback and completes B using the updated c
 });
 function clean(r: Awaited<ReturnType<typeof call>>) {
   expect(r.status).toBe(303);
-  expect(r.headers.get('Location')).toBe(O + '/');
+  expect(r.headers.get('Location')).toBe(O + '/#');
   for (const [k, v] of Object.entries({
     'Cache-Control': 'private, no-store',
     Vary: 'Cookie',

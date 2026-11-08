@@ -21,6 +21,18 @@ type Inventory = {
   public?: Record<string, number>;
 };
 const inventory: Record<string, Inventory> = {
+  media: {
+    className: 'MediaStore',
+    private: {
+      authorizeUpload: ['student'],
+      upload: ['student', 'student'],
+      list: ['base', 'base'],
+      readOwn: ['base'],
+      remove: ['base'],
+      cleanup: ['student'],
+    },
+    public: { readPublic: 1 },
+  },
   drafts: {
     className: 'PrivateDraftStore',
     private: {
@@ -73,6 +85,10 @@ const inventory: Record<string, Inventory> = {
       decisionState: ['base'],
       decisionReceipt: ['base'],
       decide: ['base'],
+      emailQueue: ['base'],
+      emailRetryReceipt: ['base'],
+      retryEmail: ['base'],
+      ownNotifications: ['base'],
     },
   },
   'project-reports': {
@@ -424,16 +440,16 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 43 private SQL sites (27 base, 15 student, one explicit choice) and 12 public sites', () => {
+  it('inventory is exactly 55 private SQL sites (35 base, 19 student, one explicit choice) and 13 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(43);
-    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(27);
-    expect(guards.filter((guard) => guard === 'student')).toHaveLength(15);
+    expect(guards).toHaveLength(55);
+    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(35);
+    expect(guards.filter((guard) => guard === 'student')).toHaveLength(19);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)
         .flatMap((item) => Object.values(item.public ?? {}))
         .reduce((a, b) => a + b, 0),
-    ).toBe(12);
+    ).toBe(13);
   });
 });

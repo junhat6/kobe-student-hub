@@ -1,5 +1,11 @@
 import { pendingPilotPage } from './auth/pending-pilot-ui';
 import { createOrdinaryDraftHandler } from './ordinary-drafts-http';
+import {
+  dispatchModerationEmails,
+  moderationEmailOptions,
+  type ModerationEmailBindings,
+} from './moderation-email';
+import { warmMediaCodec } from './media';
 import { createEnrollmentHandler } from './enrollment-http';
 import { parseModerationOperators, type ModerationBindings } from './moderation-http';
 import { createOAuthHttpHandler, type OAuthBindings } from './auth/oauth-http';
@@ -9,6 +15,8 @@ import type { Catalog, Entry, Profile } from '../src/types';
 // General login remains closed; the explicit private pilot permits pending receipt only.
 const OAUTH_HTTP_RELEASE_ENABLED = false;
 const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = false;
+// Pure module/codec setup belongs to isolate startup, not the first image request.
+if (OAUTH_HTTP_RELEASE_ENABLED && ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) await warmMediaCodec();
 const app = new Hono<{ Bindings: Env }>();
 app.use(
   '*',
@@ -17,8 +25,9 @@ app.use(
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: ["'self'"],
+      frameSrc: ['https://www.youtube-nocookie.com'],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
       baseUri: ["'none'"],
@@ -147,6 +156,15 @@ interface ProfileRow {
 // Hono's onError handles Error instances; bindings can reject with any JavaScript value.
 // Keep that value opaque, including cross-realm Errors, and never hand it to a logger.
 export default {
+  async scheduled(_event, env, ctx) {
+    if (!OAUTH_HTTP_RELEASE_ENABLED || !ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) return;
+    if (!parseModerationOperators(env as Env & ModerationBindings).length) return;
+    const options = moderationEmailOptions(
+      env as Env & ModerationEmailBindings,
+      (env as Env & OAuthBindings).AUTH_ORIGIN ?? '',
+    );
+    if (options) ctx.waitUntil(dispatchModerationEmails(env.DB, options));
+  },
   async fetch(request: Request, env: Env, ctx?: ExecutionContext) {
     try {
       return await app.fetch(request, env, ctx);
@@ -160,7 +178,7 @@ export default {
             'Cache-Control': 'private, no-store',
             Vary: 'Cookie',
             'Content-Security-Policy':
-              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
             'Cross-Origin-Resource-Policy': 'same-origin',
             'Cross-Origin-Opener-Policy': 'same-origin',
             'Origin-Agent-Cluster': '?1',

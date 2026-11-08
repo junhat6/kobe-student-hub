@@ -30,10 +30,14 @@ const stamp = (n: number) =>
 export function ModerationCases({
   fetcher,
   decisions = false,
+  initialCaseId,
+  notifications = false,
   onRiskChange,
 }: {
   fetcher: typeof fetch;
   decisions?: boolean;
+  initialCaseId?: string | null;
+  notifications?: boolean;
   onRiskChange?: (risk: boolean) => void;
 }) {
   const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
@@ -53,6 +57,7 @@ export function ModerationCases({
   } | null>(null);
   const [decisionBusy, setDecisionBusy] = useState(false);
   const risk = useRef(false);
+  const openedInitialCase = useRef<string | null>(null);
   const riskChange = useCallback(
     (value: boolean) => {
       risk.current = value;
@@ -166,8 +171,12 @@ export function ModerationCases({
     riskChange(false);
     setMessage(
       value.action === 'restore'
-        ? '復元の判断記録を確認しました。通知の送信は未設定です。'
-        : '公開表示から削除する判断記録を確認しました。本文と通報記録は保持されています。通知の送信は未設定です。',
+        ? notifications
+          ? '復元の判断記録を確認しました。本人のお知らせ欄で理由を確認できます。'
+          : '復元の判断記録を確認しました。通知の送信は未設定です。'
+        : notifications
+          ? '公開表示から削除する判断記録を確認しました。本人のお知らせ欄で理由を確認できます。'
+          : '公開表示から削除する判断記録を確認しました。本文と通報記録は保持されています。通知の送信は未設定です。',
     );
     try {
       const next = await client.queue();
@@ -193,6 +202,19 @@ export function ModerationCases({
       lock.current = false;
     };
   }, [client]);
+  useEffect(() => {
+    if (
+      !initialCaseId ||
+      !/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(initialCaseId) ||
+      openedInitialCase.current === initialCaseId ||
+      cases === null ||
+      busy ||
+      decisionBusy
+    )
+      return;
+    openedInitialCase.current = initialCaseId;
+    void read(initialCaseId);
+  }, [initialCaseId, cases, busy, decisionBusy]);
   return (
     <>
       <p className="moderation-message" aria-live="polite" aria-atomic="true">
@@ -238,7 +260,11 @@ export function ModerationCases({
               <p>対象：{receipt.title}</p>
               <h3>判断の理由</h3>
               <p className="moderation-plain-text">{receipt.value.reason}</p>
-              <p>通知は未送信です。現在の状態は案件一覧を再取得して確認できます。</p>
+              <p>
+                {notifications
+                  ? '本人のお知らせ欄に説明を記録しました。メールの受理・到達とは別の記録です。'
+                  : '通知は未送信です。現在の状態は案件一覧を再取得して確認できます。'}
+              </p>
             </section>
           )}
           {detail ? (
@@ -251,9 +277,11 @@ export function ModerationCases({
                 通報 {detail.reportCount}件 · 最終受付 {stamp(detail.latestReportAt)}
               </p>
               <div className="moderation-notification">
-                {decisions
-                  ? '通知の送信は未設定です。ここで判断しても、メール送信済みとは扱いません。'
-                  : '通知は確認待ちとして扱います。この画面からメール送信や運営判断は行いません。'}
+                {notifications
+                  ? '判断の理由は本人のお知らせ欄に表示します。通報メールの状態は下の配送欄で確認できます。'
+                  : decisions
+                    ? '通知の送信は未設定です。ここで判断しても、メール送信済みとは扱いません。'
+                    : '通知は確認待ちとして扱います。この画面からメール送信や運営判断は行いません。'}
               </div>
               <ol className="moderation-reports">
                 {detail.reports.map((report, index) => (
@@ -279,6 +307,7 @@ export function ModerationCases({
                 <ModerationDecision
                   key={detail.contentId + ':' + decisionState.round + ':' + decisionState.version}
                   client={client}
+                  notifications={notifications}
                   detail={detail}
                   state={decisionState}
                   onResolved={(value) => void resolved(value)}

@@ -1,5 +1,6 @@
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { proofAuthorization } from '../shared/auth-proof';
+import { validMediaIds } from '../shared/media';
 import type { Entry, Profile } from '../types';
 import type { EditorDraft } from './draft-client';
 import type { PublicProfile } from './profile-client';
@@ -279,14 +280,22 @@ export function createPublicationClient(
       version: number,
       value: PublicationMetadata,
       confirmed: boolean,
+      mediaIds: string[] = [],
     ): Promise<string> {
       const metadata = checkedMetadata(value);
-      if (!confirmed || !Number.isSafeInteger(version) || version < 1 || !metadata)
+      if (
+        !confirmed ||
+        !Number.isSafeInteger(version) ||
+        version < 1 ||
+        !metadata ||
+        !validMediaIds(mediaIds)
+      )
         throw new PublicationClientError();
       const result = await request(privatePath(id), {
         expectedVersion: version,
         confirmPublic: true,
         ...metadata,
+        ...(mediaIds.length ? { mediaIds } : {}),
       });
       if (!keys(result, ['contentId']) || !uuid(result.contentId))
         throw new PublicationClientError();

@@ -1,6 +1,30 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
+
+test('a rejected callback removes query credentials and a browser-only fragment before opening account', async ({
+  page,
+}) => {
+  const callbacks: string[] = [];
+  page.on('response', (response) => {
+    if (new URL(response.url()).pathname === '/api/auth/callback')
+      callbacks.push(response.headers()['location']);
+  });
+  await page.goto(
+    '/api/auth/callback?error=access_denied&state=synthetic-private-state#synthetic-private-fragment',
+  );
+  await expect(page).toHaveURL(ORIGIN + '/account');
+  expect(callbacks).toEqual([ORIGIN + '/account#']);
+  expect(await page.locator('body').innerText()).not.toMatch(/synthetic-private/);
+  expect(
+    await page.evaluate(() => [
+      location.search,
+      location.hash,
+      localStorage.length,
+      sessionStorage.length,
+    ]),
+  ).toEqual(['', '', 0, 0]);
+});
 const A = 'fictional-browser-a',
   B = 'fictional-browser-b';
 const registerPath = '**/api/auth/register';

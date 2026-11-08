@@ -64,13 +64,13 @@ async function setup(browser: Browser, reports = 3) {
   }
   return { id, title, reporters, contexts };
 }
-async function operator(page: Page) {
+async function operator(page: Page, destination = '/moderation') {
   expect(
     (
       await page.request.post('/__fixture/operator-session', { headers: { Origin: ORIGIN } })
     ).status(),
   ).toBe(200);
-  await page.goto('/moderation');
+  await page.goto(destination);
   await expect(
     page.getByText('セッションと運営権限を確認しました。各判断でもサーバーが権限を確認します。', {
       exact: true,
@@ -137,11 +137,11 @@ test('ordinary operator reviews a case, explicitly restores, receives a new repo
       '削除の記録を確認しました',
     );
     await expect(page.getByRole('region', { name: '判断結果', exact: true })).toContainText(
-      '通知は未送信',
+      '本人のお知らせ欄に説明を記録しました',
     );
     expect(posts).toBe(2);
     await page.screenshot({
-      path: info.outputPath('02-deleted-pending-notification.png'),
+      path: info.outputPath('02-deleted-author-notice.png'),
       fullPage: true,
     });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -279,6 +279,44 @@ test('a new decision round with the same status and count rejects old case detai
     expect(caseRequested).toBe(true);
     expect(stateReads).toBe(2);
     expect(posts).toBe(0);
+  } finally {
+    await Promise.all(target.contexts.map((ctx) => ctx.close()));
+  }
+});
+
+test('protected email link selects its case only after operator verification and exposes pending delivery separately', async ({
+  page,
+  browser,
+}, info) => {
+  const target = await setup(browser);
+  try {
+    let decisions = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().endsWith('/decision')) decisions++;
+    });
+    await operator(page, '/moderation?case=' + target.id);
+    await expect(
+      page
+        .getByRole('region', { name: '選択した通報内容', exact: true })
+        .getByRole('heading', { name: target.title, exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel('判断の理由 必須', { exact: true })).toHaveValue('');
+    expect(decisions).toBe(0);
+    const mail = page.getByRole('region', { name: '運営メールの配送', exact: true });
+    await mail.getByRole('button', { name: '配送状態を確認', exact: true }).click();
+    const selected = mail
+      .locator('li')
+      .filter({ has: page.locator('a[href="/moderation?case=' + target.id + '"]') });
+    await expect(selected).toHaveCount(3);
+    await expect(selected.filter({ hasText: '送信待ち' })).toHaveCount(3);
+    await expect(
+      mail.getByRole('button', { name: 'この未受理通知の再送を確認', exact: true }),
+    ).toHaveCount(0);
+    expect(decisions).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({ path: info.outputPath('notifications-operator.png'), fullPage: true });
   } finally {
     await Promise.all(target.contexts.map((ctx) => ctx.close()));
   }

@@ -1,3 +1,4 @@
+import { workerModules } from './helpers/worker-modules';
 import { applySelfRegistrationSchema } from './helpers/order-schema';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
@@ -108,7 +109,7 @@ async function callback(a: Awaited<ReturnType<typeof start>>, suffix = '') {
 function clean(r: HttpResponse, _cleared = false) {
   privacy(r);
   expect(r.status).toBe(303);
-  expect(r.headers.get('Location')).toBe(O + '/');
+  expect(r.headers.get('Location')).toBe(O + '/#');
   expect(
     cookies(r).some((c) => c.startsWith('__Host-kobe-oauth=;') && c.includes('Max-Age=0')),
   ).toBe(false);
@@ -124,8 +125,7 @@ beforeAll(async () => {
   fixture = await googleFixture();
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/oauth-http-test.js',
+      modules: workerModules('.worker/oauth-http-test.js'),
       compatibilityDate: '2026-11-03',
       d1Databases: ['DB'],
       outboundService: async (r) => {
@@ -217,6 +217,27 @@ it('defaults disabled and refuses malformed config before any attempt or exchang
     expect(r.status).toBe(503);
   }
   expect(await count('oauth_attempts')).toBe(before);
+});
+
+it('cleans normal GET callback credentials even when configuration or proof headers are invalid', async () => {
+  const before = await count('oauth_attempts'),
+    calls = exchanges;
+  for (const bindings of [{}, { ...config, AUTH_ORIGIN: 'https://other.example.test' }, config]) {
+    const response = await request(
+      '/api/auth/callback?code=PRIVATE_CODE&state=PRIVATE_STATE',
+      'GET',
+      { 'X-CSRF-Token': 'legacy-proof' },
+      { bindings, forbidDb: true },
+    );
+    privacy(response);
+    expect(response.status).toBe(303);
+    const destination = response.headers.get('Location')!;
+    expect(destination).toBe(bindings === config ? O + '/#' : '/#');
+    expect(await response.text()).toBe('');
+    expect(cookies(response)).toHaveLength(0);
+  }
+  expect(await count('oauth_attempts')).toBe(before);
+  expect(exchanges).toBe(calls);
 });
 it('starts distinct cryptographic purposes only through same-origin POST without reflecting payloads', async () => {
   const login = await start(),

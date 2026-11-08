@@ -12,18 +12,32 @@ import { normalizeProjectFields } from '../project-input';
 import { createProjectClient, sameProjectFields } from './project-client';
 import { createProfileClient, type PublicProfile } from './profile-client';
 import './project.css';
+import MarkdownRenderer from '../MarkdownRenderer';
+import MediaAttachments from './MediaAttachments';
+import MediaPublicationPreview from './MediaPublicationPreview';
+import { referencedMediaIds } from '../shared/media';
 const empty: ProjectFields = { title: '', description: '', githubUrl: '', demoUrl: '' };
 export function ProjectText({
   value,
   showTitle = true,
+  privateMedia,
+  surface = 'lab',
 }: {
   value: ProjectFields;
   showTitle?: boolean;
+  privateMedia?: { fetcher: typeof fetch; scopeKey: string };
+  surface?: PublicSurface;
 }) {
   return (
     <div className="project-text">
       {showTitle && <h3>{value.title}</h3>}
-      <p className="project-description">{value.description}</p>
+      {surface === 'ordinary' ? (
+        <div className="project-description">
+          <MarkdownRenderer body={value.description} privateMedia={privateMedia} />
+        </div>
+      ) : (
+        <p className="project-description">{value.description}</p>
+      )}
       {(['githubUrl', 'demoUrl'] as const).map(
         (key) =>
           value[key] && (
@@ -61,8 +75,11 @@ export default function ProjectRegistration({
     [list, setList] = useState<ProjectDraftSummary[]>([]),
     [listFailed, setListFailed] = useState(false),
     [candidate, setCandidate] = useState<ProjectDraft | null>(null),
-    [busy, setBusy] = useState(false),
+    [workBusy, setBusy] = useState(false),
     [message, setMessage] = useState('');
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaUncertain, setMediaUncertain] = useState(false);
+  const busy = workBusy || mediaBusy;
   const [createUnknown, setCreateUnknown] = useState(false),
     [saveUnknown, setSaveUnknown] = useState(false),
     [pubUnknown, setPubUnknown] = useState(false),
@@ -75,8 +92,12 @@ export default function ProjectRegistration({
   const dirty = saved
     ? !normalized || !sameProjectFields(saved, normalized)
     : Object.values(input).some(Boolean);
-  const publishable = Boolean(saved?.title.trim() && saved?.description.trim());
-  const hasUnsaved = dirty || createUnknown || saveUnknown || pubUnknown;
+  const publishable = Boolean(
+    saved?.title.trim() &&
+    saved?.description.trim() &&
+    referencedMediaIds(saved.description).length <= 8,
+  );
+  const hasUnsaved = dirty || createUnknown || saveUnknown || pubUnknown || mediaUncertain;
   useLayoutEffect(
     () => onNavigationRiskChange?.(hasUnsaved || busy),
     [hasUnsaved, busy, onNavigationRiskChange],
@@ -291,7 +312,12 @@ export default function ProjectRegistration({
     setReady(false);
     await run(async (signal, g) => {
       try {
-        const id = await client.publish(source.id, source.version, signal);
+        const id = await client.publish(
+          source.id,
+          source.version,
+          signal,
+          referencedMediaIds(source.description),
+        );
         if (current(g)) {
           setPublished({ id, version: source.version });
           setPubUnknown(false);
@@ -413,7 +439,11 @@ export default function ProjectRegistration({
       {candidate && (
         <section className="project-comparison" aria-label="比較用の作品保存版">
           <h3>保存済みの版 {candidate.version}（比較用）</h3>
-          <ProjectText value={candidate} />
+          <ProjectText
+            value={candidate}
+            surface={surface}
+            privateMedia={{ fetcher, scopeKey: csrfToken }}
+          />
           <Button disabled={busy} onClick={openCandidate}>
             この保存版を開く
           </Button>
@@ -427,7 +457,31 @@ export default function ProjectRegistration({
       {saved && (
         <section className="project-saved" aria-label="公開前の作品保存版">
           <h3>現在の保存版 {saved.version}</h3>
-          <ProjectText value={saved} />
+          <ProjectText
+            value={saved}
+            surface={surface}
+            privateMedia={{ fetcher, scopeKey: csrfToken }}
+          />
+          {surface === 'ordinary' && (
+            <MediaAttachments
+              key={saved.id + csrfToken}
+              kind="projects"
+              draft={saved}
+              csrfToken={csrfToken}
+              fetcher={fetcher}
+              disabled={workBusy}
+              onBusy={setMediaBusy}
+              onUncertain={setMediaUncertain}
+              onInsert={(text) =>
+                setInput((old) => ({ ...old, description: old.description + text }))
+              }
+            />
+          )}
+          <MediaPublicationPreview
+            body={saved.description}
+            fetcher={fetcher}
+            scopeKey={csrfToken}
+          />
           <Button disabled={busy} onClick={() => void inspect(saved.id)}>
             保存済みの作品を確認
           </Button>
@@ -481,7 +535,7 @@ export default function ProjectRegistration({
           {receipt && (
             <section aria-label="作品の公開記録">
               <h4>公開記録の版 {receipt.sourceVersion}</h4>
-              <ProjectText value={receipt.project} />
+              <ProjectText value={receipt.project} surface={surface} />
             </section>
           )}
           {published && (

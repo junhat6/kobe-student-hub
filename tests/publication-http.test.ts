@@ -1,3 +1,5 @@
+import { workerModules } from './helpers/worker-modules';
+import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
@@ -77,27 +79,13 @@ async function count() {
 beforeAll(async () => {
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/publication-http-test.js',
+      modules: workerModules('.worker/publication-http-test.js'),
       compatibilityDate: '2026-11-03',
       d1Databases: ['DB'],
     }),
   );
   const db = await mf.getD1Database('DB');
-  for (const file of [
-    '0001_discovery.sql',
-    '0002_sample_content.sql',
-    '0003_oauth_attempts.sql',
-    '0004_private_sessions.sql',
-    '0005_private_article_drafts.sql',
-    '0006_article_reports.sql',
-    '0007_article_publications.sql',
-  ])
-    for (const sql of readFileSync('migrations/' + file, 'utf8')
-      .replace(/^--.*$/gm, '')
-      .split(/;\s*(?:\n|$)/)
-      .filter((s) => s.trim()))
-      await db.prepare(sql).run();
+  await applyFixtureMigrations(db);
   for (let n = 0; n < 4; n++)
     await db
       .prepare(

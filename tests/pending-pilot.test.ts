@@ -1,3 +1,4 @@
+import { workerModules } from './helpers/worker-modules';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
@@ -82,8 +83,7 @@ beforeAll(async () => {
   fixture = await googleFixture();
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/oauth-http-test.js',
+      modules: workerModules('.worker/oauth-http-test.js'),
       compatibilityDate: '2026-11-03',
       d1Databases: ['DB'],
       outboundService: async (r) => {

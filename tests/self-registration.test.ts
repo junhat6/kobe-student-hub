@@ -96,7 +96,7 @@ async function finish(attempt: Start, extra: Record<string, unknown> = {}) {
     extra,
   );
   expect(response.status).toBe(303);
-  expect(response.headers.get('Location')).toBe(O + '/');
+  expect(response.headers.get('Location')).toBe(O + '/#');
   expect(response.headers.get('Cache-Control')).toBe('private, no-store');
   return response;
 }
