@@ -641,3 +641,17 @@ base main `d0b4cb7`の通常下書き導線に、選択した一件の確認・C
 初回new browser12件は10成功／2失敗。route.abortで既存guardが表示を隠す挙動へ可視unknownを期待していたため、同session明示再確認後の状態を確認する試験に訂正した。製品のprivacy guardは変更せず、初回失敗を最終成功へ加算していない。最終6画像を実装者が開き、overflowなしを確認。所有runner／browser・観測子processを終了し、8787／8788／8790待受なし。実データ・remote操作・画像公開は0。
 
 別contextの独立QAと新しいCIは進行中で、ここでは成功とは記録しない。実行後のsource指紋・結果・限界と本番反映の有無は対応PRへ残す。通常表示／OAuth／draftのgateはfalse、一般ログイン・投稿・削除の提供は開始していない。
+
+その後、[PR #108の完了記録](https://github.com/junhat6/kobe-student-hub/pull/108#issuecomment-6723273526)で独立local QA・最終PR／main CI・一回配備・独立production QAまで確認した。source mainは`172b5c1`。上の進行中表記は実装時点の記録である。
+
+## 診断回収を修正したリアルタイム対照 — 2026-11-09 JST
+
+前のTailは所有接続のcleanupを確認できたが、consumer最終payloadが欠落し、HTTP／frameの実結果は未確認だった。mockと実PTYを含むoffline5ケースの独立確認を保持した上で、新しいnamespaceのpath・claim・callback・cleanup記録を別に確認した。実装者のfocused15確認・wire mock3件・6moduleとshellの構文確認、新launcherのinvalid-input PTYでraw READY・正常／遅着echo0・PID不存在を確認した。独立担当はこれらの差分と証拠を31確認でレビューし、同じテストを重複実行したとは記録していない。
+
+v2実行は2026-11-08 15:42 UTCに一回。GET呼出し1、405・期待JSON・EOF・Cookie／Locationなし、socket1／trace-v1／debug write callback後のframe1を確認した。ただし文字列以外等を拒否する条件で停止し、型・sizeは未記録のため原因と陽性相関は未確認。consumerの最終結果・exit0・PID不存在を回収できた。API論理呼出し8で所有Tailのcreate／delete ACK・remote不存在、他Tailと前後pinの不変を確認した。実行後の独立33確認にも、この狭い未確認結論への阻害所見はなかった。
+
+private0600のactual指紋は`3d7f70a8d6dd84eb1ef46fdd821242d9a0da6e7d9dd152bd757ecbec3eb3dc04`、独立事後QAは`982844daa87a4d1054b11384d26bc72e91775c4b4ce0800c4e907b6a9c9a4efe`。新ledgerの固定期限は2026-11-09 15:42:53.879 UTC。rootの手動cleanupで、自動削除は未導入。旧actual／ledgerを変更せず、再送・stored query・設定／収集率変更・配備・SQL・実認証・credential／grant／契約変更は0。[方法・結果・再計画](QA-REALTIME-LOG-CONTROL.md)。
+
+使用libraryのbinary表現に合わせるv3は別namespace／GOで準備した。12focused確認、decoder10例、receiver8例、6module／shellの構文確認が成功。初回の準備用relative path誤りはsource複製前の失敗として訂正し、成功へ加算していない。独立担当は29確認と4代表検証で、Bufferのview範囲、fatal UTF-8、診断への本文混入拒否、型の強制を確認した。新実行は2026-11-08 15:51 UTCに一度だけ。Buffer2999byteのframe1を厳密decodeし、GET1／405と完全URL・時刻・script／versionを相関した。key／value等の上限付きwalkは206nodeで完了し、truncationなし、log／exception0。raw frameは保存しない。
+
+v3のAPI論理呼出しも8で、所有Tail削除・remote不存在、他Tailとpin不変、consumer終了・PID不存在を確認。actual指紋は`54d5638d9c3505946ef1597884cb442ad72259b0b57e671165b15d19042c2915`、新ledger期限は2026-11-09 15:51:48.514 UTC。独立事後32確認に阻害所見なし、QA指紋は`3db754d8c335b881d53005cf53c798bb8b8e75d0e5e03505eb8570032b43f843`。このturnはv2＋v3の2unitで終了し、追加control／query／再送は行わない。陽性は閉鎖fallbackのリアルタイム1件に限り、stored／敏感な入力位置／OAuth branchの保護と一般公開は未達のまま。

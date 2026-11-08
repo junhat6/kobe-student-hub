@@ -4,6 +4,8 @@ Status: **PARTIAL OPERATIONAL AUDIT / NOT SATISFIED**. A bounded synthetic probe
 
 A later [single queryless control](QA-LOG-CONTROL.md) also returned zero stored rows after a completed exact-URL query. Its query execution and condition echo were verified, but positive correlation, full-row inspection and redaction were not. The existing sampling/settings and closed authentication boundary were preserved; this additional result does not satisfy the gate.
 
+A separate [bounded real-time control](QA-REALTIME-LOG-CONTROL.md) first stopped before correlation, then a reviewed binary-representation correction correlated one closed fallback invocation with its request and version. Owned Tail/process cleanup and unchanged settings were verified separately. This is narrow real-time evidence; stored-log, sensitive-field and OAuth-branch coverage remain unresolved. The release criteria below are unchanged.
+
 ## Why app-level silence is insufficient
 
 Cloudflare's [Workers Logs documentation](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) describes invocation logs with request/response metadata. Application logger redaction or the absence of console.log cannot establish what an edge/access log, invocation record, tracing layer, exception collector or downstream drain stored. A normal URL redirect or no-referrer header also does not erase earlier request records. Query-to-body changes alone do not prove that bodies/cookies are omitted.
