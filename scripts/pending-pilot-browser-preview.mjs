@@ -2,12 +2,14 @@
 import { build } from 'esbuild';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
+import { workerModules } from '../tests/helpers/worker-modules.ts';
 await build({
   entryPoints: ['tests/fixtures/pending-pilot-browser-worker.ts'],
   outfile: '.worker/pilot-browser.js',
   bundle: true,
   format: 'esm',
   platform: 'browser',
+  loader: { '.wasm': 'copy' },
 });
 await build({
   entryPoints: ['tests/helpers/google-fixtures.ts'],
@@ -24,8 +26,7 @@ let initialized = false;
 const mf = new Miniflare(
   convertV4MiniflareOptions({
     name: 'pilot-fixture',
-    modules: true,
-    scriptPath: '.worker/pilot-browser.js',
+    modules: workerModules('.worker/pilot-browser.js'),
     compatibilityDate: '2026-11-03',
     host: '127.0.0.1',
     port: 8791,

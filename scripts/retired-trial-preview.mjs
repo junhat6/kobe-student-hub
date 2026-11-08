@@ -4,12 +4,14 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, mkdtempSync, cpSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { workerModules } from '../tests/helpers/worker-modules.ts';
 await build({
   entryPoints: ['tests/fixtures/retired-trial-worker.ts'],
   outfile: '.worker/retired-trial-browser.js',
   bundle: true,
   format: 'esm',
   platform: 'browser',
+  loader: { '.wasm': 'copy' },
 });
 const scratch = mkdtempSync(join(tmpdir(), 'kobe-retired-assets-')),
   directory = join(scratch, 'assets');
@@ -24,8 +26,7 @@ let ready = false;
 const mf = new Miniflare(
   convertV4MiniflareOptions({
     name: 'local-retired-trial',
-    modules: true,
-    scriptPath: '.worker/retired-trial-browser.js',
+    modules: workerModules('.worker/retired-trial-browser.js'),
     compatibilityDate: config.compatibility_date,
     host: '127.0.0.1',
     port: 8792,
