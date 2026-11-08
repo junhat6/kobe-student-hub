@@ -2,7 +2,7 @@ import {createOAuthHttpHandler,parseOAuthConfig,type OAuthBindings} from './auth
 import {readSessionRestriction,type SessionRestrictionReader} from './auth/session-guard';
 import {createPrivateDraftHandler} from './draft-http';
 
-/** Local integration only. Not imported by the production entry or any deploy configuration.
+/** Opt-in pending-only draft boundary mounted by the production entry under explicit server policy.
  * The reader is trusted server policy for one designated pending trial account, never client input.
  * Removing policy closes access; status/epoch changes independently revoke stored authority.
  */

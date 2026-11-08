@@ -1,5 +1,9 @@
 # Cloudflare preview deployment
 
+## Current limited-trial scope
+
+The general authentication gate and public sample catalog remain closed/sample-only, while PR #94 connected an explicitly configured pending-only private-draft trial. PR #95 later fixed its visibility recovery and records the reviewed production deployment. [PENDING-DRAFT-TRIAL.md](PENDING-DRAFT-TRIAL.md) is the current specification and evidence boundary. Historical cycle/unit statements below about unconnected auth/drafts describe those earlier changes, not a current whole-service status. Sample-only preparation commands do not preserve/activate the trial and must not be treated as its redeploy procedure. Any authorized redeploy must reconcile the existing private trial settings, Worker-first asset routes, secrets and observability first; this documentation update performs no deployment or SQL.
+
 ## Verified public preview
 
 https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/

@@ -6,7 +6,7 @@ import {createOAuthHttpHandler,type OAuthBindings} from './auth/oauth-http';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
-// General login remains closed; the explicit private pilot permits pending receipt only.
+// General login stays closed; separate opt-in routes below allow a pending receipt or restricted private drafts.
 const OAUTH_HTTP_RELEASE_ENABLED=false;
 const app = new Hono<{ Bindings: Env }>();
 app.use('*', secureHeaders({ contentSecurityPolicy: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'data:'], connectSrc: ["'self'"], objectSrc: ["'none'"], frameAncestors: ["'none'"], baseUri: ["'none'"] }, referrerPolicy:'no-referrer' }));
@@ -34,7 +34,7 @@ app.get('/api/catalog', async c => {
   const profiles:Profile[] = authors.results.map(r => ({id:r.id,name:r.display_name,department:r.department,year:r.year_label,bio:r.bio,initials:r.initials}));
   return c.json({mode:'sample',entries,profiles} satisfies Catalog);
 });
-// No user-generated writes until authentication, privacy and moderation pass their gates.
+// Other user writes and publication stay closed; restricted private drafts are handled above.
 app.all('/api/*', c => c.json({error:'この開発プレビューではログイン・投稿機能をまだ提供していません。'},405));
 app.onError((_err,c) => c.json({error:'読み込みに失敗しました。時間をおいて再度お試しください。'},503));
 interface ContentRow {id:string;kind:'article'|'project';title:string;summary:string;body:string;tags_json:string;author_id:string;audience:string;prerequisite:string;outcome:string;updated_at:string;minutes:number;related_ids_json:string;}

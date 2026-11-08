@@ -1,5 +1,7 @@
 # Private article draft persistence
 
+**Scope update:** This records the initial server-only draft unit. Its release-boundary statements below are historical; PR #94 subsequently mounted private draft HTTP only through the explicit pending-trial restriction. Current UI, retention/deletion limits and evidence: [PENDING-DRAFT-TRIAL.md](PENDING-DRAFT-TRIAL.md). This document is not a report of current production migrations or rows.
+
 Issue #28 addresses a necessary part of the PRD's Markdown authoring and PC/mobile draft handoff: only the owner can access a draft, and saving an older version must not overwrite a newer save. This is server-only local implementation, not an enabled editor, autosave UI or real posting service. The source PRD was read without editing or republishing it.
 
 ## Why this unit

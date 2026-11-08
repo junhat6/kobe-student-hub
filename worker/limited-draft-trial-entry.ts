@@ -1,6 +1,6 @@
 import {parseOAuthConfig,type OAuthBindings} from './auth/oauth-http';
 import {readSessionRestriction,type SessionRestrictionReader} from './auth/session-guard';
-/** Explicit opt-in adapter for a separately built TRIAL_ASSETS binding; not mounted by production entry. */
+/** Opt-in trial assets; production adapts its existing ASSETS binding to the separately built package. */
 export function createTrialAssetHandler(assets:Fetcher,bindings:OAuthBindings,restriction:SessionRestrictionReader,clock:()=>number=Date.now){
  return async(request:Request):Promise<Response|null>=>{
   const u=new URL(request.url),entry=u.pathname==='/api/auth/draft-trial',asset=u.pathname.startsWith('/trial-assets/');

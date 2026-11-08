@@ -29,7 +29,7 @@ async function input(request:Request):Promise<Body>{
  const deadline=new Promise<Body>(resolve=>{timer=setTimeout(()=>{expired=true;cancel();resolve({ok:false,status:408})},5000)});
  try{return await Promise.race([read,deadline])}finally{clearTimeout(timer)}
 }
-/** Unconnected HTTP boundary. Production must not mount this before the logging/auth gates. */
+/** Private draft boundary; production exposes it only through the explicit pending-trial restriction. */
 export function createPrivateDraftHandler(db:D1Database,origin:string,clock:()=>number=Date.now,restriction?:SessionRestrictionReader){
  const sessions=new SessionStore(db,origin,clock,restriction);const drafts=new PrivateDraftStore(db,origin,clock,restriction);
  return async(request:Request):Promise<Response|null>=>{

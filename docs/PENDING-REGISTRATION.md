@@ -1,5 +1,7 @@
 # Verified pending registration — local server-only step
 
+**Scope update:** This document records the initial local registration unit. A pending receipt still grants neither enrollment nor a session. A separate, explicitly restricted pending-draft trial was subsequently connected; its [current specification](PENDING-DRAFT-TRIAL.md) is authoritative. Statements below about local-only delivery belong to the original unit, not the current deployment or database state.
+
 Issue75 adds the missing first-registration step while preserving ordinary login. The existing broker verifies Google signature/issuer/audience/nonce/verified school email/domain, but session creation only accepts an existing active Google subject. Registration records a pending request; it neither establishes current enrollment nor grants login or writing access.
 
 ## Explicit purpose and verification

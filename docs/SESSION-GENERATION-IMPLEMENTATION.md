@@ -1,5 +1,7 @@
 # ブラウザ世代によるセッション保護 — 認証公開前の実装
 
+**履歴と現行の区別:** 以下のCycle49は当時の実装・試験範囲です。一般gateはfalseのままですが、後のPR #94はその手前にpending限定経路を接続しました。restriction付きのpending条件とDB grantを含む現行試用は [PENDING-DRAFT-TRIAL.md](PENDING-DRAFT-TRIAL.md) を正本とします。本書の当時のactive／未接続記述は現在の本番状態の証明ではありません。
+
 2026-11-05、Cycle49。設計PR84・閉じたD1/HTTP検証PR85を基に本体の非公開部品へ適用した。**実Google接続・実ユーザー提供・remote migration・デプロイではない。** `worker/index.ts`の`OAUTH_HTTP_RELEASE_ENABLED=false`を維持する。実鍵、credentials、権限、実データ、本番設定・DBは変更しない。
 
 ## 棚卸しからの変更

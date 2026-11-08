@@ -18,7 +18,7 @@ function rawCookie(request:Request){
 function equalToken(a:string,b:string){if(!validToken(a)||!validToken(b))return false;let diff=0;for(let i=0;i<43;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0}
 /** Server-private result; never serialize its actor or storage state directly. */
 export type SessionInspection={kind:'authenticated';actor:ServerSessionActor;csrfToken:string;contextHash:string;generation:number;checkedAt:number}|{kind:'signed-out'}|{kind:'unavailable'};
-/** No production endpoint uses this repository. Identity must come from real server verification. */
+/** Server-verified identity only. The opt-in trial supplies a pending-only restriction; default sessions require active. */
 export class SessionStore {
  constructor(private readonly db:D1Database,private readonly origin:string,private readonly clock:()=>number=Date.now,private readonly restriction?:SessionRestrictionReader){}
  private now(){const n=this.clock();return Number.isSafeInteger(n)&&n>=0&&n<Number.MAX_SAFE_INTEGER-SESSION_ABSOLUTE_MS?n:null}

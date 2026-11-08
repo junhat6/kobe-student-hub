@@ -1,5 +1,7 @@
 # OAuth HTTP adapter and closed release gate
 
+**Scope update:** The closed-gate integration sections below describe their historical development scope. PR #94 later mounted an explicitly configured pending-only private-draft route before the general gate; the general gate remains false. The assertion that runtime configuration cannot activate any authentication is superseded for that route. Current scope, evidence and limits: [PENDING-DRAFT-TRIAL.md](PENDING-DRAFT-TRIAL.md). This history does not establish current deployed bindings, database state or complete log secrecy.
+
 This is local integration preparation, not a live login/signup release. The production entry keeps an explicit source-controlled release gate disabled. Runtime configuration alone cannot open authentication, even if every value is valid. The existing anonymous sample catalog and `writesEnabled:false` remain unchanged. Real callback protection must pass [LOGGING-GATE.md](LOGGING-GATE.md); configuration and local tests cannot attest platform secrecy or student eligibility.
 
 ## Cycle49 current implementation
