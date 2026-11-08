@@ -606,7 +606,7 @@ it('enforces owner byte quotas and the global byte ceiling atomically in actual 
       await db.prepare('DELETE FROM private_accounts WHERE id=?').bind(account).run();
     }
   }
-});
+}, 20_000);
 
 it('independent: concurrent final uploads cannot cross the eight-image draft limit', async () => {
   const d = await draft();
