@@ -486,3 +486,13 @@ Cycle59 Developer local results: full66unit/Worker files565tests passed16.87s; f
 Pilot routing follow-up: `/api/auth/pilot` and its external JS run inside the existing `/api/*` worker-first assets rule, before the generic auth handler. A local actual-production-entry browser check loads the configured static asset SPA fallback, then the pilot, and completes after a pre-existing context/bootstrap409; command issuance still validates that context. Late canonical GET callbacks after policy expiry/removal clean-redirect without DB/provider access. Other disabled factory and general route contracts remain closed.
 
 Final routing/recovery verification:66files566unit/Worker tests passed17.75s; focused16passed661ms; production-entry plus configured static assets/SPA/worker-first Chromium flow1passed1.5s, including pre-existing context retry. Typecheck/diffcheck and refreshed deployment dry-run passed. Earlier565 count predates the added removed-policy callback case. Two legacy production callback assertions were updated to require the new explicit no-policy clean303 while preserving no DB/provider/Cookie behavior and closed405 for all other routes.
+
+## 本人限定下書きの削除 — 開発側のローカル検証
+
+2026-11-08、main `6bcfe8f`を基点に `feat/private-draft-deletion` で実装。npm ci後、public build/typecheck成功。`npm test`は70 files /602 tests成功（20.54s）。`npm run test:limited`は40 cases成功（34.0s）：既存30件と新規PC/mobile各5件。新規ケースは削除確認・キャンセル・他下書き保持・未保存入力・競合後の新版再確認・確定後の不正acknowledgement・一覧不在で成功を推測しないこと・期限／取消で削除せず閉じることを含む。client単体はDELETEのCSRF・版・厳格DTO・10秒EOF timeoutと非再送も確認。
+
+画面証拠は架空データのローカル `test-results-limited` 内だけに保持し、公開しない。Chromium viewport emulationであり、実学生・物理スマホ・実Google・本番での削除の証拠ではない。試用grant／期限／設定／schema／server認可は未変更。最初のtypecheckは依存未導入でtsc不在のため失敗し、npm ci後にbuild/typecheckを実行して成功した。
+
+impeccable detectorは既存CSSの2件の側面border警告を報告した。変更で追加した削除領域には該当せず、今回の範囲外の既存スタイルは維持した。独立QA・公開E2E・dry-run・CI結果は実行後に追記する。
+
+追加結果：`npm run db:local`成功後、`npm run test:e2e`は60件成功（10.9s）。`npm run deploy:check`成功。独立QAは隔離build/typecheck、関連4 files /46 tests成功（1.98s）、PC/mobile16 browser cases成功（15.9s）。追加QAは503、確定済みDELETE遅着中のsession変更、200文字題名と非表示境界を含む。[独立報告](QA-PRIVATE-DRAFT-DELETION.md)に最終ソース指紋を記録。通常CIとmain反映・本番反映の結果はPRへ記録する。

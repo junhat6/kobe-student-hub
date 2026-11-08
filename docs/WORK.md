@@ -680,3 +680,13 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 **Change:** Require an active visible page to reveal, invalidate inspection generations on hidden/pagehide, and require a fresh proof on return. Preserve the same-session unsaved buffer and retain existing invalid/changed/logout destruction and unknown-result concealment. Interrupted initial checks and explicit continuation are included. No auth policy, schema, grant, expiry or deployed logging/key configuration changes are included.
 
 **Verification:** Targeted lifecycle and existing session checks, separate-context independent QA and the serial aggregate pipeline are required on the final source before release. The actual-tab regression avoids Playwright's forced visibility override. See [scope, test methods and limits](QA-DRAFT-SESSION-VISIBILITY.md). Release evidence is recorded in the reviewed PR; local-only screenshots and runtime inputs are excluded.
+
+## 本人限定下書きの自己削除
+
+**Planner / 現在地:** main `6bcfe8f`、main CI成功、open Issue/PRと本番サンプルのホーム・記事を再確認。PR #96は文書・コメントのみ、CI成功のDraftのままで、既存のready拒否を回避しない。#84/#85は別の設計／fixtureのDraft。PRD原文を読取で再確認し、変更しない。
+
+**価値仮説 / 実装:** 保存した試用文章を自分で片付けられることが執筆試用の安心につながる。既存APIに対するprivateOnly画面の明示削除、保存版の確認、未保存入力の警告、正確な成功応答、結果不明時の保持と再読取を実装する。公開エディタ・server guard・schema・trial policyは変更しない。受入条件と期限後の未解決事項は [設計](PRIVATE-DRAFT-DELETION.md)。
+
+**再計画:** 自己削除UIだけでは期限後の削除は保証できない。有効なgrantを延長・迂回せず、実保持期限と本人確認を含む削除経路／運用の選定を次の課題に残す。学生価値・実端末の検証は未実施。独立QAと通常CIを経てmainへ進める。本番反映は既存対象と設定を安全に検証できた場合に限り、schema・grant・secretの変更を伴わない別操作として扱う。
+
+**独立QA:** 別コンテキストの隔離build/typecheck、関連46 tests、PC/mobile16 cases成功。503、遅着成功中のsession変更、長い題名・private DOM境界を追加検証し、阻害所見なし。画像6枚を独立確認し、ソース指紋一致。公開60 casesとdry-runも成功。詳細は [独立QA](QA-PRIVATE-DRAFT-DELETION.md)。AI動作確認を学生価値検証として扱わない。
