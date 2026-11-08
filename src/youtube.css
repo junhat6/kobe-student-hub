@@ -1,0 +1,30 @@
+.youtube-embed {
+  margin: 32px 0;
+  overflow: hidden;
+}
+.youtube-placeholder {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 200px;
+  padding: 24px;
+  background: #f1f5f9;
+  border: 1px solid #d6e3ed;
+  border-radius: 12px;
+}
+.youtube-placeholder p {
+  margin: 12px 0 0;
+  color: #596e7d;
+}
+.youtube-embed iframe {
+  display: block;
+  width: 100%;
+  min-height: 200px;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 12px;
+}
+.youtube-embed figcaption {
+  margin-top: 12px;
+  font-size: 14px;
+}
