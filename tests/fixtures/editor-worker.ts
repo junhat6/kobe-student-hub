@@ -1,3 +1,4 @@
+import {createEnrollmentHandler} from '../../worker/enrollment-http';
 import {createFixtureSession} from '../helpers/coordinated-fixture';
 import {createPrivatePublicationStopHandler} from '../../worker/publication-stops-http';
 import {createPrivateOwnPublicationsHandler} from '../../worker/own-publications-http';
@@ -31,12 +32,13 @@ async function localDraftResponse(result:Response,request:Request,path:string){
 export default {async fetch(request:Request,env:{DB:D1Database;ASSETS:Fetcher;LOCAL_EDITOR_FIXTURE:string}){
  if(env.LOCAL_EDITOR_FIXTURE!=='local-only-fictional'||new URL(request.url).origin!==ORIGIN)return new Response('Local fixture only',{status:404,headers:privateHeaders});
  const path=new URL(request.url).pathname;
+ if(path.startsWith('/api/private/enrollment'))return await createEnrollmentHandler(env.DB,ORIGIN)(request)??new Response('',{status:404});
  // Each profile browser test starts a fresh fictional local account; never reset existing lab data.
  if(path==='/__fixture/profile-session'){
   if(request.method!=='POST'||request.headers.get('Origin')!==ORIGIN)return Response.json({error:'unavailable'},{status:403,headers:privateHeaders});
   try{const id=crypto.randomUUID();const subject='profile-lab-fictional-'+id;
    await env.DB.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)").bind('profile-lab-'+id,subject,'profile-lab-fictional@st.kobedenshi.ac.jp',Date.now()).run();
-   const session=await createFixtureSession(env.DB,ORIGIN,Date.now,{provider:'google',subject,email:'profile-lab-fictional@st.kobedenshi.ac.jp'});
+   const session=await createFixtureSession(env.DB,ORIGIN,Date.now,{provider:'google',subject,email:'profile-lab-fictional@st.kobedenshi.ac.jp'},{enrollment:new URL(request.url).searchParams.get('enrollment')!=='missing'});
    if(!session)return Response.json({error:'unavailable'},{status:503,headers:privateHeaders});
    const response=Response.json({csrfToken:session.csrfToken},{headers:privateHeaders});response.headers.append('Set-Cookie',session.contextCookie);response.headers.append('Set-Cookie',session.setCookie);return response;
   }catch{return Response.json({error:'unavailable'},{status:503,headers:privateHeaders})}

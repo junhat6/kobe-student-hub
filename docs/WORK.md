@@ -8,11 +8,23 @@
 - 制作ノートの架空サンプルは、理由・記入例・学びの説明例・記録枠を追加し、本番の対象1件だけを更新済み。source main `5177d95`、PR/main CI成功、独立の本番GET-only QAにも阻害所見なし。[PR #99の完了記録](https://github.com/junhat6/kobe-student-hub/pull/99#issuecomment-6717645879)。この反映はeditorial SQLで、Workerの再配備やschema/auth変更ではない。
 - PR #96はDraft・未マージ。過去のDraft解除拒否を回避しない。#84/#85の別Draftも未マージ。
 
-**再計画:** 次は改稿版が自分の制作での記録・次の行動に使えるかを本人の言葉で確認する。AIの表示・動作QAと学生の理解・実践を区別し、私的回答は公開記録へ転載しない。他の記事や試用機能を先に増やさない。実サービス接続には、在籍・卒業／回復、実運営権限・通知・問い合わせ、保持と実ログ等の[未完了ゲート](FIRST-RELEASE.md)が残る。
+**再計画:** 通常参加の条件を[学校Google本人確認＋参加年度申告](adr/0001-self-declared-enrollment.md)へ更新する。在籍確認の追加根拠や手動承認を入会の必須条件として待つ段階は終了した。2項目の申告とサーバー判定を既存認証・本人管理へ接続する。改稿記事の実際の利用価値は別に確認し、私的回答は公開しない。実ログ・運営権限・通知／問い合わせ等の[未完了ゲート](FIRST-RELEASE.md)は残る。
 
-この記録整理は、前サイクルの本番結果を準備時点の記録とつなぐ作業である。受入条件は公開証拠との一致、現行／履歴の区別、PRD原文・製品・本番設定の不変更。別コンテキストの文書QAと通常CIを通し、製品機能や学生価値の追加検証として数えない。
+直前の文書整理は[PR #100の完了記録](https://github.com/junhat6/kobe-student-hub/pull/100#issuecomment-6717835335)で確認できる。以下はその後の通常参加実装の記録。
 
-文書の独立QAでは4ファイルの差分を公開コメント・CIログ・PR状態・リンクと照合し、阻害所見なし。製品テスト・ブラウザ・サーバーの再実行はしていない。通常CIの結果は、この記録整理のPRで実行後に報告する。
+## 学校Google本人確認と自己申告年度による通常参加（ローカル実装・独立QA済み）
+
+**Planner / 仮説:** 追加の手動審査を入れず、学校Google認証と非公開の必須2年度で通常参加を完了できれば、登録の手間を抑えて制作の共有へ進めるのではないか。採用した参加方針であり、離脱率・理解・実在籍の証明を実測したものではない。PRD原文は変更しない。入学年度／卒業予定年度は日本時間4月1日から翌3月31日の本アプリ規則で、公開学年とは別情報とする。
+
+**実装範囲／受入条件:** 一度のGoogle認証の試行へ2年度を結合し、署名検証後の登録・年度保存・session発行を一つのD1 transactionで完了する。通常loginのアカウント非作成契約、世代・epoch・subject fence・CSRFと所有権を維持する。旧pendingは新しい本人確認からのみ通常登録へ進み、suspended/deletedの復帰や既存申告のcallback上書きを行わない。初回申告と本人訂正は同じ2項目／CASで扱い、公開DTOやGoogleの名前・写真へ自動連携しない。
+
+下書き作成・保存、プロフィール作成、記事／作品の公開、いいね追加・通報は、最終SQLで最新の申告とサーバー時刻を確認する。期間外でも本人読取・年度訂正・下書き削除・いいね取消・公開停止・logoutと別権限の運営読取は維持する。旧activeへ年度を推測して補完しない。UIは2必須項目、明示保存、結果不明時の入力保持・手動確認・競合復帰を検証する。新しい本人限定試用・labは追加しない。
+
+**検証と公開条件:** 実D1の境界・並行・最終権限・rollback、実署名と一回のcallback、clientの厳密DTO／EOF期限、既存UI内のPC/mobile操作を別コンテキストでQAする。通常の全checkとgreen CI後にmainへ反映する。migration0016/0017はローカル準備で、remote SQL・本番認証・UGC routingをこの変更だけで開かない。新しい通常account/signupの公開接続は実ログ・運営・通知等の条件と分ける。正確な結果は実行後に記録する。
+
+**Developer / Evidence:** 登録の原子的完了、本人用の2年度フォーム、最終SQLでの参加期間確認を実装。build・全74ファイル658テスト・公開E2E60件・editor197件（既存skip1件）・auth browser・pending pilot1件・旧試用拒否8件・deploy dry-runが成功した。独立QAは最終writer26件、登録27件、フォーム16件を別コンテキストで検証し、阻害所見なし。全体テストで旧inventoryのguard名固定による失敗を修正し、52 SQL箇所のbase/student/public区分を厳密に固定して全件再実行した。[検証範囲と限界](QA-SELF-DECLARED-ENROLLMENT.md)。一時サーバーは終了し、子プロセスと待受終了を確認した。
+
+**Replanning:** 手動の在籍証明を待つ実装条件は解消した。次は通常account/signup入口と実認証の公開接続を、既存の実ログ保護・運営／通知・本人管理の条件に沿って具体化する。source gateはfalseのまま、remote0016/0017・新しい権限・本番設定の変更は行っていない。登録負担や改稿記事の実践価値の改善は未実測で、架空fixtureの成功から推定しない。
 
 ## Cycle 01
 
@@ -36,7 +48,7 @@
 | P1: IT-student trial | Recruit an agreed small group and initial content; verify discovery/next-action usefulness on real devices; record consent-safe outcomes, not private data in public issues | Not run |
 | P2: search growth / editor media / Safari | Pagination/indexed search before >100 entries, iOS Safari physical device, Mermaid sandbox and upload controls | Planned |
 
-## Decisions still needed before real release
+## Cycle01時点の未決事項（履歴）
 
 Operator and actual support contact; school relationship and publication rules; graduation-year boundary and exceptions; identity recovery/deletion after loss of school account; history retention; media size/type limits; exact operational email delivery; trial participants/content and expansion criteria; cost ceiling and actual account plan. Implement reversible internal choices autonomously, but do not silently widen publication or identity scope.
 

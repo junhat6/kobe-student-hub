@@ -4,6 +4,7 @@ import {verifySchoolGoogleIdToken} from './google-identity';
 import {PendingRegistrationStore} from './pending-registration';
 import type {VerifiedSchoolIdentity} from './google-identity';
 import {SessionStore} from './sessions';
+import {SelfRegistrationStore} from './self-registration';
 export interface GoogleLoginConfig extends BrowserFlowConfig {clientSecret:string}
 export type GoogleRegistrationResult={kind:'pending-receipt';clearCookie:string}|{kind:'failed';clearCookie:string};
 export type GoogleLoginResult = {kind:'failed';clearCookie:string}|({kind:'authenticated';clearCookie:string}&NonNullable<Awaited<ReturnType<SessionStore['create']>>>);
@@ -27,11 +28,13 @@ export class GoogleLoginBroker {
  constructor(private readonly db:D1Database,private readonly config:GoogleLoginConfig,private readonly clock:()=>number=Date.now,private readonly restriction?:SessionRestrictionReader){}
  async start(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request):null}
  async startRegistration(request:Request){return configured(this.config)?new BrowserOAuthFlow(this.db,this.config,this.clock).start(request,'pending-registration'):null}
+ async startSelfRegistration(request:Request,years:unknown){return configured(this.config)&&!this.restriction?new BrowserOAuthFlow(this.db,this.config,this.clock).startSelfRegistration(request,years):null}
  async callback(request:Request):Promise<GoogleLoginResult|null>{return this.complete(request,'login') as Promise<GoogleLoginResult|null>}
  async registrationCallback(request:Request,allowIdentity?:(identity:VerifiedSchoolIdentity)=>boolean):Promise<GoogleRegistrationResult|null>{return this.complete(request,'pending-registration',allowIdentity) as Promise<GoogleRegistrationResult|null>}
- private async complete(request:Request,intent:OAuthIntent,allowIdentity?:(identity:VerifiedSchoolIdentity)=>boolean):Promise<GoogleLoginResult|GoogleRegistrationResult|null>{
+ async selfRegistrationCallback(request:Request):Promise<GoogleLoginResult|null>{return this.restriction?null:this.complete(request,'self-registration') as Promise<GoogleLoginResult|null>}
+ private async complete(request:Request,intent:OAuthIntent|'self-registration',allowIdentity?:(identity:VerifiedSchoolIdentity)=>boolean):Promise<GoogleLoginResult|GoogleRegistrationResult|null>{
   if(!configured(this.config))return null;
-  const claim=await new BrowserOAuthFlow(this.db,this.config,this.clock).claim(request,intent);if(!claim)return null;
+  const flow=new BrowserOAuthFlow(this.db,this.config,this.clock),claim=intent==='self-registration'?await flow.claimSelfRegistration(request):await flow.claim(request,intent);if(!claim)return null;
   const failure:GoogleLoginResult={kind:'failed',clearCookie:claim.clearCookie};if(claim.kind==='denied')return failure;
   const abort=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;
   const deadline=new Promise<null>(resolve=>{timer=setTimeout(()=>{abort.abort();resolve(null)},5000)});
@@ -45,6 +48,7 @@ export class GoogleLoginBroker {
    clearTimeout(timer);abort.abort();
    const identity=await verifySchoolGoogleIdToken(token,{clientId:this.config.clientId,expectedNonce:claim.nonce});if(!identity)return failure;
    if(intent==='pending-registration'){if(allowIdentity&&!allowIdentity(identity))return failure;const receipt=await new PendingRegistrationStore(this.db,this.clock).record(identity,claim.proof);return receipt?{kind:'pending-receipt',clearCookie:claim.clearCookie}:failure}
+   if(intent==='self-registration'){const session=await new SelfRegistrationStore(this.db,this.clock).complete(identity,claim.proof);return session?{kind:'authenticated',...session,clearCookie:claim.clearCookie}:failure}
    const session=await new SessionStore(this.db,this.config.origin,this.clock,this.restriction).create(identity,claim.proof);
    return session?{kind:'authenticated',...session,clearCookie:claim.clearCookie}:failure;
   }catch{return failure}finally{clearTimeout(timer);abort.abort()}
