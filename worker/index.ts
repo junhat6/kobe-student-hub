@@ -1,5 +1,10 @@
 import { pendingPilotPage } from './auth/pending-pilot-ui';
 import { createOrdinaryDraftHandler } from './ordinary-drafts-http';
+import {
+  dispatchModerationEmails,
+  moderationEmailOptions,
+  type ModerationEmailBindings,
+} from './moderation-email';
 import { createEnrollmentHandler } from './enrollment-http';
 import { parseModerationOperators, type ModerationBindings } from './moderation-http';
 import { createOAuthHttpHandler, type OAuthBindings } from './auth/oauth-http';
@@ -147,6 +152,15 @@ interface ProfileRow {
 // Hono's onError handles Error instances; bindings can reject with any JavaScript value.
 // Keep that value opaque, including cross-realm Errors, and never hand it to a logger.
 export default {
+  async scheduled(_event, env, ctx) {
+    if (!OAUTH_HTTP_RELEASE_ENABLED || !ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) return;
+    if (!parseModerationOperators(env as Env & ModerationBindings).length) return;
+    const options = moderationEmailOptions(
+      env as Env & ModerationEmailBindings,
+      (env as Env & OAuthBindings).AUTH_ORIGIN ?? '',
+    );
+    if (options) ctx.waitUntil(dispatchModerationEmails(env.DB, options));
+  },
   async fetch(request: Request, env: Env, ctx?: ExecutionContext) {
     try {
       return await app.fetch(request, env, ctx);
