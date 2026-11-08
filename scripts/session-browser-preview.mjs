@@ -1,12 +1,11 @@
 // Local-only, ephemeral HTTPS/browser fixture. No Wrangler config or persisted DB is used.
 import {build as viteBuild} from 'vite';
-import react from '@vitejs/plugin-react';
 import {resolve} from 'node:path';
 import {build} from 'esbuild';
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import {enrollmentWindow} from '../src/shared/enrollment.ts';
-await viteBuild({configFile:false,root:resolve('tests/generation-editor'),plugins:[react()],build:{outDir:resolve('.generation-preview'),emptyOutDir:true}});
+await viteBuild({configFile:resolve('vite.config.ts'),define:{__ACCOUNT_UI_RELEASE_ENABLED__:true},build:{outDir:resolve('.generation-preview'),emptyOutDir:true,rollupOptions:{input:{app:resolve('index.html'),generation:resolve('tests/generation-editor/index.html')}}}});
 await build({entryPoints:['tests/fixtures/session-browser-worker.ts'],outfile:'.worker/session-browser.js',bundle:true,format:'esm',platform:'browser',loader:{'.sql':'text'}});
 await build({entryPoints:['tests/helpers/google-fixtures.ts'],outfile:'.worker/browser-google.mjs',bundle:true,format:'esm',platform:'node'});
 const {googleFixture}=await import('../.worker/browser-google.mjs');const signer=await googleFixture();
@@ -22,7 +21,7 @@ const control=async r=>{const u=new URL(r.url),tag=u.searchParams.get('tag');
  if(u.pathname==='/__control/expire'){await (await mf.getD1Database('DB')).prepare('UPDATE auth_browser_contexts SET expires_at_ms=created_at_ms+1').run();return new Response('expired')}
  return new Response('unknown',{status:404});};
 mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/session-browser.js',compatibilityDate:'2026-11-03',host:'127.0.0.1',port:8790,https:true,d1Databases:['DB'],outboundService:async r=>{
- const u=new URL(r.url);if(u.hostname==='fixture-assets.invalid'){const path=u.pathname==='/lab/account'?'index.html':u.pathname.slice(1);if(!/^(?:index\.html|assets\/[A-Za-z0-9_.-]+)$/.test(path))throw Error('Invalid fixture asset');return new Response(readFileSync('.generation-preview/'+path),{headers:{'Content-Type':path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html'}})}if(u.hostname==='fixture-control.invalid')return control(r);
+ const u=new URL(r.url);if(u.hostname==='fixture-assets.invalid'){const path=u.pathname==='/lab/account'?'tests/generation-editor/index.html':['/','/signup','/login','/account'].includes(u.pathname)?'index.html':u.pathname.slice(1);if(!/^(?:index\.html|tests\/generation-editor\/index\.html|assets\/[A-Za-z0-9_.-]+)$/.test(path))throw Error('Invalid fixture asset');return new Response(readFileSync('.generation-preview/'+path),{headers:{'Content-Type':path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html'}})}if(u.hostname==='fixture-control.invalid')return control(r);
  if(r.url==='https://www.googleapis.com/oauth2/v3/certs')return Response.json(signer.jwks);
  if(r.url==='https://oauth2.googleapis.com/token'){const f=new URLSearchParams(await r.text());return Response.json({id_token:tokens.get(f.get('code'))})}
  throw Error('Unexpected outbound request blocked: '+u.origin);

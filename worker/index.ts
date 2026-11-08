@@ -1,4 +1,5 @@
 import {pendingPilotPage} from './auth/pending-pilot-ui';
+import {createEnrollmentHandler} from './enrollment-http';
 import {createOAuthHttpHandler,type OAuthBindings} from './auth/oauth-http';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
@@ -16,7 +17,7 @@ app.use('*',async(c,next)=>{
 });
 app.get('/api/auth/pilot',c=>pendingPilotPage(c.req.raw,c.env as Env&OAuthBindings)??c.notFound());
 app.get('/api/auth/pilot.js',c=>pendingPilotPage(c.req.raw,c.env as Env&OAuthBindings)??c.notFound());
-app.use('/api/*',async(c,next)=>{{const response=await createOAuthHttpHandler(c.env.DB,c.env as Env&OAuthBindings,{enabled:OAUTH_HTTP_RELEASE_ENABLED,pendingPilot:!OAUTH_HTTP_RELEASE_ENABLED})(c.req.raw);if(response)return response}await next()});
+app.use('/api/*',async(c,next)=>{{const response=await createOAuthHttpHandler(c.env.DB,c.env as Env&OAuthBindings,{enabled:OAUTH_HTTP_RELEASE_ENABLED,pendingPilot:!OAUTH_HTTP_RELEASE_ENABLED,authorizationJson:true,accountLanding:true})(c.req.raw);if(response)return response}if(OAUTH_HTTP_RELEASE_ENABLED){const response=await createEnrollmentHandler(c.env.DB,(c.env as Env&OAuthBindings).AUTH_ORIGIN??'')(c.req.raw);if(response)return response}await next()});
 app.get('/api/health', c => c.json({status:'ok',stage:'development-preview',writesEnabled:false}));
 app.get('/api/catalog', async c => {
   // Explicit public projection: no identity, emails, drafts, history, or report data.

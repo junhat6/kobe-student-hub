@@ -36,3 +36,6 @@ test-results-limited/
 
 # Retired-feature browser regression output
 test-results-retired-trial/
+
+# Local UI captures and mechanical review output; never publish implicitly
+.impeccable/review/

@@ -555,3 +555,11 @@ PR #99をmain `5177d957d5fbd70eea1c6fa1e48dc82250bda9c5`へ反映し、PR head�
 build・全74files/658tests・公開E2E60・editor197passed/既存skip1・auth browser・pending pilot1・retired8・deploy dry-runが成功。別コンテキストのwriter26件・登録27件・PC/mobileフォーム16件とSQL inventory29件に阻害所見なし。[実行結果、source指紋、限界](QA-SELF-DECLARED-ENROLLMENT.md)。一時serverと子process／待受は終了済み。
 
 source gateはfalse、public writesはfalseのまま。remote0016/0017、credential／operator grant、production設定／配備変更は実施していない。通常signup入口・実Google／ログ・実端末・実運用の接続は未完了で、登録の離脱率や学生価値の改善も未実測。PR/main CIは実行後にPRの完了記録へ追記する。
+
+## 通常の登録画面と本人の年度確認 — 2026-11-08
+
+base main `4f3fe88`から、本体entryにsignup／login／accountを接続。必須の非公開2年度、一回の明示Google操作、JSON開始応答、固定clean account着地、現在sessionとguarded年度の確認、本人訂正／logoutを扱う。既存のsession境界を共用し、新しい本人限定試用やlabは追加していない。frontend visibilityとserver gateは既定falseのまま。
+
+build・typecheck・76files/686unit、公開62、auth suite36（source gate確認2件を含む）、editor197passed/既存skip1、pilot1、retired8、deploy dry-runが成功。追加public testの見出し指定と旧JSON helperを修正し、各suiteを全件再実行した。独立transport49件、別担当の通常browser14件、独立browser12件に阻害所見なし。fresh visual reviewerは提示11画像の範囲で`ship`、documenterは既存DESIGNの継承を確認。[実行・失敗診断・source指紋・限界](QA-ORDINARY-REGISTRATION.md)。
+
+実装者と独立担当が起動したserver／子processを終了し、全対象portの待受なしを確認。公開画像・私的回答・生ログの追加はない。remote SQL・credential／grant・本番設定／配備の変更は行っていない。実Google／実ログ／実運用、実BFCache／実端末、学生価値と離脱率は未検証。PR/main CIは実行後に完了記録へ追記する。

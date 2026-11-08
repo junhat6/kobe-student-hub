@@ -37,3 +37,5 @@ Real connection still requires the verified deployment/database migration ledger
 ## Historical pending-only preparation
 
 The initial broker provided existing-active-account login without account provisioning. Later [pending-registration preparation](PENDING-REGISTRATION.md) added a separate pending receipt, leaving approval/activation outside that path. That historical contract is retained by `startRegistration` / `registrationCallback` and the explicitly configured [legacy pending pilot](OAUTH-HTTP.md#distinct-legacy-pending-only-pilot-exception). It is not the ordinary self-registration path or a mandatory manual-approval stage. A legacy pending receipt still provides no active account, session or posting permission.
+
+The ordinary browser controller uses JSON start responses and the fixed clean `/account` landing; [the actual app routes, private state confirmation and closed frontend/server gates](ORDINARY-REGISTRATION.md) are separate from broker issuance. Callback landing alone never establishes registration success.
