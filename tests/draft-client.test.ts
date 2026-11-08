@@ -40,4 +40,26 @@ describe('private draft browser transport',()=>{
   await vi.advanceTimersByTimeAsync(10000);await rejected;expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher.mock.calls[0]).toBeDefined();
   release(Response.json({...value,version:2}));await vi.advanceTimersByTimeAsync(1);expect(fetcher).toHaveBeenCalledTimes(1);
  });
+ it('deletes exactly the confirmed version with the existing private transport',async()=>{
+  const fetcher=vi.fn(async()=>Response.json({deleted:true}));
+  await createDraftClient(csrf,fetcher as typeof fetch).delete(id,Number.MAX_SAFE_INTEGER);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  const [path,init]=fetcher.mock.calls[0] as unknown as [string,RequestInit];
+  expect(path).toBe('/api/private/drafts/'+id);expect(init).toMatchObject({method:'DELETE',credentials:'same-origin',cache:'no-store',redirect:'error'});
+  expect(new Headers(init.headers).get('Authorization')).toBe('Bearer csrf.'+csrf);
+  expect(JSON.parse(init.body as string)).toEqual({expectedVersion:Number.MAX_SAFE_INTEGER});
+ });
+ it('rejects ambiguous deletion acknowledgements, errors and unsafe inputs without retry',async()=>{
+  for(const make of [()=>Response.json({deleted:false}),()=>Response.json({deleted:true,id}),()=>Response.json({deleted:'true'}),()=>Response.json({deleted:true},{status:201}),()=>Response.json({deleted:true},{status:401}),()=>Response.json({deleted:true},{status:404}),()=>Response.json({deleted:true},{status:409}),()=>new Response('{',{headers:{'Content-Type':'application/json'}})]){
+   const fetcher=vi.fn(async()=>make());await expect(createDraftClient(csrf,fetcher as typeof fetch).delete(id,1)).rejects.toBeInstanceOf(DraftClientError);expect(fetcher).toHaveBeenCalledTimes(1);
+  }
+  const fetcher=vi.fn();for(const version of [0,-1,1.5,NaN,Infinity,Number.MAX_SAFE_INTEGER+1])await expect(createDraftClient(csrf,fetcher as typeof fetch).delete(id,version)).rejects.toBeInstanceOf(DraftClientError);
+  await expect(createDraftClient(csrf,fetcher as typeof fetch).delete('../private',1)).rejects.toBeInstanceOf(DraftClientError);expect(fetcher).not.toHaveBeenCalled();
+ });
+ it('requires deletion EOF and aborts a stalled body without a second mutation',async()=>{
+  vi.useFakeTimers();let aborted=false;
+  const fetcher=vi.fn(async(_path:RequestInfo|URL,init?:RequestInit)=>{init?.signal?.addEventListener('abort',()=>{aborted=true});return new Response(new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode('{"deleted":true}'))}}),{headers:{'Content-Type':'application/json'}})});
+  const result=createDraftClient(csrf,fetcher as typeof fetch).delete(id,1),rejected=expect(result).rejects.toBeInstanceOf(DraftClientError);
+  await vi.advanceTimersByTimeAsync(10000);await rejected;expect(aborted).toBe(true);expect(fetcher).toHaveBeenCalledTimes(1);
+ });
 });

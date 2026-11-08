@@ -8,3 +8,8 @@
 @media(max-width:720px){.ordinary-drafts{margin:24px 16px 40px;padding:0}.ordinary-drafts .session-control{padding:24px 20px}.ordinary-drafts .account-signed-out{padding:0 20px}.draft-editor--ordinary .editor-layout{gap:24px}.draft-editor--ordinary .editor-side-heading h2{font-size:22px}}
 
 .draft-editor--ordinary .editor-recovery{border-left-width:1px;border-left-color:#b8cbd9}
+.draft-editor--ordinary .editor-draft-management{margin:24px 0;padding-top:24px;border-top:1px solid #b8cbd9;line-height:1.8}
+.draft-editor--ordinary .editor-draft-management h3{font-size:18px;margin:0 0 12px}.draft-editor--ordinary .editor-draft-management p{max-width:70ch;margin:12px 0;color:#455f73}
+.draft-editor--ordinary .editor-delete{color:#9d2424;border-color:#bd7777;background:#fff}.draft-editor--ordinary .editor-delete:hover:not(:disabled){background:#fff1f1;color:#801b1b}
+.draft-editor--ordinary .editor-delete-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}.draft-editor--ordinary .editor-delete-target{display:flex;flex-wrap:wrap;gap:8px 20px;overflow-wrap:anywhere}.draft-editor--ordinary .editor-delete-target strong{color:#263b4a}
+@media(max-width:720px){.draft-editor--ordinary .editor-delete-actions>*{width:100%}}

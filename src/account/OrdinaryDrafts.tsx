@@ -12,7 +12,7 @@ export default function OrdinaryDrafts(){
  const blocker=useBlocker(useCallback(()=>risk.current,[]));
  useEffect(()=>{
   if(blocker.state!=='blocked')return;
-  if(window.confirm('未保存の編集、または結果を確認中の操作があります。この画面を離れると手元の編集は失われます。送信済みの保存・作成は取り消せません。移動しますか？'))blocker.proceed();
+  if(window.confirm('未保存の編集、または結果を確認中の操作があります。この画面を離れると手元の編集は失われます。送信済みの保存・作成は取り消せません。送信済みの削除も取り消せません。移動しますか？'))blocker.proceed();
   else blocker.reset();
  },[blocker]);
  return <section className="ordinary-drafts"><AccountSessionBoundary variant="authoring" signedOutContent={<div className="account-signed-out"><Link className="primary" to="/login">ログインする</Link><Link to="/signup">初めての方は学生として登録する</Link></div>}>
