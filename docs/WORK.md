@@ -1,6 +1,20 @@
 # Current work and replanning
 
+## 設定不変のリアルタイム対照を一回だけ確認する
+
+**現在地:** source main `172b5c1`と最新main CI成功、PR #96／#84／#85のOPEN・Draftを再確認した。通常下書き削除は[PR #108の完了記録](https://github.com/junhat6/kobe-student-hub/pull/108#issuecomment-6723273526)で独立QA・両CI・一回配備・独立本番QAまで完了している。PRD原文は変更せず、公開サンプル4件／2人と閉じた実認証を維持する。
+
+**Planner / 仮説:** 既存の閉鎖プレビューで、最終診断の回収を修正した一時Tailなら一つの非secret対照要求と実frameを相関できるのではないか。先のstored queryは0row、最初のTailはcreate／deleteとremote不存在だけを確認し、consumer最終payload欠落のためHTTP／frameの実結果は未確認だった。新しい試行は古いclaimを再利用せず、独立した一回限りのjournalで管理する。
+
+**受入条件:** 各unitで既存previewの版・設定・trafficを前後照合し、Tail作成一回、queryless GET一回、socket一個、frame最大一個、通信停止deadlineを30秒に設定する。最終診断だけに公称500msのflush猶予を置く。timerの実時刻精度の保証とは区別する。旧actual・ledgerは変更せず、収集率・契約・権限・実認証も変更しない。
+
+**Developer / 実結果:** v2は独立事前31確認の後、一度実行。405とframe1を確認したが型／size未記録のunsupportedで相関前に停止した。最終診断・所有Tailとprocessのcleanupは確認でき、独立事後33確認もこの狭い未確認結論を支持した。次にwsの明示binary表現をbyte上限・fatal UTF-8で扱うv3を別namespaceへ準備。12focused確認・decoder10例・receiver8例、独立29確認と4代表検証後に、別GOで一度実行した。frame1はBuffer2999byteで厳密UTF-8に適合し、完全URL・GET／405・時刻・versionを相関、key／value等のwalkを206nodeで完了しtruncationなし。所有Tailの削除・remote不存在、他Tailとpin不変、consumer終了・PID不存在も確認した。このturnのcontrolはv2＋v3の2unitで打ち切り、追加要求・query・再送は行わない。[方法・証拠と限界](QA-REALTIME-LOG-CONTROL.md)。
+
+**独立QA / Replanning:** v3の独立事後32確認に、この限定した陽性結論とcleanupへの阻害所見なし。文書CIを確認して記録を統合する。陽性は閉鎖fallbackのリアルタイム1件だけで、stored log、敏感な入力位置やOAuth各branchの保護は未確認のまま。次はこの捕捉方法を基に、入力位置・各保存先の検査を具体化する。旧0rowやv2の原因を確定せず、callback公開条件を変えない。新旧4ledgerの固定24h期限とrootの手動cleanup責務を維持し、自動削除があるとは扱わない。
+
 ## 通常の本人下書きを削除・確認する
+
+**最終結果:** [PR #108の配備・独立QA記録](https://github.com/junhat6/kobe-student-hub/pull/108#issuecomment-6723273526)でmain `172b5c1`、最終PR／main CI成功、Worker一回配備と独立本番QAを確認済み。以下の「QA実行中」は当時の経過で、現在の未完了判定ではない。通常表示／OAuth／draftのgateはfalseのまま。
 
 **Planner / 仮説:** 通常の執筆画面で不要な下書きを本人が整理できれば、私的な制作記録を管理しやすくなるのではないか。既存DELETEのowner／session／CAS境界を使い、選択した一件だけを明示確認して削除する。公開保存版が別に残ることも確認前に示す。撤去済み本人限定試用は復活させず、新しいlabを作らない。[受入条件と範囲](ORDINARY-DRAFT-DELETION.md)。
 
