@@ -6,6 +6,7 @@ let mf:Miniflare;
 let bootstrapGitBody:string;
 let bootstrapLearningRow:Record<string,string|number>;
 let preDecisionsLearningRow:Record<string,string|number>;
+let decisionsLearningRow:Record<string,string|number>;
 beforeAll(async()=>{
  mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/index.js',compatibilityDate:'2026-11-03',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
  const db=await mf.getD1Database('DB');
@@ -18,6 +19,8 @@ beforeAll(async()=>{
  for(const name of ['0001_git_practice.sql','0002_learning_notes.sql'])await db.prepare(readFileSync('content-revisions/'+name,'utf8').replace(/^--.*$/gm,'').trim()).run();
  preDecisionsLearningRow=(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first<Record<string,string|number>>())!;
  await db.prepare(readFileSync('content-revisions/0003_learning_notes_decisions.sql','utf8').replace(/^--.*$/gm,'').trim()).run();
+ decisionsLearningRow=(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first<Record<string,string|number>>())!;
+ await db.prepare(readFileSync('content-revisions/0004_learning_notes_no_assignment.sql','utf8').replace(/^--.*$/gm,'').trim()).run();
  await db.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('private-actor','PRIVATE_GOOGLE_SUBJECT','fixture-private@st.kobedenshi.ac.jp','active',0)").run();
  await db.prepare("INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) VALUES('11111111-1111-4111-8111-111111111111','private-actor','PRIVATE_ARTICLE_DRAFT','SECRET_DRAFT_MARKDOWN',1,0)").run();
  await db.prepare("INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) VALUES('publication-fixture-profile','Fictional publication author','Fixture','Sample','','F',0)").run();
@@ -52,12 +55,12 @@ describe('fictional content revision',()=>{
   const response=await mf.dispatchFetch('http://test/api/catalog');const catalog=await response.json() as {entries:{id:string}[]};
   expect(catalog.entries.find(e=>e.id==='learning-notes')).toEqual(sampleCatalog.entries.find(e=>e.id==='learning-notes'));
  });
- for(const revision of ['0002_learning_notes.sql','0003_learning_notes_decisions.sql'])it(`changes only the expected learning-notes row once and preserves edits to every guarded field: ${revision}`,async()=>{
+ for(const revision of ['0002_learning_notes.sql','0003_learning_notes_decisions.sql','0004_learning_notes_no_assignment.sql'])it(`changes only the expected learning-notes row once and preserves edits to every guarded field: ${revision}`,async()=>{
   const db=await mf.getD1Database('DB');
   const sql=readFileSync('content-revisions/'+revision,'utf8').replace(/^--.*$/gm,'').trim();
   const latest=(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first<Record<string,string|number>>())!;
-  const baseline=revision==='0002_learning_notes.sql'?bootstrapLearningRow:preDecisionsLearningRow;
-  const expected=revision==='0002_learning_notes.sql'?preDecisionsLearningRow:latest;
+  const baseline=revision==='0002_learning_notes.sql'?bootstrapLearningRow:revision==='0003_learning_notes_decisions.sql'?preDecisionsLearningRow:decisionsLearningRow;
+  const expected=revision==='0002_learning_notes.sql'?preDecisionsLearningRow:revision==='0003_learning_notes_decisions.sql'?decisionsLearningRow:latest;
   const columns=Object.keys(latest);
   const write=async(row:Record<string,string|number>)=>db.prepare('UPDATE content SET '+columns.map(k=>k+'=?').join(',')+" WHERE id='learning-notes'").bind(...columns.map(k=>row[k])).run();
   try{

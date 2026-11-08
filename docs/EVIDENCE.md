@@ -673,3 +673,13 @@ test-only `68d2757`（root取込`1d255a4`）は、確認前にlistenerを置き�
 別contextの追加確認は固定`1d255a4`で原case2件成功。別private copyの、実GET200のrow IDだけ削除済みIDへ変えた2件は新しいidentity assertionで拒否し、timeoutやsetup失敗とは区別した。aggregate exit1はこの期待negative2件による。所有するserver／browser・観測子process・8790待受は終了し、製品sourceは変更していない。新headのCI成功までmerge／配備を停止する。
 
 独立test-fix QAの指紋は`8ccf0b22f03f46b09eea095e5f7e1c43cf2660bd9c37bead34e593951e2265d7`。4件計15.01秒、4画像を実際に開き、28観測identity（24 PID）・8790待受・一時dependency link／worktreeの終了・除去を確認した。fenceはDELETE観測後に始まったGETであり、それ自体をACK後の送信保証へ広げない。
+
+## 制作ノートの末尾課題を削除する — ローカル準備（2026-11-09 JST）
+
+base main `e88b25e`。[PR #110](https://github.com/junhat6/kobe-student-hub/pull/110)の一回配備・独立本番QA完了後の、架空sample一件の編集である。末尾の課題見出しと指示段落を削除し、3項目直後の一文を記録例の平叙文へ直した。別名のCTAは足さず、具体例・比較実測・3行・再選定／作品説明の使い道と参考リンクを維持した。本文は2533字から2403字。編集日を2026-11-09へ更新し、概算6分と他のmetadataは維持した。私的な回答や実利用者の評価は転載していない。
+
+適用済み0003／migrationは不変。[editorial0004](../content-revisions/0004_learning_notes_no_assignment.sql)と[逆操作](../content-revisions/rollback/0004_learning_notes_no_assignment.sql)は、対象の全15列を比較して本文・編集日だけを更新する。local setupと実Worker／D1 fixtureを0003→0004へ揃え、既存guard試験の対象リストへ追加した。適用一回・再適用0件・guard各fieldの変更保護・他row保持・逆操作一回／再実行0件・後続編集の保護は、同じ実D1試験で確認した。新しい模倣test fileは作っていない。
+
+実行したbuild、localDB初期化、78files／709unit・Worker（Vitest17.95秒）、公開Chromium PC/mobile62件（11.5秒）、deploy dry-runが全成功。PlaywrightはCI=1で既存serverの再利用を止め、8787が空いた状態から既存管理commandで起動した。所有runner／server／browser・観測子processと8787待受の終了を確認し、強制停止・未知／user processの停止は0。実装者の確認は学生価値や実端末、実Google／実投稿の検証ではない。
+
+別contextの独立QAとCIは次の工程であり、ここでは成功とは扱わない。push・remote SQL・Worker配備、schema／gate／credential／grant／契約変更は0。本番の本文はこのローカル準備だけでは変わらず、任意に参照しやすくなるという仮説の価値も未確認である。

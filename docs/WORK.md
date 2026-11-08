@@ -1,5 +1,15 @@
 # Current work and replanning
 
+## 制作ノートを読後課題なしで参照できる形にする
+
+**前回判定／現在地:** [PR #110の完了記録](https://github.com/junhat6/kobe-student-hub/pull/110)でmain `e88b25e`の両CI・一回配備・独立本番QAまで完了した。通常表示／OAuth／draftの4gateはfalse、実認証・投稿は未提供のまま。以下の前cycleのCI待ち表記は当時の経過である。
+
+**Planner / 仮説と受入条件:** 読後の課題を外すと、具体例を自分の都合で参照できるのではないか。架空sample一件の末尾の課題見出しと指示段落を削除し、3項目直後の一文だけを記録例の説明へ直す。別名の課題やCTAは足さず、技術選定の具体例・比較・3項目・再選定／作品説明の使い道・参考資料を保つ。適用済み0003とmigrationは変更せず、全15列guardの0004と逆操作で更新する。
+
+**Developer / 検証:** 本文と編集日だけを変更し、概算6分と他のmetadataは維持した。local初期化・Worker fixtureを0003→0004へ接続し、既存の実D1 guard試験対象へ追加した。build・78files／709unit／Worker（17.95秒）・公開PC/mobile62件（11.5秒）・localDB・dry-runが成功。CI=1で開始前に空きを確認した8787へ所有serverを起動し、終了後は観測子processと待受の不存在を確認した。強制停止・他人のserver再利用／停止は0。[実行結果](EVIDENCE.md)を保持する。実装者の確認を独立QAや学生価値の成功とは扱わない。
+
+**Replanning:** 実行結果と別contextの独立QA、CIを確認してからmain／本番の一件反映へ進む。ここではpush・remote SQL・配備は行わない。この任意参照の価値は未確認で、実認証・投稿のgateも変更しない。
+
 ## Worker外側の例外値を固定503へ収める
 
 **前回判定／現在地:** 前turnは[PR #109の完了記録](https://github.com/junhat6/kobe-student-hub/pull/109#issuecomment-6723965185)でリアルタイム対照1件の相関と独立QA・両CI・main `371ab10`統合を完了したprogress。文書のみで、本番runtime `172b5c1`の再配備は行っていない。今turnもGitHubのmain／成功CIと3件のDraftを確認し、PRDを再読した。公開home→記事は独立PC/mobile4群・4画像で確認し、架空sample4件／2人と閉じた実認証を維持している。
