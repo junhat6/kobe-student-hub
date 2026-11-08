@@ -595,3 +595,15 @@ rootの画像確認でtableの行ラベルを短縮した後、最終source `927
 独立QAは最終sourceのbuild／実D1関連20tests・手動27cases、PC/mobile24群、native／fallbackコピー各4、overflow18地点、内側code scroll4点を確認し、12画像を実際に開いた。rootも最終代表5画像を確認。所有server6単位／browserは終了し、8897／9247待受なし。独立再計測はfixture／結果指紋と全96組一致で、元resultsを上書きしていない。[source・画像指紋、診断と限界](QA-LEARNING-NOTES-DECISIONS.md)。
 
 本番preflightは既存の正確な対象と旧値15列、他3sample／2profile、配備版・設定をread-onlyで一致確認した。これは適用ではなく、actual apply直前のmain・対象・旧値再照合を条件とする。通常CIと本番の正確な結果は対応PRへ追記し、source準備だけで反映済みと扱わない。schema/auth/grant・Worker設定／配備の変更はこのeditorial単位に含めない。学生価値・実端末の検証は別に残る。
+
+## 通常アプリから下書きの保存・再開へ — 2026-11-08
+
+base main `fe97bbe`、Issue/PR/CIと公開本体を再確認し、PRDを読み直した。前turnの制作ノート改稿は[PR #105](https://github.com/junhat6/kobe-student-hub/pull/105#issuecomment-6720753283)で実反映・独立GET-only QAまで完了。PR #96/#84/#85はDraftを維持し、拒否されたDraft解除を再試行していない。通常のaccountから既存draft編集へ進めなかったため、[同じ処理を本体entryへ接続](ORDINARY-DRAFTS.md)する仮説を選んだ。
+
+source `198eb4b`でbuild、77files／691unit・Worker（16.77秒）、localDB、公開62（12.2秒）、auth52（追加16＋既存36、1.7分）、editor197成功／既存skip1（3.6分）、deploy dry-runが成功。rootのpublic serverはgroup97821、editorはgroup3816の終了と8787／8788待受なしを確認。認証runnerも所有groupと8790待受を終了した。editorの自己署名TLSのCertificateUnknown出力は別に存在し、試験成功を全server log無エラーとは表現しない。初回auth試験のcancelled reload待機、PATCHのintercept指定、signed-in時の再登録driverを補正し、製品の保護や判定を弱めず全52件を通した。
+
+別worktree／contextの独立QAは関連15tests（6.36秒）、追加HTTP5群、PC/mobile12群を成功。年度missing／将来／終了時のowner read維持・write拒否、本人／CSRF／Origin、実commit後のACK・EOF遅延とsession変更／競合の組合せを確認した。成功12画像を担当者自身が開き、source／test／fixtureの21指紋とhelper／画像をprivateに保持。[独立QA・注入方法・診断・限界](QA-ORDINARY-DRAFTS.md)。
+
+fresh visual reviewの2点だけを通常variantに限定して修正した`cf7035a`は、API／router／認証／状態遷移の変更がないことを独立QAが照合。最終18件（通常16＋capture2、43.2秒）と保存・空・復旧6画像が成功し、実装担当とfresh reviewerが全画像を開いた。verdict passは2指摘をresolved／`ship`と採点した。mechanical detectorは最初の一回のみ、8対象で指摘0。rootも修正後代表2画像と独立代表2画像を確認。画像・proof・運用値・私的回答の公開はなく、sourceのデザイン体系は継承した。
+
+一般のfrontend表示とOAuth／draftのsource gateはすべてfalse、sample-onlyの公開境界を維持する。実Google・実ログ・実運営・学生価値・物理端末は未完了で、新しい本人限定試用やlabを追加していない。実配備のread-only preflightでは既存対象・設定・sample4件／profile2件と記事0003の一致を確認したが、配備完了とは扱わない。PR/main CI・実配備・本番GET-only独立QAの正確な結果は、[PR #106](https://github.com/junhat6/kobe-student-hub/pull/106)の完了記録へ残す。Worker配備にremote SQL／schema・権限・credential・契約変更を含めない。

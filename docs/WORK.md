@@ -6,9 +6,11 @@
 
 **Planner / 仮説:** 登録後の学生が本体アカウントから下書きの作成・保存・再開へ進めれば、共有する経験を書き始めるまでの断絶を減らせるのではないか。既存editor／HTTP処理は検証用旅程に閉じているため、通常アプリへ同じ処理を接続する。新しいlabや本人限定試用は作らない。[範囲と受入条件](ORDINARY-DRAFTS.md)。
 
-**Developer / 検証予定:** `/drafts`と既存accountの導線、共通session境界、未保存／通信中の移動保護、共通server compositionを実装する。通常公開UIとserverのsource gateはfalseのまま、実認証・remote schema・設定・権限・契約は変更しない。実装者と別contextでHTTP・PC/mobile・画像をQAし、証拠と正確なcheck結果を保存する。未実行を成功と記録しない。
+**Developer / Evidence:** `/drafts`と既存account、共通session境界・server compositionを接続。既存編集・明示保存・再開・版比較を使い、React Routerのblockerとbeforeunloadで未保存／作成・保存中の移動を確認する。通常画面は本人用下書きに絞り、公開操作は未提供と示す。通常公開UIとOAuth／draftのsource gateはfalseを維持する。source `198eb4b`でbuild・77files/691unit（16.77秒）、localDB、公開62（12.2秒）、auth52（1.7分）、editor197成功／既存skip1（3.6分）、dry-runが成功。各owned server／子process／待受は終了した。
 
-**Replanning:** 実ログ・学校Google・運営等は未完了。今回の合成環境での動作を実サービス提供や学生価値の成功とは扱わず、既存の公開条件に沿って接続を進める。
+**独立QA:** 別worktree／contextで関連15tests、追加実D1/HTTP5群、PC/mobile12群が成功。実commit後のEOF停止・ACK遅着、session変更、版競合を組み合わせ、入力保持・本人境界・自動再送なしを確認した。成功12画像を独立担当が開いて確認。fresh visual reviewの2点を通常画面だけで修正した`cf7035a`では、機能差分なしを独立QAが確認し、追加18件・最終6画像が成功。reviewerのverdict passは2指摘をresolved／`ship`と採点し、別documenterも既存デザインの継承を確認した。全体の実サービス完成判定ではない。[独立QAと限界](QA-ORDINARY-DRAFTS.md)。PR/main CIと実配備は、実行後に[PR #106](https://github.com/junhat6/kobe-student-hub/pull/106)へ正確に記録する。
+
+**Replanning:** 通常の執筆が検証用entryだけに閉じる不足を減らしたが、実ログ・学校Google・運営等は未完了。実ログの陽性相関と実認証接続の不足は、既存の許可された接続と実際の証拠から解消する。契約不明の収集率変更、新しいlabや試用で代替しない。合成環境での成功は、実サービス提供・学生価値・実端末の成功とは扱わない。
 
 ## 現在地 — 2026-11-08
 

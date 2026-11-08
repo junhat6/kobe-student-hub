@@ -1,5 +1,7 @@
 # Private article draft persistence
 
+Current integration: the [ordinary draft route](ORDINARY-DRAFTS.md) reuses this store and HTTP boundary through the main app, with frontend and server release gates still closed. Student participation follows the adopted [private self-declared enrollment policy](adr/0001-self-declared-enrollment.md); owner reads remain separate from new writes. The sections below record the original server-only unit, not the latest release status.
+
 Issue #28 addresses a necessary part of the PRD's Markdown authoring and PC/mobile draft handoff: only the owner can access a draft, and saving an older version must not overwrite a newer save. This is server-only local implementation, not an enabled editor, autosave UI or real posting service. The source PRD was read without editing or republishing it.
 
 ## Why this unit
@@ -16,7 +18,7 @@ Draft IDs are server generated. Creation starts version 1; updates and deletion 
 
 Technical initial bounds, subject to review: title 200 Unicode code points, Markdown 256 KiB UTF-8, newest 20 summaries with deterministic ordering. Empty title/body remain valid while writing. The summary list omits body and private identity/session fields. These bounds are implementation safeguards, not agreed product limits or full pagination. Per-account quotas, automatic retention and bulk operations are outside this unit.
 
-## Release boundary
+## Original release boundary
 
 No production endpoint imports this store. Private fixture endpoints must never be deployed or accept real identities. Local migration preparation is not remote application; migration 0004 and the new draft migration remain unapplied remotely. No Google settings, secrets, permanent grants, contracts or real accounts are created.
 
