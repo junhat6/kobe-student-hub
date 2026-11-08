@@ -42,6 +42,18 @@
 
 **Replanning:** 通常の入口が別demoに閉じている不足は、本体entryと既存合成環境の接続で解消した。次は既存の実ログ経路・認証設定・公開条件を、許可済み接続のread-only確認と実接続の証拠に基づいて具体化する。source準備だけを実サービスの完成としない。追加の在籍審査や私的窓口の推測を行わず、source gate・frontend visibility・public writesは閉じたまま。実Google／実ログ／実運用、学生価値、物理端末の不足を新しい合成試用の追加へ置き換えない。
 
+## 閉じた既存プレビューで実ログの照合を試す
+
+前サイクルは[PR #102](https://github.com/junhat6/kobe-student-hub/pull/102#issuecomment-6719136341)、main `37b07fc`へ統合済み。PR/main CIの全checkが成功し、通常画面は本体entryへ接続されたが、frontend visibility・OAuth source gate・public writesは閉じたまま。PR #96のDraft状態は変更しない。
+
+**Planner / 仮説:** 実際の配備・ログ経路を調べ、合成要求と実rowを個別に照合できれば、実認証の公開前に残る保護条件を具体化できる。設定の存在や0件の検索を、秘密情報の非保存の証拠にはしない。実装者と別のQAが、固定6件・実credentialなし・前後の配備照合・case別捕捉・未知は未確認という条件を送信前に固定した。
+
+**実施とEvidence:** 既存の専用プレビューへhealth1件、相関control1件、既存callback/register4件を一度だけ送信した。200/405、Cookie発行・Locationなしで閉鎖境界を維持。実ログは2round・4queryを行ったが対応rowを特定できず、6件すべて未確認とした。配備・version・settingsの指紋は前後一致し、main配備とは推定しない。[範囲・方法・結果](QA-CLOSED-PREVIEW-LOGS.md)。設定・配備・Tail・grant・schemaの変更はなく、生ログや私的回答も公開しない。
+
+**独立QA:** 別コンテキストでledger／method／adaptiveの指紋、時刻、前後pinと未確認の解釈を照合し、限定的な結論に阻害所見なし。query完了状態、ページ不足判定、実rowでのscanが未実証という指摘を記録した。照合用ledgerとprobeはQA後に削除・不存在確認済み。文書の差分／相対リンク確認が成功し、通常CI結果はPR完了記録へ残す。
+
+**Replanning:** [ログゲート](LOGGING-GATE.md)は未達。次は一件の非secret controlを独立に相関できる捕捉方法と、未確認のログ層の確認経路を具体化する。sampling・検索不一致・未保存を今回の0件から断定しない。実認証branchの成功／拒否／失敗、実Google・実運用・学生価値の不足を、合成試用や別機能の追加で置き換えない。通常CI成功後、この限定的な未確認結果をmainへ反映する。
+
 ## Cycle 01
 
 **Planner:** H01 — reader context plus author/project relationships can help a student choose an article and carry away a next action. Minimal target: browse → article/project → author/related, on mobile and PC. Fictional data only.

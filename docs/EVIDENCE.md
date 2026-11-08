@@ -563,3 +563,13 @@ base main `4f3fe88`から、本体entryにsignup／login／accountを接続。�
 build・typecheck・76files/686unit、公開62、auth suite36（source gate確認2件を含む）、editor197passed/既存skip1、pilot1、retired8、deploy dry-runが成功。追加public testの見出し指定と旧JSON helperを修正し、各suiteを全件再実行した。独立transport49件、別担当の通常browser14件、独立browser12件に阻害所見なし。fresh visual reviewerは提示11画像の範囲で`ship`、documenterは既存DESIGNの継承を確認。[実行・失敗診断・source指紋・限界](QA-ORDINARY-REGISTRATION.md)。
 
 実装者と独立担当が起動したserver／子processを終了し、全対象portの待受なしを確認。公開画像・私的回答・生ログの追加はない。remote SQL・credential／grant・本番設定／配備の変更は行っていない。実Google／実ログ／実運用、実BFCache／実端末、学生価値と離脱率は未検証。PR/main CIは実行後に完了記録へ追記する。
+
+## 閉鎖プレビューの実ログ照合 — 2026-11-08
+
+base main `37b07fc`、[PR #102の統合完了](https://github.com/junhat6/kobe-student-hub/pull/102#issuecomment-6719136341)とgreen CIを確認。既存の専用プレビューの実配備を固定し、実credentialを使わない6要求を一度だけ送った。health200／閉鎖auth405、全件Cookie発行・Locationなし。
+
+既存権限でevents／calculations計4queryを2round実行したが、6件とも対応rowを特定できなかった。独立相関・full-row／関連ログ検査・canary不在の判定は未成立。ABR1や0rowを非保存・redaction成功と扱わない。service/type条件を外す追加照合も、一意controlのorigin/path・UUID・時間幅だけに拘束した。配備・version・settingsは前後一致し、mainの配備は推定しない。[方法、case表、指紋、独立QAと限界](QA-CLOSED-PREVIEW-LOGS.md)。
+
+設定変更・配備・remote SQL・Tail接続・credential／grant変更は0。生ログ取得・保存も0件で、実ユーザーや実Googleの接続は行っていない。source gate・frontend visibility・public writesは閉じたまま、[実ログゲート](LOGGING-GATE.md)は未達。
+
+別コンテキストのQAはledger／method／adaptiveの指紋と前後pin、時刻・未確認の解釈を照合し、限定的な結論に阻害所見なし。query完了・ページ不足判定と実row scanの未実証を明記した。QA後に一時ledger／probeを削除し、不存在を確認。sanitized結果とQA記録だけをlocal mode0600で保持する。文書差分と相対リンク156参照先の確認が成功。通常CIの正確な結果はPR完了記録へ残す。
