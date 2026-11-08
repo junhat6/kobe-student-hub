@@ -1,5 +1,24 @@
 import { SessionStore } from './auth/sessions';
 import { ArticleModerationStore } from './moderation';
+export interface ModerationBindings {
+  MODERATION_OPERATOR_ACCOUNT_IDS?: string;
+}
+/** Server configuration only. An absent or invalid allowlist never admits an operator. */
+export function parseModerationOperators(bindings: ModerationBindings): readonly string[] {
+  const raw = bindings.MODERATION_OPERATOR_ACCOUNT_IDS;
+  if (typeof raw !== 'string' || raw.length > 2048) return [];
+  try {
+    const ids: unknown = JSON.parse(raw);
+    return Array.isArray(ids) &&
+      ids.length <= 10 &&
+      ids.every((id) => typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id)) &&
+      new Set(ids).size === ids.length
+      ? Object.freeze([...ids])
+      : [];
+  } catch {
+    return [];
+  }
+}
 const PREFIX = '/api/private/';
 const LIMIT = 16 * 1024;
 // Transport work bound, including zero-byte chunks; distinct from the content byte limit.
@@ -120,9 +139,13 @@ export function createModerationHandler(
       /^\/api\/private\/moderation\/cases\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/decision$/.exec(
         url.pathname,
       );
+    const receipt =
+      /^\/api\/private\/moderation\/cases\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/decisions\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.exec(
+        url.pathname,
+      );
     const session = url.pathname === '/api/private/moderation/session';
     const queue = url.pathname === '/api/private/moderation/cases';
-    if (!report && !casePath && !decision && !session && !queue) return unavailable();
+    if (!report && !casePath && !decision && !receipt && !session && !queue) return unavailable();
     const allowed = report || decision ? ['GET', 'POST'] : ['GET'];
     if (!allowed.includes(request.method)) {
       const response = error(405, 'method_not_allowed');
@@ -139,11 +162,13 @@ export function createModerationHandler(
       if (request.method === 'GET') {
         const result = report
           ? await moderation.getOwnReport(request, report[1])
-          : decision
-            ? await moderation.decisionState(request, decision[1])
-            : casePath
-              ? await moderation.readCase(request, casePath[1])
-              : await moderation.queue(request);
+          : receipt
+            ? await moderation.readDecision(request, receipt[1], receipt[2])
+            : decision
+              ? await moderation.decisionState(request, decision[1])
+              : casePath
+                ? await moderation.readCase(request, casePath[1])
+                : await moderation.queue(request);
         return result === null ? unavailable() : json(result);
       }
       const body = await input(request);

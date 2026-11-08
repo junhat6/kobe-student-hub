@@ -290,25 +290,46 @@ export class ArticleModerationStore {
   private async decisionReceipt(
     p: Proof,
     targetId: string,
-    input: DecisionInput,
+    input: DecisionInput | { decisionId: string },
   ): Promise<ModerationDecisionReceipt | null> {
+    const exact = 'action' in input ? input : null;
     const row = await this.db
       .prepare(
-        `SELECT d.id decisionId,d.content_id contentId,d.action,d.reason,d.result_status resultStatus,d.result_round resultRound,d.result_version resultVersion,o.state notification FROM article_moderation_decisions d JOIN article_moderation_outbox o ON o.decision_id=d.id WHERE d.id=? AND d.content_id=? AND d.operator_account_id=? AND d.expected_round=? AND d.expected_version=? AND d.action=? AND d.reason=? AND d.decided_at_ms<=? AND ${live}`,
+        `SELECT d.id decisionId,d.content_id contentId,d.action,d.reason,d.result_status resultStatus,d.result_round resultRound,d.result_version resultVersion,o.state notification FROM article_moderation_decisions d JOIN article_moderation_outbox o ON o.decision_id=d.id WHERE d.id=? AND d.content_id=? AND d.operator_account_id=? AND (?=0 OR (d.expected_round=? AND d.expected_version=? AND d.action=? AND d.reason=?)) AND d.decided_at_ms<=? AND ${live}`,
       )
       .bind(
         input.decisionId,
         targetId,
         p.accountId,
-        input.expectedRound,
-        input.expectedVersion,
-        input.action,
-        input.reason,
+        exact ? 1 : 0,
+        exact?.expectedRound ?? null,
+        exact?.expectedVersion ?? null,
+        exact?.action ?? null,
+        exact?.reason ?? null,
         p.clock(),
         ...bindings(p),
       )
       .first<ModerationDecisionReceipt>();
     return row && row.notification === 'pending' ? row : null;
+  }
+  async readDecision(
+    request: Request,
+    targetId: unknown,
+    decisionId: unknown,
+  ): Promise<ModerationDecisionReceipt | null> {
+    if (
+      request.method !== 'GET' ||
+      !idValid(targetId) ||
+      typeof decisionId !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(decisionId)
+    )
+      return null;
+    try {
+      const p = await this.operator(request);
+      return p ? await this.decisionReceipt(p, targetId, { decisionId }) : null;
+    } catch {
+      return null;
+    }
   }
   async decide(
     request: Request,

@@ -236,6 +236,13 @@ describe('article moderation decisions with actual Workers/D1', () => {
     expect(JSON.stringify(receipt)).not.toMatch(
       /operator|account-|subject-|st\.kobedenshi|token|csrf/,
     );
+    const receiptPath = '/api/private/moderation/cases/' + id + '/decisions/' + input.decisionId;
+    expect(await (await request(receiptPath)).json()).toEqual(receipt);
+    expect((await request(receiptPath, 'GET', users[0])).status).toBe(404);
+    expect(
+      (await request(receiptPath, 'GET', operator, undefined, { 'X-Test-Operators': 'none' }))
+        .status,
+    ).toBe(404);
     expect(await action('read-public', undefined, id)).not.toBeNull();
     expect(await (await request('/api/private/reports/' + id, 'GET', users[0])).json()).toEqual({
       received: false,

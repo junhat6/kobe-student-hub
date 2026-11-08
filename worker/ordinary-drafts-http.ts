@@ -17,7 +17,7 @@ import { createPrivateProjectReportHandler } from './project-reports-http';
 export function createOrdinaryDraftHandler(
   db: D1Database,
   origin: string,
-  options: { enabled?: boolean } = {},
+  options: { enabled?: boolean; operatorIds?: readonly string[] } = {},
   clock: () => number = Date.now,
 ) {
   if (options.enabled !== true) return async (_request: Request): Promise<Response | null> => null;
@@ -32,7 +32,7 @@ export function createOrdinaryDraftHandler(
     createPrivatePublicationStopHandler(db, origin, clock),
     createPrivateLikeHandler(db, origin, clock),
   ];
-  const reports = createModerationHandler(db, origin, [], clock);
+  const reports = createModerationHandler(db, origin, options.operatorIds ?? [], clock);
   const projectReports = createPrivateProjectReportHandler(db, origin, [], clock);
   return async (request: Request): Promise<Response | null> => {
     for (const handler of handlers) {
@@ -41,9 +41,13 @@ export function createOrdinaryDraftHandler(
     }
     const path = new URL(request.url).pathname;
     if (path.startsWith('/api/private/project-reports')) return projectReports(request);
-    // The existing report client uses this CSRF-only session response. Operator
-    // queues and case reads stay unmounted until an actual allowlist is provided.
-    if (path.startsWith('/api/private/reports') || path === '/api/private/moderation/session') {
+    // The report client keeps its CSRF-only session response. Configured operator
+    // routes still enforce the authenticated actor allowlist on every operation.
+    if (
+      path.startsWith('/api/private/reports') ||
+      path === '/api/private/moderation/session' ||
+      (options.operatorIds?.length && path.startsWith('/api/private/moderation/cases'))
+    ) {
       return reports(request);
     }
     return null;

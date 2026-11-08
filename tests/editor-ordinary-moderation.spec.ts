@@ -1,0 +1,228 @@
+import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+const ORIGIN = 'https://127.0.0.1:8788';
+async function context(browser: Browser) {
+  return browser.newContext({ baseURL: ORIGIN, ignoreHTTPSErrors: true });
+}
+async function student(ctx: BrowserContext) {
+  const response = await ctx.request.post('/__fixture/profile-session', {
+    headers: { Origin: ORIGIN },
+  });
+  expect(response.status()).toBe(200);
+  return ((await response.json()) as { csrfToken: string }).csrfToken;
+}
+async function post(ctx: BrowserContext, path: string, csrf: string, data: unknown) {
+  return ctx.request.post(path, {
+    headers: { Origin: ORIGIN, Authorization: 'Bearer csrf.' + csrf },
+    data,
+  });
+}
+async function setup(browser: Browser, reports = 3) {
+  const contexts: BrowserContext[] = [];
+  const author = await context(browser);
+  contexts.push(author);
+  const csrf = await student(author);
+  expect(
+    (
+      await post(author, '/api/private/profile', csrf, {
+        displayName: '架空の著者',
+        department: '',
+        yearLabel: '',
+        bio: '',
+        confirmPublic: true,
+      })
+    ).status(),
+  ).toBe(201);
+  const title = '運営確認の架空記事-' + crypto.randomUUID().slice(0, 8);
+  const draft = await post(author, '/api/private/drafts', csrf, {
+    title,
+    body: '# 保存した本文\n\n運営が確認する架空の本文です。',
+  });
+  const draftId = ((await draft.json()) as { id: string }).id;
+  const publication = await post(author, '/api/private/publications/' + draftId, csrf, {
+    expectedVersion: 1,
+    confirmPublic: true,
+    summary: '架空の検証記事',
+    tags: [],
+    minutes: 1,
+  });
+  expect(publication.status()).toBe(201);
+  const id = ((await publication.json()) as { contentId: string }).contentId;
+  const reporters: { ctx: BrowserContext; csrf: string }[] = [];
+  for (let n = 0; n < reports; n++) {
+    const ctx = await context(browser);
+    contexts.push(ctx);
+    const token = await student(ctx);
+    expect(
+      (
+        await post(ctx, '/api/private/reports/' + id, token, {
+          reason: '架空の通報理由' + n,
+          detail: '架空の非公開詳細',
+        })
+      ).status(),
+    ).toBe(200);
+    reporters.push({ ctx, csrf: token });
+  }
+  return { id, title, reporters, contexts };
+}
+async function operator(page: Page) {
+  expect(
+    (
+      await page.request.post('/__fixture/operator-session', { headers: { Origin: ORIGIN } })
+    ).status(),
+  ).toBe(200);
+  await page.goto('/moderation');
+  await expect(
+    page.getByText('セッションと運営権限を確認しました。各判断でもサーバーが権限を確認します。', {
+      exact: true,
+    }),
+  ).toBeVisible();
+}
+async function select(page: Page, title: string) {
+  await page.locator('.moderation-queue button').filter({ hasText: title }).click();
+  await expect(page.getByRole('region', { name: '運営判断', exact: true })).toBeVisible();
+}
+async function confirm(page: Page, action: '復元' | '削除', reason: string) {
+  const form = page.getByRole('region', { name: '運営判断', exact: true });
+  await form.getByLabel('判断の理由 必須', { exact: true }).fill(reason);
+  await form.getByRole('button', { name: action + 'を確認', exact: true }).click();
+  await expect(
+    form.getByRole('button', { name: '確認した内容で' + action, exact: true }),
+  ).toBeDisabled();
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: '確認した内容で' + action, exact: true }).click();
+}
+test('ordinary operator reviews a case, explicitly restores, receives a new report round, and soft-deletes', async ({
+  page,
+  browser,
+}, info) => {
+  const target = await setup(browser);
+  try {
+    await operator(page);
+    await select(page, target.title);
+    await page.getByText('対象の記事本文を確認', { exact: true }).click();
+    await expect(page.locator('.moderation-article')).toContainText(
+      '運営が確認する架空の本文です。',
+    );
+    let posts = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().endsWith('/decision')) posts++;
+    });
+    const form = page.getByRole('region', { name: '運営判断', exact: true });
+    await form
+      .getByLabel('判断の理由 必須', { exact: true })
+      .fill('本文と通報を確認し、公開を継続できると判断しました。');
+    await form.getByRole('button', { name: '復元を確認', exact: true }).click();
+    expect(posts).toBe(0);
+    await expect(form).toContainText(target.title);
+    await page.screenshot({ path: info.outputPath('01-confirm-restore.png'), fullPage: true });
+    await form.getByRole('checkbox').check();
+    await form.getByRole('button', { name: '確認した内容で復元', exact: true }).click();
+    await expect(page.getByRole('region', { name: '判断結果', exact: true })).toContainText(
+      '復元の記録を確認しました',
+    );
+    expect(posts).toBe(1);
+    for (const reporter of target.reporters)
+      expect(
+        (
+          await post(reporter.ctx, '/api/private/reports/' + target.id, reporter.csrf, {
+            reason: '復元後の架空の通報',
+            detail: '',
+          })
+        ).status(),
+      ).toBe(200);
+    await page.getByRole('button', { name: '一覧を再確認', exact: true }).click();
+    await select(page, target.title);
+    await confirm(page, '削除', '新しい通報内容も確認し、公開表示から削除します。');
+    await expect(page.getByRole('region', { name: '判断結果', exact: true })).toContainText(
+      '削除の記録を確認しました',
+    );
+    await expect(page.getByRole('region', { name: '判断結果', exact: true })).toContainText(
+      '通知は未送信',
+    );
+    expect(posts).toBe(2);
+    await page.screenshot({
+      path: info.outputPath('02-deleted-pending-notification.png'),
+      fullPage: true,
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  } finally {
+    await Promise.all(target.contexts.map((ctx) => ctx.close()));
+  }
+});
+test('unknown result retains the exact reason and reconciles by GET without reposting', async ({
+  page,
+  browser,
+}, info) => {
+  const target = await setup(browser);
+  try {
+    await operator(page);
+    await select(page, target.title);
+    let posts = 0;
+    await page.route(
+      '**/api/private/moderation/cases/' + target.id + '/decision',
+      async (route) => {
+        if (route.request().method() !== 'POST') return route.continue();
+        posts++;
+        const response = await route.fetch();
+        expect(response.status()).toBe(200);
+        await route.abort('failed');
+      },
+    );
+    const reason = '結果不明でも保持する架空の判断理由';
+    await confirm(page, '復元', reason);
+    const form = page.getByRole('region', { name: '運営判断', exact: true });
+    await expect(form).not.toBeVisible();
+    await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+    await expect(form).toContainText('自動再送はしません');
+    await expect(form).toContainText(reason);
+    await expect(form.getByRole('button', { name: '同じ判断を再送', exact: true })).toBeDisabled();
+    await page.screenshot({
+      path: info.outputPath('03-unknown-reason-retained.png'),
+      fullPage: true,
+    });
+    expect(posts).toBe(1);
+    await form.getByRole('button', { name: '判断の記録を再確認', exact: true }).click();
+    await expect(page.getByRole('region', { name: '判断結果', exact: true })).toContainText(
+      '復元の記録を確認しました',
+    );
+    expect(posts).toBe(1);
+  } finally {
+    await Promise.all(target.contexts.map((ctx) => ctx.close()));
+  }
+});
+test('actor change discards the previous case, reason and command; ordinary students cannot admit themselves', async ({
+  page,
+  browser,
+}) => {
+  const target = await setup(browser);
+  try {
+    await operator(page);
+    await select(page, target.title);
+    const form = page.getByRole('region', { name: '運営判断', exact: true });
+    await form.getByLabel('判断の理由 必須', { exact: true }).fill('ACTOR_PRIVATE_REASON');
+    await student(page.context());
+    await page.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+    await expect(form).not.toBeVisible();
+    await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+    await expect(
+      page.getByText(
+        'セッションまたは運営権限を確認できませんでした。通報内容と入力は表示しません。運営セッションを再確認してください。',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    expect(await page.locator('textarea').count()).toBe(0);
+    await expect(page.locator('body')).not.toContainText('ACTOR_PRIVATE_REASON');
+    await expect(page.locator('body')).not.toContainText(target.title);
+    expect(
+      (
+        await page.request.get('/api/private/moderation/cases', {
+          headers: { 'X-Operator': 'editor-operator', 'X-Email': 'operator@example.invalid' },
+        })
+      ).status(),
+    ).toBe(404);
+  } finally {
+    await Promise.all(target.contexts.map((ctx) => ctx.close()));
+  }
+});

@@ -1,6 +1,7 @@
 import { pendingPilotPage } from './auth/pending-pilot-ui';
 import { createOrdinaryDraftHandler } from './ordinary-drafts-http';
 import { createEnrollmentHandler } from './enrollment-http';
+import { parseModerationOperators, type ModerationBindings } from './moderation-http';
 import { createOAuthHttpHandler, type OAuthBindings } from './auth/oauth-http';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
@@ -71,6 +72,7 @@ app.use('/api/*', async (c, next) => {
     if (response) return response;
     const authoring = await createOrdinaryDraftHandler(c.env.DB, origin, {
       enabled: ORDINARY_DRAFT_HTTP_RELEASE_ENABLED,
+      operatorIds: parseModerationOperators(c.env as Env & ModerationBindings),
     })(c.req.raw);
     if (authoring) return authoring;
   }

@@ -139,6 +139,8 @@ describe('ordinary publication composition with actual local Workers/D1', () => 
       '/api/private/reports/' + articleId,
       '/api/private/article-likes/' + articleId,
       '/api/private/drafts',
+      '/api/private/moderation/cases',
+      '/api/private/moderation/cases/' + articleId + '/decision',
     ];
     for (const path of paths) {
       for (const method of ['GET', 'POST']) {
@@ -354,6 +356,26 @@ describe('ordinary publication composition with actual local Workers/D1', () => 
     expect(stop.status).toBe(200);
     expect((await stop.json()) as { stopped: boolean }).toMatchObject({ stopped: true });
     expect((await request('/api/articles/' + stopped.articleId)).status).toBe(404);
+  });
+  it('mounts configured operator routes only for the server-selected authenticated actor', async () => {
+    const config = { 'X-Test-Operators': '["account-0"]' };
+    expect(
+      (
+        await request('/api/private/reports/' + articleId, 'POST', 1, {
+          reason: 'Configured operator case',
+          detail: '',
+        })
+      ).status,
+    ).toBe(200);
+    const response = await request('/api/private/moderation/cases', 'GET', 0, undefined, config);
+    expect(response.status).toBe(200);
+    noPrivateFields(await response.json());
+    const path = '/api/private/moderation/cases/' + articleId + '/decision';
+    expect((await request(path, 'GET', 0, undefined, config)).status).toBe(200);
+    expect((await request(path, 'GET', 1, undefined, config)).status).toBe(404);
+    const absent = await request(path, 'GET', 0, undefined, { 'X-Test-Forbid-Db': '1' });
+    expect(absent.status).toBe(418);
+    expect(absent.headers.get('X-Fixture-Db-Calls')).toBe('0');
   });
 });
 

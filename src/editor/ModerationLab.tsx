@@ -1,12 +1,15 @@
 import OperatorReadBoundary from './OperatorReadBoundary';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import MarkdownRenderer from '../MarkdownRenderer';
 import {
   createModerationClient,
   type ModerationCase,
   type ModerationSummary,
+  type ModerationDecisionState,
+  type ModerationDecisionReceipt,
 } from './moderation-client';
+import ModerationDecision from './ModerationDecision';
 import './moderation.css';
 class CaseBodyBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -24,7 +27,15 @@ const stamp = (n: number) =>
     hour: '2-digit',
     minute: '2-digit',
   }).format(n);
-function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
+export function ModerationCases({
+  fetcher,
+  decisions = false,
+  onRiskChange,
+}: {
+  fetcher: typeof fetch;
+  decisions?: boolean;
+  onRiskChange?: (risk: boolean) => void;
+}) {
   const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
   const mounted = useRef(true);
   const generation = useRef(0);
@@ -35,14 +46,39 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('確認待ちの一覧を取得しています…');
   const [failed, setFailed] = useState(false);
+  const [decisionState, setDecisionState] = useState<ModerationDecisionState | null>(null);
+  const [receipt, setReceipt] = useState<{
+    title: string;
+    value: ModerationDecisionReceipt;
+  } | null>(null);
+  const [decisionBusy, setDecisionBusy] = useState(false);
+  const risk = useRef(false);
+  const riskChange = useCallback(
+    (value: boolean) => {
+      risk.current = value;
+      onRiskChange?.(value);
+    },
+    [onRiskChange],
+  );
+  const busyChange = useCallback((value: boolean) => setDecisionBusy(value), []);
+  function mayDiscard() {
+    return (
+      !risk.current ||
+      window.confirm(
+        '未送信の理由、または結果不明の判断があります。手元の入力を破棄して別の案件を確認しますか？受け付けられた判断は取り消せません。',
+      )
+    );
+  }
   async function queue() {
-    if (lock.current) return;
+    if (lock.current || decisionBusy || !mayDiscard()) return;
     lock.current = true;
     const request = ++generation.current;
     setBusy(true);
     setCases(null);
     setDetail(null);
     setSelected(null);
+    setDecisionState(null);
+    setReceipt(null);
     setFailed(false);
     setMessage('確認待ちの一覧を取得しています…');
     try {
@@ -51,7 +87,9 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
         setCases(result);
         setMessage(
           result.length
-            ? '対象を選ぶと、通報内容を読み取り専用で確認できます。'
+            ? decisions
+              ? '対象を選び、本文と通報を確認して判断してください。'
+              : '対象を選ぶと、通報内容を読み取り専用で確認できます。'
             : '確認待ちの通報はありません。',
         );
       }
@@ -68,7 +106,7 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
     }
   }
   async function read(id: string) {
-    if (lock.current) return;
+    if (lock.current || decisionBusy || !mayDiscard()) return;
     lock.current = true;
     const request = ++generation.current;
     setBusy(true);
@@ -76,13 +114,26 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
     setCases(null);
     setDetail(null);
     setFailed(false);
+    setDecisionState(null);
+    setReceipt(null);
     setMessage('選択した対象の通報を取得しています…');
     try {
-      const [freshQueue, result] = await Promise.all([client.queue(), client.readCase(id)]);
+      const [freshQueue, result, state] = await Promise.all([
+        client.queue(),
+        client.readCase(id),
+        decisions ? client.decisionState(id) : null,
+      ]);
+      if (state && (state.status !== result.status || state.reportCount !== result.reportCount))
+        throw Error('Case changed');
       if (mounted.current && generation.current === request) {
         setCases(freshQueue);
         setDetail(result);
-        setMessage('通報内容を表示しました。判断や通知メールの送信は行っていません。');
+        setDecisionState(state);
+        setMessage(
+          decisions
+            ? '本文と通報を表示しました。判断はまだ送信していません。'
+            : '通報内容を表示しました。判断や通知メールの送信は行っていません。',
+        );
       }
     } catch {
       if (mounted.current && generation.current === request) {
@@ -91,6 +142,36 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
         setDetail(null);
         setMessage(
           'この対象の通報内容を確認できませんでした。古い表示を残さず、未確認として扱います。',
+        );
+      }
+    } finally {
+      lock.current = false;
+      if (mounted.current && generation.current === request) setBusy(false);
+    }
+  }
+  async function resolved(value: ModerationDecisionReceipt) {
+    const request = ++generation.current;
+    lock.current = true;
+    setBusy(true);
+    setReceipt({ title: detail?.title ?? '選択した記事', value });
+    setDetail(null);
+    setDecisionState(null);
+    setSelected(null);
+    setCases(null);
+    riskChange(false);
+    setMessage(
+      value.action === 'restore'
+        ? '復元の判断記録を確認しました。通知の送信は未設定です。'
+        : '公開表示から削除する判断記録を確認しました。本文と通報記録は保持されています。通知の送信は未設定です。',
+    );
+    try {
+      const next = await client.queue();
+      if (mounted.current && generation.current === request) setCases(next);
+    } catch {
+      if (mounted.current && generation.current === request) {
+        setFailed(true);
+        setMessage(
+          '判断の記録は確認しましたが、現在の一覧を再取得できませんでした。一覧を再確認してください。',
         );
       }
     } finally {
@@ -112,7 +193,7 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
       <p className="moderation-message" aria-live="polite" aria-atomic="true">
         {message}
       </p>
-      <Button disabled={busy} onClick={() => void queue()}>
+      <Button disabled={busy || decisionBusy} onClick={() => void queue()}>
         一覧を再確認
       </Button>
       <div className="moderation-layout">
@@ -123,7 +204,7 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
               {cases.map((item) => (
                 <li key={item.contentId}>
                   <Button
-                    disabled={busy}
+                    disabled={busy || decisionBusy}
                     aria-current={selected === item.contentId ? 'true' : undefined}
                     onClick={() => void read(item.contentId)}
                   >
@@ -142,6 +223,19 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
           <p className="moderation-limit">新しい確認待ちから20件まで表示します。</p>
         </section>
         <section className="moderation-case" aria-label="選択した通報内容">
+          {receipt && (
+            <section className="moderation-result" aria-label="判断結果">
+              <h2>
+                {receipt.value.action === 'restore'
+                  ? '復元の記録を確認しました'
+                  : '削除の記録を確認しました'}
+              </h2>
+              <p>対象：{receipt.title}</p>
+              <h3>判断の理由</h3>
+              <p className="moderation-plain-text">{receipt.value.reason}</p>
+              <p>通知は未送信です。現在の状態は案件一覧を再取得して確認できます。</p>
+            </section>
+          )}
           {detail ? (
             <>
               <div className="moderation-case-heading">
@@ -152,7 +246,9 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
                 通報 {detail.reportCount}件 · 最終受付 {stamp(detail.latestReportAt)}
               </p>
               <div className="moderation-notification">
-                通知は確認待ちとして扱います。この画面からメール送信や運営判断は行いません。
+                {decisions
+                  ? '通知の送信は未設定です。ここで判断しても、メール送信済みとは扱いません。'
+                  : '通知は確認待ちとして扱います。この画面からメール送信や運営判断は行いません。'}
               </div>
               <ol className="moderation-reports">
                 {detail.reports.map((report, index) => (
@@ -174,12 +270,25 @@ function ModerationCases({ fetcher }: { fetcher: typeof fetch }) {
                   <MarkdownRenderer body={detail.body} />
                 </CaseBodyBoundary>
               </details>
+              {decisions && decisionState && (
+                <ModerationDecision
+                  key={detail.contentId + ':' + decisionState.round + ':' + decisionState.version}
+                  client={client}
+                  detail={detail}
+                  state={decisionState}
+                  onResolved={(value) => void resolved(value)}
+                  onRiskChange={riskChange}
+                  onBusyChange={busyChange}
+                />
+              )}
             </>
           ) : (
             <p>
-              {busy
-                ? '取得中です。前の対象の本文・通報は表示しません。'
-                : '一覧から対象を選んでください。'}
+              {receipt
+                ? '一覧から次の対象を選べます。'
+                : busy
+                  ? '取得中です。前の対象の本文・通報は表示しません。'
+                  : '一覧から対象を選んでください。'}
             </p>
           )}
           {failed && selected && !busy && (

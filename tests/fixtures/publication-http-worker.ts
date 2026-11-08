@@ -6,6 +6,7 @@ import { PublicProfileStore } from '../../worker/public-profile';
 import { createPrivatePublicationHandler } from '../../worker/publication-http';
 import { createOrdinaryDraftHandler } from '../../worker/ordinary-drafts-http';
 import production from '../../worker/index';
+import { parseModerationOperators } from '../../worker/moderation-http';
 // Test-only fictional sessions, transport injection, and after-auth races. Never mount in production.
 export default {
   async fetch(request: Request, env: { DB: D1Database }) {
@@ -31,7 +32,13 @@ export default {
         : ((await createOrdinaryDraftHandler(
             db,
             request.headers.get('X-Test-Origin') ?? origin,
-            { enabled: ordinary === 'enabled' },
+            {
+              enabled: ordinary === 'enabled',
+              operatorIds: parseModerationOperators({
+                MODERATION_OPERATOR_ACCOUNT_IDS:
+                  request.headers.get('X-Test-Operators') ?? undefined,
+              }),
+            },
             () => now,
           )(request)) ?? new Response('unmatched', { status: 418 }));
       response.headers.set('X-Fixture-Db-Calls', String(calls));
