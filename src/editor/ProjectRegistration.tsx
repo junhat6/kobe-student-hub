@@ -21,17 +21,23 @@ export function ProjectText({
   value,
   showTitle = true,
   privateMedia,
+  surface = 'lab',
 }: {
   value: ProjectFields;
   showTitle?: boolean;
   privateMedia?: { fetcher: typeof fetch; scopeKey: string };
+  surface?: PublicSurface;
 }) {
   return (
     <div className="project-text">
       {showTitle && <h3>{value.title}</h3>}
-      <div className="project-description">
-        <MarkdownRenderer body={value.description} privateMedia={privateMedia} />
-      </div>
+      {surface === 'ordinary' ? (
+        <div className="project-description">
+          <MarkdownRenderer body={value.description} privateMedia={privateMedia} />
+        </div>
+      ) : (
+        <p className="project-description">{value.description}</p>
+      )}
       {(['githubUrl', 'demoUrl'] as const).map(
         (key) =>
           value[key] && (
@@ -433,7 +439,11 @@ export default function ProjectRegistration({
       {candidate && (
         <section className="project-comparison" aria-label="比較用の作品保存版">
           <h3>保存済みの版 {candidate.version}（比較用）</h3>
-          <ProjectText value={candidate} privateMedia={{ fetcher, scopeKey: csrfToken }} />
+          <ProjectText
+            value={candidate}
+            surface={surface}
+            privateMedia={{ fetcher, scopeKey: csrfToken }}
+          />
           <Button disabled={busy} onClick={openCandidate}>
             この保存版を開く
           </Button>
@@ -447,7 +457,11 @@ export default function ProjectRegistration({
       {saved && (
         <section className="project-saved" aria-label="公開前の作品保存版">
           <h3>現在の保存版 {saved.version}</h3>
-          <ProjectText value={saved} privateMedia={{ fetcher, scopeKey: csrfToken }} />
+          <ProjectText
+            value={saved}
+            surface={surface}
+            privateMedia={{ fetcher, scopeKey: csrfToken }}
+          />
           {surface === 'ordinary' && (
             <MediaAttachments
               key={saved.id + csrfToken}
@@ -521,7 +535,7 @@ export default function ProjectRegistration({
           {receipt && (
             <section aria-label="作品の公開記録">
               <h4>公開記録の版 {receipt.sourceVersion}</h4>
-              <ProjectText value={receipt.project} />
+              <ProjectText value={receipt.project} surface={surface} />
             </section>
           )}
           {published && (
