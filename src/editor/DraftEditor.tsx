@@ -55,6 +55,7 @@ export default function DraftEditor({
   const [mutationPending, setMutationPending] = useState(false);
   const [preparationDirty, setPreparationDirty] = useState(false);
   const [publicationBusy, setPublicationBusy] = useState(false);
+  const [publicationMutationPending, setPublicationMutationPending] = useState(false);
   const publicationLock = useRef(false);
   const preparationUnsaved = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -114,9 +115,10 @@ export default function DraftEditor({
       }
     }
   }
-  const onPublicationPending = useCallback((value: boolean) => {
+  const onPublicationPending = useCallback((value: boolean, mutating = false) => {
     publicationLock.current = value;
     setPublicationBusy(value);
+    setPublicationMutationPending(value && mutating);
   }, []);
   const onUnsavedPreparation = useCallback((value: boolean) => {
     preparationUnsaved.current = value;
@@ -165,7 +167,9 @@ export default function DraftEditor({
     };
   }, [client]);
   const navigationRisk =
-    dirty || (ordinary && (mutationPending || publicationBusy || preparationDirty || deletionOpen));
+    dirty ||
+    (ordinary &&
+      (mutationPending || publicationMutationPending || preparationDirty || deletionOpen));
   useLayoutEffect(() => {
     onNavigationRiskChange?.(navigationRisk);
   }, [navigationRisk, onNavigationRiskChange]);

@@ -21,7 +21,7 @@ interface Props {
   dirty: boolean;
   parentBusy: boolean;
   canStart: () => boolean;
-  onPending: (value: boolean) => void;
+  onPending: (value: boolean, mutating?: boolean) => void;
   onUnsavedPreparation: (value: boolean) => void;
 }
 class SavedPreviewBoundary extends React.Component<
@@ -58,6 +58,7 @@ export default function PublicationComposer({
   const [fields, setFields] = useState(empty);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [mutationPending, setMutationPending] = useState(false);
   const [known, setKnown] = useState(false);
   const [readError, setReadError] = useState(false);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
@@ -104,17 +105,21 @@ export default function PublicationComposer({
         new TextDecoder('utf-8', { fatal: true }).decode(new TextEncoder().encode(value)) === value,
     ),
   );
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<void>, mutating = false) {
     if (lock.current || !canStart()) return;
     lock.current = true;
     setBusy(true);
-    onPending(true);
+    setMutationPending(mutating);
+    onPending(true, mutating);
     try {
       await action();
     } finally {
       lock.current = false;
       onPending(false);
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setBusy(false);
+        setMutationPending(false);
+      }
     }
   }
   async function refresh() {
@@ -182,14 +187,14 @@ export default function PublicationComposer({
       (!receipt || Boolean(attempt && !matchesPublication(receipt, attempt))));
   useEffect(() => onUnsavedPreparation(hasPreparation), [hasPreparation, onUnsavedPreparation]);
   useEffect(() => {
-    if (!busy && !uncertain && !hasPreparation) return;
+    if (!mutationPending && !uncertain && !hasPreparation) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [busy, uncertain, hasPreparation]);
+  }, [mutationPending, uncertain, hasPreparation]);
   async function publish() {
     if (
       !known ||
@@ -242,7 +247,7 @@ export default function PublicationComposer({
           );
         }
       }
-    });
+    }, true);
   }
   function change(key: keyof typeof fields, value: string) {
     onUnsavedPreparation(true);

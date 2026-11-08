@@ -248,6 +248,36 @@ test('browser Forward cancel retains edits and reload or close asks before losin
   await assertPrivateBuffer(page, 'Forwardでも残す');
 });
 
+test('a pending read of publication status does not block leaving an unchanged saved draft', async ({
+  page,
+}, info) => {
+  await register(page, info);
+  await enterDrafts(page);
+  const entered = latch(),
+    released = latch();
+  let dialogs = 0;
+  page.on('dialog', async (dialog) => {
+    dialogs++;
+    await dialog.dismiss();
+  });
+  await page.route('**/api/private/publications/*', async (route) => {
+    expect(route.request().method()).toBe('GET');
+    const response = await route.fetch();
+    entered.release();
+    await released.promise;
+    await route.fulfill({ response });
+  });
+  try {
+    await create(page);
+    await entered.promise;
+    await home(page).click();
+    await expect(page).toHaveURL(ORIGIN + '/');
+    expect(dialogs).toBe(0);
+  } finally {
+    released.release();
+  }
+});
+
 test('pending creation is guarded and a late acknowledgement is not duplicated after cancel', async ({
   page,
 }, info) => {
