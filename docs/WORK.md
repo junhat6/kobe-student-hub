@@ -12,6 +12,8 @@
 
 **Replanning:** 本修正のCI・配備・独立本番QAを対応PRへ記録してから次へ進む。実認証／投稿は開かず、stored・各入力位置・実callback／provider branch、意図したcredential sinkと私的DB保持の実証は引き続き必要。新旧5ledgerの固定24hとroot手動cleanupを維持する。新しい本人限定試用や未決定事項を埋めるだけの機能は作らない。
 
+**CIでの試験同期修正:** 初期head `321b420`の[CI 42503028603](https://github.com/junhat6/kobe-student-hub/actions/runs/42503028603)は、auth browser65成功／mobile削除case1失敗。types・build・708unit・公開62・pilot1・retired8は成功、editor／dry-runはSKIPPEDだった。失敗は削除ACK表示後のfresh GETを待たずにcounterを同期判定した箇所。fixtureのprivate routeは新しいproduction outer wrapperを経由しないことを確認した。製品codeを変えず、testだけでpost-DELETE GET200と一覧DTO・残す版・削除ID不在を待つ。PC/mobile対象2件成功、ACK後／GET前のproof遅延2件成功、503／GETなしの4注入は予定どおり失敗。別contextも原case2件成功と、200応答のIDだけ削除済みIDにした2注入の拒否を確認した。timeout／retry／元の保護条件は緩めず、旧失敗を保持し、新head CI成功までmerge／配備を停止する。
+
 ## 設定不変のリアルタイム対照を一回だけ確認する
 
 **最終結果:** 文書の独立QAとPR／main CIは成功し、[PR #109](https://github.com/junhat6/kobe-student-hub/pull/109#issuecomment-6723965185)でmain `371ab10`へ統合済み。以下のCI確認待ちは当時の経過である。Worker配備・gate変更は0。

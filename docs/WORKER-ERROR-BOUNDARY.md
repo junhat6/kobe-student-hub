@@ -26,6 +26,8 @@ source `aa2f219b1592aa31d3519561250d5b92fc97fd9e`で、実exportの14確認とty
 | 実装者の確認 | `6b1dc2d2c98555d8fbd26248143c7c4b89f3f3a43d0dccdf42b60a4eb9ff952b` |
 | 独立実装QA | `69b5a6967fe2659458585617ce9c1c7252cf246f0950e68946955836a3ad018e` |
 
+初期PR CIは既存の削除browser caseの同期counterで失敗した。sourceのouter boundaryは不変で、試験だけを実際のpost-DELETE GET200・保存一覧を待つ形へ修正した。遅延時の成功と、503／GETなし／誤IDの拒否を区別して確認した。[CI失敗と限定再検証](EVIDENCE.md)を保持し、新headのgreen CI前にmerge／配備しない。
+
 ## 境界と次の作業
 
 これは`app.fetch`が応答を返す前のthrow／rejectの境界である。応答返却後のstream、runtimeの強制終了、platform／providerの内部処理・ログまでの保証ではない。[実ログゲート](LOGGING-GATE.md)は未達のまま。

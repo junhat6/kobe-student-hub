@@ -665,3 +665,11 @@ base main `371ab10`と成功CI、PR #96／#84／#85のDraftを再確認し、PRD
 source監査はbase mainの41対象fileの指紋、9credential sink、7catch境界を読取確認し、Hono非Error経路、nonce等のDB保持とscheduler不在、config不明時のcallback URL残存等を区別した。意図したURL／Cookie／token formはactual platform証拠を要し、アプリのlog不使用だけで保護済みとしない。private source監査SHAは`bf15cd055a60ee90273bcb4d75aafd80af1ed35fd925b72d776162df415c2e1a`。
 
 非Error経路だけをsource `aa2f219`で修正した。実装者build・typecheck・localDB・78files／708unit（23.80秒）・公開62（14.9秒）・dry-run成功。別worktreeの独立実export／Worker/D1／不正値31件（1.22秒）、typecheck・diffcheckも成功。初回typecheckと独立QAの2期待不備は原記録に残し、Honoの既存Error応答を維持した。[修正と検証範囲](WORKER-ERROR-BOUNDARY.md)。CI・実配備・独立本番QAは実行後に対応PRへ記録する。実認証・投稿、schema、sampling／obs／WAF、credential／grant／契約は変更しない。
+
+初期PR head `321b420`の[CI 42503028603](https://github.com/junhat6/kobe-student-hub/actions/runs/42503028603)はauth65成功／1失敗。既存mobile削除caseの`refreshes > 0`同期assertが0で失敗した。unit708・公開62・pilot1・retired8等は成功、editor／dry-runはSKIPPEDで成功に加算しない。private全log SHAは`4708d56058c0071c570c02c5949cb989860f378588b34a8a259c1aa1953e07dd`。fixtureはauth/privateを専用handlerへ先に渡し、production exportはcatalog／healthだけに使うため、このcaseは新しいouter wrapperを通らない。
+
+test-only `68d2757`（root取込`1d255a4`）は、確認前にlistenerを置き、DELETE観測後に始まった実GETの200／JSON一覧を待ち、残すtitle／version、削除ID不在、DTOの4keyを確認する。Worker source SHA`6405caf6317a0eeaa719aa587b32a8ae0e4692e4003097e92f177eec07170846`は不変。typecheckと元PC/mobile2件成功（8.8秒）。private注入では3回目のpost-DELETE proofを保留し、ACK200／成功表示なのにGET counter0となる順序を再現、解放後は両幅で成功。遅延503とGETなしは4件とも期待どおり失敗し、元timeout／retryは変えない。setup時の選択／config cwd誤りは別ログに保持した。実装者report SHAは`ddedaf2ea47d669baf2d2a7abce757e8aa584934ea75c9429c6dec543421984e`。
+
+別contextの追加確認は固定`1d255a4`で原case2件成功。別private copyの、実GET200のrow IDだけ削除済みIDへ変えた2件は新しいidentity assertionで拒否し、timeoutやsetup失敗とは区別した。aggregate exit1はこの期待negative2件による。所有するserver／browser・観測子process・8790待受は終了し、製品sourceは変更していない。新headのCI成功までmerge／配備を停止する。
+
+独立test-fix QAの指紋は`8ccf0b22f03f46b09eea095e5f7e1c43cf2660bd9c37bead34e593951e2265d7`。4件計15.01秒、4画像を実際に開き、28観測identity（24 PID）・8790待受・一時dependency link／worktreeの終了・除去を確認した。fenceはDELETE観測後に始まったGETであり、それ自体をACK後の送信保証へ広げない。
