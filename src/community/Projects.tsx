@@ -85,7 +85,7 @@ function Project({ id }: { id: string }) {
             <span>{project.publishedOn} 公開</span>
           </div>
         </div>
-        <ProjectText value={project} showTitle={false} />
+        <ProjectText value={project} showTitle={false} surface="ordinary" />
         <ProjectReport
           key={project.id}
           projectId={project.id}
