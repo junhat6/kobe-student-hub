@@ -77,6 +77,8 @@ URLは `https://127.0.0.1:8788`。自己署名証明書を使い、ブラウザ�
 
 通常の登録・ログイン・account画面は、本体entryと既存の合成認証環境を使って接続しています。2年度入力、一度の明示Google操作、固定着地後の本人確認と年度訂正を扱います。既定のfrontend visibilityとserver公開gateはfalseのままです。[通常導線と公開条件](docs/ORDINARY-REGISTRATION.md)を参照してください。
 
+通常アカウントから`/drafts`へ進む下書きの作成・明示保存・再開も、本体entryと同じserver処理へ接続しています。既存の編集・プレビュー・保存版確認を使い、未保存や送信中の画面移動を確認します。公開操作は含まず、通常画面の表示とOAuth／下書きのsource gateはすべてfalseです。[範囲・受入条件](docs/ORDINARY-DRAFTS.md)を参照してください。実際の一般ログイン・保存はまだ利用できません。
+
 旧方式の資格確認待ち登録は、署名検証からpending受付までのローカルserver-only試験です。通常のactiveアカウント向けログインと分離し、実際の登録・認証は有効にしません。[初回申請の境界](docs/PENDING-REGISTRATION.md)を参照してください。
 
 認証HTTPの接続準備は、production entryの無効ゲートを維持したローカル試験です。設定値の投入だけではログインを開放せず、公開サンプルと書込み停止を維持します。[HTTPとsecret bindingの設計](docs/OAUTH-HTTP.md)を参照してください。

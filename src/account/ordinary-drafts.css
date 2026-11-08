@@ -1,0 +1,10 @@
+.ordinary-drafts{max-width:1288px;margin:40px auto 64px;padding:0 24px;color:#263b4a}
+.ordinary-drafts .session-control{max-width:760px;background:#fff;border:1px solid #d6e3ed;border-radius:12px;padding:28px 32px}
+.ordinary-drafts .account-signed-out{padding:0 32px}.ordinary-drafts .account-read-link{margin:24px 0 0}
+.ordinary-drafts :focus-visible{outline:3px solid #076db3;outline-offset:3px}.ordinary-drafts ::selection{background:#cceaff;color:#10283f}
+.draft-editor--ordinary{min-height:0;background:transparent}.draft-editor--ordinary .editor-layout{padding:0;max-width:none}.draft-editor--ordinary .editor-side-heading h2{font-size:25px;letter-spacing:.02em}
+.draft-editor--ordinary .editor-status{font-size:14px}.draft-editor--ordinary .editor-publish-note p{font-size:14px}.draft-editor--ordinary .editor-layout{gap:32px}.draft-editor--ordinary .editor-eyebrow{display:none}
+.ordinary-drafts .draft-editor input,.ordinary-drafts .draft-editor textarea{caret-color:#076db3}.ordinary-drafts .draft-editor .editor-draft-list{scrollbar-color:#98adbb #edf3f7;scrollbar-width:thin}
+@media(max-width:720px){.ordinary-drafts{margin:24px 16px 40px;padding:0}.ordinary-drafts .session-control{padding:24px 20px}.ordinary-drafts .account-signed-out{padding:0 20px}.draft-editor--ordinary .editor-layout{gap:24px}.draft-editor--ordinary .editor-side-heading h2{font-size:22px}}
+
+.draft-editor--ordinary .editor-recovery{border-left-width:1px;border-left-color:#b8cbd9}

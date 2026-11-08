@@ -1,11 +1,25 @@
 # Current work and replanning
 
+## 通常アプリから下書きの保存・再開へ接続する
+
+**現在地と前回判定:** 前turnは[PR #105](https://github.com/junhat6/kobe-student-hub/pull/105#issuecomment-6720753283)でsource main `fe97bbe`へ統合し、対象sample一件の本番更新・独立GET-only QAまで完了したprogress。最新main CIも成功。今turnのread-only再確認で、PR #96/#84/#85はOPEN/Draft、重複する実装PRはない。PRDを再読し、公開本体は改稿済み4件／2人・書込停止を維持していた。Draft解除を試みず、契約不明のログ収集率も変更しない。
+
+**Planner / 仮説:** 登録後の学生が本体アカウントから下書きの作成・保存・再開へ進めれば、共有する経験を書き始めるまでの断絶を減らせるのではないか。既存editor／HTTP処理は検証用旅程に閉じているため、通常アプリへ同じ処理を接続する。新しいlabや本人限定試用は作らない。[範囲と受入条件](ORDINARY-DRAFTS.md)。
+
+**Developer / Evidence:** `/drafts`と既存account、共通session境界・server compositionを接続。既存編集・明示保存・再開・版比較を使い、React Routerのblockerとbeforeunloadで未保存／作成・保存中の移動を確認する。通常画面は本人用下書きに絞り、公開操作は未提供と示す。通常公開UIとOAuth／draftのsource gateはfalseを維持する。source `198eb4b`でbuild・77files/691unit（16.77秒）、localDB、公開62（12.2秒）、auth52（1.7分）、editor197成功／既存skip1（3.6分）、dry-runが成功。各owned server／子process／待受は終了した。
+
+**独立QA:** 別worktree／contextで関連15tests、追加実D1/HTTP5群、PC/mobile12群が成功。実commit後のEOF停止・ACK遅着、session変更、版競合を組み合わせ、入力保持・本人境界・自動再送なしを確認した。成功12画像を独立担当が開いて確認。fresh visual reviewの2点を通常画面だけで修正した`cf7035a`では、機能差分なしを独立QAが確認し、追加18件・最終6画像が成功。reviewerのverdict passは2指摘をresolved／`ship`と採点し、別documenterも既存デザインの継承を確認した。全体の実サービス完成判定ではない。[独立QAと限界](QA-ORDINARY-DRAFTS.md)。PR/main CIと実配備は、実行後に[PR #106](https://github.com/junhat6/kobe-student-hub/pull/106)へ正確に記録する。
+
+**CIでの診断改善:** 初期`198eb4b`のCIは成功したが、`1acd561`の[CI 42477089261](https://github.com/junhat6/kobe-student-hub/actions/runs/42477089261)は既存のmobile作品探索で30秒timeout、cleanupでcontext終了のprotocol errorとなった。editor196成功／1失敗／既存skip1。他stepは成功。失敗画面・traceは既存artifact範囲になく、独立の元ケース2contextsは成功したため、原因は未確定のまま保持する。製品codeを変更せず、`3976eea`で段階名、5秒のgrowing header drainと観測終了、元の失敗を保持するcleanupを追加。元のrapid navigationとprivacy判定・全体30秒予算を維持した。独立focused6件が成功し、pending header・Cookie・CSRF・primary＋secondary cleanup・drain中の追加CSRFの5注入はすべて期待どおりFAILED／非zero終了となり、失敗を成功扱いにしないことを確認した。元CIの原因を再現したとは扱わず、新headのCI成功までmerge／配備を停止する。
+
+**Replanning:** 通常の執筆が検証用entryだけに閉じる不足を減らしたが、実ログ・学校Google・運営等は未完了。実ログの陽性相関と実認証接続の不足は、既存の許可された接続と実際の証拠から解消する。契約不明の収集率変更、新しいlabや試用で代替しない。合成環境での成功は、実サービス提供・学生価値・実端末の成功とは扱わない。
+
 ## 現在地 — 2026-11-08
 
 [本番サンプル](https://hub.junhat6.com/)は架空の記事・作品4件／プロフィール2件の閲覧用。一般ログイン・投稿は有効化していない。以下のCycleは各作業時点の記録で、当時の「未配備」「準備中」を現在の状態と混同しない。
 
 - 本人限定の下書き試用は、専用機能・配信物・有効化設定の撤去と旧URL拒否まで完了した。[PR #98の本番完了記録](https://github.com/junhat6/kobe-student-hub/pull/98#issuecomment-6716702252)。再作成しない。
-- 制作ノートの架空サンプルは、理由・記入例・学びの説明例・記録枠を追加し、本番の対象1件だけを更新済み。source main `5177d95`、PR/main CI成功、独立の本番GET-only QAにも阻害所見なし。[PR #99の完了記録](https://github.com/junhat6/kobe-student-hub/pull/99#issuecomment-6717645879)。この反映はeditorial SQLで、Workerの再配備やschema/auth変更ではない。
+- 制作ノートの架空サンプルは、AIと行う技術選定の条件・参考実測と「条件・判断・確認」の3項目、次の制作／作品説明への使用例へ改稿し、本番の対象1件だけを更新済み。source main `fe97bbe`、PR/main CI成功、独立の本番GET-only QAにも阻害所見なし。[PR #105の完了記録](https://github.com/junhat6/kobe-student-hub/pull/105#issuecomment-6720753283)。反映はeditorial SQLで、Worker再配備・schema/auth変更ではない。
 - PR #96はDraft・未マージ。過去のDraft解除拒否を回避しない。#84/#85の別Draftも未マージ。
 
 **再計画:** 通常参加の条件を[学校Google本人確認＋参加年度申告](adr/0001-self-declared-enrollment.md)へ更新する。在籍確認の追加根拠や手動承認を入会の必須条件として待つ段階は終了した。2項目の申告とサーバー判定を既存認証・本人管理へ接続する。改稿記事の実際の利用価値は別に確認し、私的回答は公開しない。実ログ・運営権限・通知／問い合わせ等の[未完了ゲート](FIRST-RELEASE.md)は残る。

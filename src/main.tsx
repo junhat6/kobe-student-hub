@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {BrowserRouter, Link, useLocation, useSearchParams, useNavigate} from 'react-router-dom';
+import {createBrowserRouter, RouterProvider, Link, useLocation, useSearchParams, useNavigate} from 'react-router-dom';
 import {Button} from '@base-ui/react/button';
 import {searchCatalog,relatedEntries} from './catalog';
 import type {Catalog,Entry,Profile} from './types';
@@ -8,21 +8,22 @@ import {isCatalog} from './validation';
 import {safeListPath,readListOrigin,listContextPath} from './navigation';
 import {usePagePosition} from './usePagePosition';
 import './style.css';
-import {accountUiEnabled,isAccountRoute} from './account/routes';
+import {accountUiEnabled,isAccountRoute,isDraftRoute} from './account/routes';
 const Registration = React.lazy(()=>import('./account/Registration'));
 const AccountPage = React.lazy(()=>import('./account/AccountPage'));
+const OrdinaryDrafts = React.lazy(()=>import('./account/OrdinaryDrafts'));
 const MarkdownRenderer = React.lazy(()=>import('./MarkdownRenderer'));
-class BodyBoundary extends React.Component<{children:React.ReactNode;purpose?:'account'},{failed:boolean}>{
+class BodyBoundary extends React.Component<{children:React.ReactNode;purpose?:'account'|'drafts'},{failed:boolean}>{
  state={failed:false};
  static getDerivedStateFromError(){return {failed:true}}
- render(){return this.state.failed?<section role="alert" className="body-error"><h2>{this.props.purpose==='account'?'アカウント画面を読み込めませんでした':'本文を読み込めませんでした'}</h2><p>接続を確認して、ページを再読み込みしてください。</p><Button className="primary" onClick={()=>window.location.reload()}>ページを再読み込み</Button><p><Link to="/">ほかの記事・作品を探す →</Link></p></section>:this.props.children}
+ render(){return this.state.failed?<section role="alert" className="body-error"><h2>{this.props.purpose==='drafts'?'下書き画面を読み込めませんでした':this.props.purpose==='account'?'アカウント画面を読み込めませんでした':'本文を読み込めませんでした'}</h2><p>接続を確認して、ページを再読み込みしてください。</p><Button className="primary" onClick={()=>window.location.reload()}>ページを再読み込み</Button><p><Link to="/">ほかの記事・作品を探す →</Link></p></section>:this.props.children}
 }
 const Icon = ({kind='book'}:{kind?:string}) => <span aria-hidden="true">{kind==='project'?'◈':kind==='search'?'⌕':'▤'}</span>;
 function App(){
- const [catalog,setCatalog]=useState<Catalog|null>(null); const [failed,setFailed]=useState(false); const [attempt,setAttempt]=useState(0); const location=useLocation();const accountPath=isAccountRoute(location.pathname);
+ const [catalog,setCatalog]=useState<Catalog|null>(null); const [failed,setFailed]=useState(false); const [attempt,setAttempt]=useState(0); const location=useLocation();const draftPath=isDraftRoute(location.pathname);const accountPath=isAccountRoute(location.pathname)||draftPath;
  useEffect(()=>{if(accountPath)return;const controller=new AbortController();setFailed(false);fetch('/api/catalog',{signal:controller.signal}).then(r=>{if(!r.ok)throw Error();return r.json()}).then(data=>{if(!isCatalog(data))throw Error('Invalid response');setCatalog(data)}).catch(e=>{if(e.name!=='AbortError')setFailed(true)});return()=>controller.abort()},[attempt,accountPath]);
  usePagePosition(Boolean(catalog)||failed||location.pathname==='/about'||accountPath);
- return <><a className="skip" href="#main">本文へ移動</a><header><div className={'nav shell'+(accountUiEnabled?' nav-with-account':'')}><Link to="/" className="brand"><span className="brand-icon" aria-hidden="true">k.</span><span>Kobe Student Hub<small>知る。つくる。分かち合う。</small></span></Link><nav aria-label="メイン"><Link to="/" aria-current={location.pathname==='/'?'page':undefined}>ホーム</Link><Link to="/search" aria-current={location.pathname==='/search'?'page':undefined}><Icon kind="search"/> 探す</Link>{accountUiEnabled&&<Link to="/account" aria-current={accountPath?'page':undefined}>アカウント</Link>}<Link className="nav-button" to="/about">このプレビューについて ↗</Link></nav></div></header><div className="notice"><div className="shell"><span className="dot"/> 開発プレビュー · 掲載内容・投稿者はすべて架空のサンプルです。ログイン・投稿は準備中。</div></div><main id="main" tabIndex={-1}>{accountPath?<BodyBoundary key={location.pathname} purpose="account"><React.Suspense fallback={<p className="shell empty" role="status">アカウント画面を読み込んでいます…</p>}>{location.pathname==='/account'?<AccountPage/>:<Registration key={location.pathname} mode={location.pathname==='/signup'?'signup':'login'}/>}</React.Suspense></BodyBoundary>:location.pathname==='/about'?<About/>:failed?<section className="shell empty"><h1>記事・作品を読み込めませんでした</h1><p>接続を確認して、もう一度お試しください。</p><Button className="primary" onClick={()=>setAttempt(a=>a+1)}>再読み込み</Button></section>:!catalog?<div role="status" className="shell empty">記事・作品を読み込んでいます…</div>:location.pathname==='/study/cards'?<CardStudy catalog={catalog}/>:location.pathname.startsWith('/articles/')||location.pathname.startsWith('/projects/')?<Detail catalog={catalog}/>:location.pathname.startsWith('/students/')?<Student catalog={catalog}/>:location.pathname==='/'||location.pathname==='/search'?<Feed catalog={catalog}/>:<Missing/>}</main><footer className="shell"><Link to="/" className="footer-brand">Kobe Student Hub</Link><p>学生の知識と経験を、次の一歩へ。</p><Link to="/about">開発状況・利用上の注意</Link><span>学校公式サービスではありません · 開発中</span></footer></>;
+ return <><a className="skip" href="#main">本文へ移動</a><header><div className={'nav shell'+(accountUiEnabled?' nav-with-account':'')}><Link to="/" className="brand"><span className="brand-icon" aria-hidden="true">k.</span><span>Kobe Student Hub<small>知る。つくる。分かち合う。</small></span></Link><nav aria-label="メイン"><Link to="/" aria-current={location.pathname==='/'?'page':undefined}>ホーム</Link><Link to="/search" aria-current={location.pathname==='/search'?'page':undefined}><Icon kind="search"/> 探す</Link>{accountUiEnabled&&<Link to="/account" aria-current={accountPath?'page':undefined}>アカウント</Link>}<Link className="nav-button" to="/about">このプレビューについて ↗</Link></nav></div></header><div className="notice"><div className="shell"><span className="dot"/> 開発プレビュー · 掲載内容・投稿者はすべて架空のサンプルです。ログイン・投稿は準備中。</div></div><main id="main" tabIndex={-1}>{accountPath?<BodyBoundary key={location.pathname} purpose={draftPath?"drafts":"account"}><React.Suspense fallback={<p className="shell empty" role="status">{draftPath?"下書き画面を読み込んでいます…":"アカウント画面を読み込んでいます…"}</p>}>{draftPath?<OrdinaryDrafts/>:location.pathname==='/account'?<AccountPage/>:<Registration key={location.pathname} mode={location.pathname==='/signup'?'signup':'login'}/>}</React.Suspense></BodyBoundary>:location.pathname==='/about'?<About/>:failed?<section className="shell empty"><h1>記事・作品を読み込めませんでした</h1><p>接続を確認して、もう一度お試しください。</p><Button className="primary" onClick={()=>setAttempt(a=>a+1)}>再読み込み</Button></section>:!catalog?<div role="status" className="shell empty">記事・作品を読み込んでいます…</div>:location.pathname==='/study/cards'?<CardStudy catalog={catalog}/>:location.pathname.startsWith('/articles/')||location.pathname.startsWith('/projects/')?<Detail catalog={catalog}/>:location.pathname.startsWith('/students/')?<Student catalog={catalog}/>:location.pathname==='/'||location.pathname==='/search'?<Feed catalog={catalog}/>:<Missing/>}</main><footer className="shell"><Link to="/" className="footer-brand">Kobe Student Hub</Link><p>学生の知識と経験を、次の一歩へ。</p><Link to="/about">開発状況・利用上の注意</Link><span>学校公式サービスではありません · 開発中</span></footer></>;
 }
 const entryPath=(e:Entry)=>`/${e.kind==='article'?'articles':'projects'}/${e.id}`;
 function Author({profile,entryId}:{profile:Profile|undefined;entryId?:string}){
@@ -60,4 +61,5 @@ function CardStudy({catalog}:{catalog:Catalog}){
 }
 
 function Missing(){return <section className="shell empty"><h1>ページが見つかりません</h1><p>記事・作品が移動したか、公開されていない可能性があります。</p><Link className="primary" to="/">ホームへ戻る</Link></section>}
-createRoot(document.getElementById('root')!).render(<React.StrictMode><BrowserRouter><App/></BrowserRouter></React.StrictMode>);
+const router=createBrowserRouter([{path:'*',element:<App/>}]);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><RouterProvider router={router}/></React.StrictMode>);

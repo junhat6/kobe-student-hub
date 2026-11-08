@@ -71,7 +71,7 @@ Before enabling real OAuth, select the dedicated Google project/client and exact
 
 ## Unconnected draft HTTP handler
 
-The private draft HTTP handler is a factory exercised only by local test fixtures. Production worker/index.ts does not import or mount it, and neither sample route behavior nor deployed assets are changed. Do not expose the fixture's identity/clock/race controls. Local tests of no-store/private headers are not an audit of deployed cache rules, browser lifecycle or platform logs; complete the existing activation gates before mounting real private endpoints.
+The private draft HTTP handler is shared by the ordinary draft composition and local test fixtures. Production worker/index.ts references that composition behind both the closed OAuth gate and the separately closed ordinary-draft source gate; runtime bindings cannot enable it. No private draft endpoint is currently available. Do not expose the fixture's identity/clock/race controls. Local tests of no-store/private headers are not an audit of deployed cache rules, browser lifecycle or platform logs; complete the existing activation gates before enabling real private endpoints. See [ordinary draft scope](ORDINARY-DRAFTS.md).
 
 ## Local-only editor browser fixture
 
