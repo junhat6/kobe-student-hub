@@ -118,12 +118,17 @@ export function ModerationCases({
     setReceipt(null);
     setMessage('選択した対象の通報を取得しています…');
     try {
-      const [freshQueue, result, state] = await Promise.all([
-        client.queue(),
-        client.readCase(id),
-        decisions ? client.decisionState(id) : null,
-      ]);
-      if (state && (state.status !== result.status || state.reportCount !== result.reportCount))
+      const before = decisions ? await client.decisionState(id) : null;
+      const [freshQueue, result] = await Promise.all([client.queue(), client.readCase(id)]);
+      const state = decisions ? await client.decisionState(id) : null;
+      const stateKeys = ['contentId', 'round', 'version', 'status', 'reportCount'] as const;
+      if (
+        state &&
+        (!before ||
+          stateKeys.some((key) => state[key] !== before[key]) ||
+          state.status !== result.status ||
+          state.reportCount !== result.reportCount)
+      )
         throw Error('Case changed');
       if (mounted.current && generation.current === request) {
         setCases(freshQueue);
