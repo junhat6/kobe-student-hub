@@ -105,6 +105,40 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
       reader.getByRole('heading', { name: '架空の作品投稿者', exact: true }),
     ).toBeVisible();
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
+    const activity = reader.getByRole('navigation', { name: '投稿者の活動' });
+    await activity.getByRole('link', { name: '記事', exact: true }).click();
+    await expect(
+      reader.getByRole('heading', { name: '架空の作品投稿者', exact: true }),
+    ).toBeVisible();
+    await expect(
+      reader.getByText('公開している記事はまだありません。', { exact: true }),
+    ).toBeVisible();
+    await expect(reader.getByRole('heading', { name: '投稿者を表示できませんでした' })).toHaveCount(
+      0,
+    );
+    expect(privateRequests).toEqual([]);
+    expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await reader.screenshot({
+      path: info.outputPath('ordinary-project-only-articles.png'),
+      fullPage: true,
+      scale: 'css',
+    });
+    await activity.getByRole('link', { name: '作品', exact: true }).click();
+    await expect(
+      reader.getByRole('heading', { name: '公開している作品', exact: true }),
+    ).toBeVisible();
+    await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
+    expect(privateRequests).toEqual([]);
+    expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await reader.screenshot({
+      path: info.outputPath('ordinary-project-only-works.png'),
+      fullPage: true,
+      scale: 'css',
+    });
     await reader.goto('/works');
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
     await register(reader, info);

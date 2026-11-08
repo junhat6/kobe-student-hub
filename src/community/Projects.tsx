@@ -104,57 +104,8 @@ function Project({ id }: { id: string }) {
   );
 }
 
-function ProjectAuthor({ id }: { id: string }) {
-  const client = useMemo(() => createPublicProjectClient(fetch, 'ordinary'), []);
-  const read = useMemo(() => (signal: AbortSignal) => client.author(id, signal), [client, id]);
-  const { value, failed, retry } = usePublicRead(id, read);
-  if (failed) return <ReadFailure subject="投稿者の作品" retry={retry} />;
-  if (!value)
-    return (
-      <p role="status" className="shell empty">
-        投稿者を読み込んでいます…
-      </p>
-    );
-  const { author, projects } = value;
-  return (
-    <section className="shell profile-page">
-      <Link className="back" to="/works">
-        ← 作品一覧へ
-      </Link>
-      <div className="profile-header">
-        <span className="avatar large">{author.initials}</span>
-        <div>
-          <h1>{author.name}</h1>
-          <p>{[author.department, author.year].filter(Boolean).join(' · ')}</p>
-          <p>{author.bio}</p>
-        </div>
-      </div>
-      <nav aria-label="投稿者の活動">
-        <Link to={`/students/${id}`}>記事</Link> ·{' '}
-        <Link to={`/students/${id}/works`} aria-current="page">
-          作品
-        </Link>{' '}
-        · <Link to={`/students/${id}/likes`}>公開いいね</Link>
-      </nav>
-      <h2>公開している作品</h2>
-      <p>新しい公開作品を最大20件表示しています。</p>
-      <div className="author-lab-cards">
-        {projects.map((project) => (
-          <PublicProjectCard key={project.id} project={project} surface="ordinary" />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export default function Projects() {
   const { pathname } = useLocation();
   const [kind, id] = pathname.split('/').slice(1);
-  return kind === 'projects' && id ? (
-    <Project key={id} id={id} />
-  ) : kind === 'students' && id ? (
-    <ProjectAuthor key={id} id={id} />
-  ) : (
-    <Works />
-  );
+  return kind === 'projects' && id ? <Project key={id} id={id} /> : <Works />;
 }

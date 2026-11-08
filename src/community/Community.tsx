@@ -4,16 +4,10 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import MarkdownRenderer from '../MarkdownRenderer';
-import type {
-  Entry,
-  Profile,
-  PublicAuthorArticles,
-  PublicDiscovery,
-  PublicLikedArticles,
-} from '../types';
+import type { Entry, Profile, PublicDiscovery, PublicLikedArticles } from '../types';
 import { createPublicDiscoveryClient } from '../editor/public-discovery-client';
 import { createPublicationClient } from '../editor/publication-client';
-import { createPublicAuthorClient } from '../editor/public-author-client';
+import StudentProfile from './StudentProfile';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import LikePanel from '../editor/LikePanel';
 import OrdinaryArticleReport from './OrdinaryArticleReport';
@@ -193,47 +187,6 @@ function StudentArticle({ id }: { id: string }) {
   );
 }
 
-function StudentProfile({ id }: { id: string }) {
-  const client = useMemo(() => createPublicAuthorClient(fetch, 'ordinary'), []);
-  const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
-  const { value, failed, retry } = usePublicRead<PublicAuthorArticles>(id, read);
-  if (failed) return <ReadFailure subject="投稿者" retry={retry} />;
-  if (!value)
-    return (
-      <p role="status" className="shell empty">
-        投稿者を読み込んでいます…
-      </p>
-    );
-  const { author, entries } = value;
-  return (
-    <section className="shell profile-page">
-      <Link className="back" to="/">
-        ← 記事一覧へ
-      </Link>
-      <div className="profile-header">
-        <span className="avatar large">{author.initials}</span>
-        <div>
-          <h1>{author.name}</h1>
-          <p>{[author.department, author.year].filter(Boolean).join(' · ')}</p>
-          <p>{author.bio}</p>
-        </div>
-      </div>
-      <p>
-        <Link to={`/students/${id}/likes`}>公開いいねを見る</Link>
-        {' · '}
-        <Link to={`/students/${id}/works`}>作品を見る</Link>
-      </p>
-      <h2>公開している記事</h2>
-      <p>新しい公開記事を最大20件表示しています。</p>
-      <div className="author-lab-cards">
-        {entries.map((entry) => (
-          <PublicArticleCard key={entry.id} entry={entry} surface="ordinary" />
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function PublicLikes({ id }: { id: string }) {
   const client = useMemo(() => createPublicLikesClient(fetch, 'ordinary'), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
@@ -268,14 +221,17 @@ function PublicLikes({ id }: { id: string }) {
 export default function Community() {
   const { pathname } = useLocation();
   const [kind, id, section] = pathname.split('/').slice(1);
-  if (kind === 'projects' || kind === 'works' || (kind === 'students' && section === 'works'))
-    return <Projects />;
+  if (kind === 'projects' || kind === 'works') return <Projects />;
   return kind === 'articles' && id ? (
     <StudentArticle key={id} id={id} />
   ) : kind === 'students' && id && section === 'likes' ? (
     <PublicLikes key={id} id={id} />
   ) : kind === 'students' && id ? (
-    <StudentProfile key={id} id={id} />
+    <StudentProfile
+      key={`${id}-${section ?? 'articles'}`}
+      id={id}
+      view={section === 'works' ? 'projects' : 'articles'}
+    />
   ) : (
     <ArticleFeed />
   );

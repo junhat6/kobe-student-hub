@@ -360,13 +360,15 @@ export class ArticlePublicationStore {
     return result;
   }
   /** Public, session-independent author view: a bounded subset, never a complete catalog. */
-  async readPublishedAuthor(authorId: unknown): Promise<PublicAuthorArticles | null> {
+  async readPublishedAuthorSelection(
+    authorId: unknown,
+  ): Promise<{ author: Profile | null; entries: PublishedArticleSummary[] } | null> {
     if (!slug(authorId)) return null;
     try {
       const rows = await this.boundedPublications(authorId);
-      if (!rows?.length) return null;
+      if (rows === null) return null;
       const result = {
-        author: rows[0].author,
+        author: rows[0]?.author ?? null,
         entries: rows.map((row) => articleSummary(row.entry)),
       };
       return new TextEncoder().encode(JSON.stringify(result)).byteLength <= 256 * 1024
@@ -375,6 +377,13 @@ export class ArticlePublicationStore {
     } catch {
       return null;
     }
+  }
+  /** Legacy single-kind contract: no published articles still means no author page. */
+  async readPublishedAuthor(authorId: unknown): Promise<PublicAuthorArticles | null> {
+    const value = await this.readPublishedAuthorSelection(authorId);
+    return value?.author && value.entries.length
+      ? { author: value.author, entries: value.entries }
+      : null;
   }
   /** Anonymous recent publications only. Empty is genuine absence, not a failed lookup. */
   async readRecentPublished(): Promise<PublicDiscovery | null> {

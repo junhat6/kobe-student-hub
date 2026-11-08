@@ -60,22 +60,26 @@ export function validPublicSummary(
     Number(entry.minutes) <= 240
   );
 }
+export function validPublicProfile(
+  author: unknown,
+  authorId: string,
+): author is import('../types').Profile {
+  return (
+    publicKeys(author, ['id', 'name', 'department', 'year', 'bio', 'initials']) &&
+    author.id === authorId &&
+    publicSlug(author.id) &&
+    publicText(author.name, 80) &&
+    Boolean(author.name.trim()) &&
+    publicText(author.department, 80) &&
+    publicText(author.year, 32) &&
+    publicText(author.bio, 800) &&
+    publicText(author.initials, 8)
+  );
+}
 function valid(value: unknown, authorId: string): value is PublicAuthorArticles {
   if (
     !publicKeys(value, ['author', 'entries']) ||
-    !publicKeys(value.author, ['id', 'name', 'department', 'year', 'bio', 'initials'])
-  )
-    return false;
-  const author = value.author;
-  if (
-    author.id !== authorId ||
-    !publicSlug(author.id) ||
-    !publicText(author.name, 80) ||
-    !author.name.trim() ||
-    !publicText(author.department, 80) ||
-    !publicText(author.year, 32) ||
-    !publicText(author.bio, 800) ||
-    !publicText(author.initials, 8) ||
+    !validPublicProfile(value.author, authorId) ||
     !Array.isArray(value.entries) ||
     value.entries.length < 1 ||
     value.entries.length > 20

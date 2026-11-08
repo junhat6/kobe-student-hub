@@ -51,7 +51,7 @@ const inventory: Record<string, Inventory> = {
       receiptRow: ['student'],
       getOwnReceipt: ['base'],
     },
-    public: { readPublished: 1, readAuthor: 2, readRecentPublished: 2 },
+    public: { readPublished: 1, readAuthorSelection: 2, readRecentPublished: 2 },
   },
   'own-publications': { className: 'OwnPublicationStore', private: { list: ['base'] } },
   'publication-stops': {

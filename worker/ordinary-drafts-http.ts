@@ -7,6 +7,7 @@ import { createPrivateLikeHandler } from './likes-http';
 import { createModerationHandler } from './moderation-http';
 import { createPublicArticleHandler } from './public-articles-http';
 import { createPublicProjectHandler } from './public-projects-http';
+import { createPublicStudentHandler } from './public-students-http';
 import { createPrivateProjectHandler } from './projects-http';
 import { createPrivateProjectReportHandler } from './project-reports-http';
 
@@ -22,6 +23,7 @@ export function createOrdinaryDraftHandler(
 ) {
   if (options.enabled !== true) return async (_request: Request): Promise<Response | null> => null;
   const handlers = [
+    createPublicStudentHandler(db, origin, clock),
     createPublicArticleHandler(db, origin, clock),
     createPublicProjectHandler(db, origin, clock),
     createPrivateProjectHandler(db, origin, clock),
