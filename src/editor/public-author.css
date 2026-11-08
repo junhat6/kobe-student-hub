@@ -189,7 +189,8 @@
   gap: 7px;
   margin: 15px 0;
 }
-.author-lab-tags > span {
+.author-lab-tags > span,
+.author-lab-tags > a {
   display: inline-block;
   font-size: 12px;
   padding: 4px 9px;
@@ -198,6 +199,11 @@
   color: #175f91;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+.author-lab-tags > a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
 }
 .author-lab-card dl {
   background: #f1f5f9;

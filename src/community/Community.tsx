@@ -1,8 +1,9 @@
 import { usePublicRead, ReadFailure } from './public-read';
 import Projects from './Projects';
+import Search from './Search';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MarkdownRenderer from '../MarkdownRenderer';
 import type { Entry, Profile, PublicDiscovery, PublicLikedArticles } from '../types';
 import { createPublicDiscoveryClient } from '../editor/public-discovery-client';
@@ -16,6 +17,7 @@ import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
 
 function ArticleFeed() {
+  const navigate = useNavigate();
   const client = useMemo(() => createPublicDiscoveryClient(fetch, 'ordinary'), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(signal), [client]);
   const { value, failed, retry } = usePublicRead<PublicDiscovery>('feed', read);
@@ -50,7 +52,9 @@ function ArticleFeed() {
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
-          setParams(input.trim() ? { q: input.trim() } : {});
+          navigate(
+            '/search' + (input.trim() ? '?' + new URLSearchParams({ q: input.trim() }) : ''),
+          );
         }}
       >
         <label className="sr-only" htmlFor="community-search">
@@ -139,7 +143,7 @@ function StudentArticle({ id }: { id: string }) {
           </div>
           <div className="tags">
             {entry.tags.map((tag) => (
-              <Link key={tag} to={`/?q=${encodeURIComponent(tag)}`}>
+              <Link key={tag} to={`/search?type=article&tag=${encodeURIComponent(tag)}`}>
                 # {tag}
               </Link>
             ))}
@@ -221,6 +225,7 @@ function PublicLikes({ id }: { id: string }) {
 export default function Community() {
   const { pathname } = useLocation();
   const [kind, id, section] = pathname.split('/').slice(1);
+  if (kind === 'search') return <Search />;
   if (kind === 'projects' || kind === 'works') return <Projects />;
   return kind === 'articles' && id ? (
     <StudentArticle key={id} id={id} />

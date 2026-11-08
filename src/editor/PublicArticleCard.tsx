@@ -28,9 +28,15 @@ export default function PublicArticleCard({
       )}
       {entry.summary && <p className="author-lab-summary">{entry.summary}</p>}
       <div className="author-lab-tags">
-        {entry.tags.map((tag) => (
-          <span key={tag}># {tag}</span>
-        ))}
+        {entry.tags.map((tag) =>
+          surface === 'ordinary' ? (
+            <a key={tag} href={`/search?type=article&tag=${encodeURIComponent(tag)}`}>
+              # {tag}
+            </a>
+          ) : (
+            <span key={tag}># {tag}</span>
+          ),
+        )}
       </div>
       {(entry.audience || entry.prerequisite || entry.outcome) && (
         <dl>
