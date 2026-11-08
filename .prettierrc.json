@@ -2,7 +2,6 @@
   "singleQuote": true,
   "printWidth": 100,
   "embeddedLanguageFormatting": "off",
-  "htmlWhitespaceSensitivity": "strict",
   "overrides": [
     {
       "files": "*.jsonc",
