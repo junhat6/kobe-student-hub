@@ -1,4 +1,5 @@
 import { callbackReceiverCsp } from './auth/callback-receiver';
+import { AUTH_MAINTENANCE_CRON, runProductionAuthMaintenance } from './auth/production-maintenance';
 import { pendingPilotPage } from './auth/pending-pilot-ui';
 import { createOrdinaryDraftHandler } from './ordinary-drafts-http';
 import {
@@ -172,7 +173,12 @@ interface ProfileRow {
 // Hono's onError handles Error instances; bindings can reject with any JavaScript value.
 // Keep that value opaque, including cross-realm Errors, and never hand it to a logger.
 export default {
-  async scheduled(_event, env, ctx) {
+  async scheduled(event, env, ctx) {
+    if (OAUTH_HTTP_RELEASE_ENABLED && event.cron === AUTH_MAINTENANCE_CRON)
+      ctx.waitUntil(
+        runProductionAuthMaintenance(env.DB, (env as Env & OAuthBindings).AUTH_ORIGIN ?? ''),
+      );
+    // Email dispatch keeps its own authoring/operator/binding conditions.
     if (!OAUTH_HTTP_RELEASE_ENABLED || !ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) return;
     if (!parseModerationOperators(env as Env & ModerationBindings).length) return;
     const options = moderationEmailOptions(

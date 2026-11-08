@@ -1,12 +1,12 @@
 # Local authentication data maintenance
 
-`AuthMaintenanceStore` is an explicit server-only operation over already-expired authentication transport records. It is not imported by the public Worker, exposed as an HTTP route, or scheduled remotely. Migration0014 is local preparation only. It does not erase private accounts, enrollment evidence, admission audits, drafts or published content. Those purposes and retention decisions remain separate.
+`AuthMaintenanceStore` is a server-only operation over already-expired authentication transport records. The ordinary account candidate imports it through `production-maintenance.ts`, behind the existing OAuth source gate and exact `*/15 * * * *` scheduled expression; it has no HTTP route. The cron must still be installed and execution verified in the dedicated private production configuration, not the public preview template. It does not erase private accounts, enrollment evidence, admission audits, drafts or published content. Those purposes and retention decisions remain separate.
 
 ## Explicit policy and execution
 
-The caller must supply a canonical HTTPS origin, a trusted server clock and all three policy fields: `expiredGraceMs` (a nonnegative safe duration), `minimumIntervalMs` (at least1000), and `batchLimit:100`. There is no default retention grace or job frequency. A local fixture may choose zero grace to exercise boundary behavior; that is not a production privacy policy. Existing capability TTLs remain unchanged.
+The store caller must supply a canonical HTTPS origin, a trusted server clock and all three policy fields: `expiredGraceMs` (a nonnegative safe duration), `minimumIntervalMs` (at least1000), and `batchLimit:100`. The production wrapper fixes these to 24 hours, 15 minutes and 100. A local fixture may choose zero grace to exercise boundary behavior; that is not the production policy. Existing capability TTLs remain unchanged.
 
-One conditional database update reserves the next run. Equal-time concurrent calls have one winner; a new store instance shares the same persisted throttle. Backward time or a future previous reservation cannot accelerate another run. The reservation persists even if later steps fail. It is a frequency guard, not a running-job lease: an operator/scheduler must keep a single bounded job active and must not overlap long jobs merely because the interval elapsed. No scheduler is installed here.
+One conditional database update reserves the next run. Equal-time concurrent calls have one winner; a new store instance shares the same persisted throttle. Backward time or a future previous reservation cannot accelerate another run. The reservation persists even if later steps fail. It is a frequency guard, not a running-job lease: the scheduler must keep a single bounded job active and must not overlap long jobs merely because the interval elapsed. The wrapper makes one call with no immediate retry and logs only a fixed outcome and explicit finite counts (0–100 per category).
 
 The run captures `cutoff = start - expiredGraceMs`, then invokes the existing attempt cleanup, deletes expired commands, deletes absolutely expired sessions, deletes expired contexts without child references, and invokes the existing subject-floor cleanup. Every category deletes at most100 rows. Attempts use the existing `ON DELETE SET NULL` behavior, so deleting a ten-minute attempt does not terminate its valid eight-hour session. Existing subject-floor cleanup advances the permanent watermark before deletion in its own atomic batch; older capabilities cannot regain authority after clock rollback.
 
@@ -16,7 +16,7 @@ The result contains counts only. `completed` means that all steps returned succe
 
 ## Quiet services and retention
 
-Unlike opportunistic cleanup tied only to login/bootstrap activity, this operation can be called by an explicitly reviewed server maintenance procedure during quiet periods. Choosing and installing an actual schedule, access restrictions, health/alerting, retained evidence and maximum cleanup lag remains a release task. Without that procedure, there is still no fixed physical-deletion SLA. A backlog may require multiple spaced runs. This local implementation cannot establish provider log, database backup, downstream export or secure-erasure behavior.
+Unlike opportunistic cleanup tied only to login/bootstrap activity, the scheduled handler can run during quiet periods. Production cron installation and safe-summary monitoring still need deployment verification. A backlog may require multiple spaced runs, so there is no fixed physical-deletion SLA. This implementation cannot establish provider log, database backup, downstream export or secure-erasure behavior.
 
 ## Query work and bounded-load evidence
 

@@ -1,6 +1,14 @@
 # OAuth callback logging release gate
 
-Status: **PARTIAL OPERATIONAL AUDIT / NOT SATISFIED**. A bounded synthetic probe of the existing closed preview has run; see [scope, capture results and limits](QA-CLOSED-PREVIEW-LOGS.md). It does not exercise an enabled OAuth callback or provider exchange. No actual credential leakage has been established. Complete this gate before real OAuth is connected.
+Status: **SCOPED SYNTHETIC PLATFORM VERIFICATION COMPLETE** for the ordinary fragment/POST callback candidate. The production catalog remains closed to real posting; this is not evidence of an actual Google login or an unrestricted privacy guarantee.
+
+On 2026-11-08 UTC, three closed-production synthetic requests were correlated by Ray in the built-in HTTP query layer; a synthetic marker was present in the old callback query. Real credentials were not used. The replacement uses Google code-flow `response_mode=fragment`, an immediate browser URL cleanup and bounded same-origin POST; query GET does not consume an attempt. Official provider discovery and local browser checks support that transport, while real Google compatibility still requires the first authorized login.
+
+The subsequent isolated platform audit exercised eight branches of the production modules with a synthetic provider: success, denial, malformed input, expiry, replay, provider HTTP error, timeout and opaque outer exception. Stored-query inspection returned 23 rows, matched both tested source versions, found empty queries on all 16 invocation-like rows and zero sensitive prefix/identity/fingerprint matches. D1 response proofs and safe completion signals covered all eight cases. Each case had one request-ID event candidate; span-ID correlation and a distinct event bijection were not established. Six stored response statuses were 303; the malformed 400 and outer 503 statuses were confirmed by D1/safe signals, **not** by a stored event status. Raw log rows were not saved locally. The two temporary Workers and scratch D1 were deleted and confirmed absent before expiry; existing production logging settings were unchanged. Private sanitized proof is retained under `.wrangler/oauth-fragment-platform-audit-20261109/`; independent stored-query proof SHA-256: `2030a0287116a022cf779c81c7305efb0d63b606235f7d04ed09f3e8fd5dcd0c`.
+
+## Historical incomplete probes
+
+A bounded synthetic probe of the existing closed preview ran earlier; see [scope, capture results and limits](QA-CLOSED-PREVIEW-LOGS.md). It did not exercise an enabled OAuth callback or provider exchange.
 
 A later [single queryless control](QA-LOG-CONTROL.md) also returned zero stored rows after a completed exact-URL query. Its query execution and condition echo were verified, but positive correlation, full-row inspection and redaction were not. The existing sampling/settings and closed authentication boundary were preserved; this additional result does not satisfy the gate.
 
@@ -12,7 +20,7 @@ A later [four-position synthetic POST](QA-SENSITIVE-LOG-INPUTS.md) received the 
 
 Cloudflare's [Workers Logs documentation](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) describes invocation logs with request/response metadata. Application logger redaction or the absence of console.log cannot establish what an edge/access log, invocation record, tracing layer, exception collector or downstream drain stored. A normal URL redirect or no-referrer header also does not erase earlier request records. Query-to-body changes alone do not prove that bodies/cookies are omitted.
 
-The source's observability settings are not evidence of actual deployed redaction. Sampling is not proof of absence, and a missing sampled event must be marked inconclusive. Do not claim that this repository's current logs are already proven to exclude OAuth values.
+The source's observability settings alone are not evidence of actual deployed redaction. Sampling is not proof of absence, and a missing sampled event must be marked inconclusive. The scoped result above must not be generalized to untested settings, destinations, provider responses or future releases.
 
 ## Required preflight
 

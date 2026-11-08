@@ -2,7 +2,9 @@
 
 ## Scope
 
-An unconnected D1-backed attempt repository, not a working OAuth callback. No route starts/consumes attempts in the production Worker. After new explicit user authorization, migration 0003 was applied to the dedicated preview D1 and independently checked; see [remote migration evidence](QA-AUTH-MIGRATION.md). The table is empty and no production route uses it. It must not be replayed or reset. Worker deployment still does not implicitly run remote SQL. No real Google setting, user, session, code exchange, PKCE storage, permission grant or publication gate is enabled here.
+The Cycle 04 evidence below describes the original unconnected repository. The current ordinary account candidate composes one-time claim, browser binding, S256 PKCE, server Google verification, session/CSRF and self-declared academic years. Its code-flow response arrives in a fragment, is cleaned before a bounded same-origin POST and is passed to the broker only in RAM; query GET does not consume an attempt. Authoring remains closed. This candidate has not connected real Google or granted an operator role.
+
+Originally no production route started/consumed attempts. After explicit user authorization, migration 0003 was applied to the dedicated preview D1 and independently checked; see [remote migration evidence](QA-AUTH-MIGRATION.md). Historical migrations must not be replayed or reset; Worker deployment still does not implicitly run remote SQL.
 
 `OAuthAttemptStore.start()` generates fresh 256-bit state, browser-binding and nonce values using Web Crypto. Only SHA-256 digests of state/browser-binding go into the private table; the nonce remains private transient verification context. No authorization code, access/ID/refresh token, PKCE verifier or client secret is stored. Return values must never be logged or placed in public data. Future callers must bind browserBinding to a secure server-owned browser context, not accept it as an arbitrary callback JSON field. Cookie transport and parallel-tab behavior are not designed by this primitive.
 
@@ -10,7 +12,7 @@ An unconnected D1-backed attempt repository, not a working OAuth callback. No ro
 
 Consumption is one prepared conditional `UPDATE ... RETURNING nonce`, requiring the state digest, matching browser digest, no previous consumption, and `created_at <= trusted_server_now < expires_at`. There is no SELECT-then-UPDATE race. At most one successful consumer receives the stored nonce. A wrong browser/state does not burn the valid attempt. Clock values are trusted server inputs; test fixture clock injection is not a production API.
 
-Validity is 10 minutes, a local implementation choice. This is **not a ten-minute database-retention guarantee**. Rows and nonce remain until explicit cleanup executes. `cleanupExpired()` removes only expired rows, at most 100 per call; no scheduler or production job was added. Before real use, implement bounded cleanup operation/monitoring, abuse limits and an approved retention policy. Never reuse state intentionally or recreate an attempt during callback handling.
+Validity is 10 minutes. This is **not a ten-minute database-retention guarantee**. Rows and nonce remain until cleanup executes. The current server policy uses a 24-hour grace after stored expiry, a persisted minimum interval of 15 minutes and at most 100 deletions per category per run; only expired authentication transport records are eligible. The OAuth-gated scheduled handler emits fixed outcomes and bounded counts, never identifiers or exceptions. Production activation must install `*/15 * * * *` in the dedicated private production configuration and verify execution; the public preview template and sample-only prepare guards remain unchanged. Existing server issuance limits bound live contexts and per-context commands. There is no immediate retry or physical-deletion/backup SLA. Never reuse state intentionally or recreate an attempt during callback handling. See [maintenance behavior and limits](AUTH-MAINTENANCE.md).
 
 The future flow should claim an attempt before code exchange/verification/session side effects. A failed verification, provider outage, lost response after a committed claim or other ambiguous result requires a fresh start; do not reset consumed markers to retry. This trades retry convenience for a clear single-winner boundary. The helper does not provide atomic session issuance or cross-service rollback.
 
@@ -24,7 +26,7 @@ The real app's public-catalog test now applies all local migrations and includes
 
 ## Callback log gate
 
-[LOGGING-GATE.md](LOGGING-GATE.md) is mandatory before connecting any real callback. Not printing tokens in application code does not prove that request URLs, query parameters, cookies, bodies or traces are absent from platform/access logs. No real leakage was observed or asserted in this cycle; the deployed logging configuration and actual logs have not been audited for OAuth.
+[LOGGING-GATE.md](LOGGING-GATE.md) remains mandatory before connecting a real callback. Its latest scoped actual-platform audit covers the fragment/POST transport and eight synthetic-provider branches; it also records the old query transport's synthetic exposure and the stored-status/correlation limits. No real credential or Google login was used. App log silence alone is not the evidence for this result.
 
 ## References
 
