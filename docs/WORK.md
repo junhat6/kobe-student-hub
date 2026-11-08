@@ -712,3 +712,7 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 **保存／検証条件:** 適用済みmigrationは変更せず、対象の公開sampleの旧値全体が一致した場合だけ更新する独立したeditorial SQLを用意する。ローカル初期化・Worker fixtureとsource sampleを揃え、実D1上の一度だけの更新・再実行・他編集／private／non-sample保護を確認する。PC/mobileの本文・関連先・投稿者導線を別コンテキストでQAし、必要な通常checkとCIへ進む。
 
 **再計画:** 既存記事の閲覧確認中は本番本文を維持する。ローカル／PR準備と実データへのeditorial適用は分け、学生の回答・実践とAI動作確認を区別する。新しい本人限定試用や回答収集UIは作らない。実認証・投稿・運営の公開条件は引き続き未完了。
+
+**実装／独立QAと再計画:** 架空の検索修正について、記録の目的→条件・判断・確認の記入例→作品説明の例→7行の記録枠→次の確認へ本文を接続した。Developer build・68files587unit/Worker・公開PC/mobile60・localDB・dry-runが成功。別コンテキストの隔離build／実D1関連9tests、PC/mobile2contexts計24受入群と18地点の横overflow確認、実clipboard／選択fallback・投稿者／関連作品導線にも阻害所見なし。追加SQL reviewは全15列のforward／rollback変更保護を確認した。[検証記録](EVIDENCE.md#制作ノートの具体化--ローカル準備)と[PR #99](https://github.com/junhat6/kobe-student-hub/pull/99)を参照。これらはAIによる動作確認で、学生価値の成功判定ではない。
+
+閲覧開始時の本番本文baselineはread-onlyで一致を確認し、remote SQL／deployは行っていない。PRはDraftのまま通常CIを完了させ、読後に選ぶ行動の実観察を得てから、本文改善の実適用と再評価を分けて扱う。私的回答は公開しない。実認証・運営の未決条件を、本文改稿やテスト成功で満たしたことにしない。
