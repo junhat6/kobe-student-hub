@@ -80,3 +80,46 @@ for(const event of ['pagehide','back-forward','hidden'])test('leaving via '+even
  if(event==='pagehide')await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true})));
  await expect(page.getByRole('status')).toContainText('認証の開始を中止しました');
 });
+
+async function deletionLogin(page:import('@playwright/test').Page){
+ await page.context().request.post('/api/__fixture/grant?action=restore');
+ await page.route('https://accounts.google.com/**',async route=>{const u=new URL(route.request().url());await route.fulfill({status:303,headers:{Location:'https://127.0.0.1:8792/api/auth/callback?state='+u.searchParams.get('state')+'&code='+u.searchParams.get('nonce')}})});
+ await page.goto('/api/auth/draft-trial');await page.getByRole('button',{name:'Googleで限定ログイン',exact:true}).click();await expect(page.getByRole('button',{name:'新しい下書き',exact:true})).toBeVisible();
+}
+async function deletionDraft(page:import('@playwright/test').Page,title:string){
+ await page.getByRole('button',{name:'新しい下書き',exact:true}).click();await page.getByLabel('タイトル',{exact:true}).fill(title);await page.getByLabel('Markdown本文',{exact:true}).fill('保存した架空本文');await page.getByRole('button',{name:'下書きを保存',exact:true}).click();await expect(page.getByRole('status').last()).toHaveText('下書きを保存しました。');
+ const list=await (await page.request.get('/api/private/drafts')).json() as {id:string;title:string;version:number}[];
+ return list.find(row=>row.title===title)!;
+}
+test('private draft deletion confirms saved version, cancels safely and preserves other drafts',async({page},info)=>{
+ await deletionLogin(page);const keep=await deletionDraft(page,'残す下書き '+info.project.name),target=await deletionDraft(page,'削除する下書き '+info.project.name);
+ await page.getByLabel('Markdown本文',{exact:true}).fill('未保存の変更も削除対象');
+ let deletes=0;page.on('request',r=>{if(r.method()==='DELETE')deletes++});
+ await page.getByRole('button',{name:'この下書きを削除',exact:true}).click();const confirmation=page.getByRole('region',{name:'削除してよいですか？'});
+ await expect(confirmation).toContainText('保存済みの版 '+target.version);await expect(confirmation).toContainText('未保存の変更もあります');await expect(page.getByRole('heading',{name:'削除してよいですか？'})).toBeFocused();
+ await page.screenshot({path:test.info().outputPath('delete-confirmation.png'),fullPage:true});
+ await page.getByRole('button',{name:'削除をやめる'}).click();expect(deletes).toBe(0);await expect(page.getByLabel('Markdown本文',{exact:true})).toHaveValue('未保存の変更も削除対象');await expect(page.getByRole('button',{name:'この下書きを削除',exact:true})).toBeFocused();
+ await page.keyboard.press('Enter');await page.getByRole('button',{name:'確認した下書きを削除する'}).click();await expect(page.getByRole('status').last()).toContainText('下書きを削除しました');expect(deletes).toBe(1);
+ await expect(page.getByLabel('Markdown本文',{exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'新しい下書き',exact:true})).toBeFocused();expect((await page.request.get('/api/private/drafts/'+target.id)).status()).toBe(404);expect((await page.request.get('/api/private/drafts/'+keep.id)).status()).toBe(200);
+ await page.getByRole('button',{name:keep.title,exact:true}).click();await expect(page.getByLabel('Markdown本文',{exact:true})).toHaveValue('保存した架空本文');
+});
+test('concurrent update refuses stale deletion and requires reading and confirming the new version',async({page},info)=>{
+ await deletionLogin(page);const target=await deletionDraft(page,'競合する下書き '+info.project.name);await page.getByLabel('Markdown本文',{exact:true}).fill('手元の未保存本文');
+ await page.getByRole('button',{name:'この下書きを削除',exact:true}).click();
+ const {csrfToken}=await(await page.request.get('/api/private/session')).json();const update=await page.request.patch('/api/private/drafts/'+target.id,{headers:{Origin:'https://127.0.0.1:8792',Authorization:'Bearer csrf.'+csrfToken},data:{title:target.title,body:'別の画面で保存した本文',expectedVersion:target.version}});expect(update.status()).toBe(200);
+ await page.getByRole('button',{name:'確認した下書きを削除する'}).click();await expect(page.getByRole('status').last()).toContainText('削除結果を確認できませんでした');await expect(page.getByLabel('Markdown本文',{exact:true})).toHaveValue('手元の未保存本文');await expect(page.getByRole('button',{name:'下書きを保存',exact:true})).toBeDisabled();await expect(page.getByRole('button',{name:'この下書きを削除',exact:true})).toBeDisabled();
+ await page.getByRole('button',{name:'保存済みの版を確認',exact:true}).click();await expect(page.getByLabel('保存済み本文',{exact:true})).toHaveValue('別の画面で保存した本文');await page.getByRole('button',{name:'確認した版を基準にする'}).click();await expect(page.getByLabel('Markdown本文',{exact:true})).toHaveValue('手元の未保存本文');
+ await page.getByRole('button',{name:'この下書きを削除',exact:true}).click();await expect(page.getByRole('region',{name:'削除してよいですか？'})).toContainText('保存済みの版 '+(target.version+1));await page.getByRole('button',{name:'確認した下書きを削除する'}).click();await expect(page.getByRole('status').last()).toContainText('下書きを削除しました');
+});
+test('lost deletion acknowledgement retains buffer and never infers success from list absence',async({page},info)=>{
+ await deletionLogin(page);const target=await deletionDraft(page,'結果不明の下書き '+info.project.name);await page.getByLabel('Markdown本文',{exact:true}).fill('手元に残す未保存本文');
+ let deletes=0;await page.route('**/api/private/drafts/'+target.id,async route=>{if(route.request().method()!=='DELETE'){await route.continue();return}deletes++;const committed=await route.fetch();expect(committed.status()).toBe(200);await route.fulfill({status:200,contentType:'application/json',body:'{"deleted":false}'})});
+ await page.getByRole('button',{name:'この下書きを削除',exact:true}).click();await page.getByRole('button',{name:'確認した下書きを削除する'}).click();await expect(page.getByRole('status').last()).toContainText('削除結果を確認できませんでした');
+ await page.getByRole('button',{name:'一覧を更新',exact:true}).click();await expect(page.getByRole('button',{name:target.title,exact:true})).toHaveCount(0);await expect(page.getByLabel('Markdown本文',{exact:true})).toHaveValue('手元に残す未保存本文');await expect(page.getByRole('button',{name:'この下書きを削除',exact:true})).toBeDisabled();
+ await page.getByRole('button',{name:'保存済みの版を確認',exact:true}).click();await expect(page.getByRole('status').last()).toContainText('保存済みの版を確認できませんでした');expect(deletes).toBe(1);await page.screenshot({path:test.info().outputPath('delete-unknown.png'),fullPage:true});
+});
+for(const action of ['expire','revoke'])test('grant '+action+' while confirming deletion closes the editor without deleting',async({page},info)=>{
+ await deletionLogin(page);const target=await deletionDraft(page,'失効時は残す '+action+' '+info.project.name);await page.getByRole('button',{name:'この下書きを削除',exact:true}).click();
+ await page.request.post('/api/__fixture/grant?action='+action);await page.getByRole('button',{name:'確認した下書きを削除する'}).click();await expect(page.locator('#draft-body')).toHaveCount(0);
+ await page.request.post('/api/__fixture/grant?action=restore');await page.getByRole('button',{name:'Googleで限定ログイン',exact:true}).click();await expect(page.getByRole('button',{name:target.title,exact:true})).toBeVisible();expect((await page.request.get('/api/private/drafts/'+target.id)).status()).toBe(200);
+});

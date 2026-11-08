@@ -31,6 +31,7 @@ export function createDraftClient(csrfToken:string,fetcher:typeof fetch=fetch){
   async list():Promise<DraftSummary[]>{const result=await request(ROOT);if(!Array.isArray(result)||result.length>20||!result.every(summary)||new Set(result.map(v=>v.id)).size!==result.length)throw new DraftClientError();return result},
   async createEmpty():Promise<EditorDraft>{const result=await request(ROOT,'POST',{title:'',body:''});if(!draft(result)||result.title!==''||result.body!==''||result.version!==1)throw new DraftClientError();return result},
   async read(id:string):Promise<EditorDraft>{const result=await request(readId(id));if(!draft(result)||result.id!==id)throw new DraftClientError();return result},
+  async delete(value:DraftSummary):Promise<void>{if(!summary(value))throw new DraftClientError();const result=await request(readId(value.id),'DELETE',{expectedVersion:value.version});if(!keys(result,['deleted'])||result.deleted!==true)throw new DraftClientError()},
   async save(value:EditorDraft):Promise<EditorDraft>{const result=await request(readId(value.id),'PATCH',{title:value.title,body:value.body,expectedVersion:value.version});if(!draft(result)||result.id!==value.id||result.version!==value.version+1||result.title!==value.title||result.body!==value.body)throw new DraftClientError();return result},
  };
 }
