@@ -72,9 +72,16 @@ async function attempt(subject: string, registration = false) {
   return { state, cookie: r.headers.getSetCookie()[0].split(';')[0] + '; ' + context };
 }
 async function callback(a: Awaited<ReturnType<typeof attempt>>, cookie = '') {
-  return req('/api/auth/callback?state=' + a.state + '&code=' + a.state, 'GET', {
-    Cookie: [a.cookie, cookie].filter(Boolean).join('; '),
-  });
+  return req(
+    '/api/auth/callback',
+    'POST',
+    {
+      Cookie: [a.cookie, cookie].filter(Boolean).join('; '),
+      Origin: O,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    { body: new URLSearchParams({ state: a.state, code: a.state }).toString() },
+  );
 }
 async function count(table: string) {
   return (await (

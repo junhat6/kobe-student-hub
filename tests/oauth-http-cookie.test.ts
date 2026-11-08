@@ -86,8 +86,18 @@ async function start(jar: Jar, registration = false, subject = 'cookie-active') 
   );
   return state;
 }
+const postCallback = (jar: Jar, body: string, extra: Record<string, unknown> = {}) =>
+  call(jar, '/api/auth/callback', 'POST', {
+    headers: {
+      Origin: O,
+      Cookie: jar.header(),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+    ...extra,
+  });
 const callback = (jar: Jar, state: string, suffix = '') =>
-  call(jar, '/api/auth/callback?state=' + state + '&code=' + state + suffix);
+  postCallback(jar, new URLSearchParams({ state, code: state }).toString() + suffix);
 beforeAll(async () => {
   signer = await googleFixture();
   mf = new Miniflare(
@@ -181,11 +191,13 @@ for (const mode of ['denial', 'exchange-failure'])
       refuse = mode === 'exchange-failure';
       failed =
         mode === 'denial'
-          ? await call(
+          ? await postCallback(
               jar,
-              '/api/auth/callback?state=' +
-                state +
-                '&error=access_denied&error_description=PRIVATE',
+              new URLSearchParams({
+                state,
+                error: 'access_denied',
+                error_description: 'PRIVATE',
+              }).toString(),
             )
           : await callback(jar, state);
     } finally {
@@ -262,7 +274,10 @@ it('leaves B usable after malformed, missing, duplicate and fragment callbacks',
     '/api/auth/callback?state=' + b + '&code=' + b + '#fragment',
   ]) {
     const r = await call(jar, path);
-    clean(r);
+    if (path === '/api/auth/callback') {
+      expect(r.status).toBe(200);
+      expect(await r.text()).toContain('/api/auth/callback/receive.js');
+    } else clean(r);
     expect(r.headers.getSetCookie()).toHaveLength(0);
     expect(jar.values.get('__Host-kobe-oauth') === saved).toBe(true);
   }
@@ -304,7 +319,7 @@ it('preserves the attempt and session when a database claim fails closed, then p
     b = await start(jar),
     saved = jar.values.get('__Host-kobe-oauth'),
     before = exchanges;
-  const failed = await call(jar, '/api/auth/callback?state=' + b + '&code=' + b, 'GET', {
+  const failed = await postCallback(jar, new URLSearchParams({ state: b, code: b }).toString(), {
     forbidDb: true,
   });
   clean(failed);
@@ -328,8 +343,8 @@ it('does not clear B for missing, duplicated or oversized request cookies', asyn
     jar.header() + '; __Host-kobe-oauth=' + saved,
     '__Host-kobe-oauth=' + 'x'.repeat(4097),
   ]) {
-    const r = await call(jar, '/api/auth/callback?state=' + b + '&code=' + b, 'GET', {
-      headers: { Cookie },
+    const r = await postCallback(jar, new URLSearchParams({ state: b, code: b }).toString(), {
+      headers: { Cookie, Origin: O, 'Content-Type': 'application/x-www-form-urlencoded' },
     });
     clean(r);
     expect(r.headers.getSetCookie()).toHaveLength(0);

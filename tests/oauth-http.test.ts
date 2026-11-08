@@ -94,14 +94,16 @@ async function prepare(subject = 'active-subject', reg = false, patch = {}) {
 }
 const responseContexts = new WeakMap<object, string>();
 async function callback(a: Awaited<ReturnType<typeof start>>, suffix = '') {
+  const state = a.url.searchParams.get('state')!;
   const r = await request(
-    '/api/auth/callback?state=' +
-      a.url.searchParams.get('state') +
-      '&code=' +
-      a.url.searchParams.get('state') +
-      suffix,
-    'GET',
-    { Cookie: a.cookie },
+    '/api/auth/callback',
+    'POST',
+    {
+      Cookie: a.cookie,
+      Origin: O,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    { body: new URLSearchParams({ state, code: state }).toString() + suffix },
   );
   responseContexts.set(r, a.context);
   return r;
@@ -245,6 +247,8 @@ it('starts distinct cryptographic purposes only through same-origin POST without
   expect(login.url.origin).toBe('https://accounts.google.com');
   expect(login.url.searchParams.get('redirect_uri')).toBe(O + '/api/auth/callback');
   expect(reg.url.searchParams.get('redirect_uri')).toBe(O + '/api/auth/callback');
+  expect(login.url.searchParams.get('response_mode')).toBe('fragment');
+  expect(reg.url.searchParams.get('response_mode')).toBe('fragment');
   expect(login.cookie).not.toBe(reg.cookie);
   expect((await request('/api/auth/start')).status).toBe(405);
   expect(
@@ -319,7 +323,6 @@ it('handles denial, malformed, unmatched and wrong cookies with indistinguishabl
   const before = exchanges,
     a = await start();
   for (const [path, matched] of [
-    ['/api/auth/callback', false],
     ['/api/auth/callback?state=PRIVATE&code=PRIVATE', false],
     [
       '/api/auth/callback?state=' +
@@ -328,7 +331,14 @@ it('handles denial, malformed, unmatched and wrong cookies with indistinguishabl
       true,
     ],
   ] as const) {
-    const r = await request(path, 'GET', { Cookie: a.cookie });
+    const r = matched
+      ? await request(
+          '/api/auth/callback',
+          'POST',
+          { Cookie: a.cookie, Origin: O, 'Content-Type': 'application/x-www-form-urlencoded' },
+          { body: path.split('?')[1] },
+        )
+      : await request(path, 'GET', { Cookie: a.cookie });
     clean(r, matched);
     expect(await r.text()).toBe('');
     expect(cookies(r)).toHaveLength(0);
@@ -336,7 +346,7 @@ it('handles denial, malformed, unmatched and wrong cookies with indistinguishabl
   expect(exchanges).toBe(before);
   const r = await request('/api/auth/callback', 'POST');
   privacy(r);
-  expect(r.status).toBe(405);
+  expect(r.status).toBe(400);
 });
 it('fails invalid nonce/domain/signature and provider failures without session or secret exposure', async () => {
   const before = await count('auth_sessions');

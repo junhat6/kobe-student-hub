@@ -9,7 +9,8 @@ export default {
       method: string;
       headers?: Record<string, string>;
       body?: string;
-      streamMode?: 'small' | 'slow-eof' | 'late-eof' | 'never-eof' | 'empty' | 'oversize';
+      streamMode?:
+        'small' | 'slow-eof' | 'late-eof' | 'never-eof' | 'empty' | 'oversize' | 'append-eof';
       now: number;
       bindings: OAuthBindings;
       authorizationJson?: boolean;
@@ -87,7 +88,12 @@ export default {
       body = new ReadableStream<Uint8Array>({
         start(controller) {
           if (mode === 'oversize') controller.enqueue(new Uint8Array(129));
-          else if (mode === 'slow-eof' || mode === 'late-eof' || mode === 'never-eof')
+          else if (
+            mode === 'slow-eof' ||
+            mode === 'late-eof' ||
+            mode === 'never-eof' ||
+            mode === 'append-eof'
+          )
             controller.enqueue(valid);
         },
         async pull(controller) {
@@ -95,6 +101,10 @@ export default {
           if (mode === 'small') {
             if (offset < valid.length) controller.enqueue(valid.subarray(offset, ++offset));
             else controller.close();
+          } else if (mode === 'append-eof') {
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            controller.enqueue(new TextEncoder().encode('&code=second'));
+            controller.close();
           } else if (mode === 'empty') controller.enqueue(new Uint8Array(0));
           else if (mode === 'slow-eof' || mode === 'late-eof') {
             await new Promise((resolve) => setTimeout(resolve, mode === 'slow-eof' ? 80 : 5500));
