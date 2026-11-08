@@ -203,16 +203,27 @@ export default function ProjectReport({
 }) {
   return (
     <section className="project-report-panel" aria-label="作品の通報">
-      <h2>この作品を通報する</h2>
+      <h2>{surface === 'ordinary' ? '作品の通報' : 'この作品を通報する'}</h2>
       {surface === 'lab' && (
         <p className="project-local">
           架空データのローカル試作です。受付のみで、自動非公開・通知・運営判断は行いません。実際の学校ログインや運営連絡先は未提供です。
         </p>
       )}
-      <p>
-        理由・詳細は匿名の作品画面や一般読者には表示しません。確認できるまで入力を隠し、同じセッションなら保持した入力を再開します。無効・変更なら前の入力を破棄し、別の状態は明示確認後に開きます。
-      </p>
-      <ProjectSessionScope label="作品通報の準備を確認">
+      {surface === 'lab' && (
+        <p>
+          理由・詳細は匿名の作品画面や一般読者には表示しません。確認できるまで入力を隠し、同じセッションなら保持した入力を再開します。無効・変更なら前の入力を破棄し、別の状態は明示確認後に開きます。
+        </p>
+      )}
+      <ProjectSessionScope
+        label={surface === 'ordinary' ? 'この作品を通報する' : '作品通報の準備を確認'}
+        signedOutMessage={
+          surface === 'ordinary' ? (
+            <>
+              通報するには<a href="/login">ログイン</a>してください。前の入力は引き継ぎません。
+            </>
+          ) : undefined
+        }
+      >
         {(session) => (
           <ProjectReportForm
             projectId={projectId}

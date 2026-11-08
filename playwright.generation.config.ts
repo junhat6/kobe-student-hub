@@ -8,6 +8,7 @@ export default defineConfig({
     'ordinary-drafts-browser.spec.ts',
     'ordinary-draft-deletion-browser.spec.ts',
     'ordinary-publication-browser.spec.ts',
+    'ordinary-projects-browser.spec.ts',
   ],
   workers: 1,
   fullyParallel: false,
