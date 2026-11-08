@@ -36,9 +36,12 @@ describe('actual Worker health source release state', () => {
       ['OAUTH_HTTP_RELEASE_ENABLED', oauth],
       ['ORDINARY_DRAFT_HTTP_RELEASE_ENABLED', authoring],
     ] as const) {
-      const closedGate = new RegExp(`^const ${name} = false;$`, 'gm');
-      expect(source.match(closedGate)).toHaveLength(1);
-      variant = variant.replace(closedGate, `const ${name} = ${enabled};`);
+      const stageGate = new RegExp(
+        `^const ${name} = ${name === 'OAUTH_HTTP_RELEASE_ENABLED'};$`,
+        'gm',
+      );
+      expect(source.match(stageGate)).toHaveLength(1);
+      variant = variant.replace(stageGate, `const ${name} = ${enabled};`);
     }
     output = mkdtempSync(join(tmpdir(), 'ksh-release-health-'));
     const path = join(output, 'index.mjs');

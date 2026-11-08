@@ -166,19 +166,22 @@ beforeAll(async () => {
 afterAll(async () => {
   await mf?.dispose();
 });
-it('keeps production routes closed even with complete config and preserves health writesEnabled false', async () => {
+it('mounts ordinary account routes, rejects unproved requests and keeps posting disabled', async () => {
   const before = await count('oauth_attempts'),
     calls = exchanges;
-  for (const path of [
-    '/api/auth/bootstrap',
-    '/api/auth/command?action=login',
-    '/api/private/logout-command',
-    '/api/auth/start',
-    '/api/auth/register',
-    '/api/auth/callback?code=synthetic&state=synthetic',
-    '/api/private/session',
-    '/api/private/logout',
-  ])
+  for (const [path, status] of [
+    ['/api/auth/bootstrap', 503],
+    ['/api/auth/command?action=login', 503],
+    ['/api/private/logout-command', 503],
+    ['/api/auth/start', 400],
+    ['/api/auth/register', 400],
+    ['/api/auth/callback', 200],
+    ['/api/auth/callback?code=synthetic&state=synthetic', 303],
+    ['/api/private/session', 401],
+    ['/api/private/logout', 401],
+    ['/api/private/drafts', 405],
+    ['/api/private/profile', 405],
+  ] as const)
     expect(
       (
         await request(
@@ -188,12 +191,126 @@ it('keeps production routes closed even with complete config and preserves healt
           { production: true, forbidDb: true },
         )
       ).status,
-    ).toBe(path.includes('callback') ? 303 : 405);
+    ).toBe(status);
   expect(
     await (await request('/api/health', 'GET', {}, { production: true })).json(),
   ).toMatchObject({ writesEnabled: false });
   expect(await count('oauth_attempts')).toBe(before);
   expect(exchanges).toBe(calls);
+});
+it('ordinary production entry registers a verified fictional student, manages private years and logs out without authoring', async () => {
+  await applySelfRegistrationSchema(await mf.getD1Database('DB'));
+  const production = { production: true },
+    bootstrap = await request('/api/auth/bootstrap', 'POST', { Origin: O }, production);
+  expect(bootstrap.status).toBe(204);
+  const context = cookies(bootstrap)[0].split(';')[0],
+    command = await request(
+      '/api/auth/command?action=self-registration',
+      'POST',
+      { Origin: O, Cookie: context },
+      production,
+    ),
+    { commandToken } = (await command.json()) as { commandToken: string };
+  const start = await request(
+    '/api/auth/register',
+    'POST',
+    {
+      Origin: O,
+      Cookie: context,
+      Authorization: 'Bearer command.' + commandToken,
+      'Content-Type': 'application/json',
+    },
+    { ...production, body: JSON.stringify({ admissionYear: 2026, graduationYear: 2028 }) },
+  );
+  expect(start.status).toBe(200);
+  privacy(start);
+  const { authorizationUrl } = (await start.json()) as { authorizationUrl: string },
+    authorization = new URL(authorizationUrl),
+    state = authorization.searchParams.get('state')!;
+  expect(authorization.searchParams.get('response_type')).toBe('code');
+  expect(authorization.searchParams.get('response_mode')).toBe('fragment');
+  tokens.set(
+    state,
+    await fixture.sign({
+      sub: 'ordinary-stage-student',
+      email: 'ordinary-stage-student@st.kobedenshi.ac.jp',
+      nonce: authorization.searchParams.get('nonce'),
+    }),
+  );
+  const callbackCookie = context + '; ' + cookies(start)[0].split(';')[0],
+    exchangeBeforeGet = exchanges;
+  const shell = await request('/api/auth/callback', 'GET', { Cookie: callbackCookie }, production);
+  expect(shell.status).toBe(200);
+  privacy(shell);
+  expect(shell.headers.get('Content-Security-Policy')).toContain("default-src 'none'");
+  expect(shell.headers.get('Content-Security-Policy')).toContain("script-src 'self'");
+  expect(shell.headers.has('Set-Cookie')).toBe(false);
+  expect(await shell.text()).toContain('/api/auth/callback/receive.js');
+  const query = await request(
+    '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+    'GET',
+    { Cookie: callbackCookie },
+    production,
+  );
+  expect(query.status).toBe(303);
+  expect(query.headers.get('Location')).toBe(O + '/account#');
+  expect(query.headers.has('Set-Cookie')).toBe(false);
+  expect(exchanges).toBe(exchangeBeforeGet);
+  // The valid attempt still completes through POST: the shell/query GETs consumed nothing.
+  const callback = await request(
+    '/api/auth/callback',
+    'POST',
+    {
+      Cookie: callbackCookie,
+      Origin: O,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    { ...production, body: new URLSearchParams({ state, code: state }).toString() },
+  );
+  expect(callback.status).toBe(303);
+  expect(callback.headers.get('Location')).toBe(O + '/account#');
+  const cookie = context + '; ' + cookies(callback)[0].split(';')[0],
+    inspection = await request('/api/private/session', 'GET', { Cookie: cookie }, production);
+  expect(inspection.status).toBe(200);
+  const privateSession = (await inspection.json()) as { csrfToken: string };
+  expect(Object.keys(privateSession)).toEqual(['csrfToken']);
+  const years = await request('/api/private/enrollment', 'GET', { Cookie: cookie }, production);
+  privacy(years);
+  expect(await years.json()).toMatchObject({
+    enrollment: { admissionYear: 2026, graduationYear: 2028, version: 1 },
+  });
+  const headers = {
+    Cookie: cookie,
+    Origin: O,
+    Authorization: 'Bearer csrf.' + privateSession.csrfToken,
+  };
+  const saved = await request(
+    '/api/private/enrollment',
+    'PUT',
+    { ...headers, 'Content-Type': 'application/json' },
+    {
+      ...production,
+      body: JSON.stringify({ admissionYear: 2026, graduationYear: 2027, expectedVersion: 1 }),
+    },
+  );
+  expect(saved.status).toBe(200);
+  expect(await saved.json()).toMatchObject({ enrollment: { graduationYear: 2027, version: 2 } });
+  for (const path of [
+    '/api/private/drafts',
+    '/api/private/profile',
+    '/api/private/article-likes/test',
+    '/api/private/reports/test',
+  ]) {
+    const r = await request(path, 'POST', headers, production);
+    expect(r.status).toBe(405);
+    expect(r.headers.has('Set-Cookie')).toBe(false);
+  }
+  const loggedOut = await request('/api/private/logout', 'POST', headers, production);
+  expect(loggedOut.status).toBe(200);
+  expect(await loggedOut.json()).toEqual({ loggedOut: true });
+  expect(
+    (await request('/api/private/session', 'GET', { Cookie: cookie }, production)).status,
+  ).toBe(401);
 });
 it('defaults disabled and refuses malformed config before any attempt or exchange', async () => {
   expect((await request('/api/auth/start', 'POST', { Origin: O }, { enabled: false })).status).toBe(

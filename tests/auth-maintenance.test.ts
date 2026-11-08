@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
 import { AuthMaintenanceStore, type AuthMaintenancePolicy } from '../worker/auth/maintenance';
@@ -6,6 +6,10 @@ import { BrowserSessionCoordinator } from '../worker/auth/browser-session';
 import { BrowserOAuthFlow } from '../worker/auth/browser-flow';
 import { SessionStore } from '../worker/auth/sessions';
 import { applyOrderSchema } from './helpers/order-schema';
+import {
+  AUTH_MAINTENANCE_POLICY,
+  runProductionAuthMaintenance,
+} from '../worker/auth/production-maintenance';
 const NOW = 1_800_000_000_000,
   O = 'https://maintenance.example.invalid',
   policy: AuthMaintenancePolicy = { expiredGraceMs: 0, minimumIntervalMs: 1000, batchLimit: 100 };
@@ -105,7 +109,98 @@ async function claim(db: D1Database, now: number) {
   return { proof: result.proof, contextCookie: boot.setCookie, flow, callback };
 }
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(instances.splice(0).map((mf) => mf.dispose()));
+});
+describe('fixed production authentication retention', () => {
+  it('waits 24 hours after expiry, persists the 15 minute throttle and keeps a live session/account', async () => {
+    const db = await database();
+    await seed(db, 3);
+    let now = NOW + 24 * 60 * 60 * 1000 - 1;
+    const pending = await claim(db, now);
+    const session = (await new SessionStore(db, O, () => now).create(
+      {
+        provider: 'google',
+        subject: 'fictional-subject',
+        email: 'fictional@st.kobedenshi.ac.jp',
+      },
+      pending.proof,
+    ))!;
+    expect(session).not.toBeNull();
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const run = () => runProductionAuthMaintenance(db, O, () => now);
+    expect(AUTH_MAINTENANCE_POLICY).toEqual({
+      expiredGraceMs: 86_400_000,
+      minimumIntervalMs: 900_000,
+      batchLimit: 100,
+    });
+    expect(Object.isFrozen(AUTH_MAINTENANCE_POLICY)).toBe(true);
+    expect(await run()).toEqual({
+      event: 'auth_maintenance',
+      outcome: 'completed',
+      deleted: { attempts: 0, commands: 0, sessions: 0, contexts: 0, subjectFloors: 0 },
+    });
+    now += 899_999;
+    expect(await run()).toEqual({ event: 'auth_maintenance', outcome: 'throttled' });
+    expect(await count(db, 'auth_sessions')).toBe(4);
+    now++;
+    const completed = {
+      event: 'auth_maintenance',
+      outcome: 'completed',
+      deleted: { attempts: 3, commands: 3, sessions: 3, contexts: 3, subjectFloors: 0 },
+    };
+    expect(await run()).toEqual(completed);
+    expect(log.mock.calls).toEqual([
+      [
+        JSON.stringify({
+          event: 'auth_maintenance',
+          outcome: 'completed',
+          deleted: { attempts: 0, commands: 0, sessions: 0, contexts: 0, subjectFloors: 0 },
+        }),
+      ],
+      [JSON.stringify({ event: 'auth_maintenance', outcome: 'throttled' })],
+      [JSON.stringify(completed)],
+    ]);
+    const req = new Request(O, {
+      headers: {
+        Cookie: pending.contextCookie.split(';')[0] + '; ' + session.setCookie.split(';')[0],
+      },
+    });
+    expect(await new SessionStore(db, O, () => now).authenticate(req)).not.toBeNull();
+    for (const table of [
+      'oauth_attempts',
+      'auth_browser_commands',
+      'auth_sessions',
+      'auth_browser_contexts',
+      'private_accounts',
+    ])
+      expect(await count(db, table)).toBe(1);
+    expect((await db.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
+  });
+
+  it('emits only the fixed unavailable outcome on opaque storage failure or invalid origin, without retry', async () => {
+    const opaque = new Proxy(
+      {},
+      {
+        get() {
+          throw Error('PRIVATE_EXCEPTION_MARKER');
+        },
+      },
+    );
+    const prepare = vi.fn(() => {
+      throw opaque;
+    });
+    const db = { prepare } as unknown as D1Database;
+    const log = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const expected = { event: 'auth_maintenance', outcome: 'unavailable' };
+    expect(await runProductionAuthMaintenance(db, O, () => NOW)).toEqual(expected);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(await runProductionAuthMaintenance(db, 'http://invalid.example', () => NOW)).toEqual(
+      expected,
+    );
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls).toEqual([[JSON.stringify(expected)], [JSON.stringify(expected)]]);
+  });
 });
 describe('explicit local authentication maintenance', () => {
   it('refuses malformed policy/origin/time and does not invent a retention default', async () => {

@@ -1,4 +1,5 @@
 import { callbackReceiverCsp } from './auth/callback-receiver';
+import { AUTH_MAINTENANCE_CRON, runProductionAuthMaintenance } from './auth/production-maintenance';
 import { pendingPilotPage } from './auth/pending-pilot-ui';
 import { createOrdinaryDraftHandler } from './ordinary-drafts-http';
 import {
@@ -14,8 +15,8 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
 import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
-// General login remains closed; the explicit private pilot permits pending receipt only.
-const OAUTH_HTTP_RELEASE_ENABLED = false;
+// Ordinary account access and authoring have separate source release stages.
+const OAUTH_HTTP_RELEASE_ENABLED = true;
 const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = false;
 // Pure module/codec setup belongs to isolate startup, not the first image request.
 if (OAUTH_HTTP_RELEASE_ENABLED && ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) await warmMediaCodec();
@@ -142,9 +143,7 @@ app.get('/api/catalog', async (c) => {
   return c.json({ mode: 'sample', entries, profiles } satisfies Catalog);
 });
 // No user-generated writes until authentication, privacy and moderation pass their gates.
-app.all('/api/*', (c) =>
-  c.json({ error: 'この開発プレビューではログイン・投稿機能をまだ提供していません。' }, 405),
-);
+app.all('/api/*', (c) => c.json({ error: 'この操作は利用できません。' }, 405));
 app.onError((_err, c) =>
   c.json({ error: '読み込みに失敗しました。時間をおいて再度お試しください。' }, 503),
 );
@@ -174,7 +173,12 @@ interface ProfileRow {
 // Hono's onError handles Error instances; bindings can reject with any JavaScript value.
 // Keep that value opaque, including cross-realm Errors, and never hand it to a logger.
 export default {
-  async scheduled(_event, env, ctx) {
+  async scheduled(event, env, ctx) {
+    if (OAUTH_HTTP_RELEASE_ENABLED && event.cron === AUTH_MAINTENANCE_CRON)
+      ctx.waitUntil(
+        runProductionAuthMaintenance(env.DB, (env as Env & OAuthBindings).AUTH_ORIGIN ?? ''),
+      );
+    // Email dispatch keeps its own authoring/operator/binding conditions.
     if (!OAUTH_HTTP_RELEASE_ENABLED || !ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) return;
     if (!parseModerationOperators(env as Env & ModerationBindings).length) return;
     const options = moderationEmailOptions(
