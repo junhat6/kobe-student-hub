@@ -1,4 +1,4 @@
-import {test,expect,type Page} from '@playwright/test';
+import {test,expect,type Page,type Request} from '@playwright/test';
 const origin='https://127.0.0.1:8788';
 async function seed(page:Page){await page.goto('/lab/works');return page.evaluate(async()=>{const csrf=(await(await fetch('/__fixture/profile-session',{method:'POST'})).json() as {csrfToken:string}).csrfToken;const headers={'Content-Type':'application/json',Authorization:'Bearer csrf.'+(csrf)};async function post(path:string,input:unknown){const r=await fetch(path,{method:'POST',headers,body:JSON.stringify(input)});if(r.status!==201)throw Error('fictional project setup failed');return r.json() as Promise<{profile:{id:string};id:string;version:number;projectId:string}>}const profile=await post('/api/private/profile',{displayName:'架空の制作投稿者',bio:'feedには出さない紹介',confirmPublic:true});const title='発見する架空作品 '+crypto.randomUUID().slice(0,8),description='<script>window.worksInjected=true</script>\n![image](https://works-external.invalid/image)\n制作で試したこと';const d=await post('/api/private/project-drafts',{title,description,githubUrl:'https://example.invalid/?public=link#view',demoUrl:''});const pub=await post('/api/private/project-publications/'+d.id,{expectedVersion:d.version,confirmPublic:true});return {id:pub.projectId,title,description,authorId:profile.profile.id}})}
 test('anonymous readers discover a fresh work then its project and author without private or external fetches',async({page,browser})=>{
@@ -8,10 +8,11 @@ test('anonymous readers discover a fresh work then its project and author withou
  const checks:Promise<void>[]=[];
  const headerErrors:unknown[]=[];
  let primaryFailed=false;
+ let stopObserving=()=>{};
  try{
   const reader=await ctx.newPage();
   let identities=0,privateCalls=0,external=0;
-  reader.on('request',r=>{
+  const observeRequest=(r:Request)=>{
    if(r.url().includes('/__fixture/'))identities++;
    if(r.url().includes('/api/private/'))privateCalls++;
    if(!r.url().startsWith(origin))external++;
@@ -22,7 +23,9 @@ test('anonymous readers discover a fresh work then its project and author withou
      expect(Object.hasOwn(h,'x-csrf-token')).toBe(false);
     }).catch(error=>{headerErrors.push(error)}));
    }
-  });
+  };
+  reader.on('request',observeRequest);
+  stopObserving=()=>{reader.off('request',observeRequest)};
   const card=reader.getByRole('article').filter({has:reader.locator('a[href="/lab/projects/'+data.id+'"]')});
   await test.step('Read the fresh work without private or active content',async()=>{
    await reader.goto('/lab/works');
@@ -47,20 +50,28 @@ test('anonymous readers discover a fresh work then its project and author withou
    await reader.getByRole('link',{name:'公開作品を探す',exact:true}).click();
    await expect(card).toBeVisible();
   });
-  await test.step('Verify anonymous calls and page width',async()=>{
+  // allHeaders has no SDK timeout. Missing raw-header evidence is a failure, not a pass.
+  await test.step('Verify every observed public request header',async()=>{
+   expect(checks.length).toBeGreaterThan(0);
+   let checked=0;
+   while(checked<checks.length){
+    const batch=checks.slice(checked);
+    checked=checks.length;
+    await Promise.all(batch);
+   }
+   // End the observation window synchronously, including requests added during the drain.
+   stopObserving();
+   if(headerErrors.length)throw headerErrors[0];
+  },{timeout:5000});
+  await test.step('Verify all observed anonymous calls and page width',async()=>{
    expect(identities).toBe(0);
    expect(privateCalls).toBe(0);
    expect(external).toBe(0);
    expect(await reader.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   });
-  // allHeaders has no SDK timeout. Missing raw-header evidence is a failure, not a pass.
-  await test.step('Verify every observed public request header',async()=>{
-   expect(checks.length).toBeGreaterThan(0);
-   await Promise.all(checks);
-   if(headerErrors.length)throw headerErrors[0];
-  },{timeout:5000});
  }catch(error){primaryFailed=true;throw error}
  finally{
+  stopObserving();
   try{await ctx.close()}
   catch(error){
    if(!primaryFailed)throw error;
