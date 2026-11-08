@@ -607,3 +607,53 @@ it('enforces owner byte quotas and the global byte ceiling atomically in actual 
     }
   }
 });
+
+it('independent: concurrent final uploads cannot cross the eight-image draft limit', async () => {
+  const d = await draft();
+  for (let n = 0; n < 7; n++) expect((await upload(d)).status).toBe(201);
+  const final = await Promise.all([upload(d), upload(d)]);
+  expect(final.map((r) => r.status).sort()).toEqual([201, 404]);
+  const db = await mf.getD1Database('DB');
+  expect(
+    (
+      await db
+        .prepare('SELECT COUNT(*) n FROM media_assets WHERE article_draft_id=?')
+        .bind(d.id)
+        .first()
+    )?.n,
+  ).toBe(8);
+});
+it('independent: an author cannot grant another owners private attachment using a known image UUID', async () => {
+  const other = await call<PrivateDraft>(
+    'draft',
+    { title: 'Other private draft', body: 'Private' },
+    1,
+  );
+  const image = id();
+  expect((await upload(other, image, png, 1)).status).toBe(201);
+  const own = await draft(`![foreign](/api/media/${image})`);
+  expect(await publication(own, [image])).toBeNull();
+  expect((await publicRead(image, h(1))).status).toBe(404);
+  expect((await ownRead(image, 1)).status).toBe(200);
+});
+it('independent: one account upload does not erase another account old unattached private image', async () => {
+  const d = await draft(),
+    source = id();
+  expect((await upload(d, source)).status).toBe(201);
+  const other = await call<PrivateDraft>(
+    'draft',
+    { title: 'Other retained private draft', body: 'No image reference yet' },
+    1,
+  );
+  const old = id(),
+    db = await mf.getD1Database('DB');
+  await db
+    .prepare(
+      'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,?,?,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
+    )
+    .bind(old, 'account-1', other.id, NOW - 2 * 86400000, source)
+    .run();
+  expect((await ownRead(old, 1)).status).toBe(200);
+  expect((await upload(d)).status).toBe(201);
+  expect((await ownRead(old, 1)).status).toBe(200);
+});

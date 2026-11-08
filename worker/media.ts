@@ -218,9 +218,9 @@ export class MediaStore {
   private async cleanup(p: Proof) {
     await this.db
       .prepare(
-        `DELETE FROM media_assets WHERE id IN(SELECT id FROM media_assets WHERE created_at_ms<? AND ${unpublished} AND ${unreferenced} ORDER BY created_at_ms,id LIMIT 20) AND ${writer}`,
+        `DELETE FROM media_assets WHERE id IN(SELECT id FROM media_assets WHERE owner_account_id=? AND created_at_ms<? AND ${unpublished} AND ${unreferenced} ORDER BY created_at_ms,id LIMIT 20) AND ${writer}`,
       )
-      .bind(p.nowMs - 86400000, ...writerBinds(p))
+      .bind(p.accountId, p.nowMs - 86400000, ...writerBinds(p))
       .run();
   }
 }
