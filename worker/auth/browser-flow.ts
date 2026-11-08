@@ -45,7 +45,7 @@ function context(config: BrowserFlowConfig, intent: FlowIntent) {
     return null;
   }
 }
-// Only start/mutating actions use this check. Cross-site provider GET callbacks use state/binding.
+// Mutating HTTP actions require same-origin proof; internal callback claims still use state/binding.
 export function isSameOriginPost(request: Request, origin: string): boolean {
   try {
     return (
@@ -146,6 +146,7 @@ export class BrowserOAuthFlow {
         client_id: this.config.clientId,
         redirect_uri: ctx.redirect,
         response_type: 'code',
+        ...(intent === 'pending-registration' ? {} : { response_mode: 'fragment' }),
         scope: 'openid email',
         hd: 'st.kobedenshi.ac.jp',
         state: attempt.state,
