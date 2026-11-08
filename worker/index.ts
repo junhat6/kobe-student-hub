@@ -69,10 +69,10 @@ app.use('/api/*', async (c, next) => {
     const origin = (c.env as Env & OAuthBindings).AUTH_ORIGIN ?? '';
     const response = await createEnrollmentHandler(c.env.DB, origin)(c.req.raw);
     if (response) return response;
-    const draft = await createOrdinaryDraftHandler(c.env.DB, origin, {
+    const authoring = await createOrdinaryDraftHandler(c.env.DB, origin, {
       enabled: ORDINARY_DRAFT_HTTP_RELEASE_ENABLED,
     })(c.req.raw);
-    if (draft) return draft;
+    if (authoring) return authoring;
   }
   await next();
 });

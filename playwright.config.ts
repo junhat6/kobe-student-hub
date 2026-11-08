@@ -6,6 +6,7 @@ export default defineConfig({
     '**/editor*.spec.ts',
     '**/ordinary-drafts-browser.spec.ts',
     '**/ordinary-draft-deletion-browser.spec.ts',
+    '**/ordinary-publication-browser.spec.ts',
     '**/session-generation-browser.spec.ts',
     '**/session-registration-browser.spec.ts',
     '**/session-registration-independent-browser.spec.ts',

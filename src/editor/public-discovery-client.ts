@@ -1,3 +1,4 @@
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { PublicDiscovery } from '../types';
 import { readAnonymousJson } from './anonymous-public-read';
 import { publicKeys, publicSlug, publicText, validPublicSummary } from './public-author-client';
@@ -33,11 +34,14 @@ function valid(value: unknown): value is PublicDiscovery {
     return true;
   });
 }
-export function createPublicDiscoveryClient(fetcher: typeof fetch = fetch) {
+export function createPublicDiscoveryClient(
+  fetcher: typeof fetch = fetch,
+  surface: PublicSurface = 'lab',
+) {
   return {
     async read(signal?: AbortSignal): Promise<PublicDiscovery> {
       try {
-        const value = await readAnonymousJson('/__lab/discovery', fetcher, signal);
+        const value = await readAnonymousJson(publicPaths(surface).articlesApi, fetcher, signal);
         if (!valid(value)) throw new PublicDiscoveryClientError();
         return value;
       } catch {

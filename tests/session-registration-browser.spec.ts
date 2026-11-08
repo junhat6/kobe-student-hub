@@ -320,7 +320,7 @@ test('signup and account confirmation work after an initial catalog failure in t
   page,
 }, info) => {
   const visits = await fakeGoogle(page, fictional(info, 'catalog-failure'));
-  await page.route('**/api/catalog', (route) =>
+  await page.route('**/api/articles', (route) =>
     route.fulfill({
       status: 503,
       contentType: 'application/json',
@@ -329,7 +329,7 @@ test('signup and account confirmation work after an initial catalog failure in t
   );
   await page.goto('/');
   await expect(
-    page.getByRole('heading', { name: '記事・作品を読み込めませんでした', exact: true }),
+    page.getByRole('heading', { name: '記事一覧を表示できませんでした', exact: true }),
   ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'メイン' })

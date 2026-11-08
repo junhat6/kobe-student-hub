@@ -15,11 +15,17 @@ import { isCatalog } from './validation';
 import { safeListPath, readListOrigin, listContextPath } from './navigation';
 import { usePagePosition } from './usePagePosition';
 import './style.css';
-import { accountUiEnabled, isAccountRoute, isDraftRoute } from './account/routes';
+import {
+  accountUiEnabled,
+  authoringUiEnabled,
+  isAccountRoute,
+  isDraftRoute,
+} from './account/routes';
 const Registration = React.lazy(() => import('./account/Registration'));
 const AccountPage = React.lazy(() => import('./account/AccountPage'));
 const OrdinaryDrafts = React.lazy(() => import('./account/OrdinaryDrafts'));
 const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
+const Community = React.lazy(() => import('./community/Community'));
 class BodyBoundary extends React.Component<
   { children: React.ReactNode; purpose?: 'account' | 'drafts' },
   { failed: boolean }
@@ -61,8 +67,16 @@ function App() {
   const location = useLocation();
   const draftPath = isDraftRoute(location.pathname);
   const accountPath = isAccountRoute(location.pathname) || draftPath;
+  const communityPath =
+    authoringUiEnabled &&
+    (['/', '/search'].includes(location.pathname) ||
+      /^\/articles\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+        location.pathname,
+      ) ||
+      (/^\/students\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}(?:\/likes)?$/.test(location.pathname) &&
+        !location.pathname.startsWith('/students/sample-')));
   useEffect(() => {
-    if (accountPath) return;
+    if (accountPath || communityPath) return;
     const controller = new AbortController();
     setFailed(false);
     fetch('/api/catalog', { signal: controller.signal })
@@ -78,8 +92,10 @@ function App() {
         if (e.name !== 'AbortError') setFailed(true);
       });
     return () => controller.abort();
-  }, [attempt, accountPath]);
-  usePagePosition(Boolean(catalog) || failed || location.pathname === '/about' || accountPath);
+  }, [attempt, accountPath, communityPath]);
+  usePagePosition(
+    Boolean(catalog) || failed || location.pathname === '/about' || accountPath || communityPath,
+  );
   return (
     <>
       <a className="skip" href="#main">
@@ -108,15 +124,17 @@ function App() {
               </Link>
             )}
             <Link className="nav-button" to="/about">
-              このプレビューについて ↗
+              {authoringUiEnabled ? 'このサイトについて ↗' : 'このプレビューについて ↗'}
             </Link>
           </nav>
         </div>
       </header>
       <div className="notice">
         <div className="shell">
-          <span className="dot" /> 開発プレビュー ·
-          掲載内容・投稿者はすべて架空のサンプルです。ログイン・投稿は準備中。
+          <span className="dot" />{' '}
+          {authoringUiEnabled
+            ? '神戸電子の学生による知識・経験の共有。学校公式サービスではありません。'
+            : '開発プレビュー · 掲載内容・投稿者はすべて架空のサンプルです。ログイン・投稿は準備中。'}
         </div>
       </div>
       <main id="main" tabIndex={-1}>
@@ -141,6 +159,18 @@ function App() {
                   mode={location.pathname === '/signup' ? 'signup' : 'login'}
                 />
               )}
+            </React.Suspense>
+          </BodyBoundary>
+        ) : communityPath ? (
+          <BodyBoundary key={location.pathname}>
+            <React.Suspense
+              fallback={
+                <p className="shell empty" role="status">
+                  読み込んでいます…
+                </p>
+              }
+            >
+              <Community />
             </React.Suspense>
           </BodyBoundary>
         ) : location.pathname === '/about' ? (
@@ -672,6 +702,30 @@ function Student({ catalog }: { catalog: Catalog }) {
   );
 }
 function About() {
+  if (authoringUiEnabled)
+    return (
+      <article className="shell about prose">
+        <h1>Kobe Student Hubについて</h1>
+        <p>
+          神戸電子の学生が、記事を通じて学び・制作の経験や活動を共有する場所です。学校公式のサービスではありません。
+        </p>
+        <h2>読む・書く</h2>
+        <p>
+          公開記事はログインせずに読めます。投稿には学校Googleでの本人確認と、入学年度・卒業予定年度の入力が必要です。メールアドレスやGoogleの名前・写真を自動で公開することはありません。
+        </p>
+        <h2>公開する内容を選ぶ</h2>
+        <p>
+          下書きは本人だけが読めます。読者に見せるプロフィールを自分で入力し、確認した保存版を明示的に公開します。公開後の下書きの追記は、そのまま記事には反映されません。自分の公開記録から公開停止を確認できます。
+        </p>
+        <h2>記事の通報</h2>
+        <p>
+          公開記事に問題がある場合は、記事末尾から理由を添えて通報できます。通報内容や通報者は一般の読者には表示されません。
+        </p>
+        <p>
+          <Link to="/">公開記事を読む →</Link>
+        </p>
+      </article>
+    );
   return (
     <article className="shell about prose">
       <p className="kicker">ABOUT / DEVELOPMENT PREVIEW</p>

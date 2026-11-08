@@ -4,6 +4,7 @@ import type { OwnPublicationSummary } from '../own-publication-types';
 import type { PublicationStopState } from '../publication-stop-types';
 import { createPublicationStopClient } from './publication-stop-client';
 import './publication-stop.css';
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 export default function PublicationStop({
   record,
   csrfToken,
@@ -12,6 +13,7 @@ export default function PublicationStop({
   onPending,
   onUncertain,
   onStopped,
+  surface = 'lab',
 }: {
   record: OwnPublicationSummary;
   csrfToken: string;
@@ -20,6 +22,7 @@ export default function PublicationStop({
   onPending: (value: boolean) => void;
   onUncertain: (value: boolean) => void;
   onStopped: () => void;
+  surface?: PublicSurface;
 }) {
   const client = useMemo(() => createPublicationStopClient(fetcher), [fetcher]),
     mounted = useRef(true),
@@ -162,13 +165,16 @@ export default function PublicationStop({
     <section className="publication-stop" aria-label="選択した公開の停止">
       <h3>選択した公開保存版の停止記録</h3>
       <p className="publication-stop-local">
-        架空データによるローカル限定の操作です。本人の公開停止と通報・運営判断は別です。
+        {surface === 'lab' ? '架空データによるローカル限定の操作です。' : ''}
+        本人の公開停止と通報・運営判断は別です。
       </p>
       <dl>
         <div>
           <dt>公開参照</dt>
           <dd>
-            {'/lab/' + (record.kind === 'article' ? 'articles/' : 'projects/') + record.publicId}
+            {record.kind === 'article'
+              ? publicPaths(surface).article(record.publicId)
+              : (surface === 'ordinary' ? '/projects/' : '/lab/projects/') + record.publicId}
           </dd>
         </div>
         <div>

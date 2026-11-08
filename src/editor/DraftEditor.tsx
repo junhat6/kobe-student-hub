@@ -122,7 +122,10 @@ export default function DraftEditor({
     preparationUnsaved.current = value;
     setPreparationDirty(value);
   }, []);
-  const canPublishStart = useCallback(() => !lock.current && !publicationLock.current, []);
+  const canPublishStart = useCallback(
+    () => !lock.current && !publicationLock.current && (!ordinary || (!problem && !deletionOpen)),
+    [ordinary, problem, deletionOpen],
+  );
   function remember(value: EditorDraft) {
     setList((rows) =>
       [
@@ -483,7 +486,7 @@ export default function DraftEditor({
             <h2>公開について</h2>
             <p>
               {ordinary
-                ? '保存した下書きは本人だけに表示されます。記事の公開はまだ利用できません。'
+                ? '下書きは本人だけに表示されます。公開するには、保存済みの版とプロフィールを確認してください。'
                 : '確認した保存済みの版だけを、ローカル内で試験公開できます。本番への公開ではありません。'}
             </p>
           </div>
@@ -701,19 +704,20 @@ export default function DraftEditor({
                   )}
                 </section>
               )}
-              {!ordinary && (
+              {
                 <PublicationComposer
+                  surface={ordinary ? 'ordinary' : 'lab'}
                   key={draft.id}
                   draft={draft}
                   csrfToken={csrfToken}
                   fetcher={fetcher}
                   dirty={dirty}
-                  parentBusy={busy || opening}
+                  parentBusy={busy || opening || (ordinary && (deletionOpen || problem))}
                   canStart={canPublishStart}
                   onPending={onPublicationPending}
                   onUnsavedPreparation={onUnsavedPreparation}
                 />
-              )}
+              }
               {problem && (
                 <section className="editor-recovery" role="alert" aria-label="保存結果の確認">
                   <h3>手元の編集を残して、保存済みの版を確認</h3>

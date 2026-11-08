@@ -7,6 +7,7 @@ export default defineConfig({
     'session-registration-independent-browser.spec.ts',
     'ordinary-drafts-browser.spec.ts',
     'ordinary-draft-deletion-browser.spec.ts',
+    'ordinary-publication-browser.spec.ts',
   ],
   workers: 1,
   fullyParallel: false,

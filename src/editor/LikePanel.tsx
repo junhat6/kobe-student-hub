@@ -1,3 +1,4 @@
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import {
@@ -13,10 +14,12 @@ function LikeState({
   contentId,
   csrfToken,
   fetcher,
+  surface,
 }: {
   contentId: string;
   csrfToken: string;
   fetcher: typeof fetch;
+  surface: PublicSurface;
 }) {
   const client = useMemo(() => createLikesClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const profileClient = useMemo(
@@ -130,7 +133,11 @@ function LikeState({
       {profile && (
         <p>
           いいねは公開プロフィール「{profile.displayName}」に結び付きます。
-          <a href={'/lab/likes/' + profile.id} target="_blank" rel="noopener noreferrer">
+          <a
+            href={publicPaths(surface).likes(profile.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             自分の公開いいねを見る ↗
           </a>
         </p>
@@ -140,7 +147,7 @@ function LikeState({
           {profileKnown
             ? '公開いいねを追加するには、本人が明示作成した公開プロフィールが必要です。'
             : '公開プロフィールを確認できません。追加はできませんが、確認済みのいいねの取り消しは可能です。'}{' '}
-          <a href="/lab/account" target="_blank" rel="noopener noreferrer">
+          <a href={publicPaths(surface).account} target="_blank" rel="noopener noreferrer">
             プロフィールの準備を確認 ↗
           </a>
         </p>
@@ -148,7 +155,13 @@ function LikeState({
     </div>
   );
 }
-export default function LikePanel({ contentId }: { contentId: string }) {
+export default function LikePanel({
+  contentId,
+  surface = 'lab',
+}: {
+  contentId: string;
+  surface?: PublicSurface;
+}) {
   const client = useMemo(() => createSessionClient(), []);
   const mounted = useRef(true),
     revision = useRef(0),
@@ -225,7 +238,9 @@ export default function LikePanel({ contentId }: { contentId: string }) {
       if (mounted.current && generation === revision.current)
         setMessage(
           error instanceof SessionClientError && error.kind === 'signed-out'
-            ? '現在ログインしていません。このローカル検証では学校Googleログインを提供していません。'
+            ? surface === 'ordinary'
+              ? 'いいねするにはログインしてください。'
+              : '現在ログインしていません。このローカル検証では学校Googleログインを提供していません。'
             : 'セッションを確認できませんでした。状態の読み込みや変更は行いません。',
         );
     } finally {
@@ -272,9 +287,11 @@ export default function LikePanel({ contentId }: { contentId: string }) {
       <p>
         いいねすると、公開プロフィールに結び付く「公開いいね」の一覧にこの記事が表示されます。プロフィール作成時の確認とは別の公開操作です。取り消しもできます。
       </p>
-      <p className="like-local">
-        架空データによるローカル検証です。実際の在籍資格や学校ログインは確認していません。閲覧だけでは状態を読み込まず、自動ログインもしません。
-      </p>
+      {surface === 'lab' && (
+        <p className="like-local">
+          架空データによるローカル検証です。実際の在籍資格や学校ログインは確認していません。閲覧だけでは状態を読み込まず、自動ログインもしません。
+        </p>
+      )}
       <p aria-live="polite">{message}</p>
       <Button disabled={busy} onClick={() => void inspect()}>
         いいねの状態を確認
@@ -286,6 +303,7 @@ export default function LikePanel({ contentId }: { contentId: string }) {
             contentId={contentId}
             csrfToken={active.csrf}
             fetcher={active.fetcher}
+            surface={surface}
           />
         )}
       </div>

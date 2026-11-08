@@ -1,3 +1,4 @@
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { readAnonymousJson } from './anonymous-public-read';
 import type { PublicAuthorArticles } from '../types';
 import { canonicalTags } from './publication-client';
@@ -86,12 +87,19 @@ function valid(value: unknown, authorId: string): value is PublicAuthorArticles 
   );
 }
 /** Anonymous, bounded read only. No session bootstrap, CSRF or cookie transmission. */
-export function createPublicAuthorClient(fetcher: typeof fetch = fetch) {
+export function createPublicAuthorClient(
+  fetcher: typeof fetch = fetch,
+  surface: PublicSurface = 'lab',
+) {
   return {
     async read(authorId: string, signal?: AbortSignal): Promise<PublicAuthorArticles> {
       try {
         if (!publicSlug(authorId)) throw new PublicAuthorClientError();
-        const result = await readAnonymousJson('/__lab/authors/' + authorId, fetcher, signal);
+        const result = await readAnonymousJson(
+          publicPaths(surface).authorApi(authorId),
+          fetcher,
+          signal,
+        );
         if (!valid(result, authorId)) throw new PublicAuthorClientError();
         return result;
       } catch {

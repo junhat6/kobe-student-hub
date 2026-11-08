@@ -1,3 +1,4 @@
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { proofAuthorization } from '../shared/auth-proof';
 import type { Entry, Profile } from '../types';
 import type { EditorDraft } from './draft-client';
@@ -172,7 +173,11 @@ export function matchesPublication(value: PublicationReceipt, attempt: Publicati
   );
 }
 /** Relative bounded transport, with no automatic publication retry or private title/body in POST. */
-export function createPublicationClient(csrfToken: string, fetcher: typeof fetch = fetch) {
+export function createPublicationClient(
+  csrfToken: string,
+  fetcher: typeof fetch = fetch,
+  surface: PublicSurface = 'lab',
+) {
   async function request(path: string, value?: unknown, anonymous = false): Promise<unknown> {
     const controller = new AbortController();
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
@@ -289,7 +294,7 @@ export function createPublicationClient(csrfToken: string, fetcher: typeof fetch
     },
     async readArticle(id: string): Promise<{ entry: Entry; author: Profile }> {
       if (!uuid(id)) throw new PublicationClientError();
-      const result = await request('/__lab/articles/' + id, undefined, true);
+      const result = await request(publicPaths(surface).articleApi(id), undefined, true);
       if (!article(result) || result.entry.id !== id) throw new PublicationClientError();
       return result;
     },

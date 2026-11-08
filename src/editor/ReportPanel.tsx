@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { PublicSurface } from '../shared/public-paths';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import {
   createModerationClient,
@@ -6,7 +7,15 @@ import {
   validReportInput,
 } from './moderation-client';
 import './moderation.css';
-export default function ReportPanel({ contentId }: { contentId: string }) {
+export default function ReportPanel({
+  contentId,
+  surface = 'lab',
+  onNavigationRiskChange,
+}: {
+  contentId: string;
+  surface?: PublicSurface;
+  onNavigationRiskChange?: (risk: boolean) => void;
+}) {
   const client = useMemo(() => createModerationClient(), []);
   const panelId = useId();
   const mounted = useRef(true);
@@ -63,7 +72,9 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
           );
           setMessage(
             error instanceof ModerationClientError && error.kind === 'authentication'
-              ? '通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。'
+              ? surface === 'ordinary'
+                ? '通報するにはログインしてください。'
+                : '通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。'
               : '通報状態を確認できませんでした。未送信とは判断せず、入力も自動で再送しません。',
           );
         }
@@ -104,6 +115,11 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
     };
   }, []);
   const hasUnsaved = (!received && (Boolean(input.reason) || Boolean(input.detail))) || uncertain;
+  useLayoutEffect(
+    () => onNavigationRiskChange?.(hasUnsaved || busy),
+    [hasUnsaved, busy, onNavigationRiskChange],
+  );
+  useEffect(() => () => onNavigationRiskChange?.(false), [onNavigationRiskChange]);
   useEffect(() => {
     if (!hasUnsaved && !busy) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -131,17 +147,28 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
           }
         }}
       >
-        {open ? '通報の確認を閉じる' : 'この記事を通報する（ローカル検証）'}
+        {open
+          ? '通報の確認を閉じる'
+          : surface === 'ordinary'
+            ? 'この記事を通報する'
+            : 'この記事を通報する（ローカル検証）'}
       </Button>
       {open && (
         <div id={panelId} className="report-panel-content">
           <h2>記事の通報</h2>
-          <p className="moderation-local-notice">
-            架空のデータによるローカル専用の検証です。実際の学校ログインや運営への連絡機能は提供していません。
-          </p>
+          {surface === 'lab' && (
+            <p className="moderation-local-notice">
+              架空のデータによるローカル専用の検証です。実際の学校ログインや運営への連絡機能は提供していません。
+            </p>
+          )}
           <p className="moderation-message" aria-live="polite" aria-atomic="true">
             {message}
           </p>
+          {authRequired && surface === 'ordinary' && (
+            <p>
+              <a href="/login">ログインする</a>
+            </p>
+          )}
           {authRequired && (
             <p className="moderation-warning">
               この画面でアカウントを自動作成したり、ログイン状態を変更したりすることはありません。
@@ -213,7 +240,11 @@ export default function ReportPanel({ contentId }: { contentId: string }) {
             </form>
           )}
           <p className="moderation-scope-note">
-            通報理由・詳細は、この記事や一般の読者には表示しません。実際の通知先、運営判断、復元・削除、異議申立ての窓口は未設定です。受付を、対応やメール送信の完了として扱いません。
+            通報理由・詳細は、この記事や一般の読者には表示しません。
+            {surface === 'lab'
+              ? '実際の通知先、運営判断、復元・削除、異議申立ての窓口は未設定です。'
+              : ''}
+            受付を、対応やメール送信の完了として扱いません。
           </p>
         </div>
       )}

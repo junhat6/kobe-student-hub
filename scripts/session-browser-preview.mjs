@@ -102,7 +102,10 @@ mf = new Miniflare(
         const path =
           u.pathname === '/lab/account'
             ? 'tests/generation-editor/index.html'
-            : ['/', '/signup', '/login', '/account', '/drafts'].includes(u.pathname)
+            : ['/', '/search', '/signup', '/login', '/account', '/drafts'].includes(u.pathname) ||
+                /^\/(?:articles\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/likes)?)$/.test(
+                  u.pathname,
+                )
               ? 'index.html'
               : u.pathname.slice(1);
         if (
