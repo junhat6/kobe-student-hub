@@ -1,17 +1,222 @@
-import {useEffect,useId,useMemo,useRef,useState} from 'react';
-import {Button} from '@base-ui/react/button';
-import {createModerationClient,ModerationClientError,validReportInput} from './moderation-client';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Button } from '@base-ui/react/button';
+import {
+  createModerationClient,
+  ModerationClientError,
+  validReportInput,
+} from './moderation-client';
 import './moderation.css';
-export default function ReportPanel({contentId}:{contentId:string}){
- const client=useMemo(()=>createModerationClient(),[]);const panelId=useId();const mounted=useRef(true);const lock=useRef(false);const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [ready,setReady]=useState(false);
- const [csrf,setCsrf]=useState('');const [received,setReceived]=useState(false);const [uncertain,setUncertain]=useState(false);const [authRequired,setAuthRequired]=useState(false);const [confirmed,setConfirmed]=useState(false);const [input,setInput]=useState({reason:'',detail:''});
- const [message,setMessage]=useState('');const confirmedFor=useRef<typeof input|null>(null);const confirmationCurrent=confirmed&&confirmedFor.current===input;const valid=Boolean(validReportInput(input));
- async function run(action:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);try{await action()}finally{lock.current=false;if(mounted.current)setBusy(false)}}
- async function check(){await run(async()=>{setConfirmed(false);setMessage('このアカウントの通報状態を確認しています…');try{const token=await client.session();const accepted=await client.received(contentId);if(!mounted.current)return;setCsrf(token);setReady(true);setAuthRequired(false);setReceived(accepted);setUncertain(false);setMessage(accepted?'このアカウントの通報受付を確認しました。重複して送信しません。':uncertain?'受付をまだ確認できませんでした。入力内容を確認し直し、必要なら改めて送信してください。自動では再送しません。':'理由と任意の詳細を入力し、送信内容を確認してください。')}catch(error){if(mounted.current){setReady(false);setAuthRequired(error instanceof ModerationClientError&&error.kind==='authentication');setMessage(error instanceof ModerationClientError&&error.kind==='authentication'?'通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。':'通報状態を確認できませんでした。未送信とは判断せず、入力も自動で再送しません。')}}})}
- async function submit(){if(!ready||received||uncertain||!valid||!confirmationCurrent)return;const snapshot={...input};await run(async()=>{setConfirmed(false);setMessage('確認した通報内容を送信しています…');try{await client.report(contentId,snapshot,csrf,true);if(mounted.current){setReceived(true);setUncertain(false);setMessage('通報の受付を確認しました。運営判断や通知メールの送信完了を意味しません。')}}catch(error){if(mounted.current){setReady(false);setUncertain(true);setAuthRequired(error instanceof ModerationClientError&&error.kind==='authentication');setMessage('送信結果を確認できませんでした。入力は残しています。再送せず、受付状態を確認してください。')}}})}
- useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[]);
- const hasUnsaved=(!received&&(Boolean(input.reason)||Boolean(input.detail)))||uncertain;
- useEffect(()=>{if(!hasUnsaved&&!busy)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[hasUnsaved,busy]);
- function change(key:keyof typeof input,value:string){setInput(current=>({...current,[key]:value}));setConfirmed(false)}
- return <section className="report-panel" aria-label="記事の通報"><Button aria-expanded={open} aria-controls={panelId} disabled={busy} onClick={()=>{if(open)setOpen(false);else{setOpen(true);void check()}}}>{open?'通報の確認を閉じる':'この記事を通報する（ローカル検証）'}</Button>{open&&<div id={panelId} className="report-panel-content"><h2>記事の通報</h2><p className="moderation-local-notice">架空のデータによるローカル専用の検証です。実際の学校ログインや運営への連絡機能は提供していません。</p><p className="moderation-message" aria-live="polite" aria-atomic="true">{message}</p>{authRequired&&<p className="moderation-warning">この画面でアカウントを自動作成したり、ログイン状態を変更したりすることはありません。</p>}{!received&&<Button disabled={busy} onClick={()=>void check()}>受付状態を確認</Button>}{csrf&&!received&&<form onSubmit={event=>{event.preventDefault();void submit()}}><fieldset disabled={busy}><legend>送信する内容</legend><label htmlFor={panelId+'-reason'}>通報理由（必須）</label><textarea id={panelId+'-reason'} value={input.reason} readOnly={uncertain} maxLength={400} onChange={event=>change('reason',event.target.value)}/><small>{Array.from(input.reason).length}/200文字。公開された記事のどの点が問題かを入力してください。</small><label htmlFor={panelId+'-detail'}>詳しい説明（任意）</label><textarea id={panelId+'-detail'} value={input.detail} readOnly={uncertain} maxLength={4000} onChange={event=>change('detail',event.target.value)}/><small>{Array.from(input.detail).length}/2000文字・{new TextEncoder().encode(input.detail).byteLength}/8000バイト。不要な個人情報は書かないでください。</small></fieldset>{(!valid&&(input.reason||input.detail))&&<p className="moderation-warning">理由の必須入力、文字数、使用できない文字がないか確認してください。</p>}<label className="report-confirm"><input type="checkbox" checked={confirmationCurrent} disabled={busy||!ready||uncertain||!valid} onChange={event=>{confirmedFor.current=event.target.checked?input:null;setConfirmed(event.target.checked)}}/><span>入力した理由・詳細を運営の確認用として送信します</span></label><Button type="submit" disabled={busy||!ready||uncertain||!valid||!confirmationCurrent}>確認した内容で通報を送信</Button></form>}<p className="moderation-scope-note">通報理由・詳細は、この記事や一般の読者には表示しません。実際の通知先、運営判断、復元・削除、異議申立ての窓口は未設定です。受付を、対応やメール送信の完了として扱いません。</p></div>}</section>;
+export default function ReportPanel({ contentId }: { contentId: string }) {
+  const client = useMemo(() => createModerationClient(), []);
+  const panelId = useId();
+  const mounted = useRef(true);
+  const lock = useRef(false);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [csrf, setCsrf] = useState('');
+  const [received, setReceived] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [input, setInput] = useState({ reason: '', detail: '' });
+  const [message, setMessage] = useState('');
+  const confirmedFor = useRef<typeof input | null>(null);
+  const confirmationCurrent = confirmed && confirmedFor.current === input;
+  const valid = Boolean(validReportInput(input));
+  async function run(action: () => Promise<void>) {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    try {
+      await action();
+    } finally {
+      lock.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  }
+  async function check() {
+    await run(async () => {
+      setConfirmed(false);
+      setMessage('このアカウントの通報状態を確認しています…');
+      try {
+        const token = await client.session();
+        const accepted = await client.received(contentId);
+        if (!mounted.current) return;
+        setCsrf(token);
+        setReady(true);
+        setAuthRequired(false);
+        setReceived(accepted);
+        setUncertain(false);
+        setMessage(
+          accepted
+            ? 'このアカウントの通報受付を確認しました。重複して送信しません。'
+            : uncertain
+              ? '受付をまだ確認できませんでした。入力内容を確認し直し、必要なら改めて送信してください。自動では再送しません。'
+              : '理由と任意の詳細を入力し、送信内容を確認してください。',
+        );
+      } catch (error) {
+        if (mounted.current) {
+          setReady(false);
+          setAuthRequired(
+            error instanceof ModerationClientError && error.kind === 'authentication',
+          );
+          setMessage(
+            error instanceof ModerationClientError && error.kind === 'authentication'
+              ? '通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。'
+              : '通報状態を確認できませんでした。未送信とは判断せず、入力も自動で再送しません。',
+          );
+        }
+      }
+    });
+  }
+  async function submit() {
+    if (!ready || received || uncertain || !valid || !confirmationCurrent) return;
+    const snapshot = { ...input };
+    await run(async () => {
+      setConfirmed(false);
+      setMessage('確認した通報内容を送信しています…');
+      try {
+        await client.report(contentId, snapshot, csrf, true);
+        if (mounted.current) {
+          setReceived(true);
+          setUncertain(false);
+          setMessage('通報の受付を確認しました。運営判断や通知メールの送信完了を意味しません。');
+        }
+      } catch (error) {
+        if (mounted.current) {
+          setReady(false);
+          setUncertain(true);
+          setAuthRequired(
+            error instanceof ModerationClientError && error.kind === 'authentication',
+          );
+          setMessage(
+            '送信結果を確認できませんでした。入力は残しています。再送せず、受付状態を確認してください。',
+          );
+        }
+      }
+    });
+  }
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const hasUnsaved = (!received && (Boolean(input.reason) || Boolean(input.detail))) || uncertain;
+  useEffect(() => {
+    if (!hasUnsaved && !busy) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsaved, busy]);
+  function change(key: keyof typeof input, value: string) {
+    setInput((current) => ({ ...current, [key]: value }));
+    setConfirmed(false);
+  }
+  return (
+    <section className="report-panel" aria-label="記事の通報">
+      <Button
+        aria-expanded={open}
+        aria-controls={panelId}
+        disabled={busy}
+        onClick={() => {
+          if (open) setOpen(false);
+          else {
+            setOpen(true);
+            void check();
+          }
+        }}
+      >
+        {open ? '通報の確認を閉じる' : 'この記事を通報する（ローカル検証）'}
+      </Button>
+      {open && (
+        <div id={panelId} className="report-panel-content">
+          <h2>記事の通報</h2>
+          <p className="moderation-local-notice">
+            架空のデータによるローカル専用の検証です。実際の学校ログインや運営への連絡機能は提供していません。
+          </p>
+          <p className="moderation-message" aria-live="polite" aria-atomic="true">
+            {message}
+          </p>
+          {authRequired && (
+            <p className="moderation-warning">
+              この画面でアカウントを自動作成したり、ログイン状態を変更したりすることはありません。
+            </p>
+          )}
+          {!received && (
+            <Button disabled={busy} onClick={() => void check()}>
+              受付状態を確認
+            </Button>
+          )}
+          {csrf && !received && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void submit();
+              }}
+            >
+              <fieldset disabled={busy}>
+                <legend>送信する内容</legend>
+                <label htmlFor={panelId + '-reason'}>通報理由（必須）</label>
+                <textarea
+                  id={panelId + '-reason'}
+                  value={input.reason}
+                  readOnly={uncertain}
+                  maxLength={400}
+                  onChange={(event) => change('reason', event.target.value)}
+                />
+                <small>
+                  {Array.from(input.reason).length}
+                  /200文字。公開された記事のどの点が問題かを入力してください。
+                </small>
+                <label htmlFor={panelId + '-detail'}>詳しい説明（任意）</label>
+                <textarea
+                  id={panelId + '-detail'}
+                  value={input.detail}
+                  readOnly={uncertain}
+                  maxLength={4000}
+                  onChange={(event) => change('detail', event.target.value)}
+                />
+                <small>
+                  {Array.from(input.detail).length}/2000文字・
+                  {new TextEncoder().encode(input.detail).byteLength}
+                  /8000バイト。不要な個人情報は書かないでください。
+                </small>
+              </fieldset>
+              {!valid && (input.reason || input.detail) && (
+                <p className="moderation-warning">
+                  理由の必須入力、文字数、使用できない文字がないか確認してください。
+                </p>
+              )}
+              <label className="report-confirm">
+                <input
+                  type="checkbox"
+                  checked={confirmationCurrent}
+                  disabled={busy || !ready || uncertain || !valid}
+                  onChange={(event) => {
+                    confirmedFor.current = event.target.checked ? input : null;
+                    setConfirmed(event.target.checked);
+                  }}
+                />
+                <span>入力した理由・詳細を運営の確認用として送信します</span>
+              </label>
+              <Button
+                type="submit"
+                disabled={busy || !ready || uncertain || !valid || !confirmationCurrent}
+              >
+                確認した内容で通報を送信
+              </Button>
+            </form>
+          )}
+          <p className="moderation-scope-note">
+            通報理由・詳細は、この記事や一般の読者には表示しません。実際の通知先、運営判断、復元・削除、異議申立ての窓口は未設定です。受付を、対応やメール送信の完了として扱いません。
+          </p>
+        </div>
+      )}
+    </section>
+  );
 }

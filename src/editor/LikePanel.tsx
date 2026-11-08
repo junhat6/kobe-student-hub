@@ -1,23 +1,294 @@
-import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {Button} from '@base-ui/react/button';
-import {createAuthorSessionGuard,createSessionClient,SessionClientError,type AuthorSessionGuard} from './session-client';
-import {createLikesClient} from './likes-client';
-import {createProfileClient,type PublicProfile} from './profile-client';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@base-ui/react/button';
+import {
+  createAuthorSessionGuard,
+  createSessionClient,
+  SessionClientError,
+  type AuthorSessionGuard,
+} from './session-client';
+import { createLikesClient } from './likes-client';
+import { createProfileClient, type PublicProfile } from './profile-client';
 import './likes.css';
-function LikeState({contentId,csrfToken,fetcher}:{contentId:string;csrfToken:string;fetcher:typeof fetch}){
- const client=useMemo(()=>createLikesClient(csrfToken,fetcher),[csrfToken,fetcher]);const profileClient=useMemo(()=>createProfileClient(csrfToken,fetcher),[csrfToken,fetcher]);const mounted=useRef(true),lock=useRef(false),generation=useRef(0);const request=useRef<AbortController|null>(null);
- const [liked,setLiked]=useState<boolean|null>(null),[profile,setProfile]=useState<PublicProfile|null>(null),[profileKnown,setProfileKnown]=useState(false),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false),[message,setMessage]=useState('いいねの状態を確認しています…');
- async function check(){if(lock.current)return;lock.current=true;setBusy(true);const run=generation.current;const controller=new AbortController();request.current=controller;setMessage('保存されている状態を確認しています…');try{const [own,author]=await Promise.allSettled([client.read(contentId,controller.signal),profileClient.read()]);if(!mounted.current||run!==generation.current)return;setProfileKnown(author.status==='fulfilled');setProfile(author.status==='fulfilled'?author.value:null);if(own.status==='fulfilled'){setLiked(own.value);setUncertain(false);setMessage(own.value?'公開いいねの保存を確認しました。':'いいねしていない状態を確認しました。')}else{setUncertain(true);setMessage('状態を確認できませんでした。いいねしていないとは判断せず、変更も自動で送りません。')}}finally{if(mounted.current&&run===generation.current){lock.current=false;setBusy(false)}}}
- async function change(next:boolean){if(lock.current||uncertain||liked===null||(next&&!profile))return;lock.current=true;setBusy(true);const run=generation.current;const controller=new AbortController();request.current=controller;setMessage('変更の結果を確認しています…');try{const value=await client.set(contentId,next,controller.signal);if(mounted.current&&run===generation.current){setLiked(value);setMessage(value?'公開していいねしました。':'いいねの取り消しを確認しました。')}}catch{if(mounted.current&&run===generation.current){setUncertain(true);setMessage('変更結果を確認できませんでした。自動で再送しません。「保存状態を確認」で実際の状態を確認してください。')}}finally{if(mounted.current&&run===generation.current){lock.current=false;setBusy(false)}}}
- useEffect(()=>{mounted.current=true;void check();return()=>{mounted.current=false;generation.current++;lock.current=false;request.current?.abort()}},[client,profileClient,contentId]);
- return <div className="like-personal"><p role="status" aria-live="polite">{message}</p>{liked!==null&&!uncertain&&<p className="like-state">{liked?'このセッションではいいね済みです。':'このセッションではいいねしていません。'}</p>}<Button disabled={busy} onClick={()=>void check()}>保存状態を確認</Button>{liked!==null&&<Button disabled={busy||uncertain||(!liked&&!profile)} onClick={()=>void change(!liked)}>{liked?'いいねを取り消す':'公開していいね'}</Button>}{profile&&<p>いいねは公開プロフィール「{profile.displayName}」に結び付きます。<a href={'/lab/likes/'+profile.id} target="_blank" rel="noopener noreferrer">自分の公開いいねを見る ↗</a></p>}{!profile&&<p>{profileKnown?'公開いいねを追加するには、本人が明示作成した公開プロフィールが必要です。':'公開プロフィールを確認できません。追加はできませんが、確認済みのいいねの取り消しは可能です。'} <a href="/lab/account" target="_blank" rel="noopener noreferrer">プロフィールの準備を確認 ↗</a></p>}</div>
+function LikeState({
+  contentId,
+  csrfToken,
+  fetcher,
+}: {
+  contentId: string;
+  csrfToken: string;
+  fetcher: typeof fetch;
+}) {
+  const client = useMemo(() => createLikesClient(csrfToken, fetcher), [csrfToken, fetcher]);
+  const profileClient = useMemo(
+    () => createProfileClient(csrfToken, fetcher),
+    [csrfToken, fetcher],
+  );
+  const mounted = useRef(true),
+    lock = useRef(false),
+    generation = useRef(0);
+  const request = useRef<AbortController | null>(null);
+  const [liked, setLiked] = useState<boolean | null>(null),
+    [profile, setProfile] = useState<PublicProfile | null>(null),
+    [profileKnown, setProfileKnown] = useState(false),
+    [busy, setBusy] = useState(false),
+    [uncertain, setUncertain] = useState(false),
+    [message, setMessage] = useState('いいねの状態を確認しています…');
+  async function check() {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    const run = generation.current;
+    const controller = new AbortController();
+    request.current = controller;
+    setMessage('保存されている状態を確認しています…');
+    try {
+      const [own, author] = await Promise.allSettled([
+        client.read(contentId, controller.signal),
+        profileClient.read(),
+      ]);
+      if (!mounted.current || run !== generation.current) return;
+      setProfileKnown(author.status === 'fulfilled');
+      setProfile(author.status === 'fulfilled' ? author.value : null);
+      if (own.status === 'fulfilled') {
+        setLiked(own.value);
+        setUncertain(false);
+        setMessage(
+          own.value ? '公開いいねの保存を確認しました。' : 'いいねしていない状態を確認しました。',
+        );
+      } else {
+        setUncertain(true);
+        setMessage(
+          '状態を確認できませんでした。いいねしていないとは判断せず、変更も自動で送りません。',
+        );
+      }
+    } finally {
+      if (mounted.current && run === generation.current) {
+        lock.current = false;
+        setBusy(false);
+      }
+    }
+  }
+  async function change(next: boolean) {
+    if (lock.current || uncertain || liked === null || (next && !profile)) return;
+    lock.current = true;
+    setBusy(true);
+    const run = generation.current;
+    const controller = new AbortController();
+    request.current = controller;
+    setMessage('変更の結果を確認しています…');
+    try {
+      const value = await client.set(contentId, next, controller.signal);
+      if (mounted.current && run === generation.current) {
+        setLiked(value);
+        setMessage(value ? '公開していいねしました。' : 'いいねの取り消しを確認しました。');
+      }
+    } catch {
+      if (mounted.current && run === generation.current) {
+        setUncertain(true);
+        setMessage(
+          '変更結果を確認できませんでした。自動で再送しません。「保存状態を確認」で実際の状態を確認してください。',
+        );
+      }
+    } finally {
+      if (mounted.current && run === generation.current) {
+        lock.current = false;
+        setBusy(false);
+      }
+    }
+  }
+  useEffect(() => {
+    mounted.current = true;
+    void check();
+    return () => {
+      mounted.current = false;
+      generation.current++;
+      lock.current = false;
+      request.current?.abort();
+    };
+  }, [client, profileClient, contentId]);
+  return (
+    <div className="like-personal">
+      <p role="status" aria-live="polite">
+        {message}
+      </p>
+      {liked !== null && !uncertain && (
+        <p className="like-state">
+          {liked ? 'このセッションではいいね済みです。' : 'このセッションではいいねしていません。'}
+        </p>
+      )}
+      <Button disabled={busy} onClick={() => void check()}>
+        保存状態を確認
+      </Button>
+      {liked !== null && (
+        <Button
+          disabled={busy || uncertain || (!liked && !profile)}
+          onClick={() => void change(!liked)}
+        >
+          {liked ? 'いいねを取り消す' : '公開していいね'}
+        </Button>
+      )}
+      {profile && (
+        <p>
+          いいねは公開プロフィール「{profile.displayName}」に結び付きます。
+          <a href={'/lab/likes/' + profile.id} target="_blank" rel="noopener noreferrer">
+            自分の公開いいねを見る ↗
+          </a>
+        </p>
+      )}
+      {!profile && (
+        <p>
+          {profileKnown
+            ? '公開いいねを追加するには、本人が明示作成した公開プロフィールが必要です。'
+            : '公開プロフィールを確認できません。追加はできませんが、確認済みのいいねの取り消しは可能です。'}{' '}
+          <a href="/lab/account" target="_blank" rel="noopener noreferrer">
+            プロフィールの準備を確認 ↗
+          </a>
+        </p>
+      )}
+    </div>
+  );
 }
-export default function LikePanel({contentId}:{contentId:string}){
- const client=useMemo(()=>createSessionClient(),[]);const mounted=useRef(true),revision=useRef(0),lock=useRef(false);const inspection=useRef<AbortController|null>(null),guard=useRef<AuthorSessionGuard|null>(null),token=useRef<string|null>(null);const personalRoot=useRef<HTMLDivElement>(null);const [active,setActive]=useState<{csrf:string;fetcher:typeof fetch;generation:number}|null>(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
- function clear(){if(personalRoot.current){personalRoot.current.hidden=true;personalRoot.current.inert=true}revision.current++;inspection.current?.abort();guard.current?.invalidate();guard.current=null;token.current=null;setActive(null)}
- function unavailable(text:string){clear();setMessage(text)}
- async function inspect(expected?:string){if(lock.current)return;lock.current=true;const wasExpected=expected;clear();const generation=revision.current;setBusy(true);setMessage('既存のセッションを確認しています…');const controller=new AbortController();inspection.current=controller;try{const csrf=await client.peek(controller.signal);if(!mounted.current||generation!==revision.current)return;if(wasExpected!==undefined){setMessage(csrf===wasExpected?'同じセッションを確認しました。保存状態を読み込むには、もう一度「いいねの状態を確認」を押してください。':'セッションの変更を検出しました。前の状態は閉じています。明示的に再確認してください。');return}const bound=createAuthorSessionGuard({csrfToken:csrf,origin:location.origin,onMismatch:()=>{if(mounted.current&&guard.current===bound)unavailable('セッションが無効または変更されたため、前の状態を閉じました。明示的に再確認してください。')},onUnverified:()=>{if(mounted.current&&guard.current===bound)unavailable('セッションを確認できないため、前の状態を閉じました。明示的に再確認してください。')}});guard.current=bound;token.current=csrf;setActive({csrf,fetcher:bound.fetcher,generation});setMessage('既存のセッションだけを使用しています。')}catch(error){if(mounted.current&&generation===revision.current)setMessage(error instanceof SessionClientError&&error.kind==='signed-out'?'現在ログインしていません。このローカル検証では学校Googleログインを提供していません。':'セッションを確認できませんでした。状態の読み込みや変更は行いません。')}finally{if(mounted.current){lock.current=false;setBusy(false)}}}
- useLayoutEffect(()=>{if(personalRoot.current){personalRoot.current.hidden=!active;personalRoot.current.inert=!active}},[active]);
- useEffect(()=>{mounted.current=true;const check=()=>{if(document.visibilityState==='hidden'){if(token.current)unavailable('画面が非表示になったため、個人のいいね状態を閉じました。再確認してください。');return}if(token.current)void inspect(token.current)};window.addEventListener('focus',check);window.addEventListener('pageshow',check);document.addEventListener('visibilitychange',check);return()=>{mounted.current=false;revision.current++;inspection.current?.abort();guard.current?.invalidate();window.removeEventListener('focus',check);window.removeEventListener('pageshow',check);document.removeEventListener('visibilitychange',check)}},[client]);
- return <section className="like-panel" aria-label="記事への公開いいね"><h2>この記事への公開いいね</h2><p>いいねすると、公開プロフィールに結び付く「公開いいね」の一覧にこの記事が表示されます。プロフィール作成時の確認とは別の公開操作です。取り消しもできます。</p><p className="like-local">架空データによるローカル検証です。実際の在籍資格や学校ログインは確認していません。閲覧だけでは状態を読み込まず、自動ログインもしません。</p><p aria-live="polite">{message}</p><Button disabled={busy} onClick={()=>void inspect()}>いいねの状態を確認</Button><div ref={personalRoot} className="like-personal-shell" hidden={!active} inert={!active}>{active&&<LikeState key={active.generation} contentId={contentId} csrfToken={active.csrf} fetcher={active.fetcher}/>}</div></section>
+export default function LikePanel({ contentId }: { contentId: string }) {
+  const client = useMemo(() => createSessionClient(), []);
+  const mounted = useRef(true),
+    revision = useRef(0),
+    lock = useRef(false);
+  const inspection = useRef<AbortController | null>(null),
+    guard = useRef<AuthorSessionGuard | null>(null),
+    token = useRef<string | null>(null);
+  const personalRoot = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<{
+      csrf: string;
+      fetcher: typeof fetch;
+      generation: number;
+    } | null>(null),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState('');
+  function clear() {
+    if (personalRoot.current) {
+      personalRoot.current.hidden = true;
+      personalRoot.current.inert = true;
+    }
+    revision.current++;
+    inspection.current?.abort();
+    guard.current?.invalidate();
+    guard.current = null;
+    token.current = null;
+    setActive(null);
+  }
+  function unavailable(text: string) {
+    clear();
+    setMessage(text);
+  }
+  async function inspect(expected?: string) {
+    if (lock.current) return;
+    lock.current = true;
+    const wasExpected = expected;
+    clear();
+    const generation = revision.current;
+    setBusy(true);
+    setMessage('既存のセッションを確認しています…');
+    const controller = new AbortController();
+    inspection.current = controller;
+    try {
+      const csrf = await client.peek(controller.signal);
+      if (!mounted.current || generation !== revision.current) return;
+      if (wasExpected !== undefined) {
+        setMessage(
+          csrf === wasExpected
+            ? '同じセッションを確認しました。保存状態を読み込むには、もう一度「いいねの状態を確認」を押してください。'
+            : 'セッションの変更を検出しました。前の状態は閉じています。明示的に再確認してください。',
+        );
+        return;
+      }
+      const bound = createAuthorSessionGuard({
+        csrfToken: csrf,
+        origin: location.origin,
+        onMismatch: () => {
+          if (mounted.current && guard.current === bound)
+            unavailable(
+              'セッションが無効または変更されたため、前の状態を閉じました。明示的に再確認してください。',
+            );
+        },
+        onUnverified: () => {
+          if (mounted.current && guard.current === bound)
+            unavailable(
+              'セッションを確認できないため、前の状態を閉じました。明示的に再確認してください。',
+            );
+        },
+      });
+      guard.current = bound;
+      token.current = csrf;
+      setActive({ csrf, fetcher: bound.fetcher, generation });
+      setMessage('既存のセッションだけを使用しています。');
+    } catch (error) {
+      if (mounted.current && generation === revision.current)
+        setMessage(
+          error instanceof SessionClientError && error.kind === 'signed-out'
+            ? '現在ログインしていません。このローカル検証では学校Googleログインを提供していません。'
+            : 'セッションを確認できませんでした。状態の読み込みや変更は行いません。',
+        );
+    } finally {
+      if (mounted.current) {
+        lock.current = false;
+        setBusy(false);
+      }
+    }
+  }
+  useLayoutEffect(() => {
+    if (personalRoot.current) {
+      personalRoot.current.hidden = !active;
+      personalRoot.current.inert = !active;
+    }
+  }, [active]);
+  useEffect(() => {
+    mounted.current = true;
+    const check = () => {
+      if (document.visibilityState === 'hidden') {
+        if (token.current)
+          unavailable(
+            '画面が非表示になったため、個人のいいね状態を閉じました。再確認してください。',
+          );
+        return;
+      }
+      if (token.current) void inspect(token.current);
+    };
+    window.addEventListener('focus', check);
+    window.addEventListener('pageshow', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      mounted.current = false;
+      revision.current++;
+      inspection.current?.abort();
+      guard.current?.invalidate();
+      window.removeEventListener('focus', check);
+      window.removeEventListener('pageshow', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, [client]);
+  return (
+    <section className="like-panel" aria-label="記事への公開いいね">
+      <h2>この記事への公開いいね</h2>
+      <p>
+        いいねすると、公開プロフィールに結び付く「公開いいね」の一覧にこの記事が表示されます。プロフィール作成時の確認とは別の公開操作です。取り消しもできます。
+      </p>
+      <p className="like-local">
+        架空データによるローカル検証です。実際の在籍資格や学校ログインは確認していません。閲覧だけでは状態を読み込まず、自動ログインもしません。
+      </p>
+      <p aria-live="polite">{message}</p>
+      <Button disabled={busy} onClick={() => void inspect()}>
+        いいねの状態を確認
+      </Button>
+      <div ref={personalRoot} className="like-personal-shell" hidden={!active} inert={!active}>
+        {active && (
+          <LikeState
+            key={active.generation}
+            contentId={contentId}
+            csrfToken={active.csrf}
+            fetcher={active.fetcher}
+          />
+        )}
+      </div>
+    </section>
+  );
 }

@@ -1,10 +1,188 @@
-import {test,expect,type Page} from '@playwright/test';
-const origin='https://127.0.0.1:8788';
-async function fixture(page:Page){await page.goto('/lab/moderation');return page.evaluate(async()=>{async function identity(operator=false){const r=await fetch('/__fixture/'+(operator?'operator-session':'profile-session'),{method:'POST'});if(r.status!==200)throw Error('local session setup failed');return (await r.json() as {csrfToken:string}).csrfToken}const token=await identity();const headers={'Content-Type':'application/json',Authorization:'Bearer csrf.'+(token)};async function post(path:string,value:unknown){const r=await fetch(path,{method:'POST',headers,body:JSON.stringify(value)});if(r.status!==201)throw Error('local publication setup failed');return r.json() as Promise<{id:string;version:number;contentId:string}>}await post('/api/private/profile',{displayName:'架空の通報対象の著者',confirmPublic:true});const title='境界確認の記事 '+crypto.randomUUID().slice(0,8);const draft=await post('/api/private/drafts',{title,body:'架空の本文'});const pub=await post('/api/private/publications/'+draft.id,{expectedVersion:draft.version,confirmPublic:true,summary:'概要',tags:[],minutes:1});const reason='運営だけの架空理由 '+crypto.randomUUID().slice(0,8);const r=await fetch('/api/private/reports/'+pub.contentId,{method:'POST',headers,body:JSON.stringify({reason,detail:'一般読者へは出さない架空詳細'})});if(r.status!==200)throw Error('local report setup failed');const operatorToken=await identity(true);return {id:pub.contentId,title,reason,operatorToken}})}
-const queue=(page:Page)=>page.getByRole('region',{name:'通報対象の一覧'});const detail=(page:Page)=>page.getByRole('region',{name:'選択した通報内容'});
-async function open(page:Page,target:{title:string;reason:string}){await page.goto('/lab/moderation');await queue(page).getByRole('button').filter({hasText:target.title}).click();await expect(detail(page).getByText(target.reason,{exact:true})).toBeVisible()}
-async function identity(page:Page,operator=false){await page.evaluate(async operator=>{const r=await fetch('/__fixture/'+(operator?'operator-session':'profile-session'),{method:'POST'});if(r.status!==200)throw Error('local identity setup failed')},operator)}
-test('operator to ordinary-session focus discards private case and requires an explicit new server read',async({page})=>{const target=await fixture(page);await open(page,target);let queueReads=0;page.on('request',r=>{if(r.url().endsWith('/api/private/moderation/cases'))queueReads++});await identity(page);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(detail(page)).toHaveCount(0);await expect(page.getByText(target.reason,{exact:true})).toHaveCount(0);expect(queueReads).toBe(0);expect((await page.context().request.get('/api/private/moderation/cases/'+target.id)).status()).toBe(404);await page.getByRole('button',{name:'運営セッションを確認',exact:true}).click();await expect(page.getByText(/一覧を確認できませんでした。運営用の権限/)).toBeVisible();await expect(page.getByText(target.reason,{exact:true})).toHaveCount(0);await expect(queue(page).getByRole('button')).toHaveCount(0)});
-test('unavailable or invalid proof cannot reveal discarded case and fresh proof obtains a new queue',async({page})=>{const target=await fixture(page);await open(page,target);await page.route('**/api/private/session',route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"PRIVATE_ERROR"}'}));await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(detail(page)).toHaveCount(0);await page.getByRole('button',{name:'運営セッションを確認',exact:true}).click();await expect(page.getByText('セッションを確認できませんでした。前の通報内容は表示しません。',{exact:true})).toBeVisible();await expect(page.getByText(target.reason,{exact:true})).toHaveCount(0);await page.unroute('**/api/private/session');for(let repeat=0;repeat<2;repeat++){await page.getByRole('button',{name:'運営セッションを確認',exact:true}).click();await expect(queue(page).getByRole('button').filter({hasText:target.title})).toBeVisible();expect(await page.locator('.operator-read-private').evaluate(e=>(e as HTMLElement).inert)).toBe(false);await expect(detail(page).getByText(target.reason,{exact:true})).toHaveCount(0)}await queue(page).getByRole('button').filter({hasText:target.title}).click();await expect(detail(page).getByText(target.reason,{exact:true})).toBeVisible();expect(await page.evaluate(async csrf=>(await fetch('/api/private/logout',{method:'POST',headers:{Authorization:'Bearer csrf.'+(csrf)}})).status,target.operatorToken)).toBe(200);await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.getByRole('button',{name:'運営セッションを確認',exact:true}).click();await expect(page.getByText('現在ログインしていません。このローカル画面ではログイン・権限付与は利用できません。',{exact:true})).toBeVisible();await expect(detail(page)).toHaveCount(0);await identity(page,true);await page.getByRole('button',{name:'運営セッションを確認',exact:true}).click();await expect(queue(page).getByRole('button').filter({hasText:target.title})).toBeVisible();await expect(page.getByText(target.reason,{exact:true})).toHaveCount(0)});
-test('old operator response body EOF cannot display private case after a cookie changes',async({page})=>{const target=await fixture(page);await page.goto('/lab/moderation');const path=origin+'/api/private/moderation/cases/'+target.id;let headersAt=0,proofs=0;page.on('response',r=>{if(r.url()===path&&r.request().method()==='GET')headersAt=Date.now();else if(headersAt&&r.url().endsWith('/api/private/session')&&r.status()===200)proofs++});await page.route(path,route=>route.continue({headers:{...route.request().headers(),'X-Lab-Body-Delay':'5000'}}));await queue(page).getByRole('button').filter({hasText:target.title}).click();await expect.poll(()=>proofs).toBeGreaterThan(0);expect(Date.now()-headersAt).toBeLessThan(4000);await identity(page);expect(Date.now()-headersAt).toBeLessThan(4000);await expect(page.getByText(/セッションが無効または変更されたため/)).toBeVisible({timeout:10000});await expect(detail(page)).toHaveCount(0);await expect(page.getByText(target.reason,{exact:true})).toHaveCount(0);await expect(page.getByText(target.title,{exact:true})).toHaveCount(0);expect((await page.context().request.get('/api/private/moderation/cases/'+target.id)).status()).toBe(404)});
-test('a failed fresh case read clears old queue and private text without calling it an empty result',async({page})=>{const target=await fixture(page);await open(page,target);await page.route('**/api/private/moderation/cases/*',route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"PRIVATE_ERROR"}'}));await queue(page).getByRole('button').filter({hasText:target.title}).click();await expect(page.getByText(/この対象の通報内容を確認できませんでした/)).toBeVisible();await expect(detail(page).getByText(target.reason,{exact:true})).toHaveCount(0);await expect(queue(page).getByRole('button')).toHaveCount(0);await expect(page.getByText('対象はありません。',{exact:true})).toHaveCount(0);await expect(page.getByText('PRIVATE_ERROR')).toHaveCount(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)});
+import { test, expect, type Page } from '@playwright/test';
+const origin = 'https://127.0.0.1:8788';
+async function fixture(page: Page) {
+  await page.goto('/lab/moderation');
+  return page.evaluate(async () => {
+    async function identity(operator = false) {
+      const r = await fetch('/__fixture/' + (operator ? 'operator-session' : 'profile-session'), {
+        method: 'POST',
+      });
+      if (r.status !== 200) throw Error('local session setup failed');
+      return ((await r.json()) as { csrfToken: string }).csrfToken;
+    }
+    const token = await identity();
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer csrf.' + token };
+    async function post(path: string, value: unknown) {
+      const r = await fetch(path, { method: 'POST', headers, body: JSON.stringify(value) });
+      if (r.status !== 201) throw Error('local publication setup failed');
+      return r.json() as Promise<{ id: string; version: number; contentId: string }>;
+    }
+    await post('/api/private/profile', {
+      displayName: '架空の通報対象の著者',
+      confirmPublic: true,
+    });
+    const title = '境界確認の記事 ' + crypto.randomUUID().slice(0, 8);
+    const draft = await post('/api/private/drafts', { title, body: '架空の本文' });
+    const pub = await post('/api/private/publications/' + draft.id, {
+      expectedVersion: draft.version,
+      confirmPublic: true,
+      summary: '概要',
+      tags: [],
+      minutes: 1,
+    });
+    const reason = '運営だけの架空理由 ' + crypto.randomUUID().slice(0, 8);
+    const r = await fetch('/api/private/reports/' + pub.contentId, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ reason, detail: '一般読者へは出さない架空詳細' }),
+    });
+    if (r.status !== 200) throw Error('local report setup failed');
+    const operatorToken = await identity(true);
+    return { id: pub.contentId, title, reason, operatorToken };
+  });
+}
+const queue = (page: Page) => page.getByRole('region', { name: '通報対象の一覧' });
+const detail = (page: Page) => page.getByRole('region', { name: '選択した通報内容' });
+async function open(page: Page, target: { title: string; reason: string }) {
+  await page.goto('/lab/moderation');
+  await queue(page).getByRole('button').filter({ hasText: target.title }).click();
+  await expect(detail(page).getByText(target.reason, { exact: true })).toBeVisible();
+}
+async function identity(page: Page, operator = false) {
+  await page.evaluate(async (operator) => {
+    const r = await fetch('/__fixture/' + (operator ? 'operator-session' : 'profile-session'), {
+      method: 'POST',
+    });
+    if (r.status !== 200) throw Error('local identity setup failed');
+  }, operator);
+}
+test('operator to ordinary-session focus discards private case and requires an explicit new server read', async ({
+  page,
+}) => {
+  const target = await fixture(page);
+  await open(page, target);
+  let queueReads = 0;
+  page.on('request', (r) => {
+    if (r.url().endsWith('/api/private/moderation/cases')) queueReads++;
+  });
+  await identity(page);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(detail(page)).toHaveCount(0);
+  await expect(page.getByText(target.reason, { exact: true })).toHaveCount(0);
+  expect(queueReads).toBe(0);
+  expect(
+    (await page.context().request.get('/api/private/moderation/cases/' + target.id)).status(),
+  ).toBe(404);
+  await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+  await expect(page.getByText(/一覧を確認できませんでした。運営用の権限/)).toBeVisible();
+  await expect(page.getByText(target.reason, { exact: true })).toHaveCount(0);
+  await expect(queue(page).getByRole('button')).toHaveCount(0);
+});
+test('unavailable or invalid proof cannot reveal discarded case and fresh proof obtains a new queue', async ({
+  page,
+}) => {
+  const target = await fixture(page);
+  await open(page, target);
+  await page.route('**/api/private/session', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: '{"error":"PRIVATE_ERROR"}',
+    }),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(detail(page)).toHaveCount(0);
+  await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+  await expect(
+    page.getByText('セッションを確認できませんでした。前の通報内容は表示しません。', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText(target.reason, { exact: true })).toHaveCount(0);
+  await page.unroute('**/api/private/session');
+  for (let repeat = 0; repeat < 2; repeat++) {
+    await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+    await expect(queue(page).getByRole('button').filter({ hasText: target.title })).toBeVisible();
+    expect(
+      await page.locator('.operator-read-private').evaluate((e) => (e as HTMLElement).inert),
+    ).toBe(false);
+    await expect(detail(page).getByText(target.reason, { exact: true })).toHaveCount(0);
+  }
+  await queue(page).getByRole('button').filter({ hasText: target.title }).click();
+  await expect(detail(page).getByText(target.reason, { exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(
+      async (csrf) =>
+        (
+          await fetch('/api/private/logout', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer csrf.' + csrf },
+          })
+        ).status,
+      target.operatorToken,
+    ),
+  ).toBe(200);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+  await expect(
+    page.getByText(
+      '現在ログインしていません。このローカル画面ではログイン・権限付与は利用できません。',
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(detail(page)).toHaveCount(0);
+  await identity(page, true);
+  await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+  await expect(queue(page).getByRole('button').filter({ hasText: target.title })).toBeVisible();
+  await expect(page.getByText(target.reason, { exact: true })).toHaveCount(0);
+});
+test('old operator response body EOF cannot display private case after a cookie changes', async ({
+  page,
+}) => {
+  const target = await fixture(page);
+  await page.goto('/lab/moderation');
+  const path = origin + '/api/private/moderation/cases/' + target.id;
+  let headersAt = 0,
+    proofs = 0;
+  page.on('response', (r) => {
+    if (r.url() === path && r.request().method() === 'GET') headersAt = Date.now();
+    else if (headersAt && r.url().endsWith('/api/private/session') && r.status() === 200) proofs++;
+  });
+  await page.route(path, (route) =>
+    route.continue({ headers: { ...route.request().headers(), 'X-Lab-Body-Delay': '5000' } }),
+  );
+  await queue(page).getByRole('button').filter({ hasText: target.title }).click();
+  await expect.poll(() => proofs).toBeGreaterThan(0);
+  expect(Date.now() - headersAt).toBeLessThan(4000);
+  await identity(page);
+  expect(Date.now() - headersAt).toBeLessThan(4000);
+  await expect(page.getByText(/セッションが無効または変更されたため/)).toBeVisible({
+    timeout: 10000,
+  });
+  await expect(detail(page)).toHaveCount(0);
+  await expect(page.getByText(target.reason, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(target.title, { exact: true })).toHaveCount(0);
+  expect(
+    (await page.context().request.get('/api/private/moderation/cases/' + target.id)).status(),
+  ).toBe(404);
+});
+test('a failed fresh case read clears old queue and private text without calling it an empty result', async ({
+  page,
+}) => {
+  const target = await fixture(page);
+  await open(page, target);
+  await page.route('**/api/private/moderation/cases/*', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: '{"error":"PRIVATE_ERROR"}',
+    }),
+  );
+  await queue(page).getByRole('button').filter({ hasText: target.title }).click();
+  await expect(page.getByText(/この対象の通報内容を確認できませんでした/)).toBeVisible();
+  await expect(detail(page).getByText(target.reason, { exact: true })).toHaveCount(0);
+  await expect(queue(page).getByRole('button')).toHaveCount(0);
+  await expect(page.getByText('対象はありません。', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('PRIVATE_ERROR')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

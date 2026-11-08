@@ -1,6 +1,81 @@
-import {it,expect,vi} from 'vitest';
-import {createPublicWorksClient,PublicWorksClientError} from '../src/editor/public-works-client';
-const id='11111111-1111-4111-8111-111111111111';const project={id,title:'架空の作品',descriptionPreview:'制作で試したこと',publishedOn:'2026-11-04'};const author={id:'profile-fictional',name:'本人入力の名前',department:'IT',year:'2年',initials:'本'};const card={project,author};
-it('uses the fixed anonymous endpoint and preserves publication order without inventing a false empty',async()=>{const cards=[{project:{...project,id:'22222222-2222-4222-8222-222222222222'},author},card];const f=vi.fn(async(_path:RequestInfo|URL,_init?:RequestInit)=>Response.json({cards}));expect(await createPublicWorksClient(f as typeof fetch).read()).toEqual({cards});expect(f).toHaveBeenCalledWith('/__lab/project-discovery',expect.objectContaining({credentials:'omit',cache:'no-store',redirect:'error'}));expect(f.mock.calls[0][1]?.body).toBeUndefined();expect(new Headers(f.mock.calls[0][1]?.headers).has('Authorization')).toBe(false);expect(await createPublicWorksClient((async()=>Response.json({cards:[]})) as typeof fetch).read()).toEqual({cards:[]});await expect(createPublicWorksClient((async()=>new Response('PRIVATE',{status:503})) as typeof fetch).read()).rejects.toThrow('公開作品を確認できませんでした。')});
-it('rejects URLs, full/private identities, article fields and duplicate or over-limit cards',async()=>{for(const value of [{cards:[{project:{...project,githubUrl:'https://example.invalid/'},author}]},{cards:[{project:{...project,description:'full text'},author}]},{cards:[{project:{...project,minutes:5},author}]},{cards:[{project,author:{...author,bio:'not in feed'}}]},{cards:[{project,author:{...author,email:'PRIVATE'}}]},{cards:[{...card,ownerId:'PRIVATE'}]},{cards:[card,card]},{cards:Array(21).fill(card)}])await expect(createPublicWorksClient((async()=>Response.json(value)) as typeof fetch).read()).rejects.toBeInstanceOf(PublicWorksClientError)});
-it('checks calendar dates, exact bounds and malformed Unicode while accepting plain escaped text',async()=>{expect((await createPublicWorksClient((async()=>Response.json({cards:[{project:{...project,descriptionPreview:'<script>plain text</script>'},author}]})) as typeof fetch).read()).cards[0].project.descriptionPreview).toBe('<script>plain text</script>');for(const value of [{cards:[{project:{...project,publishedOn:'2026-02-31'},author}]},{cards:[{project:{...project,publishedOn:'2026-2-1'},author}]},{cards:[{project:{...project,title:' '},author}]},{cards:[{project:{...project,descriptionPreview:'x'.repeat(301)},author}]},{cards:[{project,author:{...author,name:'\ud800'}}]},{cards:[{project,author:{...author,initials:'x'.repeat(9)}}]},{cards:[{project:{...project,id:'../private'},author}]}])await expect(createPublicWorksClient((async()=>Response.json(value)) as typeof fetch).read()).rejects.toBeInstanceOf(PublicWorksClientError)});
+import { it, expect, vi } from 'vitest';
+import { createPublicWorksClient, PublicWorksClientError } from '../src/editor/public-works-client';
+const id = '11111111-1111-4111-8111-111111111111';
+const project = {
+  id,
+  title: '架空の作品',
+  descriptionPreview: '制作で試したこと',
+  publishedOn: '2026-11-04',
+};
+const author = {
+  id: 'profile-fictional',
+  name: '本人入力の名前',
+  department: 'IT',
+  year: '2年',
+  initials: '本',
+};
+const card = { project, author };
+it('uses the fixed anonymous endpoint and preserves publication order without inventing a false empty', async () => {
+  const cards = [
+    { project: { ...project, id: '22222222-2222-4222-8222-222222222222' }, author },
+    card,
+  ];
+  const f = vi.fn(async (_path: RequestInfo | URL, _init?: RequestInit) =>
+    Response.json({ cards }),
+  );
+  expect(await createPublicWorksClient(f as typeof fetch).read()).toEqual({ cards });
+  expect(f).toHaveBeenCalledWith(
+    '/__lab/project-discovery',
+    expect.objectContaining({ credentials: 'omit', cache: 'no-store', redirect: 'error' }),
+  );
+  expect(f.mock.calls[0][1]?.body).toBeUndefined();
+  expect(new Headers(f.mock.calls[0][1]?.headers).has('Authorization')).toBe(false);
+  expect(
+    await createPublicWorksClient((async () =>
+      Response.json({ cards: [] })) as typeof fetch).read(),
+  ).toEqual({ cards: [] });
+  await expect(
+    createPublicWorksClient(
+      (async () => new Response('PRIVATE', { status: 503 })) as typeof fetch,
+    ).read(),
+  ).rejects.toThrow('公開作品を確認できませんでした。');
+});
+it('rejects URLs, full/private identities, article fields and duplicate or over-limit cards', async () => {
+  for (const value of [
+    { cards: [{ project: { ...project, githubUrl: 'https://example.invalid/' }, author }] },
+    { cards: [{ project: { ...project, description: 'full text' }, author }] },
+    { cards: [{ project: { ...project, minutes: 5 }, author }] },
+    { cards: [{ project, author: { ...author, bio: 'not in feed' } }] },
+    { cards: [{ project, author: { ...author, email: 'PRIVATE' } }] },
+    { cards: [{ ...card, ownerId: 'PRIVATE' }] },
+    { cards: [card, card] },
+    { cards: Array(21).fill(card) },
+  ])
+    await expect(
+      createPublicWorksClient((async () => Response.json(value)) as typeof fetch).read(),
+    ).rejects.toBeInstanceOf(PublicWorksClientError);
+});
+it('checks calendar dates, exact bounds and malformed Unicode while accepting plain escaped text', async () => {
+  expect(
+    (
+      await createPublicWorksClient((async () =>
+        Response.json({
+          cards: [
+            { project: { ...project, descriptionPreview: '<script>plain text</script>' }, author },
+          ],
+        })) as typeof fetch).read()
+    ).cards[0].project.descriptionPreview,
+  ).toBe('<script>plain text</script>');
+  for (const value of [
+    { cards: [{ project: { ...project, publishedOn: '2026-02-31' }, author }] },
+    { cards: [{ project: { ...project, publishedOn: '2026-2-1' }, author }] },
+    { cards: [{ project: { ...project, title: ' ' }, author }] },
+    { cards: [{ project: { ...project, descriptionPreview: 'x'.repeat(301) }, author }] },
+    { cards: [{ project, author: { ...author, name: '\ud800' } }] },
+    { cards: [{ project, author: { ...author, initials: 'x'.repeat(9) } }] },
+    { cards: [{ project: { ...project, id: '../private' }, author }] },
+  ])
+    await expect(
+      createPublicWorksClient((async () => Response.json(value)) as typeof fetch).read(),
+    ).rejects.toBeInstanceOf(PublicWorksClientError);
+});

@@ -15,3 +15,8 @@
 - Do not store tokens in files/commands/output. Do not post private user feedback to public issues. Keep dependency licenses and reference notices.
 - Run npm run build, npm test, npm run test:e2e and npm run deploy:check for relevant changes. Use npm run types after Wrangler bindings change. Read docs/DEPLOYMENT.md before remote actions. Never use the placeholder D1 ID for a deployment.
 - Before connecting a real OAuth callback, complete docs/OAUTH-ATTEMPTS.md and docs/LOGGING-GATE.md. Nonce equality is not one-time attempt consumption, and app-level log silence is not proof of platform-log secrecy. Never enable a callback based solely on these helper tests.
+
+## Implementation and formatting
+
+- 実装と完成を優先する。設計・実行check・独立QAの詳細はPRへ集約し、WORKは現在地と次の一手を短く更新する。同じ記録をdocs／Issue／PRへ繰り返し複製せず、新docは恒久的に必要な場合だけ作る。既存のsecurity条件・green CI・独立QAは維持する。
+- ソースを手作業で圧縮しない。`npm run format`で整形し、`npm run format:check`を通す。commit時のstaged hookを利用する。SQL・生成物・文書・秘密等の除外は`.prettierignore`に従う。

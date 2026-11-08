@@ -1,21 +1,125 @@
-import {test,expect} from '@playwright/test';
-const title='commitの次に知りたい、ブランチの考え方';
-const list='/search?q=Git&tag=Git&kind=article';
-const author=(page:import('@playwright/test').Page)=>page.locator('.detail-author .author');
-test('root, search and comparison lists retain their context through article and profile',async({page})=>{
- for(const start of ['/?tag=Git&kind=article',list,'/study/cards?variant=b']){
-  await page.goto(start);await page.getByRole('heading',{name:title,exact:true}).getByRole('link').click();await author(page).click();await expect(page.getByRole('heading',{name:'サンプルの先輩',exact:true})).toBeVisible();await expect(page.getByRole('link',{name:'← 一覧へ',exact:true})).toHaveAttribute('href',start);await page.getByRole('link',{name:'← 一覧へ',exact:true}).click();await expect(page).toHaveURL(new RegExp(start.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$'));if(start.startsWith('/study'))await expect(page.getByRole('button',{name:'カードB',exact:true})).toHaveAttribute('aria-pressed','true');else await expect(page.getByRole('article')).toHaveCount(1)
- }
- await page.goto(list);await page.locator('.card .author').click();await expect(page.getByRole('link',{name:'← 一覧へ',exact:true})).toHaveAttribute('href',list);
+import { test, expect } from '@playwright/test';
+const title = 'commitの次に知りたい、ブランチの考え方';
+const list = '/search?q=Git&tag=Git&kind=article';
+const author = (page: import('@playwright/test').Page) => page.locator('.detail-author .author');
+test('root, search and comparison lists retain their context through article and profile', async ({
+  page,
+}) => {
+  for (const start of ['/?tag=Git&kind=article', list, '/study/cards?variant=b']) {
+    await page.goto(start);
+    await page.getByRole('heading', { name: title, exact: true }).getByRole('link').click();
+    await author(page).click();
+    await expect(page.getByRole('heading', { name: 'サンプルの先輩', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '← 一覧へ', exact: true })).toHaveAttribute(
+      'href',
+      start,
+    );
+    await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
+    if (start.startsWith('/study'))
+      await expect(page.getByRole('button', { name: 'カードB', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    else await expect(page.getByRole('article')).toHaveCount(1);
+  }
+  await page.goto(list);
+  await page.locator('.card .author').click();
+  await expect(page.getByRole('link', { name: '← 一覧へ', exact: true })).toHaveAttribute(
+    'href',
+    list,
+  );
 });
-test('profile to another article flattens context across reload, new tab and browser history',async({page,context})=>{
- await page.goto(list);const source=page.getByRole('heading',{name:title,exact:true}).getByRole('link');await source.scrollIntoViewIfNeeded();const y=await page.evaluate(()=>scrollY);await source.click();await author(page).click();const other=page.getByRole('heading',{name:'「動いた」で終わらせない、制作ノートの残し方',exact:true}).getByRole('link');const otherHref=(await other.getAttribute('href'))!;const next=context.waitForEvent('page');await other.evaluate((a:HTMLAnchorElement)=>{window.open(a.href,'_blank')});const tab=await next;try{await expect(tab.locator('.reader-context')).toBeVisible();await tab.reload();await author(tab).click();await expect(tab.getByRole('link',{name:'← 一覧へ',exact:true})).toHaveAttribute('href',list);await tab.getByRole('link',{name:'← 一覧へ',exact:true}).click();await expect(tab.getByRole('article')).toHaveCount(1);await expect(tab.getByRole('searchbox')).toHaveValue('Git')}finally{await tab.close()}
- await other.click();await author(page).click();await page.goBack();await expect(page.locator('.reader-context')).toBeVisible();await page.goForward();await expect(page.getByRole('heading',{name:'サンプルの先輩',exact:true})).toBeVisible();await page.getByRole('link',{name:'← 一覧へ',exact:true}).click();await expect(source).toBeFocused();expect(Math.abs(await page.evaluate(()=>scrollY)-y)).toBeLessThan(4);expect(otherHref.length).toBeLessThan(500);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+test('profile to another article flattens context across reload, new tab and browser history', async ({
+  page,
+  context,
+}) => {
+  await page.goto(list);
+  const source = page.getByRole('heading', { name: title, exact: true }).getByRole('link');
+  await source.scrollIntoViewIfNeeded();
+  const y = await page.evaluate(() => scrollY);
+  await source.click();
+  await author(page).click();
+  const other = page
+    .getByRole('heading', { name: '「動いた」で終わらせない、制作ノートの残し方', exact: true })
+    .getByRole('link');
+  const otherHref = (await other.getAttribute('href'))!;
+  const next = context.waitForEvent('page');
+  await other.evaluate((a: HTMLAnchorElement) => {
+    window.open(a.href, '_blank');
+  });
+  const tab = await next;
+  try {
+    await expect(tab.locator('.reader-context')).toBeVisible();
+    await tab.reload();
+    await author(tab).click();
+    await expect(tab.getByRole('link', { name: '← 一覧へ', exact: true })).toHaveAttribute(
+      'href',
+      list,
+    );
+    await tab.getByRole('link', { name: '← 一覧へ', exact: true }).click();
+    await expect(tab.getByRole('article')).toHaveCount(1);
+    await expect(tab.getByRole('searchbox')).toHaveValue('Git');
+  } finally {
+    await tab.close();
+  }
+  await other.click();
+  await author(page).click();
+  await page.goBack();
+  await expect(page.locator('.reader-context')).toBeVisible();
+  await page.goForward();
+  await expect(page.getByRole('heading', { name: 'サンプルの先輩', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
+  await expect(source).toBeFocused();
+  expect(Math.abs((await page.evaluate(() => scrollY)) - y)).toBeLessThan(4);
+  expect(otherHref.length).toBeLessThan(500);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
-test('direct or unsafe profile origins default to home and never become a nested redirect',async({page})=>{
- for(const target of [null,'https://evil.invalid/search','//evil.invalid','/api/catalog','/search#private','/students/sample-b?from=%2Fsearch','/search?q='+'x'.repeat(4096)]){await page.goto('/students/sample-a'+(target===null?'':'?from='+encodeURIComponent(target)));await expect(page.getByRole('link',{name:'← 一覧へ',exact:true})).toHaveAttribute('href','/');const link=page.getByRole('heading',{name:title,exact:true}).getByRole('link');await link.click();await author(page).click();await expect(page.getByRole('link',{name:'← 一覧へ',exact:true})).toHaveAttribute('href','/')}
+test('direct or unsafe profile origins default to home and never become a nested redirect', async ({
+  page,
+}) => {
+  for (const target of [
+    null,
+    'https://evil.invalid/search',
+    '//evil.invalid',
+    '/api/catalog',
+    '/search#private',
+    '/students/sample-b?from=%2Fsearch',
+    '/search?q=' + 'x'.repeat(4096),
+  ]) {
+    await page.goto(
+      '/students/sample-a' + (target === null ? '' : '?from=' + encodeURIComponent(target)),
+    );
+    await expect(page.getByRole('link', { name: '← 一覧へ', exact: true })).toHaveAttribute(
+      'href',
+      '/',
+    );
+    const link = page.getByRole('heading', { name: title, exact: true }).getByRole('link');
+    await link.click();
+    await author(page).click();
+    await expect(page.getByRole('link', { name: '← 一覧へ', exact: true })).toHaveAttribute(
+      'href',
+      '/',
+    );
+  }
 });
 
-test('visible article back preserves a real profile-list card position and focus',async({page})=>{
- for(const suffix of ['', '?from='+encodeURIComponent(list)]){await page.goto('/students/sample-a'+suffix);const card=page.getByRole('heading',{name:title,exact:true}).getByRole('link');await card.scrollIntoViewIfNeeded();const y=await page.evaluate(()=>scrollY);await card.click();await expect(page.locator('.reader-context')).toBeVisible();await page.getByRole('link',{name:'← 一覧へ',exact:true}).click();await expect(card).toBeFocused();expect(Math.abs(await page.evaluate(()=>scrollY)-y)).toBeLessThan(4);await expect(page.getByRole('link',{name:'← 一覧へ',exact:true})).toHaveAttribute('href',suffix?list:'/')}
+test('visible article back preserves a real profile-list card position and focus', async ({
+  page,
+}) => {
+  for (const suffix of ['', '?from=' + encodeURIComponent(list)]) {
+    await page.goto('/students/sample-a' + suffix);
+    const card = page.getByRole('heading', { name: title, exact: true }).getByRole('link');
+    await card.scrollIntoViewIfNeeded();
+    const y = await page.evaluate(() => scrollY);
+    await card.click();
+    await expect(page.locator('.reader-context')).toBeVisible();
+    await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
+    await expect(card).toBeFocused();
+    expect(Math.abs((await page.evaluate(() => scrollY)) - y)).toBeLessThan(4);
+    await expect(page.getByRole('link', { name: '← 一覧へ', exact: true })).toHaveAttribute(
+      'href',
+      suffix ? list : '/',
+    );
+  }
 });

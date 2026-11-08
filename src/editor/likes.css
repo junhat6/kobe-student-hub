@@ -1,1 +1,64 @@
-.like-panel{margin-top:32px;border:1px solid #c7dbe9;border-radius:12px;background:#f4f9fd;padding:24px;overflow-wrap:anywhere;color:#253544;font-size:15px;line-height:1.8}.like-panel h2{font-size:22px}.like-panel button{font:inherit;min-height:44px;padding:9px 15px;border:1px solid #b8cbd9;border-radius:8px;background:#fff;color:#175f91;cursor:pointer;margin:4px 12px 4px 0}.like-panel button:disabled{opacity:.65;cursor:default}.like-panel button:focus-visible,.like-panel a:focus-visible{outline:3px solid #0676bb;outline-offset:3px}.like-panel a{color:#076db3;text-decoration:underline;display:inline-flex;align-items:center;min-height:44px}.like-local{font-size:13px;color:#536879}.like-personal{border-top:1px solid #d6e3ed;margin-top:16px;padding-top:16px}.like-state{font-weight:700}.like-personal-shell[hidden]{display:none!important}@media(max-width:650px){.like-panel{padding:20px 16px}.like-panel h2{font-size:20px}}
+.like-panel {
+  margin-top: 32px;
+  border: 1px solid #c7dbe9;
+  border-radius: 12px;
+  background: #f4f9fd;
+  padding: 24px;
+  overflow-wrap: anywhere;
+  color: #253544;
+  font-size: 15px;
+  line-height: 1.8;
+}
+.like-panel h2 {
+  font-size: 22px;
+}
+.like-panel button {
+  font: inherit;
+  min-height: 44px;
+  padding: 9px 15px;
+  border: 1px solid #b8cbd9;
+  border-radius: 8px;
+  background: #fff;
+  color: #175f91;
+  cursor: pointer;
+  margin: 4px 12px 4px 0;
+}
+.like-panel button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+.like-panel button:focus-visible,
+.like-panel a:focus-visible {
+  outline: 3px solid #0676bb;
+  outline-offset: 3px;
+}
+.like-panel a {
+  color: #076db3;
+  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.like-local {
+  font-size: 13px;
+  color: #536879;
+}
+.like-personal {
+  border-top: 1px solid #d6e3ed;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.like-state {
+  font-weight: 700;
+}
+.like-personal-shell[hidden] {
+  display: none !important;
+}
+@media (max-width: 650px) {
+  .like-panel {
+    padding: 20px 16px;
+  }
+  .like-panel h2 {
+    font-size: 20px;
+  }
+}

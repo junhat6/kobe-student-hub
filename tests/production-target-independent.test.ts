@@ -1,8 +1,116 @@
-import{it,expect}from'vitest';import{mkdtempSync,realpathSync,mkdirSync,writeFileSync,readFileSync,rmSync,chmodSync,existsSync}from'node:fs';import{join,resolve}from'node:path';import{tmpdir}from'node:os';import{spawnSync}from'node:child_process';import{createHash}from'node:crypto';
+import { it, expect } from 'vitest';
+import {
+  mkdtempSync,
+  realpathSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  chmodSync,
+  existsSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 // @ts-expect-error Private file loader is a JavaScript local preparation boundary.
-import{loadProductionTarget,PRIVATE_TARGET_PATH}from'../scripts/production-target.mjs';
-const template=readFileSync('wrangler.jsonc','utf8'),cli=resolve('scripts/prepare-production.mjs'),target={workerName:'kobe-student-hub-production',databaseName:'kobe-student-hub-production',accountId:'a'.repeat(32),databaseId:'99999999-2222-3333-4444-555555555555',origin:'https://kobe-student-hub-production.independent-fictional.workers.dev'},preview={workerName:'kobe-student-hub-preview',databaseName:'kobe-student-hub-preview',accountId:target.accountId,databaseId:'11111111-2222-3333-4444-555555555555'},manifest={version:1,target,preview};
-function scoped(fn:(root:string,path:string)=>void){const root=realpathSync(mkdtempSync(join(tmpdir(),'hub-private-target-independent-')));try{for(const d of ['worker','dist','migrations','.wrangler'])mkdirSync(join(root,d),{mode:0o700});writeFileSync(join(root,'wrangler.jsonc'),template);writeFileSync(join(root,'worker/index.ts'),'const OAUTH_HTTP_RELEASE_ENABLED=false;\n');const path=join(root,PRIVATE_TARGET_PATH);writeFileSync(path,JSON.stringify(manifest),{mode:0o600});fn(root,path)}finally{rmSync(root,{recursive:true,force:true})}}
-it('independent actual-byte boundary accepts valid8192 bytes but refuses8193 validJSON and invalidUTF8',()=>scoped((root,path)=>{const raw=JSON.stringify(manifest),exact=raw+' '.repeat(8192-Buffer.byteLength(raw));writeFileSync(path,exact);expect(loadProductionTarget(root)).toEqual({target,preview,manifestSha256:createHash('sha256').update(exact).digest('hex')});writeFileSync(path,exact+' ');expect(()=>loadProductionTarget(root)).toThrow('Private production selection unavailable.');const invalid=Buffer.from(raw);invalid[10]=255;writeFileSync(path,invalid);expect(()=>loadProductionTarget(root)).toThrow('Private production selection unavailable.');writeFileSync(path,'');expect(()=>loadProductionTarget(root)).toThrow()}));
-it('independent real file mutation after bounded read is caught by stable descriptor checks and clears stale output',()=>scoped((root,path)=>{const output=join(root,'.wrangler/production.prepare.json');writeFileSync(output,'old synthetic output',{mode:0o600});const preload=join(root,'mutate.cjs');writeFileSync(preload,`const fs=require('node:fs'),original=fs.readSync,manifest=${JSON.stringify(path)};let changed=false;fs.readSync=function(fd,...args){const result=original.call(this,fd,...args);if(!changed&&fs.fstatSync(fd).ino===fs.statSync(manifest).ino){changed=true;fs.appendFileSync(manifest,' ')}return result};require('node:module').syncBuiltinESMExports();`);const r=spawnSync(process.execPath,['--require',preload,cli],{cwd:root,encoding:'utf8'});expect(r.status).toBe(1);expect(r.stdout).toBe('');expect(r.stderr.trim()).toBe('Production preparation failed. Check the private selection and local source guards.');expect(readFileSync(path,'utf8')).toBe(JSON.stringify(manifest)+' ');expect(existsSync(output)).toBe(false);for(const secret of [target.accountId,target.databaseId,target.origin])expect(r.stderr).not.toContain(secret)}));
-it('independent missing fixed selection cannot be supplied by alternate argv or environment and does not touch the alternative',()=>scoped((root,path)=>{const alternative=join(root,'alternative.private.json');writeFileSync(alternative,JSON.stringify(manifest),{mode:0o600});rmSync(path);const out=join(root,'.wrangler/production.prepare.json');writeFileSync(out,'stale synthetic output',{mode:0o600});for(const args of [[],['--target='+alternative],['--enable']]){const r=spawnSync(process.execPath,[cli,...args],{cwd:root,env:{...process.env,PRODUCTION_TARGET_PATH:alternative,CLOUDFLARE_ACCOUNT_ID:target.accountId,PRODUCTION_ENABLED:'true',OAUTH_HTTP_RELEASE_ENABLED:'true'},encoding:'utf8'});expect(r.status).toBe(1);expect(r.stdout).toBe('');expect(existsSync(out)).toBe(false);expect(readFileSync(alternative,'utf8')).toBe(JSON.stringify(manifest));expect(r.stderr).not.toContain(alternative);expect(r.stderr).not.toContain(target.accountId)}}));
+import { loadProductionTarget, PRIVATE_TARGET_PATH } from '../scripts/production-target.mjs';
+const template = readFileSync('wrangler.jsonc', 'utf8'),
+  cli = resolve('scripts/prepare-production.mjs'),
+  target = {
+    workerName: 'kobe-student-hub-production',
+    databaseName: 'kobe-student-hub-production',
+    accountId: 'a'.repeat(32),
+    databaseId: '99999999-2222-3333-4444-555555555555',
+    origin: 'https://kobe-student-hub-production.independent-fictional.workers.dev',
+  },
+  preview = {
+    workerName: 'kobe-student-hub-preview',
+    databaseName: 'kobe-student-hub-preview',
+    accountId: target.accountId,
+    databaseId: '11111111-2222-3333-4444-555555555555',
+  },
+  manifest = { version: 1, target, preview };
+function scoped(fn: (root: string, path: string) => void) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'hub-private-target-independent-')));
+  try {
+    for (const d of ['worker', 'dist', 'migrations', '.wrangler'])
+      mkdirSync(join(root, d), { mode: 0o700 });
+    writeFileSync(join(root, 'wrangler.jsonc'), template);
+    writeFileSync(join(root, 'worker/index.ts'), 'const OAUTH_HTTP_RELEASE_ENABLED=false;\n');
+    const path = join(root, PRIVATE_TARGET_PATH);
+    writeFileSync(path, JSON.stringify(manifest), { mode: 0o600 });
+    fn(root, path);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+it('independent actual-byte boundary accepts valid8192 bytes but refuses8193 validJSON and invalidUTF8', () =>
+  scoped((root, path) => {
+    const raw = JSON.stringify(manifest),
+      exact = raw + ' '.repeat(8192 - Buffer.byteLength(raw));
+    writeFileSync(path, exact);
+    expect(loadProductionTarget(root)).toEqual({
+      target,
+      preview,
+      manifestSha256: createHash('sha256').update(exact).digest('hex'),
+    });
+    writeFileSync(path, exact + ' ');
+    expect(() => loadProductionTarget(root)).toThrow('Private production selection unavailable.');
+    const invalid = Buffer.from(raw);
+    invalid[10] = 255;
+    writeFileSync(path, invalid);
+    expect(() => loadProductionTarget(root)).toThrow('Private production selection unavailable.');
+    writeFileSync(path, '');
+    expect(() => loadProductionTarget(root)).toThrow();
+  }));
+it('independent real file mutation after bounded read is caught by stable descriptor checks and clears stale output', () =>
+  scoped((root, path) => {
+    const output = join(root, '.wrangler/production.prepare.json');
+    writeFileSync(output, 'old synthetic output', { mode: 0o600 });
+    const preload = join(root, 'mutate.cjs');
+    writeFileSync(
+      preload,
+      `const fs=require('node:fs'),original=fs.readSync,manifest=${JSON.stringify(path)};let changed=false;fs.readSync=function(fd,...args){const result=original.call(this,fd,...args);if(!changed&&fs.fstatSync(fd).ino===fs.statSync(manifest).ino){changed=true;fs.appendFileSync(manifest,' ')}return result};require('node:module').syncBuiltinESMExports();`,
+    );
+    const r = spawnSync(process.execPath, ['--require', preload, cli], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toBe('');
+    expect(r.stderr.trim()).toBe(
+      'Production preparation failed. Check the private selection and local source guards.',
+    );
+    expect(readFileSync(path, 'utf8')).toBe(JSON.stringify(manifest) + ' ');
+    expect(existsSync(output)).toBe(false);
+    for (const secret of [target.accountId, target.databaseId, target.origin])
+      expect(r.stderr).not.toContain(secret);
+  }));
+it('independent missing fixed selection cannot be supplied by alternate argv or environment and does not touch the alternative', () =>
+  scoped((root, path) => {
+    const alternative = join(root, 'alternative.private.json');
+    writeFileSync(alternative, JSON.stringify(manifest), { mode: 0o600 });
+    rmSync(path);
+    const out = join(root, '.wrangler/production.prepare.json');
+    writeFileSync(out, 'stale synthetic output', { mode: 0o600 });
+    for (const args of [[], ['--target=' + alternative], ['--enable']]) {
+      const r = spawnSync(process.execPath, [cli, ...args], {
+        cwd: root,
+        env: {
+          ...process.env,
+          PRODUCTION_TARGET_PATH: alternative,
+          CLOUDFLARE_ACCOUNT_ID: target.accountId,
+          PRODUCTION_ENABLED: 'true',
+          OAUTH_HTTP_RELEASE_ENABLED: 'true',
+        },
+        encoding: 'utf8',
+      });
+      expect(r.status).toBe(1);
+      expect(r.stdout).toBe('');
+      expect(existsSync(out)).toBe(false);
+      expect(readFileSync(alternative, 'utf8')).toBe(JSON.stringify(manifest));
+      expect(r.stderr).not.toContain(alternative);
+      expect(r.stderr).not.toContain(target.accountId);
+    }
+  }));

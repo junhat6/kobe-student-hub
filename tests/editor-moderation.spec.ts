@@ -1,37 +1,392 @@
-import {test,expect,type Page,type Browser,type BrowserContext} from '@playwright/test';
-const ORIGIN='https://127.0.0.1:8788';
-async function context(browser:Browser,page:Page):Promise<BrowserContext>{const device=test.info().project.use;return browser.newContext({ignoreHTTPSErrors:true,baseURL:ORIGIN,viewport:page.viewportSize(),screen:device.screen,isMobile:device.isMobile,hasTouch:device.hasTouch,deviceScaleFactor:device.deviceScaleFactor,userAgent:device.userAgent})}
-async function article(page:Page){let csrf='';await page.route('**/__fixture/session',async route=>{if(csrf){await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({csrfToken:csrf})});return}const response=await route.fetch({url:ORIGIN+'/__fixture/profile-session'});expect(response.status()).toBe(200);csrf=(await response.json() as {csrfToken:string}).csrfToken;await route.fulfill({response})});await page.goto('/');await expect(page.getByRole('button',{name:'新しい下書き',exact:true})).toBeVisible();return await page.evaluate(async token=>{
- const post=async(path:string,value:unknown,method='POST')=>{const response=await fetch(path,{method,headers:{'Content-Type':'application/json',Authorization:'Bearer csrf.'+(token)},body:JSON.stringify(value)});if(response.status!==201)throw new Error('fictional article setup unavailable');return await response.json()};
- await post('/api/private/profile',{displayName:'架空の通報対象の著者',department:'',yearLabel:'',bio:'ローカルだけの紹介',confirmPublic:true});
- const title='通報の対象-'+crypto.randomUUID().slice(0,8);const draft=await post('/api/private/drafts',{title,body:'# 対象本文\n\n<script>window.__moderationBodyInjected=true</script>\n\n![hidden](https://moderation-body-exfil.invalid/x)\n\n架空の公開本文です。'}) as {id:string;version:number};
- const result=await post('/api/private/publications/'+draft.id,{expectedVersion:draft.version,confirmPublic:true,summary:'架空の通報検証記事',tags:[],minutes:1}) as {contentId:string};return {contentId:result.contentId,title};
- },csrf)}
-async function reporter(browser:Browser,page:Page,contentId:string){const ctx=await context(browser,page);expect((await ctx.request.post('/__fixture/profile-session',{headers:{Origin:ORIGIN},data:{}})).status()).toBe(200);const reader=await ctx.newPage();await reader.goto('/lab/articles/'+contentId);await expect(reader.getByRole('button',{name:'この記事を通報する（ローカル検証）',exact:true})).toBeVisible();return {ctx,page:reader}}
-async function form(page:Page,reason:string,detail='架空の詳しい説明'){const region=page.getByRole('region',{name:'記事の通報'});await region.getByRole('button',{name:'この記事を通報する（ローカル検証）',exact:true}).click();await region.getByLabel('通報理由（必須）',{exact:true}).fill(reason);await region.getByLabel('詳しい説明（任意）',{exact:true}).fill(detail);return region}
-const confirm=(page:Page)=>page.getByRole('checkbox',{name:'入力した理由・詳細を運営の確認用として送信します',exact:true});
-const submit=(page:Page)=>page.getByRole('button',{name:'確認した内容で通報を送信',exact:true});
-test('anonymous reading stays anonymous and explicit report opening never creates an identity',async({page,browser})=>{
- const target=await article(page);const ctx=await context(browser,page);const reader=await ctx.newPage();let identities=0,privateCalls=0;reader.on('request',request=>{if(request.url().includes('/__fixture/'))identities++;if(request.url().includes('/api/private/'))privateCalls++});try{await reader.goto('/lab/articles/'+target.contentId);await expect(reader.getByRole('heading',{name:target.title,exact:true})).toBeVisible();expect(reader.viewportSize()).toEqual(page.viewportSize());expect(privateCalls).toBe(0);expect(identities).toBe(0);await reader.getByRole('button',{name:'この記事を通報する（ローカル検証）',exact:true}).click();await expect(reader.getByText('通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。',{exact:true})).toBeVisible();await expect(reader.getByLabel('通報理由（必須）',{exact:true})).toHaveCount(0);expect(privateCalls).toBe(1);expect(identities).toBe(0);expect(await ctx.cookies()).toEqual([]);await reader.goto('/lab/moderation');await expect(reader.getByText('現在ログインしていません。このローカル画面ではログイン・権限付与は利用できません。',{exact:true})).toBeVisible();await expect(reader.getByRole('region',{name:'選択した通報内容'})).toHaveCount(0);expect(identities).toBe(0)}finally{await ctx.close()}
+import { test, expect, type Page, type Browser, type BrowserContext } from '@playwright/test';
+const ORIGIN = 'https://127.0.0.1:8788';
+async function context(browser: Browser, page: Page): Promise<BrowserContext> {
+  const device = test.info().project.use;
+  return browser.newContext({
+    ignoreHTTPSErrors: true,
+    baseURL: ORIGIN,
+    viewport: page.viewportSize(),
+    screen: device.screen,
+    isMobile: device.isMobile,
+    hasTouch: device.hasTouch,
+    deviceScaleFactor: device.deviceScaleFactor,
+    userAgent: device.userAgent,
+  });
+}
+async function article(page: Page) {
+  let csrf = '';
+  await page.route('**/__fixture/session', async (route) => {
+    if (csrf) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ csrfToken: csrf }),
+      });
+      return;
+    }
+    const response = await route.fetch({ url: ORIGIN + '/__fixture/profile-session' });
+    expect(response.status()).toBe(200);
+    csrf = ((await response.json()) as { csrfToken: string }).csrfToken;
+    await route.fulfill({ response });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toBeVisible();
+  return await page.evaluate(async (token) => {
+    const post = async (path: string, value: unknown, method = 'POST') => {
+      const response = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer csrf.' + token },
+        body: JSON.stringify(value),
+      });
+      if (response.status !== 201) throw new Error('fictional article setup unavailable');
+      return await response.json();
+    };
+    await post('/api/private/profile', {
+      displayName: '架空の通報対象の著者',
+      department: '',
+      yearLabel: '',
+      bio: 'ローカルだけの紹介',
+      confirmPublic: true,
+    });
+    const title = '通報の対象-' + crypto.randomUUID().slice(0, 8);
+    const draft = (await post('/api/private/drafts', {
+      title,
+      body: '# 対象本文\n\n<script>window.__moderationBodyInjected=true</script>\n\n![hidden](https://moderation-body-exfil.invalid/x)\n\n架空の公開本文です。',
+    })) as { id: string; version: number };
+    const result = (await post('/api/private/publications/' + draft.id, {
+      expectedVersion: draft.version,
+      confirmPublic: true,
+      summary: '架空の通報検証記事',
+      tags: [],
+      minutes: 1,
+    })) as { contentId: string };
+    return { contentId: result.contentId, title };
+  }, csrf);
+}
+async function reporter(browser: Browser, page: Page, contentId: string) {
+  const ctx = await context(browser, page);
+  expect(
+    (
+      await ctx.request.post('/__fixture/profile-session', {
+        headers: { Origin: ORIGIN },
+        data: {},
+      })
+    ).status(),
+  ).toBe(200);
+  const reader = await ctx.newPage();
+  await reader.goto('/lab/articles/' + contentId);
+  await expect(
+    reader.getByRole('button', { name: 'この記事を通報する（ローカル検証）', exact: true }),
+  ).toBeVisible();
+  return { ctx, page: reader };
+}
+async function form(page: Page, reason: string, detail = '架空の詳しい説明') {
+  const region = page.getByRole('region', { name: '記事の通報' });
+  await region
+    .getByRole('button', { name: 'この記事を通報する（ローカル検証）', exact: true })
+    .click();
+  await region.getByLabel('通報理由（必須）', { exact: true }).fill(reason);
+  await region.getByLabel('詳しい説明（任意）', { exact: true }).fill(detail);
+  return region;
+}
+const confirm = (page: Page) =>
+  page.getByRole('checkbox', {
+    name: '入力した理由・詳細を運営の確認用として送信します',
+    exact: true,
+  });
+const submit = (page: Page) =>
+  page.getByRole('button', { name: '確認した内容で通報を送信', exact: true });
+test('anonymous reading stays anonymous and explicit report opening never creates an identity', async ({
+  page,
+  browser,
+}) => {
+  const target = await article(page);
+  const ctx = await context(browser, page);
+  const reader = await ctx.newPage();
+  let identities = 0,
+    privateCalls = 0;
+  reader.on('request', (request) => {
+    if (request.url().includes('/__fixture/')) identities++;
+    if (request.url().includes('/api/private/')) privateCalls++;
+  });
+  try {
+    await reader.goto('/lab/articles/' + target.contentId);
+    await expect(reader.getByRole('heading', { name: target.title, exact: true })).toBeVisible();
+    expect(reader.viewportSize()).toEqual(page.viewportSize());
+    expect(privateCalls).toBe(0);
+    expect(identities).toBe(0);
+    await reader
+      .getByRole('button', { name: 'この記事を通報する（ローカル検証）', exact: true })
+      .click();
+    await expect(
+      reader.getByText(
+        '通報にはログインが必要です。このローカル検証では学校Googleログインを提供していません。',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(reader.getByLabel('通報理由（必須）', { exact: true })).toHaveCount(0);
+    expect(privateCalls).toBe(1);
+    expect(identities).toBe(0);
+    expect(await ctx.cookies()).toEqual([]);
+    await reader.goto('/lab/moderation');
+    await expect(
+      reader.getByText(
+        '現在ログインしていません。このローカル画面ではログイン・権限付与は利用できません。',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(reader.getByRole('region', { name: '選択した通報内容' })).toHaveCount(0);
+    expect(identities).toBe(0);
+  } finally {
+    await ctx.close();
+  }
 });
-test('three distinct reports hide new anonymous reads and an authorized operator reads only the queued case',async({page,browser})=>{
- const target=await article(page);const reporters:Awaited<ReturnType<typeof reporter>>[]=[];const anon=await context(browser,page);let op:BrowserContext|undefined;
- try{for(let n=0;n<3;n++){
-  const account=await reporter(browser,page,target.contentId);reporters.push(account);const reason=n===0?'<img src="https://moderation-report-exfil.invalid/x" onerror="alert(1)">':'架空の通報理由 '+(n+1);await form(account.page,reason,'一般には表示しない架空の補足 '+(n+1));await confirm(account.page).check();await submit(account.page).click();await expect(account.page.getByText('通報の受付を確認しました。運営判断や通知メールの送信完了を意味しません。',{exact:true})).toBeVisible();await expect(submit(account.page)).toHaveCount(0);
-  if(n===0){const duplicate=await account.page.evaluate(async contentId=>{const {csrfToken}=await(await fetch('/api/private/moderation/session',{cache:'no-store'})).json() as {csrfToken:string};const response=await fetch('/api/private/reports/'+contentId,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer csrf.'+(csrfToken)},body:JSON.stringify({reason:'重複で置き換えない理由',detail:''})});return {status:response.status,value:await response.json()}},target.contentId);expect(duplicate).toEqual({status:200,value:{received:true}})}
-  expect((await anon.request.get('/__lab/articles/'+target.contentId)).status()).toBe(n<2?200:404);
- }
- const hidden=await anon.newPage();await hidden.goto('/lab/articles/'+target.contentId);await expect(hidden.getByRole('heading',{name:'この記事を表示できません',exact:true})).toBeVisible();await expect(hidden.locator('body')).not.toContainText('一般には表示しない架空の補足');await expect(hidden.locator('body')).not.toContainText('moderation-report-exfil');
- const regular=reporters[0].page;await regular.goto('/lab/moderation');await expect(regular.getByText(/一覧を確認できませんでした。運営用の権限/)).toBeVisible();await expect(regular.locator('body')).not.toContainText('一般には表示しない架空の補足');
- op=await context(browser,page);expect((await op.request.post('/__fixture/operator-session',{headers:{Origin:ORIGIN},data:{}})).status()).toBe(200);const operator=await op.newPage();let identities=0,external=0;operator.on('request',request=>{if(request.url().includes('/__fixture/'))identities++;if(request.url().includes('-exfil.invalid'))external++});await operator.goto('/lab/moderation');await expect(operator.getByRole('heading',{name:'通報の確認待ち',exact:true})).toBeVisible();const item=operator.getByRole('region',{name:'通報対象の一覧'}).getByRole('button').filter({hasText:target.title});await item.click();const detail=operator.getByRole('region',{name:'選択した通報内容'});await expect(detail.getByRole('heading',{name:target.title,exact:true})).toBeVisible();await expect(detail).toContainText('通報 3件');await expect(detail).toContainText('一時非公開');await expect(detail).toContainText('<img src="https://moderation-report-exfil.invalid/x" onerror="alert(1)">');await expect(detail).not.toContainText('重複で置き換えない理由');await expect(detail.locator('img')).toHaveCount(0);await detail.getByText('対象の記事本文を確認',{exact:true}).click();await expect(detail).toContainText('架空の公開本文です。');expect(await operator.evaluate(()=>('__moderationBodyInjected' in window))).toBe(false);expect(external).toBe(0);expect(identities).toBe(0);await expect(operator.getByRole('button',{name:/復元|削除|判断|メール送信/})).toHaveCount(0);await expect(operator.locator('body')).not.toContainText('reporter_account_id');await expect(operator.locator('body')).not.toContainText('google_subject');expect(await operator.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
- let release:()=>void=()=>{};const wait=new Promise<void>(resolve=>{release=resolve});await operator.route('**/api/private/moderation/cases/'+target.contentId,async route=>{await wait;await route.fulfill({status:503,contentType:'application/json',body:'{"error":"synthetic_unavailable"}'})});await item.click();await expect(detail).not.toContainText('一般には表示しない架空の補足');release();await expect(operator.getByText(/この対象の通報内容を確認できませんでした/)).toBeVisible();await expect(detail.getByRole('heading',{name:target.title,exact:true})).toHaveCount(0);await operator.unroute('**/api/private/moderation/cases/'+target.contentId);await operator.getByRole('button',{name:'この対象を再確認',exact:true}).click();await expect(detail.getByRole('heading',{name:target.title,exact:true})).toBeVisible();
- }finally{for(const value of reporters)await value.ctx.close();await anon.close();await op?.close()}
+test('three distinct reports hide new anonymous reads and an authorized operator reads only the queued case', async ({
+  page,
+  browser,
+}) => {
+  const target = await article(page);
+  const reporters: Awaited<ReturnType<typeof reporter>>[] = [];
+  const anon = await context(browser, page);
+  let op: BrowserContext | undefined;
+  try {
+    for (let n = 0; n < 3; n++) {
+      const account = await reporter(browser, page, target.contentId);
+      reporters.push(account);
+      const reason =
+        n === 0
+          ? '<img src="https://moderation-report-exfil.invalid/x" onerror="alert(1)">'
+          : '架空の通報理由 ' + (n + 1);
+      await form(account.page, reason, '一般には表示しない架空の補足 ' + (n + 1));
+      await confirm(account.page).check();
+      await submit(account.page).click();
+      await expect(
+        account.page.getByText(
+          '通報の受付を確認しました。運営判断や通知メールの送信完了を意味しません。',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(submit(account.page)).toHaveCount(0);
+      if (n === 0) {
+        const duplicate = await account.page.evaluate(async (contentId) => {
+          const { csrfToken } = (await (
+            await fetch('/api/private/moderation/session', { cache: 'no-store' })
+          ).json()) as { csrfToken: string };
+          const response = await fetch('/api/private/reports/' + contentId, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer csrf.' + csrfToken,
+            },
+            body: JSON.stringify({ reason: '重複で置き換えない理由', detail: '' }),
+          });
+          return { status: response.status, value: await response.json() };
+        }, target.contentId);
+        expect(duplicate).toEqual({ status: 200, value: { received: true } });
+      }
+      expect((await anon.request.get('/__lab/articles/' + target.contentId)).status()).toBe(
+        n < 2 ? 200 : 404,
+      );
+    }
+    const hidden = await anon.newPage();
+    await hidden.goto('/lab/articles/' + target.contentId);
+    await expect(
+      hidden.getByRole('heading', { name: 'この記事を表示できません', exact: true }),
+    ).toBeVisible();
+    await expect(hidden.locator('body')).not.toContainText('一般には表示しない架空の補足');
+    await expect(hidden.locator('body')).not.toContainText('moderation-report-exfil');
+    const regular = reporters[0].page;
+    await regular.goto('/lab/moderation');
+    await expect(regular.getByText(/一覧を確認できませんでした。運営用の権限/)).toBeVisible();
+    await expect(regular.locator('body')).not.toContainText('一般には表示しない架空の補足');
+    op = await context(browser, page);
+    expect(
+      (
+        await op.request.post('/__fixture/operator-session', {
+          headers: { Origin: ORIGIN },
+          data: {},
+        })
+      ).status(),
+    ).toBe(200);
+    const operator = await op.newPage();
+    let identities = 0,
+      external = 0;
+    operator.on('request', (request) => {
+      if (request.url().includes('/__fixture/')) identities++;
+      if (request.url().includes('-exfil.invalid')) external++;
+    });
+    await operator.goto('/lab/moderation');
+    await expect(
+      operator.getByRole('heading', { name: '通報の確認待ち', exact: true }),
+    ).toBeVisible();
+    const item = operator
+      .getByRole('region', { name: '通報対象の一覧' })
+      .getByRole('button')
+      .filter({ hasText: target.title });
+    await item.click();
+    const detail = operator.getByRole('region', { name: '選択した通報内容' });
+    await expect(detail.getByRole('heading', { name: target.title, exact: true })).toBeVisible();
+    await expect(detail).toContainText('通報 3件');
+    await expect(detail).toContainText('一時非公開');
+    await expect(detail).toContainText(
+      '<img src="https://moderation-report-exfil.invalid/x" onerror="alert(1)">',
+    );
+    await expect(detail).not.toContainText('重複で置き換えない理由');
+    await expect(detail.locator('img')).toHaveCount(0);
+    await detail.getByText('対象の記事本文を確認', { exact: true }).click();
+    await expect(detail).toContainText('架空の公開本文です。');
+    expect(await operator.evaluate(() => '__moderationBodyInjected' in window)).toBe(false);
+    expect(external).toBe(0);
+    expect(identities).toBe(0);
+    await expect(operator.getByRole('button', { name: /復元|削除|判断|メール送信/ })).toHaveCount(
+      0,
+    );
+    await expect(operator.locator('body')).not.toContainText('reporter_account_id');
+    await expect(operator.locator('body')).not.toContainText('google_subject');
+    expect(await operator.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    let release: () => void = () => {};
+    const wait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await operator.route('**/api/private/moderation/cases/' + target.contentId, async (route) => {
+      await wait;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: '{"error":"synthetic_unavailable"}',
+      });
+    });
+    await item.click();
+    await expect(detail).not.toContainText('一般には表示しない架空の補足');
+    release();
+    await expect(operator.getByText(/この対象の通報内容を確認できませんでした/)).toBeVisible();
+    await expect(detail.getByRole('heading', { name: target.title, exact: true })).toHaveCount(0);
+    await operator.unroute('**/api/private/moderation/cases/' + target.contentId);
+    await operator.getByRole('button', { name: 'この対象を再確認', exact: true }).click();
+    await expect(detail.getByRole('heading', { name: target.title, exact: true })).toBeVisible();
+  } finally {
+    for (const value of reporters) await value.ctx.close();
+    await anon.close();
+    await op?.close();
+  }
 });
-test('a lost committed report acknowledgement retains readonly input until manual own receipt confirmation',async({page,browser})=>{
- const target=await article(page);const account=await reporter(browser,page,target.contentId);let posts=0;try{await form(account.page,'送信結果を確認する架空の理由','この入力を保持する');await account.page.route('**/api/private/reports/*',async route=>{if(route.request().method()==='POST'){posts++;const response=await route.fetch();expect(response.status()).toBe(200);await route.fulfill({status:503,contentType:'application/json',body:'{"error":"synthetic_lost_ack"}'})}else await route.continue()});await confirm(account.page).check();await submit(account.page).click();await expect(account.page.getByText('送信結果を確認できませんでした。入力は残しています。再送せず、受付状態を確認してください。',{exact:true})).toBeVisible();await expect(account.page.getByLabel('通報理由（必須）',{exact:true})).toHaveValue('送信結果を確認する架空の理由');await expect(account.page.getByLabel('通報理由（必須）',{exact:true})).not.toBeEditable();await expect(submit(account.page)).toBeDisabled();expect(posts).toBe(1);await account.page.getByRole('button',{name:'受付状態を確認',exact:true}).click();await expect(account.page.getByText('このアカウントの通報受付を確認しました。重複して送信しません。',{exact:true})).toBeVisible();await expect(submit(account.page)).toHaveCount(0);expect(posts).toBe(1);expect(await account.page.evaluate(()=>[localStorage.length,sessionStorage.length])).toEqual([0,0]);expect(account.page.url()).not.toContain('保持する')}finally{await account.ctx.close()}
+test('a lost committed report acknowledgement retains readonly input until manual own receipt confirmation', async ({
+  page,
+  browser,
+}) => {
+  const target = await article(page);
+  const account = await reporter(browser, page, target.contentId);
+  let posts = 0;
+  try {
+    await form(account.page, '送信結果を確認する架空の理由', 'この入力を保持する');
+    await account.page.route('**/api/private/reports/*', async (route) => {
+      if (route.request().method() === 'POST') {
+        posts++;
+        const response = await route.fetch();
+        expect(response.status()).toBe(200);
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: '{"error":"synthetic_lost_ack"}',
+        });
+      } else await route.continue();
+    });
+    await confirm(account.page).check();
+    await submit(account.page).click();
+    await expect(
+      account.page.getByText(
+        '送信結果を確認できませんでした。入力は残しています。再送せず、受付状態を確認してください。',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(account.page.getByLabel('通報理由（必須）', { exact: true })).toHaveValue(
+      '送信結果を確認する架空の理由',
+    );
+    await expect(account.page.getByLabel('通報理由（必須）', { exact: true })).not.toBeEditable();
+    await expect(submit(account.page)).toBeDisabled();
+    expect(posts).toBe(1);
+    await account.page.getByRole('button', { name: '受付状態を確認', exact: true }).click();
+    await expect(
+      account.page.getByText('このアカウントの通報受付を確認しました。重複して送信しません。', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(submit(account.page)).toHaveCount(0);
+    expect(posts).toBe(1);
+    expect(await account.page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual(
+      [0, 0],
+    );
+    expect(account.page.url()).not.toContain('保持する');
+  } finally {
+    await account.ctx.close();
+  }
 });
-test('input limits, changed consent and unavailable receipts never trigger an automatic report retry',async({page,browser})=>{
- const target=await article(page);const account=await reporter(browser,page,target.contentId);let posts=0,deny=false,failPost=true;try{await form(account.page,'架空の理由','x'.repeat(2001));await expect(confirm(account.page)).toBeDisabled();await expect(submit(account.page)).toBeDisabled();await account.page.getByLabel('詳しい説明（任意）',{exact:true}).fill('確認してから送る説明');await confirm(account.page).check();await account.page.getByLabel('詳しい説明（任意）',{exact:true}).fill('変更した説明');await expect(confirm(account.page)).not.toBeChecked();await expect(submit(account.page)).toBeDisabled();
- await account.page.route('**/api/private/reports/*',route=>{if(route.request().method()==='POST'){posts++;if(failPost)return route.fulfill({status:503,contentType:'application/json',body:'{"error":"synthetic_no_commit"}'})}else if(deny)return route.fulfill({status:404,contentType:'application/json',body:'{"error":"unavailable"}'});return route.continue()});await confirm(account.page).check();await submit(account.page).click();await expect(account.page.getByText(/送信結果を確認できませんでした/)).toBeVisible();deny=true;await account.page.getByRole('button',{name:'受付状態を確認',exact:true}).click();await expect(account.page.getByText(/通報状態を確認できませんでした。未送信とは判断せず/)).toBeVisible();await expect(submit(account.page)).toBeDisabled();await expect(account.page.getByLabel('詳しい説明（任意）',{exact:true})).toHaveValue('変更した説明');expect(posts).toBe(1);deny=false;await account.page.getByRole('button',{name:'受付状態を確認',exact:true}).click();await expect(account.page.getByText(/受付をまだ確認できませんでした/)).toBeVisible();await expect(confirm(account.page)).not.toBeChecked();await expect(submit(account.page)).toBeDisabled();await expect(account.page.getByLabel('詳しい説明（任意）',{exact:true})).toBeEditable();failPost=false;await confirm(account.page).check();await submit(account.page).click();await expect(account.page.getByText(/通報の受付を確認しました。運営判断や通知メール/)).toBeVisible();expect(posts).toBe(2);
- }finally{await account.ctx.close()}
+test('input limits, changed consent and unavailable receipts never trigger an automatic report retry', async ({
+  page,
+  browser,
+}) => {
+  const target = await article(page);
+  const account = await reporter(browser, page, target.contentId);
+  let posts = 0,
+    deny = false,
+    failPost = true;
+  try {
+    await form(account.page, '架空の理由', 'x'.repeat(2001));
+    await expect(confirm(account.page)).toBeDisabled();
+    await expect(submit(account.page)).toBeDisabled();
+    await account.page
+      .getByLabel('詳しい説明（任意）', { exact: true })
+      .fill('確認してから送る説明');
+    await confirm(account.page).check();
+    await account.page.getByLabel('詳しい説明（任意）', { exact: true }).fill('変更した説明');
+    await expect(confirm(account.page)).not.toBeChecked();
+    await expect(submit(account.page)).toBeDisabled();
+    await account.page.route('**/api/private/reports/*', (route) => {
+      if (route.request().method() === 'POST') {
+        posts++;
+        if (failPost)
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: '{"error":"synthetic_no_commit"}',
+          });
+      } else if (deny)
+        return route.fulfill({
+          status: 404,
+          contentType: 'application/json',
+          body: '{"error":"unavailable"}',
+        });
+      return route.continue();
+    });
+    await confirm(account.page).check();
+    await submit(account.page).click();
+    await expect(account.page.getByText(/送信結果を確認できませんでした/)).toBeVisible();
+    deny = true;
+    await account.page.getByRole('button', { name: '受付状態を確認', exact: true }).click();
+    await expect(
+      account.page.getByText(/通報状態を確認できませんでした。未送信とは判断せず/),
+    ).toBeVisible();
+    await expect(submit(account.page)).toBeDisabled();
+    await expect(account.page.getByLabel('詳しい説明（任意）', { exact: true })).toHaveValue(
+      '変更した説明',
+    );
+    expect(posts).toBe(1);
+    deny = false;
+    await account.page.getByRole('button', { name: '受付状態を確認', exact: true }).click();
+    await expect(account.page.getByText(/受付をまだ確認できませんでした/)).toBeVisible();
+    await expect(confirm(account.page)).not.toBeChecked();
+    await expect(submit(account.page)).toBeDisabled();
+    await expect(account.page.getByLabel('詳しい説明（任意）', { exact: true })).toBeEditable();
+    failPost = false;
+    await confirm(account.page).check();
+    await submit(account.page).click();
+    await expect(
+      account.page.getByText(/通報の受付を確認しました。運営判断や通知メール/),
+    ).toBeVisible();
+    expect(posts).toBe(2);
+  } finally {
+    await account.ctx.close();
+  }
 });

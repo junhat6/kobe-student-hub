@@ -1,0 +1,21 @@
+# Keep prose, applied SQL, generated bindings, evidence and secrets untouched.
+**/*.md
+**/*.sql
+/worker-configuration.d.ts
+**/package-lock.json
+/node_modules/
+/dist/
+/.worker/
+/.wrangler/
+/docs/
+/experiments/
+/.impeccable/
+/.editor-preview/
+/.generation-preview/
+/.limited-preview/
+/.trial-assets/
+/playwright-report*/
+/test-results*/
+**/.env*
+**/.dev.vars*
+/.husky/_/
