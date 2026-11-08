@@ -6,7 +6,11 @@
 
 **Planner / 仮説と受入条件:** 読後の課題を外すと、具体例を自分の都合で参照できるのではないか。架空sample一件の末尾の課題見出しと指示段落を削除し、3項目直後の一文だけを記録例の説明へ直す。別名の課題やCTAは足さず、技術選定の具体例・比較・3項目・再選定／作品説明の使い道・参考資料を保つ。適用済み0003とmigrationは変更せず、全15列guardの0004と逆操作で更新する。
 
-**Developer / 検証:** 本文と編集日だけを変更し、概算6分と他のmetadataは維持した。local初期化・Worker fixtureを0003→0004へ接続し、既存の実D1 guard試験対象へ追加した。build・78files／709unit／Worker（17.95秒）・公開PC/mobile62件（11.5秒）・localDB・dry-runが成功。CI=1で開始前に空きを確認した8787へ所有serverを起動し、終了後は観測子processと待受の不存在を確認した。強制停止・他人のserver再利用／停止は0。[実行結果](EVIDENCE.md)を保持する。実装者の確認を独立QAや学生価値の成功とは扱わない。
+**Developer / 本文段階（bba3a0b）:** 本文と編集日だけを変更し、概算6分と他のmetadataは維持した。local初期化・Worker fixtureを0003→0004へ接続し、既存の実D1 guard試験対象へ追加した。build・78files／709unit／Worker（17.95秒）・公開PC/mobile62件（11.5秒）・localDB・dry-runが成功。CI=1で開始前に空きを確認した8787へ所有serverを起動し、終了後は観測子processと待受の不存在を確認した。強制停止・他人のserver再利用／停止は0。[実行結果](EVIDENCE.md)を保持する。実装者の確認を独立QAや学生価値の成功とは扱わない。
+
+**独立QAによる範囲修正:** 本文段階は関連D1 2件（対象外9skip）・補助10確認と、PC/mobile各4群／4画像の確認が成功した。初回browserはQA helperがSuspenseの外枠だけを待って失敗したため、同期点だけ本文tableへ直し、元記録を保持した。一方、本文の後に共通UIの読後promptが残る所見があり、同じ仮説の範囲で記事／作品共通のblockも除去する。旧段階の成功を最終UIの合格とは扱わない。
+
+**Developer / 共通UI修正後:** 共通block一件と専用CSS 5規則だけを除き、関連記事sectionへ既存40pxの上余白を移した。代替の問い・CTA・新機能・articleId条件は足さず、0004／逆操作／sampleは本文段階から不変。最終build・78files／709unit／Worker（20.01秒）・公開PC/mobile62件（11.5秒）・localDB・dry-runが成功し、CI=1で所有起動したserver／観測子processと8787待受を終了した。共通UI修正後の独立視覚QAとdetectorは別の次工程である。
 
 **Replanning:** 実行結果と別contextの独立QA、CIを確認してからmain／本番の一件反映へ進む。ここではpush・remote SQL・配備は行わない。この任意参照の価値は未確認で、実認証・投稿のgateも変更しない。
 

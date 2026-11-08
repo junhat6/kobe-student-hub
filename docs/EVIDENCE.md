@@ -683,3 +683,11 @@ base main `e88b25e`。[PR #110](https://github.com/junhat6/kobe-student-hub/pull
 実行したbuild、localDB初期化、78files／709unit・Worker（Vitest17.95秒）、公開Chromium PC/mobile62件（11.5秒）、deploy dry-runが全成功。PlaywrightはCI=1で既存serverの再利用を止め、8787が空いた状態から既存管理commandで起動した。所有runner／server／browser・観測子processと8787待受の終了を確認し、強制停止・未知／user processの停止は0。実装者の確認は学生価値や実端末、実Google／実投稿の検証ではない。
 
 別contextの独立QAとCIは次の工程であり、ここでは成功とは扱わない。push・remote SQL・Worker配備、schema／gate／credential／grant／契約変更は0。本番の本文はこのローカル準備だけでは変わらず、任意に参照しやすくなるという仮説の価値も未確認である。
+
+### 共通の読後promptも除去する — 同じ仮説内の範囲修正
+
+本文段階`bba3a0b`の独立QAは、関連D1 2件（対象外9skip）と固定id／逆操作等の補助10確認に成功した。browser初回はdesktop旅程でhelperがSuspense外枠の可視だけを待ち、本文heading数0を判定して停止した（画像0）。同期点だけを本文tableの可視待ちへ直し、timeout／受入条件／製品sourceは変更せず、元source・失敗結果・log・cleanupを保持した。その後のPC/mobile各4群・代表4画像の確認は成功したが、本文直後の共通UI promptが残る所見は未解決だった。初回phase記録のSHAは`ff85003bd4e135487c3750a298479e9923da5709c290a088e84281f2bab2fca4`。この結果を最終UIの成功へ加算しない。
+
+旧末尾のPC/mobile画像を実装者も開き、Impeccableのclarify／craft-floor参照と既存の世界観に沿って共通blockを除去した。専用CSS 5規則を取り除き、関連記事sectionの上余白40pxだけを維持した。新しいcopy／CTA／機能や特定記事の分岐はなく、brandingや他のcopy／CSSは変更していない。本文段階の0004・逆操作・sampleを含む既存変更は不変である。
+
+共通UI修正後にbuild・localDB・78files／709unit／Worker（20.01秒）・公開PC/mobile62件（11.5秒）・deploy dry-runを改めて実行し、全て成功した。CI=1・8787開始前空き確認で管理serverを所有起動し、runner／browser・観測子processと待受の終了を確認。強制停止・他sessionの再利用／停止は0。最終の独立視覚QA・detector／CI・本番反映はまだ別工程で、学生価値も未確認のまま。push・remote SQL・配備は行っていない。
