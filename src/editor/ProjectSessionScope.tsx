@@ -14,15 +14,17 @@ import {
   SessionClientError,
   type AuthorSessionGuard,
 } from './session-client';
-/** Local project-report surfaces only. Preserve hidden same-session buffers; never create an identity. */
+/** Shared report-session boundary. Preserve hidden same-session buffers; never create an identity. */
 export default function ProjectSessionScope({
   children,
   initial = false,
   label,
+  signedOutMessage = '現在ログインしていません。前の入力・通報内容は閉じています。このローカル検証では学校Googleログインは利用できません。',
 }: {
   children: (session: { csrf: string; fetcher: typeof fetch }) => ReactNode;
   initial?: boolean;
   label: string;
+  signedOutMessage?: ReactNode;
 }) {
   const client = useMemo(() => createSessionClient(), []);
   const guard = useRef<AuthorSessionGuard | null>(null),
@@ -37,7 +39,7 @@ export default function ProjectSessionScope({
     [candidate, setCandidate] = useState<string | null>(null),
     [concealed, setConcealed] = useState(true),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(''),
+    [message, setMessage] = useState<ReactNode>(''),
     [inspectionGeneration, setInspectionGeneration] = useState(0);
   function conceal() {
     if (privatePanel.current) {
@@ -55,7 +57,7 @@ export default function ProjectSessionScope({
     guard.current?.invalidate();
     guard.current = null;
   }
-  function discard(text: string) {
+  function discard(text: ReactNode) {
     conceal();
     reset();
     token.current = null;
@@ -137,9 +139,7 @@ export default function ProjectSessionScope({
     } catch (error) {
       if (mounted.current && run === revision.current) {
         if (error instanceof SessionClientError && error.kind === 'signed-out')
-          discard(
-            '現在ログインしていません。前の入力・通報内容は閉じています。このローカル検証では学校Googleログインは利用できません。',
-          );
+          discard(signedOutMessage);
         else unknown();
       }
     } finally {

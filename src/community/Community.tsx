@@ -14,7 +14,7 @@ import { createPublicationClient } from '../editor/publication-client';
 import { createPublicAuthorClient } from '../editor/public-author-client';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import LikePanel from '../editor/LikePanel';
-import ReportPanel from '../editor/ReportPanel';
+import OrdinaryArticleReport from './OrdinaryArticleReport';
 import { createPublicLikesClient } from '../editor/public-likes-client';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
@@ -211,10 +211,9 @@ function StudentArticle({ id }: { id: string }) {
           <MarkdownRenderer body={entry.body} />
         </div>
         <LikePanel key={`like-${entry.id}`} contentId={entry.id} surface="ordinary" />
-        <ReportPanel
+        <OrdinaryArticleReport
           key={`report-${entry.id}`}
           contentId={entry.id}
-          surface="ordinary"
           onNavigationRiskChange={reportRisk}
         />
       </article>

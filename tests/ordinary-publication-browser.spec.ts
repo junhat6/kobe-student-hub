@@ -1,4 +1,4 @@
-import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
@@ -32,10 +32,7 @@ async function register(page: Page, info: TestInfo) {
   await page.unroute(provider);
 }
 
-test('ordinary saved article → anonymous reader/author/feed → owner publication stop', async ({
-  page,
-  browser,
-}, info) => {
+async function publishArticle(page: Page, info: TestInfo, title = '架空のAI技術選定ノート') {
   await register(page, info);
   await page.getByText('公開プロフィールを準備する', { exact: true }).click();
   const profile = page.getByRole('region', { name: '公開プロフィールの初回作成' });
@@ -50,7 +47,7 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
   );
   await page.getByRole('link', { name: '下書きを書く・再開する' }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
-  await page.getByLabel('タイトル', { exact: true }).fill('架空のAI技術選定ノート');
+  await page.getByLabel('タイトル', { exact: true }).fill(title);
   await page
     .getByLabel('Markdown本文', { exact: true })
     .fill('## 条件\n\nこの文章は公開する保存版です。');
@@ -70,6 +67,14 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
   await expect(publicLink).toBeVisible();
   const articlePath = await publicLink.getAttribute('href');
   expect(articlePath).toMatch(/^\/articles\/[0-9a-f-]{36}$/);
+  return articlePath!;
+}
+
+test('ordinary saved article → anonymous reader/author/feed → owner publication stop', async ({
+  page,
+  browser,
+}, info) => {
+  const articlePath = await publishArticle(page, info);
 
   // A subsequent saved draft is private; publication remains the explicitly confirmed snapshot.
   await page.getByLabel('Markdown本文', { exact: true }).fill('PRIVATE_FICTIONAL_CONTINUATION');
@@ -159,4 +164,167 @@ test('ordinary profile input survives cancelled SPA navigation', async ({ page }
   await click;
   await expect(page).toHaveURL(ORIGIN + '/account');
   await expect(page.getByLabel('表示名 必須')).toHaveValue('未保存の架空プロフィール');
+});
+
+// Use the existing signed-provider HTTP flow to replace a cookie without changing the observed page.
+// Proofs remain local variables and are not returned or written to browser storage.
+async function replaceSession(context: BrowserContext) {
+  const headers = { Origin: ORIGIN };
+  const boot = await context.request.post(ORIGIN + '/api/auth/bootstrap', { headers });
+  expect([204, 409]).toContain(boot.status());
+  const command = await context.request.post(ORIGIN + '/api/auth/command?action=login', {
+    headers,
+  });
+  expect(command.status()).toBe(200);
+  const proof = await command.json();
+  const started = await context.request.post(ORIGIN + '/api/auth/start', {
+    headers: { ...headers, Authorization: 'Bearer command.' + proof.commandToken },
+  });
+  expect(started.status()).toBe(200);
+  const url = new URL((await started.json()).authorizationUrl),
+    state = url.searchParams.get('state')!,
+    nonce = url.searchParams.get('nonce')!;
+  expect(
+    (
+      await context.request.get(
+        ORIGIN +
+          '/__control/token?' +
+          new URLSearchParams({ state, nonce, actor: 'fictional-browser-b' }),
+      )
+    ).status(),
+  ).toBe(200);
+  expect(
+    (
+      await context.request.get(
+        ORIGIN + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+        { maxRedirects: 0 },
+      )
+    ).status(),
+  ).toBe(303);
+  expect((await context.request.get(ORIGIN + '/api/private/session')).status()).toBe(200);
+}
+
+const reportReason = (page: Page) => page.getByLabel('通報理由（必須）', { exact: true });
+async function openReport(page: Page, articlePath: string) {
+  let privateReads = 0;
+  const observe = (request: import('@playwright/test').Request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/private/')) privateReads++;
+  };
+  page.on('request', observe);
+  await page.goto(articlePath);
+  await expect(page.locator('.prose')).toContainText('この文章は公開する保存版です。');
+  expect(privateReads).toBe(0);
+  await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+  await expect(reportReason(page)).toBeEditable();
+  page.off('request', observe);
+}
+
+test('ordinary report retains same-session input while an unknown session stays concealed', async ({
+  page,
+}, info) => {
+  const articlePath = await publishArticle(page, info, '架空の通報境界ノート');
+  await openReport(page, articlePath);
+  await reportReason(page).fill('同じセッションだけで再開する架空の理由');
+  await page.getByLabel('詳しい説明（任意）').fill('同じページのメモリに保持する架空の詳細');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(reportReason(page)).toBeHidden();
+  await expect(reportReason(page)).toHaveValue('同じセッションだけで再開する架空の理由');
+  await page.route('**/api/private/session', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: '{"error":"unavailable"}',
+    }),
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.getByText(/セッションを確認できませんでした。入力・通報内容は/)).toBeVisible();
+  await expect(reportReason(page)).toBeHidden();
+  await expect(reportReason(page)).toHaveValue('同じセッションだけで再開する架空の理由');
+  await page.unroute('**/api/private/session');
+  await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+  await expect(reportReason(page)).toBeEditable();
+  await expect(reportReason(page)).toHaveValue('同じセッションだけで再開する架空の理由');
+  await expect(page.getByLabel('詳しい説明（任意）')).toHaveValue(
+    '同じページのメモリに保持する架空の詳細',
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('region', { name: '記事の通報', exact: true }).screenshot({
+    path: info.outputPath('ordinary-report-same-session.png'),
+  });
+});
+
+test('ordinary report blocks A input under B without a lifecycle event and requires explicit continuation', async ({
+  page,
+  context,
+}, info) => {
+  const articlePath = await publishArticle(page, info, '架空の通報境界ノート');
+  await openReport(page, articlePath);
+  await reportReason(page).fill('Aのセッションでだけ扱う架空の理由');
+  await page.getByLabel('詳しい説明（任意）').fill('Aの架空の詳細');
+  await page
+    .getByRole('checkbox', { name: '入力した理由・詳細を運営の確認用として送信します' })
+    .check();
+  let reportPosts = 0;
+  page.on('request', (request) => {
+    if (
+      new URL(request.url()).pathname.startsWith('/api/private/reports/') &&
+      request.method() === 'POST'
+    )
+      reportPosts++;
+  });
+  await replaceSession(context);
+  await page.getByRole('button', { name: '確認した内容で通報を送信', exact: true }).click();
+  await expect(reportReason(page)).toHaveCount(0);
+  await expect(
+    page.getByText(/セッションが無効または変更されたため、前の入力・通報内容を消しました/),
+  ).toBeVisible();
+  expect(reportPosts).toBe(0);
+  await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+  await page
+    .getByRole('button', { name: '確認したセッションで通報画面を開く', exact: true })
+    .click();
+  await expect(reportReason(page)).toBeEditable();
+  await expect(reportReason(page)).toHaveValue('');
+  await expect(page.getByLabel('詳しい説明（任意）')).toHaveValue('');
+  await expect(
+    page.getByRole('checkbox', { name: '入力した理由・詳細を運営の確認用として送信します' }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole('button', { name: '確認した内容で通報を送信', exact: true }),
+  ).toBeDisabled();
+  expect(reportPosts).toBe(0);
+  await page.getByRole('region', { name: '記事の通報', exact: true }).screenshot({
+    path: info.outputPath('ordinary-report-changed-session.png'),
+  });
+});
+
+test('ordinary report removes its input after logout in another tab', async ({
+  page,
+  context,
+}, info) => {
+  const articlePath = await publishArticle(page, info, '架空の通報境界ノート');
+  await openReport(page, articlePath);
+  await reportReason(page).fill('ログアウトで消える架空の理由');
+  const session = await context.request.get('/api/private/session');
+  expect(session.status()).toBe(200);
+  const { csrfToken } = await session.json();
+  expect(
+    (
+      await context.request.post('/api/private/logout', {
+        headers: { Origin: ORIGIN, Authorization: 'Bearer csrf.' + csrfToken },
+      })
+    ).status(),
+  ).toBe(200);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(reportReason(page)).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'ログインしてください', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: '確認した内容で通報を送信', exact: true }),
+  ).toHaveCount(0);
 });

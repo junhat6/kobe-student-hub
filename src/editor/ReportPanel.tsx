@@ -10,17 +10,21 @@ import './moderation.css';
 export default function ReportPanel({
   contentId,
   surface = 'lab',
+  fetcher = fetch,
+  embedded = false,
   onNavigationRiskChange,
 }: {
   contentId: string;
   surface?: PublicSurface;
+  fetcher?: typeof fetch;
+  embedded?: boolean;
   onNavigationRiskChange?: (risk: boolean) => void;
 }) {
-  const client = useMemo(() => createModerationClient(), []);
+  const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
   const panelId = useId();
   const mounted = useRef(true);
   const lock = useRef(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [csrf, setCsrf] = useState('');
@@ -114,6 +118,9 @@ export default function ReportPanel({
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (embedded) void check();
+  }, [embedded, client, contentId]);
   const hasUnsaved = (!received && (Boolean(input.reason) || Boolean(input.detail))) || uncertain;
   useLayoutEffect(
     () => onNavigationRiskChange?.(hasUnsaved || busy),
@@ -133,29 +140,35 @@ export default function ReportPanel({
     setInput((current) => ({ ...current, [key]: value }));
     setConfirmed(false);
   }
+  const Container = embedded ? 'div' : 'section';
   return (
-    <section className="report-panel" aria-label="記事の通報">
-      <Button
-        aria-expanded={open}
-        aria-controls={panelId}
-        disabled={busy}
-        onClick={() => {
-          if (open) setOpen(false);
-          else {
-            setOpen(true);
-            void check();
-          }
-        }}
-      >
-        {open
-          ? '通報の確認を閉じる'
-          : surface === 'ordinary'
-            ? 'この記事を通報する'
-            : 'この記事を通報する（ローカル検証）'}
-      </Button>
-      {open && (
+    <Container
+      className={embedded ? undefined : 'report-panel'}
+      aria-label={embedded ? undefined : '記事の通報'}
+    >
+      {!embedded && (
+        <Button
+          aria-expanded={open}
+          aria-controls={panelId}
+          disabled={busy}
+          onClick={() => {
+            if (open) setOpen(false);
+            else {
+              setOpen(true);
+              void check();
+            }
+          }}
+        >
+          {open
+            ? '通報の確認を閉じる'
+            : surface === 'ordinary'
+              ? 'この記事を通報する'
+              : 'この記事を通報する（ローカル検証）'}
+        </Button>
+      )}
+      {(embedded || open) && (
         <div id={panelId} className="report-panel-content">
-          <h2>記事の通報</h2>
+          {!embedded && <h2>記事の通報</h2>}
           {surface === 'lab' && (
             <p className="moderation-local-notice">
               架空のデータによるローカル専用の検証です。実際の学校ログインや運営への連絡機能は提供していません。
@@ -248,6 +261,6 @@ export default function ReportPanel({
           </p>
         </div>
       )}
-    </section>
+    </Container>
   );
 }
