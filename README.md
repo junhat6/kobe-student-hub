@@ -2,7 +2,7 @@
 
 神戸電子の学生が、記事・作品を入口に知識・経験・活動を共有するWebアプリ。学校公式サービスではありません。名称は仮称です。
 
-[公開プレビュー](https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/)
+[本番サンプル](https://hub.junhat6.com/) · [別プレビュー](https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/)
 
 **現在は架空サンプルの閲覧用の開発プレビューです。実サービスの公開・学生の募集は未実施。** 一覧、検索・タグ、記事と作品の詳細、想定読者・前提知識、投稿者プロフィール、関連記事を実装しました。ログイン・投稿・下書き・いいね・履歴・メディア・通報は未提供です。
 
@@ -82,4 +82,4 @@ URLは `https://127.0.0.1:8788`。自己署名証明書を使い、ブラウザ�
 
 初回申請の承認・取消・監査と期限付き保持は、架空データだけのサーバー専用準備です。実在の資格基準や運営権限は設定していません。[限定承認の手順と限界](docs/LOCAL-ADMISSION.md)・[認証データの維持](docs/AUTH-MAINTENANCE.md)。
 
-本人限定の試用機能は撤去します。専用ログイン・下書き画面・配信物を除き、旧URLは404に固定します。[撤去範囲と検証](docs/RETIRED-DRAFT-TRIAL.md)を参照してください。
+本人限定の試用機能は撤去済みです。専用ログイン・下書き画面・配信物と有効化設定を取り除き、旧URLは404に固定しています。[撤去範囲と検証](docs/RETIRED-DRAFT-TRIAL.md)・[本番撤去の完了記録](https://github.com/junhat6/kobe-student-hub/pull/98#issuecomment-6716702252)を参照してください。
