@@ -516,3 +516,26 @@ PR #97の初回CI `42437892754` はlimited browser38成功／2失敗。PC/mobile
 独立QAは隔離build/typecheck、関連7 files /67 tests（2.08s）、追加の設定getter非参照1 test（95ms）、PC/mobile10 browser cases（3.4s）を実行して成功。開発側8件に加え、エンコードしたprefix・slash・繰返しslashのGET/HEAD拒否を確認した。4画像を目視確認し、17ファイルの指紋を照合、阻害所見なし。[独立報告](QA-RETIRED-DRAFT-TRIAL.md)。開発側公開E2E60（10.8s）・deploy:checkも成功。実際のgrant/session/binding除去と配備は、このローカルQAとは別に確認する。
 
 開発側の共有editor回帰は181 passed／1既存skip（3.4m）、auth browser5（2.5s）、pending pilot1（1.4s）が成功。generated typesに差分なし。独立にレビューした対象限定のruntime撤去手順で、本番の専用grant／既存sessionの失効、専用binding除去を実施し、配備中versionのbinding・他設定・asset経路の保持を照合した。本文・認証情報・試用設定値は取得／公開していない。実URLでは旧entry・既知の旧JS/CSS404/no-store/no-cookie、private/login GET405/no-cookie、health正常と架空catalog4件／2プロフィールを確認した。これはソース配備前のruntime閉鎖の結果であり、専用コード・assetsの配備上の撤去はgreen main後に別途記録する。
+
+## 制作ノートの具体化 — ローカル準備
+
+- 実装commit: `001a9a8765692ead688814b34a2aeab0b947486c`、base main9076294。公開sampleの本文・説明metadataと明示editorial/rollback SQLだけを変更し、既存migration・auth・schema・本番設定は変更しない。
+- Developer実行: `npm run build`成功、`npm test`68files／587passed（15.73s）、`npm run db:local`成功、`npm run test:e2e`PC/mobile Chromium60passed（11.1s）、`npm run deploy:check`成功、`git diff --check`成功。
+- 実D1テスト: sourceと配信DTOの全公開値一致、初回1件／再実行0件、旧値の各変更・非公開・non-sample保護、他行保持、明示rollbackと再適用を確認。これは架空ローカルデータの動作確認で、実学生の理解や学習成果ではない。
+- 公開本番のread-only確認では、対象本文SHA256が既存の閲覧開始時baselineと一致、4samples／2profilesを維持。remote SQL／デプロイは実行していない。public E2Eが自動起動したroot8787のserver・子process・listenerは終了を確認した。
+- [PR #99](https://github.com/junhat6/kobe-student-hub/pull/99)はDraftで準備。独立QAとCIの最終結果は追記する。ローカルの画面確認を実端末・学生価値の証拠へ置き換えず、私的回答をこの記録へ転載しない。
+
+**別コンテキスト独立QA（同実装commit）:** 隔離archiveのbuildと実Worker/D1関連9testsが成功。別のSQL読取レビューと補足SQLiteで、forward／rollbackそれぞれ全15列の単独変更（合計30条件）が更新0件・変更値保持となることを確認。これはD1テストの代替ではなく補足検証。
+
+実ローカルWorker/D1とChromiumのPC1440×1000／iPhone13相当390×664の2contextsで、各12受入群（計24）を確認。架空notice、冒頭結論、記録の目的、記入例、説明例、未確認の区別、次の一歩、metadataと全DTO一致、記事→著者→記事→関連作品が成功。各9地点（計18）でdocument横overflowなし、pageerror0。7行のtext記録枠は改行込みで実clipboardへ完全コピーし、手動選択fallbackも全項目を保持した（native選択文字列の末尾改行省略は区別）。
+
+画像20枚を独立担当がすべて目視確認し、実装者も記入例PC／mobile続き／mobile選択画像の3枚を確認。画像とmachine reportはローカルだけに保持し公開しない。QAの18787 serverはarchive内の専用PGIDを子processごと終了し、group生存0・listenerなしを確認。実スマホ／Safari、実学生の理解・実践、実Google／投稿はこのQAで検証していない。
+
+Source照合SHA256:
+
+```text
+src/sample.ts d15ee67179983a5c32b04931d25bff6807c7cfc24269056e349b2cde4b896d18
+content-revisions/0002_learning_notes.sql 02d630ceec3df792e84e67d278f6eb3e8d756b5a79fa7da2a97fe8248fd9060f
+content-revisions/rollback/0002_learning_notes.sql b46f75d53b0dd21aa2c3d911fccbade78c95b1d52df54f876c223fc1fcba03d2
+tests/worker.test.ts 9fa92c9b723601315fe13783be4a3213c52822984ef00e56a933411476673663
+```

@@ -702,3 +702,17 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 **本番 / 再計画:** 独立QAとgreen CI後、対象のtrial grant/session失効・binding除去・専用assetsなしの配備を個別に検証する。共通のアカウント・schema・secretを削除せず、個人情報や試用設定値は公開しない。撤去後は試用向けの追加機能を作らず、本来の記事・作品・経験共有のjourneyを基に次の改善を選ぶ。学生価値・実端末の検証は別途必要。
 
 **独立QAとruntime閉鎖:** ソースの独立QA（関連67＋追加1unit、PC/mobile10cases、4画像）に阻害所見なし。共有editor181成功／1既存skip、auth browser5・pending pilot1・公開60・unit/Worker585も成功。本番は先に専用grant/sessionを失効し専用bindingを除去、他設定保持と旧URL拒否を確認した。ソース／専用配信物の撤去はPRとgreen mainを経て完了する。私的運用値は公開しない。
+
+## 制作ノートの公開サンプルを具体化する（準備中）
+
+**Planner / 現在地:** main9076294・成功CI・open Issue/PRと公開記事を確認。PR #96はCI成功のDraft／未マージで、既存のready拒否を回避しない。既存`learning-notes`は振り返りの問いを示すが、記入済みのノートや読み返して使う具体例はない。実認証・運営接続とは別に、既存の読者journeyに沿う本文の改善を1件だけ準備する。私的な回答や参加者情報は公開記録へ転載しない。
+
+**価値仮説 / 受入条件:** 冒頭に結論を置き、記録を残す目的、制作中の記入例、後で自分の判断・確認・未確認を説明する例、手元で始められる記録枠を加えると、読後の行動を具体化しやすくなるのではないか。架空の例であることを維持し、実体験・検証済みの効果・就職成果として語らない。概要・想定読者・読後説明・読む目安を本文へ合わせ、他の記事・画面機能を増やさない。
+
+**保存／検証条件:** 適用済みmigrationは変更せず、対象の公開sampleの旧値全体が一致した場合だけ更新する独立したeditorial SQLを用意する。ローカル初期化・Worker fixtureとsource sampleを揃え、実D1上の一度だけの更新・再実行・他編集／private／non-sample保護を確認する。PC/mobileの本文・関連先・投稿者導線を別コンテキストでQAし、必要な通常checkとCIへ進む。
+
+**再計画:** 既存記事の閲覧確認中は本番本文を維持する。ローカル／PR準備と実データへのeditorial適用は分け、学生の回答・実践とAI動作確認を区別する。新しい本人限定試用や回答収集UIは作らない。実認証・投稿・運営の公開条件は引き続き未完了。
+
+**実装／独立QAと再計画:** 架空の検索修正について、記録の目的→条件・判断・確認の記入例→作品説明の例→7行の記録枠→次の確認へ本文を接続した。Developer build・68files587unit/Worker・公開PC/mobile60・localDB・dry-runが成功。別コンテキストの隔離build／実D1関連9tests、PC/mobile2contexts計24受入群と18地点の横overflow確認、実clipboard／選択fallback・投稿者／関連作品導線にも阻害所見なし。追加SQL reviewは全15列のforward／rollback変更保護を確認した。[検証記録](EVIDENCE.md#制作ノートの具体化--ローカル準備)と[PR #99](https://github.com/junhat6/kobe-student-hub/pull/99)を参照。これらはAIによる動作確認で、学生価値の成功判定ではない。
+
+閲覧開始時の本番本文baselineはread-onlyで一致を確認し、remote SQL／deployは行っていない。PRはDraftのまま通常CIを完了させ、読後に選ぶ行動の実観察を得てから、本文改善の実適用と再評価を分けて扱う。私的回答は公開しない。実認証・運営の未決条件を、本文改稿やテスト成功で満たしたことにしない。
