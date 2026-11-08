@@ -691,3 +691,13 @@ base main `e88b25e`。[PR #110](https://github.com/junhat6/kobe-student-hub/pull
 旧末尾のPC/mobile画像を実装者も開き、Impeccableのclarify／craft-floor参照と既存の世界観に沿って共通blockを除去した。専用CSS 5規則を取り除き、関連記事sectionの上余白40pxだけを維持した。新しいcopy／CTA／機能や特定記事の分岐はなく、brandingや他のcopy／CSSは変更していない。本文段階の0004・逆操作・sampleを含む既存変更は不変である。
 
 共通UI修正後にbuild・localDB・78files／709unit／Worker（20.01秒）・公開PC/mobile62件（11.5秒）・deploy dry-runを改めて実行し、全て成功した。CI=1・8787開始前空き確認で管理serverを所有起動し、runner／browser・観測子processと待受の終了を確認。強制停止・他sessionの再利用／停止は0。最終の独立視覚QA・detector／CI・本番反映はまだ別工程で、学生価値も未確認のまま。push・remote SQL・配備は行っていない。
+
+### 共通UI修正後の独立confirm
+
+固定`6aa5a50`で同じ最小旅程を一回confirmし、PC/mobile各4群・代表4画像を確認した。記事／作品の両kindで共通blockと促し2文が無く、本文末尾の資料から関連作品へ続く。資料4href・投稿者・関連作品の導線を保持し、4画像は独立担当が実際に開いた。SQL／sample／Worker／試験等7filesの不変SHAを照合し、変更していないD1検査を繰り返さず旧phaseの実D1証拠を再利用した。初回同期失敗と残prompt所見は不変で保持し、学生価値の成功へ加算しない。
+
+最終confirmは18確認成功、report指紋`9c5ea7866b7441a25ccd1b841105ff094ec1d470981ba3a2a2abf7623c94e253`。rootも末尾PC/mobileの代表2画像を開いた。旧phaseの28artifactは不変で、所有Node／server／browser・観測子process／PG、8787／9797と制御portの終了を確認。dependency linkも除去済みで、他sessionのserverを停止していない。
+
+Impeccable detectorは最終の2UI fileへ一回実行（exit2）。引用枠・既存装飾・font宣言の3warningを記録し、各snippetが修正前にも存在することをsourceで照合した。今回追加したのは関連sectionの40px余白だけで、指摘patternを追加していない。既存の見た目を今回の範囲外で変更せず、detectorの全面合格とは扱わない。private判定SHAは`304a851252fc0ce20f43a94acd256b923f4ccdbc4e796d9f86aa1ffb3ff45bc7`。
+
+本文段階`bba3a0b`のCI42509925937はscope変更に伴い取消済みで、最終版CIや成功件数へ加算しない。最終PR/main CI、実Worker配備とeditorial一件反映、独立本番QAはこの記録時点で未実施である。

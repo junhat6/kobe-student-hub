@@ -12,7 +12,9 @@
 
 **Developer / 共通UI修正後:** 共通block一件と専用CSS 5規則だけを除き、関連記事sectionへ既存40pxの上余白を移した。代替の問い・CTA・新機能・articleId条件は足さず、0004／逆操作／sampleは本文段階から不変。最終build・78files／709unit／Worker（20.01秒）・公開PC/mobile62件（11.5秒）・localDB・dry-runが成功し、CI=1で所有起動したserver／観測子processと8787待受を終了した。共通UI修正後の独立視覚QAとdetectorは別の次工程である。
 
-**Replanning:** 実行結果と別contextの独立QA、CIを確認してからmain／本番の一件反映へ進む。ここではpush・remote SQL・配備は行わない。この任意参照の価値は未確認で、実認証・投稿のgateも変更しない。
+**Independent QA / 最終confirm:** 固定`6aa5a50`を別contextで確認し、PC/mobile各4群・4画像で記事／作品の両kindに共通blockと促し2文が無いこと、資料・投稿者・関連作品の導線が保たれることを確認した。SQL／sample／Worker等の不変指紋を照合し、既存の実D1証拠を再利用した。機械detectorは一回実行し、既存CSSの3warningを保持した。該当snippetは修正前にも存在し、今回の差分で新しい同patternは追加していない。全面的なdesign監査の合格とは扱わない。
+
+**Replanning:** 最終PR/main CIと実main sourceを照合後、新assetsのWorkerを一回配備し、旧D1保持を確かめてから全15列guardのeditorial一件を反映する。各ACKと設定／他sample保持を確認し、別担当の公開GET/browser QAで締める。本文段階の旧CIは最終UIの証拠には使わず、scope変更に伴い取消した。この任意参照の価値は未確認で、実認証・投稿のgateも変更しない。
 
 ## Worker外側の例外値を固定503へ収める
 
