@@ -6,3 +6,5 @@
 .draft-editor--ordinary .editor-status{font-size:14px}.draft-editor--ordinary .editor-publish-note p{font-size:14px}.draft-editor--ordinary .editor-layout{gap:32px}.draft-editor--ordinary .editor-eyebrow{display:none}
 .ordinary-drafts .draft-editor input,.ordinary-drafts .draft-editor textarea{caret-color:#076db3}.ordinary-drafts .draft-editor .editor-draft-list{scrollbar-color:#98adbb #edf3f7;scrollbar-width:thin}
 @media(max-width:720px){.ordinary-drafts{margin:24px 16px 40px;padding:0}.ordinary-drafts .session-control{padding:24px 20px}.ordinary-drafts .account-signed-out{padding:0 20px}.draft-editor--ordinary .editor-layout{gap:24px}.draft-editor--ordinary .editor-side-heading h2{font-size:22px}}
+
+.draft-editor--ordinary .editor-recovery{border-left-width:1px;border-left-color:#b8cbd9}
