@@ -160,6 +160,7 @@ for (const f of [
   '0016_self_declared_enrollment.sql',
   '0017_self_registration.sql',
   '0018_article_moderation_decisions.sql',
+  '0019_moderation_notifications.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

@@ -48,8 +48,11 @@ export function createOrdinaryDraftHandler(
     // routes still enforce the authenticated actor allowlist on every operation.
     if (
       path.startsWith('/api/private/reports') ||
+      path.startsWith('/api/private/notifications') ||
       path === '/api/private/moderation/session' ||
-      (options.operatorIds?.length && path.startsWith('/api/private/moderation/cases'))
+      (options.operatorIds?.length &&
+        (path.startsWith('/api/private/moderation/cases') ||
+          path.startsWith('/api/private/moderation/notifications')))
     ) {
       return reports(request);
     }

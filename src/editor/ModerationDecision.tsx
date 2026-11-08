@@ -16,6 +16,7 @@ export default function ModerationDecision({
   onResolved,
   onRiskChange,
   onBusyChange,
+  notifications = false,
 }: {
   client: ReturnType<typeof createModerationClient>;
   detail: ModerationCase;
@@ -23,6 +24,7 @@ export default function ModerationDecision({
   onResolved: (receipt: ModerationDecisionReceipt) => void;
   onRiskChange: (risk: boolean) => void;
   onBusyChange: (busy: boolean) => void;
+  notifications?: boolean;
 }) {
   const [reason, setReason] = useState('');
   const [phase, setPhase] = useState<'editing' | 'confirming' | 'sending' | 'unknown'>('editing');
@@ -138,7 +140,9 @@ export default function ModerationDecision({
             aria-describedby="moderation-reason-help"
           />
           <p id="moderation-reason-help" className="moderation-limit">
-            1000文字以内。理由は運営の判断記録に保存されます。
+            {notifications
+              ? '1000文字以内。理由は運営の記録に保存し、対象の本人にも表示します。'
+              : '1000文字以内。理由は運営の判断記録に保存されます。'}
           </p>
           <div className="moderation-actions">
             <Button disabled={state.status !== 'hidden'} onClick={() => prepare('restore')}>
@@ -220,7 +224,9 @@ export default function ModerationDecision({
         )
       )}
       <p className="moderation-limit">
-        通知の送信は未設定です。判断の受付を、メールの送信完了として扱いません。
+        {notifications
+          ? '本人への説明記録とメールの受理・到達は別に扱います。'
+          : '通知の送信は未設定です。判断の受付を、メールの送信完了として扱いません。'}
       </p>
     </section>
   );

@@ -409,3 +409,53 @@ test('ordinary report cancels a pending initial session proof on hide and ignore
     await page.unroute('**/api/private/session');
   }
 });
+
+test('owner reads a temporary-hide explanation and another session cannot retain it', async ({
+  page,
+  browser,
+}, info) => {
+  const articlePath = await publishArticle(page, info, '架空の通知記事-' + info.project.name);
+  const id = articlePath.split('/').at(-1)!;
+  const reporters: BrowserContext[] = [];
+  try {
+    for (let n = 0; n < 3; n++) {
+      const ctx = await browser.newContext({ baseURL: ORIGIN, ignoreHTTPSErrors: true });
+      reporters.push(ctx);
+      const reporter = await ctx.newPage();
+      await register(reporter, info);
+      const session = await ctx.request.get('/api/private/moderation/session');
+      expect(session.status()).toBe(200);
+      const { csrfToken } = await session.json();
+      expect(
+        (
+          await ctx.request.post('/api/private/reports/' + id, {
+            headers: { Origin: ORIGIN, Authorization: 'Bearer csrf.' + csrfToken },
+            data: { reason: 'PRIVATE_REPORTER_REASON_' + n, detail: 'PRIVATE_REPORTER_DETAIL' },
+          })
+        ).status(),
+      ).toBe(200);
+    }
+    await page.goto('/account');
+    const notices = page.getByRole('region', { name: '運営からのお知らせ', exact: true });
+    await notices.getByRole('button', { name: 'お知らせを確認', exact: true }).click();
+    await expect(notices).toContainText('記事が一時非公開になりました');
+    await expect(notices).toContainText('架空の通知記事-' + info.project.name);
+    await expect(notices).not.toContainText('PRIVATE_REPORTER');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await notices.screenshot({ path: info.outputPath('notifications-owner.png') });
+    await replaceSession(page.context());
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(notices).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText('架空の通知記事-' + info.project.name);
+    await page.getByRole('button', { name: '確認したアカウントを開く', exact: true }).click();
+    await page
+      .getByRole('region', { name: '運営からのお知らせ', exact: true })
+      .getByRole('button', { name: 'お知らせを確認', exact: true })
+      .click();
+    await expect(page.getByText('お知らせはありません。', { exact: true })).toBeVisible();
+  } finally {
+    await Promise.all(reporters.map((ctx) => ctx.close()));
+  }
+});

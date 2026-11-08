@@ -73,6 +73,10 @@ const inventory: Record<string, Inventory> = {
       decisionState: ['base'],
       decisionReceipt: ['base'],
       decide: ['base'],
+      emailQueue: ['base'],
+      emailRetryReceipt: ['base'],
+      retryEmail: ['base'],
+      ownNotifications: ['base'],
     },
   },
   'project-reports': {
@@ -424,10 +428,10 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 43 private SQL sites (27 base, 15 student, one explicit choice) and 12 public sites', () => {
+  it('inventory is exactly 47 private SQL sites (31 base, 15 student, one explicit choice) and 12 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(43);
-    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(27);
+    expect(guards).toHaveLength(47);
+    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(31);
     expect(guards.filter((guard) => guard === 'student')).toHaveLength(15);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(

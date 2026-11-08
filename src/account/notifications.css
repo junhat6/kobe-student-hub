@@ -1,0 +1,22 @@
+.account-notifications {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #d6e3ed;
+}
+.notification-list {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+}
+.notification-list > li {
+  padding: 16px 0;
+  border-top: 1px solid #d6e3ed;
+  overflow-wrap: anywhere;
+}
+.notification-list button {
+  margin: 8px 0 0 16px;
+}
+.notification-reason {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

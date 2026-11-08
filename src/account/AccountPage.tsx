@@ -6,6 +6,7 @@ import './account.css';
 import { authoringUiEnabled } from './routes';
 import PublicProfileSetup from '../editor/PublicProfileSetup';
 import OwnPublications from '../editor/OwnPublications';
+import OwnNotifications from './OwnNotifications';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 export default function AccountPage() {
   const onNavigationRiskChange = useUnsavedNavigation(
@@ -54,6 +55,7 @@ export default function AccountPage() {
                     onNavigationRiskChange={profileRisk}
                   />
                 </div>
+                <OwnNotifications fetcher={fetcher} />
                 <div id="publications">
                   <OwnPublications
                     csrfToken={csrfToken}
