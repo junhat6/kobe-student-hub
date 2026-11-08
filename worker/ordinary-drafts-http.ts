@@ -35,12 +35,13 @@ export function createOrdinaryDraftHandler(
   const reports = createModerationHandler(db, origin, options.operatorIds ?? [], clock);
   const projectReports = createPrivateProjectReportHandler(db, origin, [], clock);
   return async (request: Request): Promise<Response | null> => {
+    const path = new URL(request.url).pathname;
+    // ProjectStore also owns the broader /api/private/project-* namespace.
+    if (path.startsWith('/api/private/project-reports')) return projectReports(request);
     for (const handler of handlers) {
       const response = await handler(request);
       if (response) return response;
     }
-    const path = new URL(request.url).pathname;
-    if (path.startsWith('/api/private/project-reports')) return projectReports(request);
     // The report client keeps its CSRF-only session response. Configured operator
     // routes still enforce the authenticated actor allowlist on every operation.
     if (

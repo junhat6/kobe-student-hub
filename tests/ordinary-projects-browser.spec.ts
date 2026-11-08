@@ -78,6 +78,9 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   });
   try {
     expect((await guest.request.get('/api/private/project-drafts')).status()).toBe(401);
+    expect(
+      (await guest.request.get('/api/private/project-reports/' + path!.split('/').at(-1))).status(),
+    ).toBe(401);
     const reader = await guest.newPage();
     const privateRequests: string[] = [];
     reader.on('request', (request) => {
@@ -104,6 +107,15 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
     await reader.goto('/works');
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
+    await register(reader, info);
+    await reader.goto(path!);
+    await reader.getByRole('button', { name: 'この作品を通報する', exact: true }).click();
+    await reader.getByLabel('作品の通報理由（必須）', { exact: true }).fill('架空の通報理由');
+    await reader.locator('.project-report-form').getByRole('checkbox').check();
+    await reader.getByRole('button', { name: '確認した作品通報を送信', exact: true }).click();
+    await expect(reader.locator('.project-report-form [role="status"]')).toContainText(
+      'このアカウントの受付記録を確認しました',
+    );
     await page.bringToFront();
     await page.getByRole('link', { name: 'アカウントへ戻る', exact: true }).click();
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
