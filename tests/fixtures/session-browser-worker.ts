@@ -51,6 +51,8 @@ export default {
     }
     if (u.pathname === '/api/catalog' || u.pathname === '/api/health')
       return productionApp.fetch(request, env as Env);
+    if (u.pathname.startsWith('/api/'))
+      return Response.json({ error: 'unavailable' }, { status: 404 });
     if (
       [
         '/',
