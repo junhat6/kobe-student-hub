@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "measured_at_utc": "2026-11-08T09:48:02.701299+00:00",
+  "environment": {
+    "os": "Darwin",
+    "os_release": "25.1.0",
+    "architecture": "arm64",
+    "logical_cpus": 10,
+    "python": "3.12.12",
+    "sqlite": "3.50.4",
+    "duckdb": "2.0.0",
+    "cpu_model": "Apple M4",
+    "physical_memory_bytes": 17179869184
+  },
+  "fixture": {
+    "kind": "deterministically generated fictional data; no real records",
+    "rows": 1000000,
+    "csv_bytes": 18139028,
+    "csv_sha256": "f54a34d7d4bb768973b635c21ba1b3a01cd9847ad363d720735c390edb303cf8",
+    "columns": [
+      "period",
+      "category",
+      "amount_cents"
+    ],
+    "result_groups": 96,
+    "expected_total_amount_cents": 4999500000,
+    "expected_result_sha256": "9959ffa74a3a632890c277c1b3d16043f7f944337c23f414a0d520bd5003dedf"
+  },
+  "query": "SELECT period, category, COUNT(*) AS rows, SUM(amount_cents) AS amount_cents\nFROM events GROUP BY period, category ORDER BY period, category",
+  "repetitions_per_engine": 3,
+  "timing": {
+    "csv_to_first_result": "after imports, connect -> typed CSV workflow -> complete aggregate result",
+    "sqlite_csv_workflow": "stdlib csv parsing and integer conversion + executemany in one transaction + query",
+    "duckdb_csv_workflow": "typed read_csv view + query; no imported table",
+    "loaded_table_query": "query only against a parsed in-memory table; initial import/materialization excluded",
+    "csv_generation_process_startup_and_imports": "excluded",
+    "duckdb_threads": 1,
+    "sqlite_auxiliary_worker_threads": 0,
+    "os_file_cache": "uncontrolled; generated file and repeated reads may be cached; not a cold-cache benchmark",
+    "indexes": "none",
+    "memory_peak_measured": false,
+    "concurrency_measured": false,
+    "durability_measured": false,
+    "both_databases": "in-memory; not persistent database durability comparison"
+  },
+  "runs": [
+    {
+      "engine": "duckdb",
+      "csv_to_first_result_seconds": 0.06613491708412766,
+      "loaded_table_query_seconds": 0.01102224993519485,
+      "duckdb_table_materialization_seconds_excluded_from_query": 0.06025545881129801,
+      "repetition": 1,
+      "all_groups_match": true,
+      "result_sha256": "9959ffa74a3a632890c277c1b3d16043f7f944337c23f414a0d520bd5003dedf"
+    },
+    {
+      "engine": "sqlite",
+      "csv_to_first_result_seconds": 0.7389742080122232,
+      "loaded_table_query_seconds": 0.28218829119578004,
+      "duckdb_table_materialization_seconds_excluded_from_query": null,
+      "repetition": 1,
+      "all_groups_match": true,
+      "result_sha256": "9959ffa74a3a632890c277c1b3d16043f7f944337c23f414a0d520bd5003dedf"
+    },
+    {
+      "engine": "sqlite",
+      "csv_to_first_result_seconds": 0.7412642908748239,
+      "loaded_table_query_seconds": 0.2834435000550002,
+      "duckdb_table_materialization_seconds_excluded_from_query": null,
+      "repetition": 2,
+      "all_groups_match": true,
+      "result_sha256": "9959ffa74a3a632890c277c1b3d16043f7f944337c23f414a0d520bd5003dedf"
+    },
+    {
+      "engine": "duckdb",
+      "csv_to_first_result_seconds": 0.06474850000813603,
+      "loaded_table_query_seconds": 0.010859290836378932,
+      "duckdb_table_materialization_seconds_excluded_from_query": 0.0598796671256423,
+      "repetition": 2,
+      "all_groups_match": true,
+      "result_sha256": "9959ffa74a3a632890c277c1b3d16043f7f944337c23f414a0d520bd5003dedf"
+    },
+    {
+      "engine": "duckdb",
+      "csv_to_first_result_seconds": 0.06495245802216232,
+      "loaded_table_query_seconds": 0.010988417081534863,
+      "duckdb_table_materialization_seconds_excluded_from_query": 0.06177629204466939,
+      "repetition": 3,
+      "all_groups_match": true,
+      "result_sha256": "9959ffa74a3a632890c277c1b3d16043f7f944337c23f414a0d520bd5003dedf"
+    },
+    {
+      "engine": "sqlite",
+      "csv_to_first_result_seconds": 0.7411798329558223,
+      "loaded_table_query_seconds": 0.28711662511341274,
+      "duckdb_table_materialization_seconds_excluded_from_query": null,
+      "repetition": 3,
+      "all_groups_match": true,
+      "result_sha256": "9959ffa74a3a632890c277c1b3d16043f7f944337c23f414a0d520bd5003dedf"
+    }
+  ],
+  "summary": {
+    "duckdb": {
+      "csv_to_first_result_seconds": {
+        "median_seconds": 0.06495245802216232,
+        "min_seconds": 0.06474850000813603,
+        "max_seconds": 0.06613491708412766
+      },
+      "loaded_table_query_seconds": {
+        "median_seconds": 0.010988417081534863,
+        "min_seconds": 0.010859290836378932,
+        "max_seconds": 0.01102224993519485
+      }
+    },
+    "sqlite": {
+      "csv_to_first_result_seconds": {
+        "median_seconds": 0.7411798329558223,
+        "min_seconds": 0.7389742080122232,
+        "max_seconds": 0.7412642908748239
+      },
+      "loaded_table_query_seconds": {
+        "median_seconds": 0.2834435000550002,
+        "min_seconds": 0.28218829119578004,
+        "max_seconds": 0.28711662511341274
+      }
+    }
+  },
+  "all_results_match_python_oracle": true,
+  "temporary_data_cleaned": true,
+  "benchmark_wall_seconds": 4.09054487477988,
+  "limits": [
+    "This compares these Python workflows and one aggregate, not universal database performance.",
+    "No remote server, LLM, real user data, memory-peak or concurrent-writer test.",
+    "Different loaders, schemas, distributions, indexes, queries and hardware may change the result."
+  ]
+}

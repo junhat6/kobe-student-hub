@@ -5,6 +5,7 @@ import {sampleCatalog} from '../src/sample';
 let mf:Miniflare;
 let bootstrapGitBody:string;
 let bootstrapLearningRow:Record<string,string|number>;
+let preDecisionsLearningRow:Record<string,string|number>;
 beforeAll(async()=>{
  mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/index.js',compatibilityDate:'2026-11-03',compatibilityFlags:['nodejs_compat'],d1Databases:['DB']}));
  const db=await mf.getD1Database('DB');
@@ -15,6 +16,8 @@ beforeAll(async()=>{
  bootstrapGitBody=(await db.prepare("SELECT body FROM content WHERE id='git-branches'").first<{body:string}>())!.body;
  bootstrapLearningRow=(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first<Record<string,string|number>>())!;
  for(const name of ['0001_git_practice.sql','0002_learning_notes.sql'])await db.prepare(readFileSync('content-revisions/'+name,'utf8').replace(/^--.*$/gm,'').trim()).run();
+ preDecisionsLearningRow=(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first<Record<string,string|number>>())!;
+ await db.prepare(readFileSync('content-revisions/0003_learning_notes_decisions.sql','utf8').replace(/^--.*$/gm,'').trim()).run();
  await db.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('private-actor','PRIVATE_GOOGLE_SUBJECT','fixture-private@st.kobedenshi.ac.jp','active',0)").run();
  await db.prepare("INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) VALUES('11111111-1111-4111-8111-111111111111','private-actor','PRIVATE_ARTICLE_DRAFT','SECRET_DRAFT_MARKDOWN',1,0)").run();
  await db.prepare("INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) VALUES('publication-fixture-profile','Fictional publication author','Fixture','Sample','','F',0)").run();
@@ -49,37 +52,39 @@ describe('fictional content revision',()=>{
   const response=await mf.dispatchFetch('http://test/api/catalog');const catalog=await response.json() as {entries:{id:string}[]};
   expect(catalog.entries.find(e=>e.id==='learning-notes')).toEqual(sampleCatalog.entries.find(e=>e.id==='learning-notes'));
  });
- it('changes only the expected learning-notes row once and preserves edits to every guarded field',async()=>{
+ for(const revision of ['0002_learning_notes.sql','0003_learning_notes_decisions.sql'])it(`changes only the expected learning-notes row once and preserves edits to every guarded field: ${revision}`,async()=>{
   const db=await mf.getD1Database('DB');
-  const sql=readFileSync('content-revisions/0002_learning_notes.sql','utf8').replace(/^--.*$/gm,'').trim();
-  const current=(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first<Record<string,string|number>>())!;
-  const columns=Object.keys(current);
+  const sql=readFileSync('content-revisions/'+revision,'utf8').replace(/^--.*$/gm,'').trim();
+  const latest=(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first<Record<string,string|number>>())!;
+  const baseline=revision==='0002_learning_notes.sql'?bootstrapLearningRow:preDecisionsLearningRow;
+  const expected=revision==='0002_learning_notes.sql'?preDecisionsLearningRow:latest;
+  const columns=Object.keys(latest);
   const write=async(row:Record<string,string|number>)=>db.prepare('UPDATE content SET '+columns.map(k=>k+'=?').join(',')+" WHERE id='learning-notes'").bind(...columns.map(k=>row[k])).run();
   try{
    const before=(await db.prepare("SELECT * FROM content WHERE id!='learning-notes' ORDER BY id").all()).results;
    expect((await db.prepare(sql).run()).meta.changes).toBe(0);
-   await write(bootstrapLearningRow);
+   await write(baseline);
    expect((await db.prepare(sql).run()).meta.changes).toBe(1);
-   expect(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first()).toEqual(current);
+   expect(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first()).toEqual(expected);
    expect((await db.prepare(sql).run()).meta.changes).toBe(0);
    // An independently changed field must prevent the entire editorial update.
-   for(const [field,value] of Object.entries({...bootstrapLearningRow,kind:'project',title:'Other title',summary:'Other summary',body:'Other body',tags_json:'[]',author_id:'sample-b',audience:'Other reader',prerequisite:'Other prerequisite',outcome:'Other outcome',updated_at:'2026-11-07',minutes:4,related_ids_json:'[]',status:'hidden',is_sample:0})){
+   for(const [field,value] of Object.entries({...baseline,kind:'project',title:'Other title',summary:'Other summary',body:'Other body',tags_json:'[]',author_id:'sample-b',audience:'Other reader',prerequisite:'Other prerequisite',outcome:'Other outcome',updated_at:'2026-11-07',minutes:4,related_ids_json:'[]',status:'hidden',is_sample:0})){
     if(field==='id')continue;
-    const edited={...bootstrapLearningRow,[field]:value};await write(edited);
+    const edited={...baseline,[field]:value};await write(edited);
     expect((await db.prepare(sql).run()).meta.changes,field).toBe(0);
     expect(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first(),field).toEqual(edited);
    }
    expect((await db.prepare("SELECT * FROM content WHERE id!='learning-notes' ORDER BY id").all()).results).toEqual(before);
-   const rollback=readFileSync('content-revisions/rollback/0002_learning_notes.sql','utf8').replace(/^--.*$/gm,'').trim();
-   await write({...current,summary:'A later editorial change'});
+   const rollback=readFileSync('content-revisions/rollback/'+revision,'utf8').replace(/^--.*$/gm,'').trim();
+   await write({...expected,summary:'A later editorial change'});
    expect((await db.prepare(rollback).run()).meta.changes).toBe(0);
    expect((await db.prepare("SELECT summary FROM content WHERE id='learning-notes'").first<{summary:string}>())!.summary).toBe('A later editorial change');
-   await write(current);
+   await write(expected);
    expect((await db.prepare(rollback).run()).meta.changes).toBe(1);
-   expect(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first()).toEqual(bootstrapLearningRow);
+   expect(await db.prepare("SELECT * FROM content WHERE id='learning-notes'").first()).toEqual(baseline);
    expect((await db.prepare(rollback).run()).meta.changes).toBe(0);
    expect((await db.prepare(sql).run()).meta.changes).toBe(1);
-  }finally{await write(current)}
+  }finally{await write(latest)}
  });
  it('serves the revised Git practice text matching the source sample',async()=>{
   const response=await mf.dispatchFetch('http://test/api/catalog');const catalog=await response.json() as {entries:{id:string;body:string}[]};

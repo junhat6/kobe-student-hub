@@ -62,6 +62,20 @@
 
 **Replanning:** queryの完了／echo未記録という不足は狭まったが、実captureは未成立。既存previewで期限・保持・復元を定めたcaptureを具体化し、契約・使用枠を確認してから一件の陽性相関へ進む。設定更新の方法と復元可能性は調査済みだが、source gate、設定、配備、Tail、schema、credential／grantの変更は0。新しい本人限定試用や別機能で置き換えず、[ログ公開ゲート](LOGGING-GATE.md)を未達のまま維持する。
 
+## AIと行う技術選定を、3項目の制作記録へつなげる
+
+**Planner / 現在地:** [PR #104](https://github.com/junhat6/kobe-student-hub/pull/104#issuecomment-6720016033)をmain `6812f1e`へ統合し、PR/main CIの全成功とdeploy skippedを確認。PR #96はOPEN/Draftのまま。実ログcaptureの契約・使用枠は未確認で、収集率等は変更しない。既存の読者journeyに沿い、AIと制作したときの技術選定・確認を、次の制作と作品説明へ使えるという一つの仮説を検証する。私的な回答は公開しない。
+
+**実装／受入条件:** 対象は架空sample `learning-notes`一件。生成CSVの規模・問い合わせ方・一人での利用・性能目標を先に示し、DuckDB／SQLiteの同条件の参考実験から選択理由を説明する。枠は「条件・判断・確認」の3項目に絞る。条件変更時の再選定と、AIの担当／自分の判断を作品説明へ組み立てる例を加える。[範囲と受入条件](LEARNING-NOTES-DECISIONS.md)。架空の制作例と運営の実測、学生価値を区別する。
+
+**Developer / Evidence:** 起動/import後のCSV処理10秒以内を事前目標とし、生成100万行／18.1MB・同じSQLでDuckDB2.0.0とSQLite3.50.4を比較した。各3回の全96組が生成時の期待値と一致し、CSV→結果の中央値は0.065／0.741秒で両方条件内。読込・取込を含む手順の比較で、速度の一般順位ではない。実験code・環境・全結果と未測定範囲を保存した。適用済み0002は不変、全15列一致で対象だけを更新する0003／逆操作、local初期化とWorker fixtureを揃えた。
+
+local build・76files/687unit・Worker、公開62、localDBとdeploy dry-runが成功。rootの画像確認からtableの行ラベルだけを短く整え、最終sourceでも全checkを再実行した（unit20.17秒、公開11.4秒）。local公開sample全15列が最終sourceに一致し、owned server終了・canonical workerd0・8787待受なしを確認。
+
+**独立QA:** 別worktreeで最終sourceの関連20tests、手動実D1の27cases、PC/mobile24受入群が成功。元resultsを保持した独立再計測でfixture／結果指紋と全96組が一致。最終12画像を担当者が開いて確認し、rootも代表5画像を確認した。コピー・内側code scroll・document overflow・既存導線に阻害所見なし。所有server／browserと待受終了も確認。[実行・診断・source指紋と限界](QA-LEARNING-NOTES-DECISIONS.md)。通常PR/CI後、実反映は既存本番を再照合してeditorial SQLだけを実行し、正確な結果を対応PRに記録する。Worker再配備・schema/auth/grant変更は含まない。
+
+**Replanning:** この改稿の理解・実践価値は未検証。AIの動作確認や参考実験だけを学生価値の成功扱いにしない。実ログ・実認証・運営等の未完了条件は別に残し、新しい試用機能を追加しない。
+
 ## Cycle 01
 
 **Planner:** H01 — reader context plus author/project relationships can help a student choose an article and carry away a next action. Minimal target: browse → article/project → author/related, on mobile and PC. Fictional data only.
