@@ -1,5 +1,19 @@
 # Current work and replanning
 
+## 現在地 — 2026-11-08
+
+[本番サンプル](https://hub.junhat6.com/)は架空の記事・作品4件／プロフィール2件の閲覧用。一般ログイン・投稿は有効化していない。以下のCycleは各作業時点の記録で、当時の「未配備」「準備中」を現在の状態と混同しない。
+
+- 本人限定の下書き試用は、専用機能・配信物・有効化設定の撤去と旧URL拒否まで完了した。[PR #98の本番完了記録](https://github.com/junhat6/kobe-student-hub/pull/98#issuecomment-6716702252)。再作成しない。
+- 制作ノートの架空サンプルは、理由・記入例・学びの説明例・記録枠を追加し、本番の対象1件だけを更新済み。source main `5177d95`、PR/main CI成功、独立の本番GET-only QAにも阻害所見なし。[PR #99の完了記録](https://github.com/junhat6/kobe-student-hub/pull/99#issuecomment-6717645879)。この反映はeditorial SQLで、Workerの再配備やschema/auth変更ではない。
+- PR #96はDraft・未マージ。過去のDraft解除拒否を回避しない。#84/#85の別Draftも未マージ。
+
+**再計画:** 次は改稿版が自分の制作での記録・次の行動に使えるかを本人の言葉で確認する。AIの表示・動作QAと学生の理解・実践を区別し、私的回答は公開記録へ転載しない。他の記事や試用機能を先に増やさない。実サービス接続には、在籍・卒業／回復、実運営権限・通知・問い合わせ、保持と実ログ等の[未完了ゲート](FIRST-RELEASE.md)が残る。
+
+この記録整理は、前サイクルの本番結果を準備時点の記録とつなぐ作業である。受入条件は公開証拠との一致、現行／履歴の区別、PRD原文・製品・本番設定の不変更。別コンテキストの文書QAと通常CIを通し、製品機能や学生価値の追加検証として数えない。
+
+文書の独立QAでは4ファイルの差分を公開コメント・CIログ・PR状態・リンクと照合し、阻害所見なし。製品テスト・ブラウザ・サーバーの再実行はしていない。通常CIの結果は、この記録整理のPRで実行後に報告する。
+
 ## Cycle 01
 
 **Planner:** H01 — reader context plus author/project relationships can help a student choose an article and carry away a next action. Minimal target: browse → article/project → author/related, on mobile and PC. Fictional data only.
@@ -10,7 +24,7 @@
 
 **Result:** Local discovery behavior verified. Remote Cloudflare setup is blocked, not deployed. Repository source and CI are the handoff, with deployment guard active until real IDs/access are supplied.
 
-## Next priorities
+## Cycle01時点の優先度（履歴）
 
 | Priority / task | Acceptance / boundary | State |
 | --- | --- | --- |

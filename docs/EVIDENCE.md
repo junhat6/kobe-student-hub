@@ -539,3 +539,11 @@ content-revisions/0002_learning_notes.sql 02d630ceec3df792e84e67d278f6eb3e8d756b
 content-revisions/rollback/0002_learning_notes.sql b46f75d53b0dd21aa2c3d911fccbade78c95b1d52df54f876c223fc1fcba03d2
 tests/worker.test.ts 9fa92c9b723601315fe13783be4a3213c52822984ef00e56a933411476673663
 ```
+
+### 制作ノートの本番反映完了 — 2026-11-08
+
+PR #99をmain `5177d957d5fbd70eea1c6fa1e48dc82250bda9c5`へ反映し、PR headとのtree一致を確認した。[PR CI](https://github.com/junhat6/kobe-student-hub/actions/runs/42448649434)・[main CI](https://github.com/junhat6/kobe-student-hub/actions/runs/42449180401)は全成功。両ログで68files／587unit・Worker、公開60、pilot1、retired8、auth5、editor181passed／1既存skip、types/build/localDB/dry-runを確認した。
+
+同日05:14 UTCに、前回の検証済み配備記録と現在の接続先・公開domain・active versionを非公開で照合してeditorial適用した。旧行全15列と他sample/profile・runtimeを再確認後、レビュー済みSQLへ値を戻すとバイト一致する21値のparameterized statementを一度実行。変更1件、改訂行全値一致、他3samples／2profiles・全件数・settings/deployment指紋保持を確認した。schema/auth/secret/grant変更・Worker再配備はない。公開catalog全DTOはmain sourceと一致し、writesEnabled:false、別previewのcatalog指紋も保持した。
+
+別コンテキストの独立本番QAは、明示GET16件、PC/mobile各11受入群、横overflow20地点、記録枠7行、記事→著者→記事→関連作品の往復が成功。画像18枚を独立担当が目視確認し、実装者も3枚を確認した。既存Cloudflare beaconのCSP拒否は厳密に分離し、pageerror・予期しないconsole errorはなし。全通信GETのみ、ブラウザー終了済み、サーバー未起動。画像と運用値は公開しない。詳細と再計画は[PR #99の最終運用記録](https://github.com/junhat6/kobe-student-hub/pull/99#issuecomment-6717645879)。実端末／Safari、改稿後の学生の理解・実践・就職成果は未検証のままとする。
