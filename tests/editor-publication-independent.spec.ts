@@ -158,19 +158,16 @@ test('independent manual receipt read retains typing and unavailable lookup neve
     .screenshot({ path: info.outputPath('03-private-unsaved-buffer.png'), scale: 'css' });
   const href = (await readerLink(page).getAttribute('href'))!;
   const opts = info.project.use;
-  const ctx = await page
-    .context()
-    .browser()!
-    .newContext({
-      ignoreHTTPSErrors: true,
-      baseURL: 'https://127.0.0.1:8788',
-      viewport: page.viewportSize(),
-      screen: opts.screen,
-      isMobile: opts.isMobile,
-      hasTouch: opts.hasTouch,
-      deviceScaleFactor: opts.deviceScaleFactor,
-      userAgent: opts.userAgent,
-    });
+  const ctx = await page.context().browser()!.newContext({
+    ignoreHTTPSErrors: true,
+    baseURL: 'https://127.0.0.1:8788',
+    viewport: page.viewportSize(),
+    screen: opts.screen,
+    isMobile: opts.isMobile,
+    hasTouch: opts.hasTouch,
+    deviceScaleFactor: opts.deviceScaleFactor,
+    userAgent: opts.userAgent,
+  });
   try {
     const reader = await ctx.newPage();
     await reader.goto(href);

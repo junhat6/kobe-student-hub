@@ -74,11 +74,9 @@ test('independent current-token logout without focus is rejected by the next gua
   await shot(detail(page), info.project.name, '01-authorized-private-case-before-revocation.png');
   expect(
     (
-      await page
-        .context()
-        .request.post('/api/private/logout', {
-          headers: { Origin: origin, Authorization: 'Bearer csrf.' + t.operatorToken },
-        })
+      await page.context().request.post('/api/private/logout', {
+        headers: { Origin: origin, Authorization: 'Bearer csrf.' + t.operatorToken },
+      })
     ).status(),
   ).toBe(200);
   await page.getByRole('button', { name: '一覧を再確認', exact: true }).click();

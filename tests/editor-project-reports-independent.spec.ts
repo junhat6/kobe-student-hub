@@ -197,11 +197,9 @@ test('independent unknown proof resumes same reason while confirmed invalid proo
   await shot(panel(page), info.project.name, '03-same-session-reason-retained.png');
   expect(
     (
-      await page
-        .context()
-        .request.post('/api/private/logout', {
-          headers: { Origin: origin, Authorization: 'Bearer csrf.' + csrf },
-        })
+      await page.context().request.post('/api/private/logout', {
+        headers: { Origin: origin, Authorization: 'Bearer csrf.' + csrf },
+      })
     ).status(),
   ).toBe(200);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));

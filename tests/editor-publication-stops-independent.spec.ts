@@ -72,18 +72,16 @@ test('independent author stop preserves private project edits and report evidenc
   const t = await setup(page);
   expect(
     (
-      await page
-        .context()
-        .request.put('/api/private/project-drafts/' + t.draftId, {
-          headers: { Origin: origin, Authorization: 'Bearer csrf.' + t.csrfToken },
-          data: {
-            expectedVersion: 1,
-            title: t.title,
-            description: '私的な保存版二の説明',
-            githubUrl: '',
-            demoUrl: '',
-          },
-        })
+      await page.context().request.put('/api/private/project-drafts/' + t.draftId, {
+        headers: { Origin: origin, Authorization: 'Bearer csrf.' + t.csrfToken },
+        data: {
+          expectedVersion: 1,
+          title: t.title,
+          description: '私的な保存版二の説明',
+          githubUrl: '',
+          demoUrl: '',
+        },
+      })
     ).status(),
   ).toBe(200);
   await project(page).getByRole('button', { name: '作品の保存一覧を更新', exact: true }).click();

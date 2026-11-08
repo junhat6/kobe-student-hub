@@ -32,12 +32,10 @@ async function stored(page: Page) {
   return response.json();
 }
 async function remoteSave(page: Page, csrf: string, graduationYear = 2027) {
-  const response = await page
-    .context()
-    .request.put('/api/private/enrollment', {
-      headers: { Origin: ORIGIN, Authorization: 'Bearer csrf.' + csrf },
-      data: { admissionYear: 2026, graduationYear, expectedVersion: 0 },
-    });
+  const response = await page.context().request.put('/api/private/enrollment', {
+    headers: { Origin: ORIGIN, Authorization: 'Bearer csrf.' + csrf },
+    data: { admissionYear: 2026, graduationYear, expectedVersion: 0 },
+  });
   expect(response.status()).toBe(200);
 }
 async function saved(form: Locator) {

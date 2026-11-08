@@ -22,13 +22,11 @@ async function visibility(page: Page, value: 'hidden' | 'visible') {
 async function seed(page: Page) {
   expect(
     (
-      await page
-        .context()
-        .request.post(origin + '/__fixture/session', {
-          headers: { Origin: origin },
-          data: { account: 'a' },
-          ignoreHTTPSErrors: true,
-        })
+      await page.context().request.post(origin + '/__fixture/session', {
+        headers: { Origin: origin },
+        data: { account: 'a' },
+        ignoreHTTPSErrors: true,
+      })
     ).status(),
   ).toBe(200);
 }

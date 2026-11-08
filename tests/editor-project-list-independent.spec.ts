@@ -58,18 +58,16 @@ test('independent delayed confirmed draft metadata cannot merge into another act
   await expect(initialRow.locator('small')).toHaveText('版 1');
   expect(
     (
-      await page
-        .context()
-        .request.put('/api/private/project-drafts/' + t.id, {
-          headers: { Origin: O, Authorization: 'Bearer csrf.' + t.csrf },
-          data: {
-            expectedVersion: 1,
-            title: t.title + ' 新保存版',
-            description: '新しい私的保存版二',
-            githubUrl: '',
-            demoUrl: '',
-          },
-        })
+      await page.context().request.put('/api/private/project-drafts/' + t.id, {
+        headers: { Origin: O, Authorization: 'Bearer csrf.' + t.csrf },
+        data: {
+          expectedVersion: 1,
+          title: t.title + ' 新保存版',
+          description: '新しい私的保存版二',
+          githubUrl: '',
+          demoUrl: '',
+        },
+      })
     ).status(),
   ).toBe(200);
   const path = O + '/api/private/project-drafts/' + t.id;

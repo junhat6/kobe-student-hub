@@ -16,12 +16,10 @@ test('independent project-only author public DTO and delayed private project EOF
 }, info) => {
   await page.goto('/lab/account');
   const session = (await (
-    await page
-      .context()
-      .request.post(origin + '/__fixture/profile-session', {
-        headers: { Origin: origin },
-        data: {},
-      })
+    await page.context().request.post(origin + '/__fixture/profile-session', {
+      headers: { Origin: origin },
+      data: {},
+    })
   ).json()) as { csrfToken: string };
   await page.reload();
   await expect(page.getByRole('region', { name: '画像なし作品の登録' })).toBeVisible();
@@ -166,12 +164,10 @@ test('independent project-only author public DTO and delayed private project EOF
   expect(Date.now() - headerAt).toBeLessThan(4000);
   expect(
     (
-      await page
-        .context()
-        .request.post(origin + '/__fixture/profile-session', {
-          headers: { Origin: origin },
-          data: {},
-        })
+      await page.context().request.post(origin + '/__fixture/profile-session', {
+        headers: { Origin: origin },
+        data: {},
+      })
     ).status(),
   ).toBe(200);
   expect(Date.now() - headerAt).toBeLessThan(4000);

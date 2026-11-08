@@ -6,12 +6,10 @@ test('independent explicit publication receipt opens anonymous recent feed witho
   playwright,
 }, info) => {
   const session = (await (
-    await page
-      .context()
-      .request.post(origin + '/__fixture/profile-session', {
-        headers: { Origin: origin },
-        data: {},
-      })
+    await page.context().request.post(origin + '/__fixture/profile-session', {
+      headers: { Origin: origin },
+      data: {},
+    })
   ).json()) as { csrfToken: string };
   await page.goto('/lab/account');
   await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toBeVisible();
