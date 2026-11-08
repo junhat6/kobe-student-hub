@@ -328,3 +328,64 @@ test('ordinary report removes its input after logout in another tab', async ({
     page.getByRole('button', { name: '確認した内容で通報を送信', exact: true }),
   ).toHaveCount(0);
 });
+
+test('ordinary report cancels a pending initial session proof on hide and ignores its late response', async ({
+  page,
+}, info) => {
+  const articlePath = await publishArticle(page, info, '架空の通報境界ノート');
+  await page.goto(articlePath);
+  await expect(page.locator('.prose')).toContainText('この文章は公開する保存版です。');
+  const latch = () => {
+    let release!: () => void;
+    const promise = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return { promise, release };
+  };
+  const held = latch(),
+    release = latch(),
+    settled = latch();
+  let sessionReads = 0;
+  await page.route('**/api/private/session', async (route) => {
+    if (++sessionReads !== 1) return route.continue();
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    held.release();
+    await release.promise;
+    try {
+      await route.fulfill({ response });
+    } catch {
+      /* The suspended request was cancelled. */
+    } finally {
+      settled.release();
+    }
+  });
+  const aborted = page.waitForEvent('requestfailed', {
+    predicate: (request) => new URL(request.url()).pathname === '/api/private/session',
+  });
+  try {
+    await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+    await held.promise;
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await aborted;
+    release.release();
+    await settled.promise;
+    await expect(page.locator('.project-private-scope')).toBeHidden();
+    await expect(page.locator('.project-private-scope')).toHaveAttribute('inert', '');
+    await expect(reportReason(page)).toHaveCount(0);
+    expect(sessionReads).toBe(1);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(reportReason(page)).toBeEditable();
+    expect(sessionReads).toBeGreaterThan(1);
+    await expect(reportReason(page)).toHaveValue('');
+  } finally {
+    release.release();
+    await page.unroute('**/api/private/session');
+  }
+});
