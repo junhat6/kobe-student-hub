@@ -85,8 +85,17 @@ async function start(jar: Jar, subject = 'late-a') {
   );
   return state;
 }
+const postCallback = (jar: Jar, params: Record<string, string>, apply = true) =>
+  call(jar, '/api/auth/callback', 'POST', apply, {
+    headers: {
+      Origin: O,
+      Cookie: jar.header(),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams(params).toString(),
+  });
 const callback = (jar: Jar, state: string, apply = true) =>
-  call(jar, '/api/auth/callback?state=' + state + '&code=' + state, 'GET', apply);
+  postCallback(jar, { state, code: state }, apply);
 async function actor(jar: Jar) {
   if ((await call(jar, '/api/private/session')).status !== 200) return null;
   const token = jar.value('__Host-kobe-session');
@@ -219,7 +228,7 @@ it('retains only sealed verification material until original expiry without call
   expect(payload.exp! as number).toBe((payload.iat as number) + 600);
   expect(payload.state).toBe(state);
   jar.now = NOW + 120000;
-  await call(jar, '/api/auth/callback?state=' + state + '&error=access_denied');
+  await postCallback(jar, { state, error: 'access_denied' });
   expect(jar.values.get('__Host-kobe-oauth')).toEqual(original);
   const before = exchanges;
   for (let i = 0; i < 3; i++)

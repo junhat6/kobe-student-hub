@@ -70,9 +70,10 @@ async function start(subject: string) {
 }
 async function finish(attempt: Awaited<ReturnType<typeof start>>) {
   const response = await request(
-    '/api/auth/callback?state=' + attempt.state + '&code=' + attempt.state,
-    'GET',
-    { Cookie: attempt.cookie },
+    '/api/auth/callback',
+    'POST',
+    { Cookie: attempt.cookie, Origin: ORIGIN, 'Content-Type': 'application/x-www-form-urlencoded' },
+    new URLSearchParams({ state: attempt.state, code: attempt.state }).toString(),
   );
   expect(response.status).toBe(303);
   return cookies(response).some((value) => value.startsWith('__Host-kobe-session='));

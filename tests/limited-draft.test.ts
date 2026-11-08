@@ -74,11 +74,15 @@ async function login(subject = 'fictional-google-subject', extra = {}) {
     state = u.searchParams.get('state')!;
   tokens.set(state, await signer.sign({ sub: subject, nonce: u.searchParams.get('nonce') }));
   const callback = await req(
-    '/api/auth/callback?state=' + state + '&code=' + state,
-    'GET',
-    { Cookie: context + '; ' + cookies(started) },
+    '/api/auth/callback',
+    'POST',
+    {
+      Cookie: context + '; ' + cookies(started),
+      Origin: O,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
     undefined,
-    extra,
+    { ...extra, body: new URLSearchParams({ state, code: state }).toString() },
   );
   return { response: callback, cookie: context + '; ' + cookies(callback) };
 }
@@ -247,11 +251,11 @@ it('expiry or removal during request body processing cannot commit a draft', asy
       .first(),
   ).toBeNull();
 });
-it('expired callback does not exchange with provider or issue a session', async () => {
+it('expired POST callback does not exchange with provider or issue a session', async () => {
   const before = calls;
   const r = await login('fictional-google-subject', { now: E });
-  expect(r.response.status).toBe(303);
-  expect(r.response.headers.get('Location')).toBe(O + '/');
+  expect(r.response.status).toBe(404);
+  expect(r.response.headers.get('Location')).toBeNull();
   expect(calls).toBe(before);
   expect(r.response.headers.getSetCookie()).toEqual([]);
 });
