@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
 await build({
   entryPoints: {
+    'media-test': 'tests/fixtures/media-worker.ts',
     'enrollment-writer-independent-test': 'tests/fixtures/enrollment-writer-independent-worker.ts',
     'enrollment-test': 'tests/fixtures/enrollment-worker.ts',
     'self-registration-test': 'tests/fixtures/self-registration-worker.ts',
@@ -29,7 +30,7 @@ await build({
     'publication-discovery-test': 'tests/fixtures/publication-discovery-worker.ts',
     'likes-test': 'tests/fixtures/likes-worker.ts',
   },
-  loader: { '.sql': 'text' },
+  loader: { '.sql': 'text', '.wasm': 'copy' },
   outdir: '.worker',
   bundle: true,
   format: 'esm',

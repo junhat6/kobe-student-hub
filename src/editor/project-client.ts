@@ -274,12 +274,17 @@ export function createProjectClient(csrfToken: string, fetcher: typeof fetch = f
       if (!receipt(v)) throw new ProjectClientError();
       return v;
     },
-    async publish(id: string, expectedVersion: number, signal?: AbortSignal) {
+    async publish(
+      id: string,
+      expectedVersion: number,
+      signal?: AbortSignal,
+      mediaIds: string[] = [],
+    ) {
       if (!version(expectedVersion)) throw new ProjectClientError();
       const v = await request(
         publicationPath(id),
         'POST',
-        { expectedVersion, confirmPublic: true },
+        { expectedVersion, confirmPublic: true, ...(mediaIds.length ? { mediaIds } : {}) },
         signal,
       );
       if (!publicKeys(v, ['projectId']) || !projectUUID(v.projectId))

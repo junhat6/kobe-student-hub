@@ -1,3 +1,4 @@
+import { workerModules } from './helpers/worker-modules';
 import { afterAll, beforeAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -10,8 +11,7 @@ let decisionsLearningRow: Record<string, string | number>;
 beforeAll(async () => {
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/index.js',
+      modules: workerModules('.worker/index.js'),
       compatibilityDate: '2026-11-03',
       compatibilityFlags: ['nodejs_compat'],
       d1Databases: ['DB'],
@@ -199,8 +199,7 @@ describe('public data boundary on Workers and D1', () => {
   it('returns a safe error when storage is unavailable', async () => {
     const broken = new Miniflare(
       convertV4MiniflareOptions({
-        modules: true,
-        scriptPath: '.worker/index.js',
+        modules: workerModules('.worker/index.js'),
         compatibilityDate: '2026-11-03',
         compatibilityFlags: ['nodejs_compat'],
         d1Databases: ['DB'],

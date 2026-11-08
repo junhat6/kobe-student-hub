@@ -9,6 +9,7 @@ export default defineConfig({
     'ordinary-draft-deletion-browser.spec.ts',
     'ordinary-publication-browser.spec.ts',
     'ordinary-projects-browser.spec.ts',
+    'ordinary-media-browser.spec.ts',
   ],
   workers: 1,
   fullyParallel: false,

@@ -5,6 +5,7 @@ import {
   moderationEmailOptions,
   type ModerationEmailBindings,
 } from './moderation-email';
+import { warmMediaCodec } from './media';
 import { createEnrollmentHandler } from './enrollment-http';
 import { parseModerationOperators, type ModerationBindings } from './moderation-http';
 import { createOAuthHttpHandler, type OAuthBindings } from './auth/oauth-http';
@@ -14,6 +15,8 @@ import type { Catalog, Entry, Profile } from '../src/types';
 // General login remains closed; the explicit private pilot permits pending receipt only.
 const OAUTH_HTTP_RELEASE_ENABLED = false;
 const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = false;
+// Pure module/codec setup belongs to isolate startup, not the first image request.
+if (OAUTH_HTTP_RELEASE_ENABLED && ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) await warmMediaCodec();
 const app = new Hono<{ Bindings: Env }>();
 app.use(
   '*',
@@ -22,7 +25,7 @@ app.use(
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
@@ -174,7 +177,7 @@ export default {
             'Cache-Control': 'private, no-store',
             Vary: 'Cookie',
             'Content-Security-Policy':
-              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
             'Cross-Origin-Resource-Policy': 'same-origin',
             'Cross-Origin-Opener-Policy': 'same-origin',
             'Origin-Agent-Cluster': '?1',

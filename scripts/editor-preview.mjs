@@ -18,31 +18,34 @@ for (const file of [
   'migrations/0016_self_declared_enrollment.sql',
   'migrations/0018_article_moderation_decisions.sql',
   'migrations/0019_moderation_notifications.sql',
+  'migrations/0020_private_images.sql',
 ]) {
   // Initialization is idempotent: check the specific local table before applying its schema.
   const table = file.includes('0019')
     ? 'moderation_email_deliveries'
-    : file.includes('0018')
-      ? 'article_moderation_state'
-      : file.includes('0011')
-        ? 'article_publication_stops'
-        : file.includes('0016')
-          ? 'private_enrollment_periods'
-          : file.includes('0001')
-            ? 'public_profiles'
-            : file.includes('0004')
-              ? 'private_accounts'
-              : file.includes('0005')
-                ? 'private_article_drafts'
-                : file.includes('0006')
-                  ? 'article_reports'
-                  : file.includes('0010')
-                    ? 'project_reports'
-                    : file.includes('0009')
-                      ? 'project_drafts'
-                      : file.includes('0008')
-                        ? 'article_likes'
-                        : 'account_public_profiles';
+    : file.includes('0020')
+      ? 'media_assets'
+      : file.includes('0018')
+        ? 'article_moderation_state'
+        : file.includes('0011')
+          ? 'article_publication_stops'
+          : file.includes('0016')
+            ? 'private_enrollment_periods'
+            : file.includes('0001')
+              ? 'public_profiles'
+              : file.includes('0004')
+                ? 'private_accounts'
+                : file.includes('0005')
+                  ? 'private_article_drafts'
+                  : file.includes('0006')
+                    ? 'article_reports'
+                    : file.includes('0010')
+                      ? 'project_reports'
+                      : file.includes('0009')
+                        ? 'project_drafts'
+                        : file.includes('0008')
+                          ? 'article_likes'
+                          : 'account_public_profiles';
   const check = spawnSync(
     'npx',
     [

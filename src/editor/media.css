@@ -1,0 +1,44 @@
+.media-attachments {
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--line, #d9d5ce);
+}
+.media-attachments p {
+  max-width: 64ch;
+}
+.media-attachments input[type='file'] {
+  max-width: 100%;
+}
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.media-grid figure {
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line, #d9d5ce);
+  border-radius: 0.5rem;
+}
+.media-grid button {
+  display: block;
+  margin-top: 0.5rem;
+}
+.content-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 40rem;
+  object-fit: contain;
+  margin: 1rem auto;
+}
+.media-grid .content-image {
+  max-height: 14rem;
+}
+.image-unavailable {
+  display: block;
+  padding: 0.75rem;
+  font-size: 0.875rem;
+}

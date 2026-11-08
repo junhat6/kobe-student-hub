@@ -1,3 +1,4 @@
+import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -70,14 +71,7 @@ beforeAll(async () => {
     }),
   );
   const db = await mf.getD1Database('DB');
-  for (const file of readdirSync('migrations')
-    .filter((f) => /^000[1-9]_/.test(f) || /^0011_/.test(f))
-    .sort())
-    for (const sql of readFileSync('migrations/' + file, 'utf8')
-      .replace(/^--.*$/gm, '')
-      .split(/;\s*(?:\n|$)/)
-      .filter((s) => s.trim()))
-      await db.prepare(sql).run();
+  await applyFixtureMigrations(db);
   users = [];
   for (let n = 0; n < 3; n++) {
     await db

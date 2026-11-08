@@ -1,3 +1,4 @@
+import { workerModules } from './helpers/worker-modules';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -77,8 +78,7 @@ async function publish(title: string, body = '# Saved public body') {
 beforeAll(async () => {
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/publication-http-test.js',
+      modules: workerModules('.worker/publication-http-test.js'),
       compatibilityDate: '2026-11-03',
       d1Databases: ['DB'],
       outboundService: () => {

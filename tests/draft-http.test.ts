@@ -1,3 +1,4 @@
+import { workerModules } from './helpers/worker-modules';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
@@ -58,8 +59,7 @@ async function create(title = 'private', body = 'markdown') {
 beforeAll(async () => {
   mf = new Miniflare(
     convertV4MiniflareOptions({
-      modules: true,
-      scriptPath: '.worker/draft-http-test.js',
+      modules: workerModules('.worker/draft-http-test.js'),
       compatibilityDate: '2026-11-03',
       d1Databases: ['DB'],
     }),

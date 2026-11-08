@@ -4,6 +4,7 @@ import MarkdownRenderer from '../MarkdownRenderer';
 import { createDraftClient, type EditorDraft, type DraftSummary } from './draft-client';
 import './editor.css';
 import PublicationComposer from './PublicationComposer';
+import MediaAttachments from './MediaAttachments';
 import {
   formatMarkdown,
   textareaText,
@@ -58,7 +59,10 @@ export default function DraftEditor({
   const [publicationMutationPending, setPublicationMutationPending] = useState(false);
   const publicationLock = useRef(false);
   const preparationUnsaved = useRef(false);
-  const [busy, setBusy] = useState(false);
+  const [workBusy, setBusy] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaUncertain, setMediaUncertain] = useState(false);
+  const busy = workBusy || mediaBusy;
   const [opening, setOpening] = useState(false);
   const lock = useRef(false);
   const mounted = useRef(true);
@@ -169,7 +173,12 @@ export default function DraftEditor({
   const navigationRisk =
     dirty ||
     (ordinary &&
-      (mutationPending || publicationMutationPending || preparationDirty || deletionOpen));
+      (mutationPending ||
+        publicationMutationPending ||
+        preparationDirty ||
+        deletionOpen ||
+        mediaBusy ||
+        mediaUncertain));
   useLayoutEffect(() => {
     onNavigationRiskChange?.(navigationRisk);
   }, [navigationRisk, onNavigationRiskChange]);
@@ -559,7 +568,10 @@ export default function DraftEditor({
                   <div className="editor-preview" aria-label="Markdownプレビュー">
                     <h3>{text.title || '無題の下書き'}</h3>
                     <PreviewBoundary>
-                      <MarkdownRenderer body={text.body} />
+                      <MarkdownRenderer
+                        body={text.body}
+                        privateMedia={{ fetcher, scopeKey: csrfToken }}
+                      />
                     </PreviewBoundary>
                     {!text.body && (
                       <p className="editor-muted">本文を書くと、ここに表示されます。</p>
@@ -627,9 +639,22 @@ export default function DraftEditor({
                     {Array.from(text.title).length}/200文字 · 本文 {(bytes / 1024).toFixed(1)}/256
                     KiB
                   </span>
-                  <span>画像・Mermaidは未対応</span>
+                  <span>{ordinary ? 'JPEG・PNG画像に対応' : '画像・Mermaidは未対応'}</span>
                 </div>
               </section>
+              {ordinary && draft && (
+                <MediaAttachments
+                  key={draft.id + csrfToken}
+                  kind="articles"
+                  draft={draft}
+                  csrfToken={csrfToken}
+                  fetcher={fetcher}
+                  disabled={workBusy || publicationBusy || editingLocked}
+                  onBusy={setMediaBusy}
+                  onUncertain={setMediaUncertain}
+                  onInsert={(value) => setText((t) => ({ ...t, body: t.body + value }))}
+                />
+              )}
               {invalid && (
                 <p role="alert" className="editor-error">
                   {invalid}

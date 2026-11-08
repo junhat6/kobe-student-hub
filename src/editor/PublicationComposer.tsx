@@ -12,6 +12,8 @@ import {
   type PublicationReceipt,
 } from './publication-client';
 import './publication.css';
+import { referencedMediaIds } from '../shared/media';
+import MediaPublicationPreview from './MediaPublicationPreview';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 interface Props {
   surface?: PublicSurface;
@@ -97,6 +99,7 @@ export default function PublicationComposer({
     outcome: fields.outcome,
   });
   const sourceValid = Boolean(
+    referencedMediaIds(draft.body).length <= 8 &&
     draft.title.trim() &&
     draft.body.trim() &&
     [draft.title, draft.body].every(
@@ -226,6 +229,7 @@ export default function PublicationComposer({
           snapshot.draft.version,
           snapshot.metadata,
           true,
+          referencedMediaIds(snapshot.draft.body),
         );
         const existing = await client.read(snapshot.draft.id);
         if (!mounted.current) return;
@@ -345,9 +349,13 @@ export default function PublicationComposer({
                 <summary>保存済みの版 {draft.version} の本文を確認</summary>
                 <h4>{draft.title || '無題の下書き'}</h4>
                 <SavedPreviewBoundary key={draft.version}>
-                  <MarkdownRenderer body={draft.body} />
+                  <MarkdownRenderer
+                    body={draft.body}
+                    privateMedia={{ fetcher, scopeKey: csrfToken }}
+                  />
                 </SavedPreviewBoundary>
               </details>
+              <MediaPublicationPreview body={draft.body} fetcher={fetcher} scopeKey={csrfToken} />
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
