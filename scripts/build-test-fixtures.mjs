@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
 await build({
   entryPoints: {
+    'project-moderation-test': 'tests/fixtures/project-moderation-worker.ts',
     'media-test': 'tests/fixtures/media-worker.ts',
     'enrollment-writer-independent-test': 'tests/fixtures/enrollment-writer-independent-worker.ts',
     'enrollment-test': 'tests/fixtures/enrollment-worker.ts',

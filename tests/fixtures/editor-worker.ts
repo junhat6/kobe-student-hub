@@ -1,3 +1,4 @@
+import { createMediaHandler } from '../../worker/media-http';
 import { createEnrollmentHandler } from '../../worker/enrollment-http';
 import { createFixtureSession } from '../helpers/coordinated-fixture';
 import { createPrivatePublicationStopHandler } from '../../worker/publication-stops-http';
@@ -334,6 +335,8 @@ export default {
         headers,
       });
     }
+    const media = await createMediaHandler(env.DB, ORIGIN)(request);
+    if (media) return media;
     const stop = await createPrivatePublicationStopHandler(env.DB, ORIGIN)(request);
     if (stop) return localDraftResponse(stop, request, path);
     const ownPublications = await createPrivateOwnPublicationsHandler(env.DB, ORIGIN)(request);

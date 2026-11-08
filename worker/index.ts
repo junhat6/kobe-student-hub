@@ -12,6 +12,7 @@ import { createOAuthHttpHandler, type OAuthBindings } from './auth/oauth-http';
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
+import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
 // General login remains closed; the explicit private pilot permits pending receipt only.
 const OAUTH_HTTP_RELEASE_ENABLED = false;
 const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = false;
@@ -87,8 +88,13 @@ app.use('/api/*', async (c, next) => {
   }
   await next();
 });
+app.get('/api/service-info', (c) => c.json(publicServiceInfo(c.env as Env & ServiceInfoBindings)));
 app.get('/api/health', (c) =>
-  c.json({ status: 'ok', stage: 'development-preview', writesEnabled: false }),
+  c.json({
+    status: 'ok',
+    stage: 'development-preview',
+    writesEnabled: OAUTH_HTTP_RELEASE_ENABLED && ORDINARY_DRAFT_HTTP_RELEASE_ENABLED,
+  }),
 );
 app.get('/api/catalog', async (c) => {
   // Explicit public projection: no identity, emails, drafts, history, or report data.

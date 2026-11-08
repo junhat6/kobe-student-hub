@@ -17,7 +17,7 @@ class CaseBodyBoundary extends React.Component<{ children: React.ReactNode }, { 
     return { failed: true };
   }
   render() {
-    return this.state.failed ? <p>記事本文を表示できませんでした。</p> : this.props.children;
+    return this.state.failed ? <p>対象の文章を表示できませんでした。</p> : this.props.children;
   }
 }
 const stamp = (n: number) =>
@@ -33,14 +33,38 @@ export function ModerationCases({
   initialCaseId,
   notifications = false,
   onRiskChange,
+  kind = 'article',
 }: {
   fetcher: typeof fetch;
+  kind?: 'article' | 'project';
   decisions?: boolean;
   initialCaseId?: string | null;
   notifications?: boolean;
   onRiskChange?: (risk: boolean) => void;
 }) {
-  const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
+  const client = useMemo(() => createModerationClient(fetcher, kind), [fetcher, kind]);
+  const project = kind === 'project';
+  const targetLabel = project ? '作品' : '記事';
+  const mediaFetcher = useMemo<typeof fetch>(
+    () => (input, init) => {
+      const path =
+        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const match = /^\/api\/private\/media\/([0-9a-f-]{36})$/.exec(path);
+      return fetcher(
+        match && selectedRef.current
+          ? '/api/private/moderation-media/' +
+              (project ? 'projects' : 'articles') +
+              '/' +
+              selectedRef.current +
+              '/' +
+              match[1]
+          : input,
+        init,
+      );
+    },
+    [fetcher, project],
+  );
+  const selectedRef = useRef<string | null>(null);
   const mounted = useRef(true);
   const generation = useRef(0);
   const lock = useRef(false);
@@ -116,6 +140,7 @@ export function ModerationCases({
     const request = ++generation.current;
     setBusy(true);
     setSelected(id);
+    selectedRef.current = id;
     setCases(null);
     setDetail(null);
     setFailed(false);
@@ -163,20 +188,22 @@ export function ModerationCases({
     const request = ++generation.current;
     lock.current = true;
     setBusy(true);
-    setReceipt({ title: detail?.title ?? '選択した記事', value });
+    setReceipt({ title: detail?.title ?? '選択した' + targetLabel, value });
     setDetail(null);
     setDecisionState(null);
     setSelected(null);
     setCases(null);
     riskChange(false);
     setMessage(
-      value.action === 'restore'
-        ? notifications
-          ? '復元の判断記録を確認しました。本人のお知らせ欄で理由を確認できます。'
-          : '復元の判断記録を確認しました。通知の送信は未設定です。'
-        : notifications
-          ? '公開表示から削除する判断記録を確認しました。本人のお知らせ欄で理由を確認できます。'
-          : '公開表示から削除する判断記録を確認しました。本文と通報記録は保持されています。通知の送信は未設定です。',
+      value.action === 'hide'
+        ? '作品を一時非公開にする判断記録を確認しました。本人のお知らせ欄で理由を確認できます。'
+        : value.action === 'restore'
+          ? notifications
+            ? '復元の判断記録を確認しました。本人のお知らせ欄で理由を確認できます。'
+            : '復元の判断記録を確認しました。通知の送信は未設定です。'
+          : notifications
+            ? '公開表示から削除する判断記録を確認しました。本人のお知らせ欄で理由を確認できます。'
+            : '公開表示から削除する判断記録を確認しました。本文と通報記録は保持されています。通知の送信は未設定です。',
     );
     try {
       const next = await client.queue();
@@ -235,10 +262,14 @@ export function ModerationCases({
                     aria-current={selected === item.contentId ? 'true' : undefined}
                     onClick={() => void read(item.contentId)}
                   >
-                    <strong>{item.title || '無題の記事'}</strong>
+                    <strong>{item.title || '無題の' + targetLabel}</strong>
                     <span>
-                      {item.status === 'hidden' ? '一時非公開' : '公開中'} · 通報 {item.reportCount}
-                      件
+                      {item.status === 'hidden'
+                        ? '一時非公開'
+                        : item.status === 'deleted'
+                          ? '公開表示から削除済み'
+                          : '公開中'}{' '}
+                      · 通報 {item.reportCount}件
                     </span>
                     <small>最終受付 {stamp(item.latestReportAt)}</small>
                   </Button>
@@ -253,9 +284,11 @@ export function ModerationCases({
           {receipt && (
             <section className="moderation-result" aria-label="判断結果">
               <h2>
-                {receipt.value.action === 'restore'
-                  ? '復元の記録を確認しました'
-                  : '削除の記録を確認しました'}
+                {receipt.value.action === 'hide'
+                  ? '一時非公開の記録を確認しました'
+                  : receipt.value.action === 'restore'
+                    ? '復元の記録を確認しました'
+                    : '削除の記録を確認しました'}
               </h2>
               <p>対象：{receipt.title}</p>
               <h3>判断の理由</h3>
@@ -270,15 +303,23 @@ export function ModerationCases({
           {detail ? (
             <>
               <div className="moderation-case-heading">
-                <h2>{detail.title || '無題の記事'}</h2>
-                <span>{detail.status === 'hidden' ? '一時非公開' : '公開中'}</span>
+                <h2>{detail.title || '無題の' + targetLabel}</h2>
+                <span>
+                  {detail.status === 'hidden'
+                    ? '一時非公開'
+                    : detail.status === 'deleted'
+                      ? '公開表示から削除済み'
+                      : '公開中'}
+                </span>
               </div>
               <p>
                 通報 {detail.reportCount}件 · 最終受付 {stamp(detail.latestReportAt)}
               </p>
               <div className="moderation-notification">
                 {notifications
-                  ? '判断の理由は本人のお知らせ欄に表示します。通報メールの状態は下の配送欄で確認できます。'
+                  ? project
+                    ? '作品は通報件数で自動非公開にしません。理由は本人のお知らせ欄に表示します。作品の通知メールは未設定です。'
+                    : '判断の理由は本人のお知らせ欄に表示します。通報メールの状態は下の配送欄で確認できます。'
                   : decisions
                     ? '通知の送信は未設定です。ここで判断しても、メール送信済みとは扱いません。'
                     : '通知は確認待ちとして扱います。この画面からメール送信や運営判断は行いません。'}
@@ -297,16 +338,25 @@ export function ModerationCases({
                   </li>
                 ))}
               </ol>
+              {detail.reportsTruncated && (
+                <p>新しい通報20件を表示しています。過去の通報記録も保持されています。</p>
+              )}
               <details className="moderation-article">
-                <summary>対象の記事本文を確認</summary>
+                <summary>対象の{project ? '作品情報' : '記事本文'}を確認</summary>
                 <CaseBodyBoundary key={detail.contentId}>
-                  <MarkdownRenderer body={detail.body} />
+                  <MarkdownRenderer
+                    body={detail.body}
+                    privateMedia={
+                      decisions ? { fetcher: mediaFetcher, scopeKey: detail.contentId } : undefined
+                    }
+                  />
                 </CaseBodyBoundary>
               </details>
               {decisions && decisionState && (
                 <ModerationDecision
                   key={detail.contentId + ':' + decisionState.round + ':' + decisionState.version}
                   client={client}
+                  project={project}
                   notifications={notifications}
                   detail={detail}
                   state={decisionState}

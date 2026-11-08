@@ -1,4 +1,5 @@
 import productionApp from '../../worker/index';
+import type { ServiceInfoBindings } from '../../worker/service-info';
 import { createEnrollmentHandler } from '../../worker/enrollment-http';
 import { createOrdinaryDraftHandler } from '../../worker/ordinary-drafts-http';
 import { createPrivateProfileHandler } from '../../worker/profile-http';
@@ -49,6 +50,13 @@ export default {
       const r = await handler(env.DB, origin)(request);
       if (r) return r;
     }
+    if (u.pathname === '/api/service-info') {
+      const bindings: Env & ServiceInfoBindings = {
+        ...(env as Env),
+        PUBLIC_CONTACT_URL: request.headers.get('X-Test-Public-Contact') ?? undefined,
+      };
+      return productionApp.fetch(request, bindings);
+    }
     if (u.pathname === '/api/catalog' || u.pathname === '/api/health')
       return productionApp.fetch(request, env as Env);
     if (u.pathname.startsWith('/api/'))
@@ -64,6 +72,8 @@ export default {
         '/works',
         '/works/new',
         '/moderation',
+        '/guide',
+        '/about',
         '/lab/account',
       ].includes(u.pathname) ||
       /^\/(?:(?:articles|projects)\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(

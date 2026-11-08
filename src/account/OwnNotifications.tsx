@@ -15,7 +15,7 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
     lock = useRef(false);
   const [items, setItems] = useState<OwnModerationNotice[] | null>(null),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState('自分の記事に対する判断と、その理由を確認できます。');
+    [message, setMessage] = useState('自分の記事・作品に対する判断と、その理由を確認できます。');
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -54,7 +54,11 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
         <ul className="notification-list">
           {items.map((item) => (
             <li key={item.id}>
-              <h3>{label[item.kind]}</h3>
+              <h3>
+                {item.id.startsWith('project.')
+                  ? label[item.kind].replace('記事', '作品')
+                  : label[item.kind]}
+              </h3>
               <p>{item.title}</p>
               <time dateTime={new Date(item.createdAt).toISOString()}>
                 {new Date(item.createdAt).toLocaleDateString('ja-JP')}
@@ -65,7 +69,16 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
           ))}
         </ul>
       )}
-      <p className="moderation-limit">判断についての相談・異議申立ての窓口は未設定です。</p>
+      <p className="moderation-limit">
+        <Link
+          to="/guide#contact"
+          target="_blank"
+          rel="noopener noreferrer"
+          referrerPolicy="no-referrer"
+        >
+          判断についての相談・異議申立ての案内（別のタブ）
+        </Link>
+      </p>
     </section>
   );
 }

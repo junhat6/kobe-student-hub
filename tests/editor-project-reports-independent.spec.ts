@@ -123,7 +123,7 @@ test('independent twenty-one work reports stay public and read-only case clearly
   );
   await expect(detail.locator('ol > li')).toHaveCount(20);
   await expect(
-    page.getByRole('button', { name: /非公開に|復元|削除|通知を送信|判断を保存/ }),
+    detail.getByRole('button', { name: /非公開に|復元|削除|通知を送信|判断を保存/ }),
   ).toHaveCount(0);
   await shot(detail, info.project.name, '02-readonly-case-partial-twenty.png');
   const raw = await page

@@ -116,6 +116,8 @@ mf = new Miniflare(
                   '/works',
                   '/works/new',
                   '/moderation',
+                  '/guide',
+                  '/about',
                 ].includes(u.pathname) ||
                 /^\/(?:(?:articles|projects)\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
                   u.pathname,
@@ -166,6 +168,7 @@ for (const f of [
   '0018_article_moderation_decisions.sql',
   '0019_moderation_notifications.sql',
   '0020_private_images.sql',
+  '0021_project_moderation.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

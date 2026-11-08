@@ -1,0 +1,32 @@
+.service-info {
+  max-width: 800px;
+}
+.service-info-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 24px 0 32px;
+}
+.service-info-links a,
+.service-contact,
+.service-info-back a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.service-info section + section {
+  margin-top: 40px;
+}
+.service-info h2 {
+  scroll-margin-top: 24px;
+}
+.service-info dt {
+  margin-top: 16px;
+  font-weight: 700;
+}
+.service-info dd {
+  margin: 8px 0 0;
+}
+.service-info-back {
+  margin-top: 40px;
+}

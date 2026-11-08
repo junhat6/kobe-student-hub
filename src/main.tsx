@@ -27,6 +27,7 @@ const AccountPage = React.lazy(() => import('./account/AccountPage'));
 const OrdinaryDrafts = React.lazy(() => import('./account/OrdinaryDrafts'));
 const OrdinaryProjects = React.lazy(() => import('./account/OrdinaryProjects'));
 const ModerationPage = React.lazy(() => import('./account/ModerationPage'));
+const ServiceInfo = React.lazy(() => import('./account/ServiceInfo'));
 const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
 const Community = React.lazy(() => import('./community/Community'));
 class BodyBoundary extends React.Component<
@@ -71,6 +72,7 @@ function App() {
   const draftPath = isDraftRoute(location.pathname);
   const projectWritePath = isProjectWriteRoute(location.pathname);
   const moderationPath = authoringUiEnabled && location.pathname === '/moderation';
+  const serviceInfoPath = accountUiEnabled && location.pathname === '/guide';
   const accountPath =
     isAccountRoute(location.pathname) || draftPath || projectWritePath || moderationPath;
   const communityPath =
@@ -84,7 +86,7 @@ function App() {
       ) &&
         !location.pathname.startsWith('/students/sample-')));
   useEffect(() => {
-    if (accountPath || communityPath) return;
+    if (accountPath || communityPath || serviceInfoPath) return;
     const controller = new AbortController();
     setFailed(false);
     fetch('/api/catalog', { signal: controller.signal })
@@ -100,9 +102,14 @@ function App() {
         if (e.name !== 'AbortError') setFailed(true);
       });
     return () => controller.abort();
-  }, [attempt, accountPath, communityPath]);
+  }, [attempt, accountPath, communityPath, serviceInfoPath]);
   usePagePosition(
-    Boolean(catalog) || failed || location.pathname === '/about' || accountPath || communityPath,
+    Boolean(catalog) ||
+      failed ||
+      location.pathname === '/about' ||
+      accountPath ||
+      communityPath ||
+      serviceInfoPath,
   );
   return (
     <>
@@ -189,6 +196,18 @@ function App() {
               <Community />
             </React.Suspense>
           </BodyBoundary>
+        ) : serviceInfoPath ? (
+          <BodyBoundary key={location.pathname}>
+            <React.Suspense
+              fallback={
+                <p className="shell empty" role="status">
+                  案内を読み込んでいます…
+                </p>
+              }
+            >
+              <ServiceInfo />
+            </React.Suspense>
+          </BodyBoundary>
         ) : location.pathname === '/about' ? (
           <About />
         ) : failed ? (
@@ -221,7 +240,9 @@ function App() {
           Kobe Student Hub
         </Link>
         <p>学生の知識と経験を、次の一歩へ。</p>
-        <Link to="/about">開発状況・利用上の注意</Link>
+        <Link to={accountUiEnabled ? '/guide' : '/about'}>
+          {accountUiEnabled ? '利用ルール・問い合わせ' : '開発状況・利用上の注意'}
+        </Link>
         <span>学校公式サービスではありません · 開発中</span>
       </footer>
     </>
@@ -736,6 +757,9 @@ function About() {
         <h2>記事の通報</h2>
         <p>
           公開記事に問題がある場合は、記事末尾から理由を添えて通報できます。通報内容や通報者は一般の読者には表示されません。
+        </p>
+        <p>
+          <Link to="/guide">利用ルール・情報の扱い・問い合わせを見る</Link>
         </p>
         <p>
           <Link to="/">公開記事を読む →</Link>
