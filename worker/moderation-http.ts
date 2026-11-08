@@ -92,7 +92,7 @@ async function input(request: Request): Promise<Body> {
     clearTimeout(timer);
   }
 }
-/** Unconnected report and read-only operator boundary. No account, role, mail or restore operation. */
+/** Existing-session reports and trusted operator decisions. No role grant or mail sender. */
 export function createModerationHandler(
   db: D1Database,
   origin: string,
@@ -116,10 +116,14 @@ export function createModerationHandler(
     const casePath = /^\/api\/private\/moderation\/cases\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})$/.exec(
       url.pathname,
     );
+    const decision =
+      /^\/api\/private\/moderation\/cases\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/decision$/.exec(
+        url.pathname,
+      );
     const session = url.pathname === '/api/private/moderation/session';
     const queue = url.pathname === '/api/private/moderation/cases';
-    if (!report && !casePath && !session && !queue) return unavailable();
-    const allowed = report ? ['GET', 'POST'] : ['GET'];
+    if (!report && !casePath && !decision && !session && !queue) return unavailable();
+    const allowed = report || decision ? ['GET', 'POST'] : ['GET'];
     if (!allowed.includes(request.method)) {
       const response = error(405, 'method_not_allowed');
       response.headers.set('Allow', allowed.join(', '));
@@ -135,14 +139,18 @@ export function createModerationHandler(
       if (request.method === 'GET') {
         const result = report
           ? await moderation.getOwnReport(request, report[1])
-          : casePath
-            ? await moderation.readCase(request, casePath[1])
-            : await moderation.queue(request);
+          : decision
+            ? await moderation.decisionState(request, decision[1])
+            : casePath
+              ? await moderation.readCase(request, casePath[1])
+              : await moderation.queue(request);
         return result === null ? unavailable() : json(result);
       }
       const body = await input(request);
       if (!body.ok) return error(body.status, 'invalid_request');
-      const result = await moderation.report(request, report![1], body.value);
+      const result = decision
+        ? await moderation.decide(request, decision[1], body.value)
+        : await moderation.report(request, report![1], body.value);
       return result === null ? unavailable() : json(result);
     } catch {
       return unavailable();

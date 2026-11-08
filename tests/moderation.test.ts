@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import type { ModerationCase, ModerationSummary } from '../worker/moderation';
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1800000000000;
@@ -80,19 +80,17 @@ beforeAll(async () => {
     }),
   );
   const db = await mf.getD1Database('DB');
-  for (const file of [
-    '0001_discovery.sql',
-    '0002_sample_content.sql',
-    '0003_oauth_attempts.sql',
-    '0004_private_sessions.sql',
-    '0005_private_article_drafts.sql',
-    '0006_article_reports.sql',
-  ])
-    for (const sql of readFileSync('migrations/' + file, 'utf8')
-      .replace(/^--.*$/gm, '')
-      .split(/;\s*(?:\n|$)/)
-      .filter((s) => s.trim()))
-      await db.prepare(sql).run();
+  for (const file of readdirSync('migrations')
+    .filter((name) => name.endsWith('.sql'))
+    .sort()) {
+    const raw = readFileSync('migrations/' + file, 'utf8');
+    const statements = (
+      raw.includes('-- @statement') ? raw.split(/^-- @statement\s*$/m) : raw.split(/;\s*(?:\n|$)/)
+    )
+      .map((sql) => sql.replace(/^--.*$/gm, '').trim())
+      .filter(Boolean);
+    await db.batch(statements.map((sql) => db.prepare(sql)));
+  }
   for (const who of [...Array.from({ length: 12 }, (_, n) => String(n)), 'operator', 'removed'])
     await db
       .prepare(

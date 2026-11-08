@@ -16,6 +16,32 @@ export interface ModerationCase extends ModerationSummary {
   body: string;
   reports: { reason: string; detail: string; createdAt: number }[];
 }
+export interface ModerationDecisionState {
+  contentId: string;
+  round: number;
+  version: number;
+  status: 'published' | 'hidden' | 'deleted';
+  reportCount: number;
+}
+export interface ModerationDecisionReceipt {
+  decisionId: string;
+  contentId: string;
+  action: 'restore' | 'delete';
+  reason: string;
+  resultStatus: 'published' | 'deleted';
+  resultRound: number;
+  resultVersion: number;
+  notification: 'pending';
+}
+type DecisionInput = {
+  decisionId: string;
+  expectedRound: number;
+  expectedVersion: number;
+  action: 'restore' | 'delete';
+  reason: string;
+};
+const version = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isSafeInteger(v) && v > 0 && v < 9007199254740990;
 const idValid = (id: unknown): id is string =>
   typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(id);
 const text = (v: unknown, max: number): v is string =>
@@ -42,7 +68,31 @@ function reportInput(v: unknown): v is { reason: string; detail?: string } {
       (text(x.detail, 2000) && new TextEncoder().encode(x.detail).byteLength <= 8000))
   );
 }
-/** Server-private only. No notification sender, route, restore, deletion or admission policy. */
+function decisionInput(v: unknown): v is DecisionInput {
+  if (!v || typeof v !== 'object' || Object.getPrototypeOf(v) !== Object.prototype) return false;
+  const keys = Reflect.ownKeys(v);
+  if (
+    keys.length !== 5 ||
+    keys.some(
+      (key) =>
+        typeof key !== 'string' ||
+        !['decisionId', 'expectedRound', 'expectedVersion', 'action', 'reason'].includes(key),
+    )
+  )
+    return false;
+  const x = v as Record<string, unknown>;
+  return (
+    typeof x.decisionId === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(x.decisionId) &&
+    version(x.expectedRound) &&
+    version(x.expectedVersion) &&
+    (x.action === 'restore' || x.action === 'delete') &&
+    text(x.reason, 1000) &&
+    !!x.reason.trim() &&
+    new TextEncoder().encode(x.reason).byteLength <= 4000
+  );
+}
+/** Server-private reports and trusted operator decisions. Notification delivery is unconfigured. */
 export class ArticleModerationStore {
   private readonly sessions: SessionStore;
   private readonly operators: readonly string[];
@@ -69,10 +119,10 @@ export class ArticleModerationStore {
       if (!p) return null;
       const row = await this.db
         .prepare(
-          `INSERT INTO article_reports(id,content_id,reporter_account_id,reason,detail,created_at_ms)
-    SELECT ?,id,?,?,?,? FROM content WHERE id=? AND kind='article' AND status='published' AND ${writerLive}
-    AND NOT EXISTS(SELECT 1 FROM article_reports WHERE content_id=content.id AND created_at_ms>?)
-    ON CONFLICT(content_id,reporter_account_id) DO UPDATE SET id=article_reports.id RETURNING id`,
+          `INSERT INTO article_reports(id,content_id,reporter_account_id,round,reason,detail,created_at_ms)
+    SELECT ?,id,?,COALESCE((SELECT round FROM article_moderation_state WHERE content_id=content.id),1),?,?,? FROM content WHERE id=? AND kind='article' AND status='published' AND ${writerLive}
+    AND NOT EXISTS(SELECT 1 FROM article_reports WHERE content_id=content.id AND round=COALESCE((SELECT round FROM article_moderation_state WHERE content_id=content.id),1) AND created_at_ms>?)
+    ON CONFLICT(content_id,round,reporter_account_id) DO UPDATE SET id=article_reports.id RETURNING id`,
         )
         .bind(
           crypto.randomUUID(),
@@ -97,7 +147,7 @@ export class ArticleModerationStore {
       if (!p) return null;
       const row = await this.db
         .prepare(
-          `SELECT r.id receipt FROM content c LEFT JOIN article_reports r ON r.content_id=c.id AND r.reporter_account_id=?
+          `SELECT r.id receipt FROM content c LEFT JOIN article_reports r ON r.content_id=c.id AND r.reporter_account_id=? AND r.round=COALESCE((SELECT round FROM article_moderation_state WHERE content_id=c.id),1)
     WHERE c.id=? AND c.kind='article' AND c.status IN ('published','hidden') AND (r.id IS NOT NULL OR c.status='published') AND (r.created_at_ms IS NULL OR r.created_at_ms<=?) AND ${live}`,
         )
         .bind(p.accountId, targetId, p.nowMs, ...bindings(p))
@@ -108,18 +158,19 @@ export class ArticleModerationStore {
     }
   }
   private async operator(request: Request) {
-    if (request.method !== 'GET' || !this.operators.length) return null;
+    if (!['GET', 'POST'].includes(request.method) || !this.operators.length) return null;
     const p = await this.sessions.storageAuthorization(request);
     return p && this.operators.includes(p.accountId) ? p : null;
   }
   async queue(request: Request): Promise<ModerationSummary[] | null> {
+    if (request.method !== 'GET') return null;
     try {
       const p = await this.operator(request);
       if (!p) return null;
       const result = await this.db
         .prepare(
           `SELECT c.id,SUBSTR(c.title,1,200) title,c.status,r.report_count,r.latest FROM (SELECT 1 WHERE ${live}) auth
-    LEFT JOIN (SELECT r.content_id,COUNT(*) report_count,MAX(r.created_at_ms) latest FROM article_reports r JOIN content eligible ON eligible.id=r.content_id AND eligible.kind='article' AND eligible.status IN ('published','hidden') AND instr(eligible.title,char(0))=0 GROUP BY r.content_id) r ON 1=1
+    LEFT JOIN (SELECT r.content_id,COUNT(*) report_count,MAX(r.created_at_ms) latest FROM article_reports r JOIN article_moderation_state s ON s.content_id=r.content_id AND s.round=r.round JOIN content eligible ON eligible.id=r.content_id AND eligible.kind='article' AND eligible.status IN ('published','hidden') AND instr(eligible.title,char(0))=0 GROUP BY r.content_id) r ON 1=1
     LEFT JOIN content c ON c.id=r.content_id AND c.kind='article' AND c.status IN ('published','hidden')
     ORDER BY r.latest DESC,c.id ASC LIMIT 20`,
         )
@@ -158,13 +209,13 @@ export class ArticleModerationStore {
     }
   }
   async readCase(request: Request, targetId: unknown): Promise<ModerationCase | null> {
-    if (!idValid(targetId)) return null;
+    if (request.method !== 'GET' || !idValid(targetId)) return null;
     try {
       const p = await this.operator(request);
       if (!p) return null;
       const result = await this.db
         .prepare(
-          `SELECT c.id,SUBSTR(c.title,1,200) title,c.body,c.status,r.reason,r.detail,r.created_at_ms FROM content c JOIN article_reports r ON r.content_id=c.id WHERE c.id=? AND c.kind='article' AND c.status IN ('published','hidden') AND instr(c.title,char(0))=0 AND instr(c.body,char(0))=0 AND length(CAST(c.body AS BLOB))<=262144 AND NOT EXISTS(SELECT 1 FROM article_reports invalid WHERE invalid.content_id=c.id AND (length(CAST(invalid.reason AS BLOB))>800 OR length(CAST(invalid.detail AS BLOB))>8000)) AND (SELECT COUNT(*) FROM article_reports total WHERE total.content_id=c.id) BETWEEN 1 AND 3 AND ${live} ORDER BY r.created_at_ms ASC,r.id ASC LIMIT 3`,
+          `SELECT c.id,SUBSTR(c.title,1,200) title,c.body,c.status,r.reason,r.detail,r.created_at_ms FROM content c JOIN article_moderation_state s ON s.content_id=c.id JOIN article_reports r ON r.content_id=c.id AND r.round=s.round WHERE c.id=? AND c.kind='article' AND c.status IN ('published','hidden') AND instr(c.title,char(0))=0 AND instr(c.body,char(0))=0 AND length(CAST(c.body AS BLOB))<=262144 AND NOT EXISTS(SELECT 1 FROM article_reports invalid WHERE invalid.content_id=c.id AND invalid.round=s.round AND (length(CAST(invalid.reason AS BLOB))>800 OR length(CAST(invalid.detail AS BLOB))>8000)) AND (SELECT COUNT(*) FROM article_reports total WHERE total.content_id=c.id AND total.round=s.round) BETWEEN 1 AND 3 AND ${live} ORDER BY r.created_at_ms ASC,r.id ASC LIMIT 3`,
         )
         .bind(targetId, ...bindings(p))
         .all<{
@@ -205,6 +256,97 @@ export class ArticleModerationStore {
           createdAt: r.created_at_ms,
         })),
       };
+    } catch {
+      return null;
+    }
+  }
+  async decisionState(
+    request: Request,
+    targetId: unknown,
+  ): Promise<ModerationDecisionState | null> {
+    if (request.method !== 'GET' || !idValid(targetId)) return null;
+    try {
+      const p = await this.operator(request);
+      if (!p) return null;
+      const row = await this.db
+        .prepare(
+          `SELECT c.id contentId,s.round,s.version,c.status,(SELECT COUNT(*) FROM article_reports r WHERE r.content_id=c.id AND r.round=s.round) reportCount FROM article_moderation_state s JOIN content c ON c.id=s.content_id WHERE c.id=? AND c.kind='article' AND c.status IN ('published','hidden','deleted') AND ${live}`,
+        )
+        .bind(targetId, ...bindings(p))
+        .first<ModerationDecisionState>();
+      return row &&
+        idValid(row.contentId) &&
+        version(row.round) &&
+        version(row.version) &&
+        Number.isSafeInteger(row.reportCount) &&
+        row.reportCount >= 0 &&
+        row.reportCount <= 3
+        ? row
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  private async decisionReceipt(
+    p: Proof,
+    targetId: string,
+    input: DecisionInput,
+  ): Promise<ModerationDecisionReceipt | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT d.id decisionId,d.content_id contentId,d.action,d.reason,d.result_status resultStatus,d.result_round resultRound,d.result_version resultVersion,o.state notification FROM article_moderation_decisions d JOIN article_moderation_outbox o ON o.decision_id=d.id WHERE d.id=? AND d.content_id=? AND d.operator_account_id=? AND d.expected_round=? AND d.expected_version=? AND d.action=? AND d.reason=? AND d.decided_at_ms<=? AND ${live}`,
+      )
+      .bind(
+        input.decisionId,
+        targetId,
+        p.accountId,
+        input.expectedRound,
+        input.expectedVersion,
+        input.action,
+        input.reason,
+        p.clock(),
+        ...bindings(p),
+      )
+      .first<ModerationDecisionReceipt>();
+    return row && row.notification === 'pending' ? row : null;
+  }
+  async decide(
+    request: Request,
+    targetId: unknown,
+    input: unknown,
+  ): Promise<ModerationDecisionReceipt | null> {
+    if (request.method !== 'POST' || !idValid(targetId) || !decisionInput(input)) return null;
+    try {
+      const p = await this.operator(request);
+      if (!p || p.nowMs > 253402300799999) return null;
+      const prior = await this.decisionReceipt(p, targetId, input);
+      if (prior) return prior;
+      try {
+        await this.db
+          .prepare(
+            `INSERT INTO article_moderation_decisions(id,content_id,operator_account_id,expected_round,expected_version,action,reason,decided_at_ms,result_status,result_round,result_version) SELECT ?,c.id,?,?,?,?,?,?,CASE ? WHEN 'restore' THEN 'published' ELSE 'deleted' END,s.round+CASE ? WHEN 'restore' THEN 1 ELSE 0 END,s.version+1 FROM content c JOIN article_moderation_state s ON s.content_id=c.id WHERE c.id=? AND s.round=? AND s.version=? AND ${live}`,
+          )
+          .bind(
+            input.decisionId,
+            p.accountId,
+            input.expectedRound,
+            input.expectedVersion,
+            input.action,
+            input.reason,
+            p.nowMs,
+            input.action,
+            input.action,
+            targetId,
+            input.expectedRound,
+            input.expectedVersion,
+            ...bindings(p),
+          )
+          .run();
+      } catch {
+        // A concurrent retry may already have committed this exact command.
+        // The receipt query repeats the current authority check in either case.
+      }
+      return await this.decisionReceipt(p, targetId, input);
     } catch {
       return null;
     }

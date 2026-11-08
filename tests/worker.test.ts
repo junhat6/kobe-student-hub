@@ -425,6 +425,10 @@ describe('report-triggered public projection', () => {
     } finally {
       await db.prepare('DELETE FROM article_report_outbox WHERE content_id=?').bind(target).run();
       await db.prepare('DELETE FROM article_reports WHERE content_id=?').bind(target).run();
+      await db
+        .prepare('DELETE FROM article_moderation_state WHERE content_id=?')
+        .bind(target)
+        .run();
       await db.prepare('DELETE FROM content WHERE id=?').bind(target).run();
       for (const who of accounts.slice(1))
         await db.prepare('DELETE FROM private_accounts WHERE id=?').bind(who).run();
