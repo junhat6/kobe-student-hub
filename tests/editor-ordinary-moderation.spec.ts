@@ -226,3 +226,60 @@ test('actor change discards the previous case, reason and command; ordinary stud
     await Promise.all(target.contexts.map((ctx) => ctx.close()));
   }
 });
+
+// A concurrent restore followed by three reports can return the same status/count
+// for a newer round. The old detail must not become evidence for that round.
+test('a new decision round with the same status and count rejects old case details', async ({
+  page,
+  browser,
+}) => {
+  const target = await setup(browser);
+  try {
+    await operator(page);
+    const decisionPath = '/api/private/moderation/cases/' + target.id + '/decision';
+    let caseRequested = false;
+    let stateReads = 0;
+    let posts = 0;
+    await page.route('**/api/private/moderation/cases/' + target.id, async (route) => {
+      caseRequested = true;
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      await route.fulfill({ response });
+    });
+    await page.route('**' + decisionPath, async (route) => {
+      if (route.request().method() !== 'GET') {
+        posts++;
+        return route.abort();
+      }
+      stateReads++;
+      // The restored-and-reported round begins after the old case request starts.
+      // These are synthetic version proofs; the server/session fixture stays real.
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          contentId: target.id,
+          round: caseRequested ? 2 : 1,
+          version: caseRequested ? 7 : 3,
+          status: 'hidden',
+          reportCount: 3,
+        }),
+      });
+    });
+    await page.locator('.moderation-queue button').filter({ hasText: target.title }).click();
+    await expect(
+      page.getByText(
+        'この対象の通報内容を確認できませんでした。古い表示を残さず、未確認として扱います。',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole('region', { name: '運営判断', exact: true })).not.toBeVisible();
+    await expect(page.locator('.moderation-reports')).toHaveCount(0);
+    await expect(page.locator('.moderation-article')).toHaveCount(0);
+    expect(caseRequested).toBe(true);
+    expect(stateReads).toBe(2);
+    expect(posts).toBe(0);
+  } finally {
+    await Promise.all(target.contexts.map((ctx) => ctx.close()));
+  }
+});
