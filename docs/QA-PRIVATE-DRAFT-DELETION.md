@@ -1,6 +1,6 @@
 # Independent QA — private draft deletion
 
-2026-11-08. Separate context from the implementer, reviewing the uncommitted change based on main `6bcfe8f24980561a4055760c986d475595bca79e`. Sources were copied into an isolated temporary directory without runtime configuration, credentials, `.wrangler`, or Git metadata. Dependencies were shared; builds, ephemeral D1, browser processes and output were isolated. No production, Google account, grant, schema, deployment, or GitHub mutation was performed.
+2026-11-08. Separate context from the implementer, reviewing the uncommitted change based on main `6bcfe8f24980561a4055760c986d475595bca79e`. The initial checks below apply to the initial fingerprints recorded here; the CI focus follow-up is recorded separately below. Sources were copied into an isolated temporary directory without runtime configuration, credentials, `.wrangler`, or Git metadata. Dependencies were shared; builds, ephemeral D1, browser processes and output were isolated. No production, Google account, grant, schema, deployment, or GitHub mutation was performed.
 
 ## Result
 
@@ -37,7 +37,7 @@ Playwright's owned temporary server and child Worker completed cleanup. The fixt
 
 ## Source fingerprints
 
-SHA-256 values were matched against the shared final implementation after execution:
+SHA-256 values were matched against the shared initial implementation after the initial execution:
 
 | File | SHA-256 |
 | --- | --- |
@@ -50,3 +50,13 @@ SHA-256 values were matched against the shared final implementation after execut
 Additional QA-only spec fingerprint: `9bf87bd3502cf77755d4caf5280b6cc575ed7f1948658d4c667fa38e27d759cb`. It remains in the isolated local copy and is not an application dependency.
 
 The implementation does not solve post-expiry deletion/retention, backups or logs. Those require a separate operating policy and verifiable deletion process, without extending the editor grant or weakening its checks. Merge requires the ordinary reviewed PR and green CI; this QA does not authorize a runtime policy change.
+
+## CI focus follow-up
+
+CI run `42437892754` subsequently failed both new success cases at the post-delete focus assertion; its other 38 limited-browser cases passed. The initial local results above therefore did not establish reliable focus timing on the Linux CI host. The implementer replaced the success path's animation-frame focus with a completion ref consumed by a layout effect only after the selected draft is absent and both `busy` and `opening` are false. The assertion and its timeout were retained.
+
+Independent review verified this delta does not change deletion transport, acknowledgement, permissions, data removal, session guards or error handling. The target button is now mounted and enabled when focus is attempted. A session-driven unmount discards the ref rather than moving focus into a replacement editor.
+
+The isolated copy was updated with only this changed `DraftEditor.tsx`. `npm run build` passed, including TypeScript checking. Independently reran the unchanged success/cancellation/keyboard/preservation case on desktop and mobile Chromium: **2 passed**, 4.8s. These assertions include focus returning to the initiating control after cancellation and focus on the new-draft control after acknowledged deletion. No assertion, timeout or browser retry was relaxed. The server/process was terminal and port 8792 had no listener afterward.
+
+Final `src/editor/DraftEditor.tsx` SHA-256, matched to the shared source: `7e2754bba97f3dd3aff0fd273065f9a63d887a8cea90aa6b11ed4b7f36a13335`. Other source/test fingerprints above remain unchanged. The earlier 46-test/16-browser/visual results belong to the earlier fingerprint; the final delta has the independent static/build/two-case verification described here. A successful normal CI rerun is still required before merge.

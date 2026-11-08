@@ -18,6 +18,7 @@ export default function DraftEditor({csrfToken,fetcher=fetch,privateOnly=false,t
  const [publicationBusy,setPublicationBusy]=useState(false);const publicationLock=useRef(false);const preparationUnsaved=useRef(false);const [busy,setBusy]=useState(false);const [opening,setOpening]=useState(false);const lock=useRef(false);const mounted=useRef(true);
  const [status,setStatus]=useState('下書きを読み込んでいます…');const [problem,setProblem]=useState(false);
  const [confirmDelete,setConfirmDelete]=useState(false);const [deleteUnknown,setDeleteUnknown]=useState(false);
+ const deletionFocus=useRef(false);
  const deleteButton=useRef<HTMLButtonElement>(null);const deleteHeading=useRef<HTMLHeadingElement>(null);const newButton=useRef<HTMLButtonElement>(null);
  const [latest,setLatest]=useState<EditorDraft|null>(null);const [preview,setPreview]=useState(false);
  const [composing,setComposing]=useState(false);const compositionRef=useRef(false);const pendingFormat=useRef<MarkdownFormat|null>(null);
@@ -31,6 +32,7 @@ export default function DraftEditor({csrfToken,fetcher=fetch,privateOnly=false,t
  function remember(value:EditorDraft){setList(rows=>[{id:value.id,title:value.title,version:value.version,updatedAt:value.updatedAt},...rows.filter(r=>r.id!==value.id)].sort((a,b)=>b.updatedAt-a.updatedAt||a.id.localeCompare(b.id)).slice(0,20))}
  async function refresh(){await run(async()=>{try{const rows=await client.list();if(!mounted.current)return;setList(rows);setListError(false);if(!draft)setStatus(rows.length?'左の一覧から下書きを開くか、新しく作成できます。':'新しい下書きを作成して、書き始めましょう。')}catch{if(mounted.current){setListError(true);if(!draft)setStatus('一覧を読み込めませんでした。もう一度お試しください。')}}})}
  useEffect(()=>{mounted.current=true;void refresh();return()=>{mounted.current=false}},[client]);
+ useLayoutEffect(()=>{if(deletionFocus.current&&!busy&&!opening&&!draft){deletionFocus.current=false;newButton.current?.focus()}},[busy,opening,draft]);
  useEffect(()=>{if(!dirty)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[dirty]);
  function maySwitch(){return (!dirty&&!preparationUnsaved.current)||window.confirm('未保存の編集・公開情報があります。別の下書きへ移ると、この画面の変更は失われます。移動しますか？')}
  function open(value:EditorDraft){pendingFormat.current=null;compositionRef.current=false;setComposing(false);setConfirmDelete(false);setDeleteUnknown(false);setDraft(value);setText({title:value.title,body:value.body});setLatest(null);setProblem(false);setPreview(false);setStatus(value.title?'保存済みの下書きを開きました。':'下書きを作成しました。タイトルや本文を書いてみましょう。');requestAnimationFrame(()=>titleRef.current?.focus())}
@@ -43,7 +45,7 @@ export default function DraftEditor({csrfToken,fetcher=fetch,privateOnly=false,t
   if(!privateOnly||!draft||!confirmDelete||deleteUnknown||lock.current||publicationLock.current)return;
   const target={id:draft.id,title:draft.title,version:draft.version,updatedAt:draft.updatedAt};
   await run(async()=>{setConfirmDelete(false);setOpening(true);setStatus('下書きを削除しています…');
-   try{await client.delete(target);if(!mounted.current)return;setList(rows=>rows.filter(row=>row.id!==target.id));setDraft(null);setText({title:'',body:''});setLatest(null);setProblem(false);setDeleteUnknown(false);setPreview(false);pendingFormat.current=null;compositionRef.current=false;setComposing(false);setStatus('下書きを削除しました。この画面の未保存の変更も破棄しました。');requestAnimationFrame(()=>newButton.current?.focus())}
+   try{await client.delete(target);if(!mounted.current)return;setList(rows=>rows.filter(row=>row.id!==target.id));setDraft(null);setText({title:'',body:''});setLatest(null);setProblem(false);setDeleteUnknown(false);setPreview(false);pendingFormat.current=null;compositionRef.current=false;setComposing(false);setStatus('下書きを削除しました。この画面の未保存の変更も破棄しました。');deletionFocus.current=true}
    catch{if(mounted.current){setDeleteUnknown(true);setProblem(true);setLatest(null);setStatus('削除結果を確認できませんでした。手元の編集は残しています。保存済みの版を確認するまで、保存・削除はできません。')}}
    finally{if(mounted.current)setOpening(false)}
   });

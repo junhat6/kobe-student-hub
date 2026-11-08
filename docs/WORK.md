@@ -690,3 +690,5 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 **再計画:** 自己削除UIだけでは期限後の削除は保証できない。有効なgrantを延長・迂回せず、実保持期限と本人確認を含む削除経路／運用の選定を次の課題に残す。学生価値・実端末の検証は未実施。独立QAと通常CIを経てmainへ進める。本番反映は既存対象と設定を安全に検証できた場合に限り、schema・grant・secretの変更を伴わない別操作として扱う。
 
 **独立QA:** 別コンテキストの隔離build/typecheck、関連46 tests、PC/mobile16 cases成功。503、遅着成功中のsession変更、長い題名・private DOM境界を追加検証し、阻害所見なし。画像6枚を独立確認し、ソース指紋一致。公開60 casesとdry-runも成功。詳細は [独立QA](QA-PRIVATE-DRAFT-DELETION.md)。AI動作確認を学生価値検証として扱わない。
+
+**CIからの修正:** 初回PR CIは削除後focusのPC/mobile2ケースが失敗した。busy解除がDOMへ反映された後のlayout effectへfocusを移し、元のassertionを維持した。修正後の限定40ケースは成功。独立追試・通常CIの成功を確認するまでmain merge／本番反映を行わない。

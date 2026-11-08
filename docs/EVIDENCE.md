@@ -496,3 +496,11 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 impeccable detectorは既存CSSの2件の側面border警告を報告した。変更で追加した削除領域には該当せず、今回の範囲外の既存スタイルは維持した。独立QA・公開E2E・dry-run・CI結果は実行後に追記する。
 
 追加結果：`npm run db:local`成功後、`npm run test:e2e`は60件成功（10.9s）。`npm run deploy:check`成功。独立QAは隔離build/typecheck、関連4 files /46 tests成功（1.98s）、PC/mobile16 browser cases成功（15.9s）。追加QAは503、確定済みDELETE遅着中のsession変更、200文字題名と非表示境界を含む。[独立報告](QA-PRIVATE-DRAFT-DELETION.md)に最終ソース指紋を記録。通常CIとmain反映・本番反映の結果はPRへ記録する。
+
+### CIで見つかった削除後focusの競合
+
+PR #97の初回CI `42437892754` はlimited browser38成功／2失敗。PC/mobileとも削除成功後の「新しい下書き」focus assertionが失敗した。削除後のrequestAnimationFrameがbusy解除のDOM反映より先に実行される可能性があったため、削除完了refを、下書き消去・opening解除・busy解除後のlayout effectで消費してfocusするよう修正した。待機時間・assertion・retryは変更していない。
+
+修正後の開発側 `npm run test:limited` は40成功（30.4s）。限定削除以外のserver／guard／schema／policyは未変更。初回CIの失敗を成功扱いにせず、独立の追試と新しい通常CIを待つ。
+
+修正後の全unit/Workerは70 files /602成功（15.18s）、build/typecheckとdeploy:check成功。独立QAはfocus差分を静的レビューし、隔離build/typecheckと、変更していない成功・キャンセル・キーボード・他下書き保持のPC/mobile2ケース成功（4.8s）。最終DraftEditor指紋を独立照合し、阻害所見なし。共有editor181成功／1既存skip（3.5m）はfocus修正前の結果で、限定削除以外の共有編集へ新しい動作を追加していない。通常CIが最終headの全体を確認する。
