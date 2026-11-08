@@ -97,7 +97,9 @@ test('explicit project report stays private and a trusted read-only operator can
   await expect(detail.getByText(reason, { exact: true })).toBeVisible();
   await expect(detail.getByText('非公開の架空詳細', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => 'projectReportInjected' in window)).toBe(false);
-  await expect(page.getByRole('button', { name: /復元|削除|通知を送信|非公開に/ })).toHaveCount(0);
+  await expect(detail.getByRole('button', { name: /復元|削除|通知を送信|非公開に/ })).toHaveCount(
+    0,
+  );
   await page.route('**/api/private/project-moderation/cases/*', (route) =>
     route.fulfill({
       status: 503,
