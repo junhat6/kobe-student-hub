@@ -1,5 +1,6 @@
 import { mergeConfirmedProject } from './project-list';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { Button } from '@base-ui/react/button';
 import type {
   ProjectFields,
@@ -40,9 +41,13 @@ export function ProjectText({
 export default function ProjectRegistration({
   csrfToken,
   fetcher = fetch,
+  surface = 'lab',
+  onNavigationRiskChange,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
+  surface?: PublicSurface;
+  onNavigationRiskChange?: (risk: boolean) => void;
 }) {
   const formId = useId();
   const client = useMemo(() => createProjectClient(csrfToken, fetcher), [csrfToken, fetcher]),
@@ -72,6 +77,11 @@ export default function ProjectRegistration({
     : Object.values(input).some(Boolean);
   const publishable = Boolean(saved?.title.trim() && saved?.description.trim());
   const hasUnsaved = dirty || createUnknown || saveUnknown || pubUnknown;
+  useLayoutEffect(
+    () => onNavigationRiskChange?.(hasUnsaved || busy),
+    [hasUnsaved, busy, onNavigationRiskChange],
+  );
+  useEffect(() => () => onNavigationRiskChange?.(false), [onNavigationRiskChange]);
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -285,7 +295,11 @@ export default function ProjectRegistration({
         if (current(g)) {
           setPublished({ id, version: source.version });
           setPubUnknown(false);
-          setMessage('確認した保存版をローカルで公開しました。手元の追加編集は含みません。');
+          setMessage(
+            surface === 'ordinary'
+              ? '確認した保存版を公開しました。手元の追加編集は含みません。'
+              : '確認した保存版をローカルで公開しました。手元の追加編集は含みません。',
+          );
         }
       } catch {
         if (current(g)) {
@@ -300,9 +314,11 @@ export default function ProjectRegistration({
   return (
     <section className="project-registration" aria-label="画像なし作品の登録">
       <h2>画像なしの作品を登録する</h2>
-      <p className="project-local">
-        架空データによるローカル限定の試作です。実際の投稿利用ではありません。作品通報の受付・内容の読取確認はローカルで試せますが、実際の運営判断・連絡は未提供です。実サービスでの公開はできません。
-      </p>
+      {surface === 'lab' && (
+        <p className="project-local">
+          架空データによるローカル限定の試作です。実際の投稿利用ではありません。作品通報の受付・内容の読取確認はローカルで試せますが、実際の運営判断・連絡は未提供です。実サービスでの公開はできません。
+        </p>
+      )}
       <p role="status" aria-live="polite">
         {message}
       </p>
@@ -427,12 +443,23 @@ export default function ProjectRegistration({
           )}
           {!profile && (
             <p>
-              公開プロフィールがまだ確認できていません。この画面のプロフィール準備で本人入力を確認してください。
+              公開プロフィールがまだ確認できていません。
+              {surface === 'ordinary' ? (
+                <a href="/account#profile">アカウントでプロフィールを作成</a>
+              ) : (
+                'この画面のプロフィール準備で本人入力を確認'
+              )}
+              してください。
             </p>
           )}
           <p>公開には空白だけではないタイトルと説明が必要です。</p>
           <p>
-            保存した説明と上のURL、確認済みプロフィールが匿名の読者にも見える操作です。公開後の本文更新・削除・再公開は未提供です。「自分の公開記録」から、現在の公開を停止するローカル試作を利用できます。
+            保存した説明と上のURL、確認済みプロフィールが匿名の読者にも見える操作です。公開後の本文更新・削除・再公開は未提供です。
+            {surface === 'ordinary' ? (
+              <a href="/account#publications">自分の公開記録から公開停止を確認できます。</a>
+            ) : (
+              '「自分の公開記録」から、現在の公開を停止するローカル試作を利用できます。'
+            )}
           </p>
           <Button
             disabled={
@@ -448,7 +475,7 @@ export default function ProjectRegistration({
             }
             onClick={() => void publish()}
           >
-            確認した保存版の作品をローカルで公開
+            確認した保存版の作品を{surface === 'ordinary' ? '' : 'ローカルで'}公開
           </Button>
           {pubUnknown && <p role="alert">公開結果は未確定です。自動で再送しません。</p>}
           {receipt && (
@@ -460,21 +487,25 @@ export default function ProjectRegistration({
           {published && (
             <p>
               保存版 {published.version} の公開を確認しました。
-              <a href={'/lab/projects/' + published.id} target="_blank" rel="noopener noreferrer">
+              <a
+                href={publicPaths(surface).project(published.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 ログインなしで作品を見る ↗
               </a>
             </p>
           )}
           {(published || receipt) && (
             <p>
-              <a href="/lab/works" target="_blank" rel="noopener noreferrer">
+              <a href={publicPaths(surface).works} target="_blank" rel="noopener noreferrer">
                 公開作品の一覧を開く ↗
               </a>
             </p>
           )}
           {receipt && !published && (
             <a
-              href={'/lab/projects/' + receipt.projectId}
+              href={publicPaths(surface).project(receipt.projectId)}
               target="_blank"
               rel="noopener noreferrer"
             >

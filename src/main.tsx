@@ -20,10 +20,12 @@ import {
   authoringUiEnabled,
   isAccountRoute,
   isDraftRoute,
+  isProjectWriteRoute,
 } from './account/routes';
 const Registration = React.lazy(() => import('./account/Registration'));
 const AccountPage = React.lazy(() => import('./account/AccountPage'));
 const OrdinaryDrafts = React.lazy(() => import('./account/OrdinaryDrafts'));
+const OrdinaryProjects = React.lazy(() => import('./account/OrdinaryProjects'));
 const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
 const Community = React.lazy(() => import('./community/Community'));
 class BodyBoundary extends React.Component<
@@ -66,14 +68,17 @@ function App() {
   const [attempt, setAttempt] = useState(0);
   const location = useLocation();
   const draftPath = isDraftRoute(location.pathname);
-  const accountPath = isAccountRoute(location.pathname) || draftPath;
+  const projectWritePath = isProjectWriteRoute(location.pathname);
+  const accountPath = isAccountRoute(location.pathname) || draftPath || projectWritePath;
   const communityPath =
     authoringUiEnabled &&
-    (['/', '/search'].includes(location.pathname) ||
-      /^\/articles\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+    (['/', '/search', '/works'].includes(location.pathname) ||
+      /^\/(?:articles|projects)\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
         location.pathname,
       ) ||
-      (/^\/students\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}(?:\/likes)?$/.test(location.pathname) &&
+      (/^\/students\/[A-Za-z0-9][A-Za-z0-9_-]{0,127}(?:\/(?:likes|works))?$/.test(
+        location.pathname,
+      ) &&
         !location.pathname.startsWith('/students/sample-')));
   useEffect(() => {
     if (accountPath || communityPath) return;
@@ -149,7 +154,9 @@ function App() {
                 </p>
               }
             >
-              {draftPath ? (
+              {projectWritePath ? (
+                <OrdinaryProjects />
+              ) : draftPath ? (
                 <OrdinaryDrafts />
               ) : location.pathname === '/account' ? (
                 <AccountPage />

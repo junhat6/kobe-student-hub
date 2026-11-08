@@ -11,3 +11,4 @@ export const authoringUiEnabled =
   typeof __AUTHORING_UI_RELEASE_ENABLED__ !== 'undefined' &&
   __AUTHORING_UI_RELEASE_ENABLED__ === true;
 export const isDraftRoute = (path: string) => authoringUiEnabled && path === '/drafts';
+export const isProjectWriteRoute = (path: string) => authoringUiEnabled && path === '/works/new';

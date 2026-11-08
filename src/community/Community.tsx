@@ -1,3 +1,5 @@
+import { usePublicRead, ReadFailure } from './public-read';
+import Projects from './Projects';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
@@ -19,46 +21,6 @@ import { createPublicLikesClient } from '../editor/public-likes-client';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
 
-/** Anonymous reading never creates an account or sends session credentials. */
-function usePublicRead<T>(key: string, read: (signal: AbortSignal) => Promise<T>) {
-  const [state, setState] = useState<{ key: string; value: T | null; failed: boolean }>({
-    key,
-    value: null,
-    failed: false,
-  });
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setState({ key, value: null, failed: false });
-    read(controller.signal).then(
-      (value) => {
-        if (!controller.signal.aborted) setState({ key, value, failed: false });
-      },
-      () => {
-        if (!controller.signal.aborted) setState({ key, value: null, failed: true });
-      },
-    );
-    return () => controller.abort();
-  }, [key, read, attempt]);
-  return {
-    value: state.key === key ? state.value : null,
-    failed: state.key === key && state.failed,
-    retry: () => setAttempt((value) => value + 1),
-  };
-}
-
-function ReadFailure({ subject, retry }: { subject: string; retry: () => void }) {
-  return (
-    <section className="empty" role="alert">
-      <h1>{subject}を表示できませんでした</h1>
-      <p>接続を確認して、もう一度お試しください。非公開の記事は表示されません。</p>
-      <Button className="primary" onClick={retry}>
-        もう一度読み込む
-      </Button>
-    </section>
-  );
-}
-
 function ArticleFeed() {
   const client = useMemo(() => createPublicDiscoveryClient(fetch, 'ordinary'), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(signal), [client]);
@@ -77,6 +39,9 @@ function ArticleFeed() {
   );
   return (
     <section className="shell community-feed">
+      <p>
+        <Link to="/works">学生の作品を探す</Link>
+      </p>
       <div className="section-top">
         <div>
           <h1>学生の知識と経験</h1>
@@ -255,6 +220,8 @@ function StudentProfile({ id }: { id: string }) {
       </div>
       <p>
         <Link to={`/students/${id}/likes`}>公開いいねを見る</Link>
+        {' · '}
+        <Link to={`/students/${id}/works`}>作品を見る</Link>
       </p>
       <h2>公開している記事</h2>
       <p>新しい公開記事を最大20件表示しています。</p>
@@ -301,6 +268,8 @@ function PublicLikes({ id }: { id: string }) {
 export default function Community() {
   const { pathname } = useLocation();
   const [kind, id, section] = pathname.split('/').slice(1);
+  if (kind === 'projects' || kind === 'works' || (kind === 'students' && section === 'works'))
+    return <Projects />;
   return kind === 'articles' && id ? (
     <StudentArticle key={id} id={id} />
   ) : kind === 'students' && id && section === 'likes' ? (

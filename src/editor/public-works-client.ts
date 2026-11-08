@@ -2,6 +2,7 @@ import type { PublicProjectDiscovery } from '../project-types';
 import { readAnonymousJson } from './anonymous-public-read';
 import { publicKeys, publicText, publicSlug } from './public-author-client';
 import { projectUUID } from './project-client';
+import { publicPaths, type PublicSurface } from '../shared/public-paths';
 export class PublicWorksClientError extends Error {
   constructor() {
     super('公開作品を確認できませんでした。');
@@ -48,11 +49,14 @@ function valid(value: unknown): value is PublicProjectDiscovery {
     return true;
   });
 }
-export function createPublicWorksClient(fetcher: typeof fetch = fetch) {
+export function createPublicWorksClient(
+  fetcher: typeof fetch = fetch,
+  surface: PublicSurface = 'lab',
+) {
   return {
     async read(signal?: AbortSignal): Promise<PublicProjectDiscovery> {
       try {
-        const value = await readAnonymousJson('/__lab/project-discovery', fetcher, signal);
+        const value = await readAnonymousJson(publicPaths(surface).projectsApi, fetcher, signal);
         if (!valid(value)) throw new PublicWorksClientError();
         return value;
       } catch {

@@ -52,10 +52,19 @@ export default {
     if (u.pathname === '/api/catalog' || u.pathname === '/api/health')
       return productionApp.fetch(request, env as Env);
     if (
-      ['/', '/search', '/signup', '/login', '/account', '/drafts', '/lab/account'].includes(
-        u.pathname,
-      ) ||
-      /^\/(?:articles\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/likes)?)$/.test(
+      [
+        '/',
+        '/search',
+        '/signup',
+        '/login',
+        '/account',
+        '/drafts',
+        '/works',
+        '/works/new',
+        '/moderation',
+        '/lab/account',
+      ].includes(u.pathname) ||
+      /^\/(?:(?:articles|projects)\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
         u.pathname,
       ) ||
       u.pathname.startsWith('/assets/')

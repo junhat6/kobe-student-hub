@@ -37,6 +37,9 @@ export default function AccountPage() {
               <p className="account-drafts-link">
                 <Link className="primary" to="/drafts">
                   下書きを書く・再開する
+                </Link>{' '}
+                <Link className="primary" to="/works/new">
+                  作品を登録する
                 </Link>
               </p>
             )}
