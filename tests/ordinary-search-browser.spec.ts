@@ -20,6 +20,7 @@ async function actor(browser: Browser, contexts: BrowserContext[], name: string)
   });
   expect(start.status()).toBe(200);
   const authorization = new URL((await start.json()).authorizationUrl);
+  expect(authorization.searchParams.get('response_mode')).toBe('fragment');
   const state = authorization.searchParams.get('state')!;
   const nonce = authorization.searchParams.get('nonce')!;
   expect(
@@ -30,10 +31,11 @@ async function actor(browser: Browser, contexts: BrowserContext[], name: string)
       )
     ).status(),
   ).toBe(200);
-  const callback = await context.request.get(
-    '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
-    { maxRedirects: 0 },
-  );
+  const callback = await context.request.post('/api/auth/callback', {
+    headers,
+    form: { state, code: state },
+    maxRedirects: 0,
+  });
   expect(callback.status()).toBe(303);
   const session = await context.request.get('/api/private/session');
   expect(session.status()).toBe(200);

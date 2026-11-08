@@ -52,6 +52,7 @@ async function fakeGoogle(page: Page, actor: string) {
     const authorization = new URL(route.request().url()),
       state = authorization.searchParams.get('state')!,
       nonce = authorization.searchParams.get('nonce')!;
+    expect(authorization.searchParams.get('response_mode')).toBe('fragment');
     expect(authorization.searchParams.get('redirect_uri')).toBe(ORIGIN + '/api/auth/callback');
     expect(
       (
@@ -63,7 +64,7 @@ async function fakeGoogle(page: Page, actor: string) {
     await route.fulfill({
       status: 302,
       headers: {
-        Location: ORIGIN + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
         'Cache-Control': 'no-store',
       },
       body: '',
@@ -107,10 +108,11 @@ async function replaceSession(context: BrowserContext, actor: string) {
   ).toBe(200);
   expect(
     (
-      await context.request.get(
-        ORIGIN + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
-        { maxRedirects: 0 },
-      )
+      await context.request.post(ORIGIN + '/api/auth/callback', {
+        headers: { Origin: ORIGIN },
+        form: { state, code: state },
+        maxRedirects: 0,
+      })
     ).status(),
   ).toBe(303);
   const confirmed = await context.request.get(ORIGIN + '/fixture/private');

@@ -23,6 +23,7 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
     'fictional-drafts-' + info.project.name + '-' + suffix + '-' + Date.now().toString(36);
   await page.route(provider, async (route) => {
     const url = new URL(route.request().url());
+    expect(url.searchParams.get('response_mode')).toBe('fragment');
     const state = url.searchParams.get('state')!,
       nonce = url.searchParams.get('nonce')!;
     expect(url.searchParams.get('redirect_uri')).toBe(ORIGIN + '/api/auth/callback');
@@ -36,7 +37,7 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
     await route.fulfill({
       status: 302,
       headers: {
-        Location: ORIGIN + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
         'Cache-Control': 'no-store',
       },
       body: '',
@@ -100,10 +101,11 @@ async function replaceSession(context: BrowserContext) {
   ).toBe(200);
   expect(
     (
-      await context.request.get(
-        ORIGIN + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
-        { maxRedirects: 0 },
-      )
+      await context.request.post(ORIGIN + '/api/auth/callback', {
+        headers: { Origin: ORIGIN },
+        form: { state, code: state },
+        maxRedirects: 0,
+      })
     ).status(),
   ).toBe(303);
   const drafts = await context.request.get(ORIGIN + '/api/private/drafts');

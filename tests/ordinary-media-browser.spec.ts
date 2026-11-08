@@ -20,6 +20,7 @@ async function register(page: Page, info: TestInfo) {
     const u = new URL(route.request().url()),
       state = u.searchParams.get('state')!,
       nonce = u.searchParams.get('nonce')!;
+    expect(u.searchParams.get('response_mode')).toBe('fragment');
     expect(
       (
         await page.request.get('/__control/token?' + new URLSearchParams({ state, nonce, actor }))
@@ -28,7 +29,7 @@ async function register(page: Page, info: TestInfo) {
     await route.fulfill({
       status: 302,
       headers: {
-        Location: O + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+        Location: O + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
         'Cache-Control': 'no-store',
       },
       body: '',

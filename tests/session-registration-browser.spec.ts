@@ -82,6 +82,7 @@ async function fakeGoogle(page: Page, actor: string, denied = false) {
   await page.route(googleAuthorization, async (route) => {
     const url = new URL(route.request().url());
     visits.push(url.pathname);
+    expect(url.searchParams.get('response_mode')).toBe('fragment');
     expect(url.searchParams.get('redirect_uri')).toBe(ORIGIN + '/api/auth/callback');
     const state = url.searchParams.get('state')!,
       nonce = url.searchParams.get('nonce')!;
@@ -95,8 +96,13 @@ async function fakeGoogle(page: Page, actor: string, denied = false) {
     }
     const callback =
       ORIGIN +
-      '/api/auth/callback?' +
-      new URLSearchParams({ state, ...(denied ? { error: 'access_denied' } : { code: state }) });
+      '/api/auth/callback#' +
+      new URLSearchParams({
+        state,
+        ...(denied ? { error: 'access_denied' } : { code: state }),
+        iss: 'https://accounts.google.com',
+        provider_extra: 'discarded-provider-metadata',
+      });
     // Every Google navigation is intercepted locally. The browser follows this302 to the real Worker callback.
     await route.fulfill({
       status: 302,
@@ -111,6 +117,27 @@ test('ordinary signup requires two blank private years and confirms persisted da
   page,
   context,
 }, info) => {
+  const callbackPosts: {
+    path: string;
+    search: string;
+    pageUrl: string;
+    fields: string[];
+    unknownMetadata: boolean;
+  }[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/auth/callback' && request.method() === 'POST') {
+      const body = request.postData() ?? '';
+      callbackPosts.push({
+        path: url.pathname,
+        search: url.search,
+        pageUrl: page.url(),
+        fields: [...new URLSearchParams(body).keys()].sort(),
+        unknownMetadata:
+          body.includes('discarded-provider-metadata') || body.includes('provider_extra'),
+      });
+    }
+  });
   const calls = starts(page),
     visits = await fakeGoogle(page, fictional(info, 'signup'));
   const initial = page.waitForResponse(
@@ -141,6 +168,15 @@ test('ordinary signup requires two blank private years and confirms persisted da
   await expect(admission(page)).toHaveValue('2026');
   await expect(graduation(page)).toHaveValue('2028');
   expect(visits).toHaveLength(1);
+  expect(callbackPosts).toEqual([
+    {
+      path: '/api/auth/callback',
+      search: '',
+      pageUrl: ORIGIN + '/api/auth/callback',
+      fields: ['code', 'iss', 'state'],
+      unknownMetadata: false,
+    },
+  ]);
   expect(calls).toEqual([
     { path: '/api/auth/register', body: { admissionYear: 2026, graduationYear: 2028 } },
   ]);
@@ -231,6 +267,63 @@ test('provider denial lands on a clean signed-out account page without success o
   );
   expect((await context.request.get(ORIGIN + '/api/private/enrollment')).status()).toBe(401);
   await expect(page.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible();
+});
+
+test('fragment receiver clears its URL before POST and never automatically retries after pagehide', async ({
+  page,
+}, info) => {
+  let posts = 0;
+  let enter!: () => void, release!: () => void, finish!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const finished = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  await page.route('**/api/auth/callback', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    posts++;
+    enter();
+    await released;
+    try {
+      await route.continue();
+    } catch {
+      /* The real receiver's abort may already have cancelled the request. */
+    } finally {
+      finish();
+    }
+  });
+  await fakeGoogle(page, fictional(info, 'receiver-hidden'));
+  await signup(page);
+  await fillYears(page);
+  try {
+    await google(page).click();
+    await entered;
+    expect(page.url()).toBe(ORIGIN + '/api/auth/callback');
+    expect(await page.evaluate(() => [location.search, location.hash])).toEqual(['', '']);
+    await page.evaluate(() => {
+      window.dispatchEvent(new PageTransitionEvent('pagehide'));
+      window.dispatchEvent(new PageTransitionEvent('pageshow'));
+    });
+    await expect(page.getByRole('status')).toHaveText(
+      'ログインを確認できませんでした。アカウント画面からやり直してください。',
+    );
+    release();
+    await finished;
+    expect(posts).toBe(1);
+    await page.reload();
+    await expect(page.getByRole('status')).toHaveText(
+      'ログインを確認できませんでした。アカウント画面からやり直してください。',
+    );
+    expect(posts).toBe(1);
+    expect(page.url()).toBe(ORIGIN + '/api/auth/callback');
+    expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
+  } finally {
+    release();
+  }
 });
 
 test('a lost start acknowledgement retains input and requires status readback before an explicit new start', async ({
