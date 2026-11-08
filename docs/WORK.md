@@ -1,6 +1,20 @@
 # Current work and replanning
 
+## 設定を変えず、閉鎖プレビューの一要求を実ログへ相関する
+
+**現在地と前回判定:** 前turnは[PR #106](https://github.com/junhat6/kobe-student-hub/pull/106#issuecomment-6721917824)のmain `d0b4cb7`統合、両CI成功、Worker一回配備と独立本番QAを完了したprogress。今turnもGitHubのmain／CIとPR #96／#84／#85のOPEN・Draftを再確認し、重複実装はなかった。PRDを再読し、本番の公開導線4群・4件／2人のサンプル、非表示の私的導線を再確認した。ブラウザ終了commandのsecondary error1件は残したまま、所有browser・子process・待受の終了を別に確認した。学生価値・実端末の再検証ではない。
+
+**Planner / 仮説:** 学校Googleでの通常参加に進むため、まず実ログと要求の相関が正しく働くかを、既存の閉鎖プレビューの非secret対照一要求で確認する。旧対照のURL／UUID値は保持資料に残っておらず、同じ検索は再実行できない。現行API資料に合わせ、commaを含まない完全URLの単一`in`を使い、二つのURL fieldをORで拘束する。旧string `eq`が0件の原因だったとは断定しない。
+
+**実行範囲と受入条件:** 設定・版・trafficの指紋をHTTP前／query前／終了時に照合する。新しいqueryless GETは一回、既存の閉鎖fallbackへの要求だけとし、認証情報・Cookie・bodyを送らない。最初の一queryが0件なら終了し、再送・追加case・全文検索への拡大はしない。陽性なら同requestIdの関連rowを取得し、query完了・条件echo・pagination・ABR・全nested source・truncation・期限を確認する。収集率、契約、権限、認証の公開状態は変えない。非secretの相関ledgerは私的に有限保持し、保管期限と削除確認を区別する。
+
+**実行・独立QA:** 実行前の独立offline11契約を通し、fresh pin一致後にqueryless GET一回を送信。405・閉鎖JSON、Cookie／Locationなし。固定窓のdiscovery一queryはCOMPLETED、dry／account／timeframe／semantic echo一致、ABR1でrow／reported countとも0。規定どおりrelated query・追加要求・再送は0で終了した。HTTP前／query前／終了時のdeployment・version・settingsは一致。陽性相関・実row scan・秘密情報の保護は未確認のまま。独立の事後QAはledgerからHTTP段階とquery条件の指紋を再構成し、30確認と限定的な未確認結論に阻害所見なし。[方法・実件数・限界](QA-LOG-CONTROL.md)。
+
+**Replanning:** このstored queryは終了し、0件の理由をsampling・field／filter・ingestion等に断定しない。次は設定不変の一時Tailでリアルタイム層を確認する別手順を具体化する。自動再接続や終了codeだけのcleanup判定を避け、作成一回・所有Tailの削除とremote不存在までレビューする。stored層の未確認を置き換えるものではない。実ログの陽性相関と秘密情報の保護は別の受入条件であり、queryless対照だけでcallbackの公開条件を満たしたとは扱わない。接続前のログ出力境界と接続後の通常Google認証を分ける案は独立レビュー上の仮説で、現行ゲートの解除・達成済み判定ではない。Google Testingや隠れたpreview URLを私的なアクセス境界と推定せず、新しい本人限定試用やfixtureの配備で代替しない。
+
 ## 通常アプリから下書きの保存・再開へ接続する
+
+**最終結果:** [PR #106の配備・独立QA記録](https://github.com/junhat6/kobe-student-hub/pull/106#issuecomment-6721917824)でmain `d0b4cb7`、最終PR／main CI成功、Worker一回配備を確認済み。以下の「CI確認中」「成功まで停止」は当時の経過で、現在の未完了判定ではない。通常認証・執筆の表示／source gateはfalseのまま。
 
 **現在地と前回判定:** 前turnは[PR #105](https://github.com/junhat6/kobe-student-hub/pull/105#issuecomment-6720753283)でsource main `fe97bbe`へ統合し、対象sample一件の本番更新・独立GET-only QAまで完了したprogress。最新main CIも成功。今turnのread-only再確認で、PR #96/#84/#85はOPEN/Draft、重複する実装PRはない。PRDを再読し、公開本体は改稿済み4件／2人・書込停止を維持していた。Draft解除を試みず、契約不明のログ収集率も変更しない。
 
