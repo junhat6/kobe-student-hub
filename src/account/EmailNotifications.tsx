@@ -29,8 +29,9 @@ export default function EmailNotifications({
     );
   const [command, setCommand] = useState<{ outboxId: string; input: EmailRetryInput } | null>(null),
     [confirmed, setConfirmed] = useState(false),
-    [unknown, setUnknown] = useState(false);
-  useLayoutEffect(() => onRiskChange?.(busy || unknown), [busy, unknown, onRiskChange]);
+    [unknown, setUnknown] = useState(false),
+    [retrying, setRetrying] = useState(false);
+  useLayoutEffect(() => onRiskChange?.(retrying || unknown), [retrying, unknown, onRiskChange]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -79,6 +80,7 @@ export default function EmailNotifications({
     if (!command || !confirmed || lock.current) return;
     lock.current = true;
     setBusy(true);
+    setRetrying(true);
     setConfirmed(false);
     setMessage('確認した未受理の通知を再送待ちに戻しています…');
     try {
@@ -101,7 +103,10 @@ export default function EmailNotifications({
       }
     } finally {
       lock.current = false;
-      if (mounted.current) setBusy(false);
+      if (mounted.current) {
+        setBusy(false);
+        setRetrying(false);
+      }
     }
   }
   return (
