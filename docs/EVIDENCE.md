@@ -581,3 +581,17 @@ main `19323dd`、green PR/main CIとopen Draftを確認し、本番homeの架空
 前回controlに対する追加traffic0・query1回でCOMPLETED、dry/account/timeframe、inline parametersの意味上のechoと前後pin一致を確認した。row/count0、ABR1。事前条件adhoc=trueは確認できず、false／欠落の区別も失われているため、全受入条件未達で終了。相関・scan・関連取得・非保存の判定は未成立のまま。専用previewの日次usage集計の陽性も、今回controlや料金余裕の証拠にはしない。[再構成・取得条件・結果・限界](QA-CLOSED-PREVIEW-LOGS.md#既存controlのquery実行を確認する追試--2026-11-08)。
 
 独立QAはmethod／結果の指紋と限定的な結論を照合し、阻害所見なし。sanitized結果・QA・capture前提の調査をlocal mode0600で保持した。実captureの設定変更・配備・schema・Tail・credential／grant変更は0、ログゲートは未達。次は契約・使用枠と復元条件を満たしたcaptureで一件の陽性相関を確認する。文書checkと通常CIの結果はPR完了記録へ残す。
+
+## 技術選定と3項目の制作ノート — ローカル準備
+
+base main `6812f1e`のPR/main CI成功とopen Draftを確認。架空sample一件を、AIと行う技術選定の条件・判断・確認、次の制作／作品説明への再利用へ更新した。[受入条件](LEARNING-NOTES-DECISIONS.md)。私的な回答や実学生の投稿は公開していない。
+
+運営の参考実験は生成100万行／18,139,028bytes、同じSQL、DuckDB2.0.0／SQLite3.50.4／Python3.12.12、M4／16GiBで各3回。全96組の件数・合計が生成時の期待値と一致した。CSV→結果の中央値は0.06495／0.74118秒、取込済みtable queryは別範囲で0.01099／0.28344秒。起動/import・生成は計測外、cacheは未制御、メモリピーク・同時更新は未測定。DB全般の速度順位や学生価値は示さない。[コード・条件・全結果](../experiments/learning-notes-db-choice/README.md)。初回のCSV option指定誤りは計測前に修正し、目標・データ・SQLの順位最適化はしていない。
+
+適用済みmigration／editorial0002を維持し、0003／逆操作で全15列の前提を比較する。実D1で旧0002と新0003の一件更新・再適用・各guard変更・後続編集／他row保持・逆操作を検証。local build、76files/687unit・Worker、公開62、localDB、deploy dry-run成功。一時public server（group25148・workerd25213・8787）はsuite終了時に子process／groupと待受の終了を確認した。
+
+rootの画像確認でtableの行ラベルを短縮した後、最終source `927c015`でもbuild、全76files/687tests（20.17秒）、公開62（11.4秒）、localDBとdry-runが再成功。local sampleの全15列source一致、public runner終了、canonical workerd0・8787待受なしを確認した。
+
+独立QAは最終sourceのbuild／実D1関連20tests・手動27cases、PC/mobile24群、native／fallbackコピー各4、overflow18地点、内側code scroll4点を確認し、12画像を実際に開いた。rootも最終代表5画像を確認。所有server6単位／browserは終了し、8897／9247待受なし。独立再計測はfixture／結果指紋と全96組一致で、元resultsを上書きしていない。[source・画像指紋、診断と限界](QA-LEARNING-NOTES-DECISIONS.md)。
+
+本番preflightは既存の正確な対象と旧値15列、他3sample／2profile、配備版・設定をread-onlyで一致確認した。これは適用ではなく、actual apply直前のmain・対象・旧値再照合を条件とする。通常CIと本番の正確な結果は対応PRへ追記し、source準備だけで反映済みと扱わない。schema/auth/grant・Worker設定／配備の変更はこのeditorial単位に含めない。学生価値・実端末の検証は別に残る。
