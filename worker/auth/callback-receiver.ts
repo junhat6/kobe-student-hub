@@ -22,15 +22,17 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
     fragment = '';
     if (!raw || /%(?![a-fA-F0-9]{2})/.test(raw)) throw Error();
     const params = new URLSearchParams(raw);
-    const allowed = new Set(['state','code','error','error_description','scope','authuser','prompt','hd','iss']);
+    const critical = new Set(['state','code','error','error_description','iss']);
+    if ([...params].length > 64) throw Error();
     for (const [key,value] of params) {
-      if (!allowed.has(key) || params.getAll(key).length !== 1 || value.includes('\uFFFD') || /[\u0000-\u001f\u007f]/.test(value) || value.length > (key === 'code' ? 2048 : 1024)) throw Error();
+      if (!critical.has(key)) continue;
+      if (params.getAll(key).length !== 1 || value.includes('\uFFFD') || /[\u0000-\u001f\u007f]/.test(value) || value.length > (key === 'code' ? 2048 : 1024)) throw Error();
     }
     if (!/^[A-Za-z0-9_-]{43}$/.test(params.get('state') || '')) throw Error();
     const code = params.get('code'), error = params.get('error');
     if ((code === null) === (error === null) || (code !== null && !/^[\x21-\x7e]{1,2048}$/.test(code)) || (error !== null && !/^[A-Za-z0-9_]{1,100}$/.test(error)) || (params.has('iss') && params.get('iss') !== 'https://accounts.google.com')) throw Error();
     const body = new URLSearchParams();
-    for (const [key,value] of params) body.append(key,value);
+    for (const [key,value] of params) if (critical.has(key)) body.append(key,value);
     if (new TextEncoder().encode(body.toString()).byteLength > 8192 || !live) throw Error();
     timer = setTimeout(() => { stop(); message(); }, 15000);
     const response = await fetch('/api/auth/callback', {

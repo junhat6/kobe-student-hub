@@ -54,6 +54,8 @@ it('uses a same-origin external script and cleans the URL before any POST withou
     callbackReceiverScript.indexOf("fetch('/api/auth/callback'"),
   );
   expect(callbackReceiverScript).toContain("redirect: 'manual'");
+  expect(callbackReceiverScript).toContain('if (!critical.has(key)) continue');
+  expect(callbackReceiverScript).toContain('if (critical.has(key)) body.append(key,value)');
   expect(callbackReceiverScript).not.toMatch(
     /console\.|localStorage|sessionStorage|innerHTML|document\.write/,
   );
