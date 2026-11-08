@@ -151,7 +151,7 @@ it('preserves newer B after stale A callback and completes B using the updated c
 });
 function clean(r: Awaited<ReturnType<typeof call>>) {
   expect(r.status).toBe(303);
-  expect(r.headers.get('Location')).toBe(O + '/');
+  expect(r.headers.get('Location')).toBe(O + '/#');
   for (const [k, v] of Object.entries({
     'Cache-Control': 'private, no-store',
     Vary: 'Cookie',

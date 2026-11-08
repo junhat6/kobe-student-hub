@@ -836,6 +836,14 @@ function Missing() {
     </section>
   );
 }
+// OAuth uses an explicit empty fragment to discard an incoming fragment at the HTTP redirect.
+// Remove only that empty marker before the router starts; ordinary anchors remain intact.
+if (window.location.href.endsWith('#'))
+  window.history.replaceState(
+    window.history.state,
+    '',
+    window.location.pathname + window.location.search,
+  );
 const router = createBrowserRouter([{ path: '*', element: <App /> }]);
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

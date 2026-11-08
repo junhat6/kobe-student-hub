@@ -162,10 +162,20 @@ export function createOAuthHttpHandler(
         url.pathname.startsWith('/api/private/session') ||
         url.pathname.startsWith('/api/private/logout');
     if (!auth && !session) return null;
+    const normalCallback =
+      !pilot && url.pathname === '/api/auth/callback' && request.method === 'GET';
+    const cleanLanding = (origin = '') =>
+      new Response(null, {
+        status: 303,
+        // An explicit empty fragment prevents inheritance of a provider/browser fragment.
+        headers: { ...headers, Location: origin + (options.accountLanding ? '/account#' : '/#') },
+      });
     const config = parseOAuthConfig(bindings);
-    if (!config) return json(503, 'authentication_unavailable');
-    if (url.origin !== config.origin) return json(404, 'authentication_unavailable');
-    if (hasLegacyProofHeader(request.headers)) return json(400, 'authentication_unavailable');
+    if (!config) return normalCallback ? cleanLanding() : json(503, 'authentication_unavailable');
+    if (url.origin !== config.origin)
+      return normalCallback ? cleanLanding() : json(404, 'authentication_unavailable');
+    if (hasLegacyProofHeader(request.headers))
+      return normalCallback ? cleanLanding(config.origin) : json(400, 'authentication_unavailable');
     if (pilot && session) return json(404, 'authentication_unavailable');
     if (session)
       return createPrivateSessionHandler(db, config.origin, clock, options.restriction)(request);
@@ -254,8 +264,8 @@ export function createOAuthHttpHandler(
               ? '/api/auth/pilot#' +
                 (result?.kind === 'pending-receipt' ? 'received' : 'unavailable')
               : options.accountLanding === true
-                ? '/account'
-                : '/'),
+                ? '/account#'
+                : '/#'),
         },
       });
       // Never mutate the shared attempt cookie: even a claimed response can arrive after a newer start.

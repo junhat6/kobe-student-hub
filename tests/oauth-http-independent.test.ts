@@ -129,7 +129,7 @@ it('independent self-registration creates its own session and preserves an unrel
   const before = await count('auth_sessions');
   const registered = await callback(await attempt('new-self-declared', true), session);
   expect(registered.status).toBe(303);
-  expect(registered.headers.get('Location')).toBe(O + '/');
+  expect(registered.headers.get('Location')).toBe(O + '/#');
   expect(await registered.text()).toBe('');
   expect(
     registered.headers.getSetCookie().filter((c) => c.startsWith('__Host-kobe-session=')),
@@ -184,11 +184,12 @@ it('independent partial absent null or wrongly typed optional configuration stay
         { Origin: O },
         { bindings: config },
       );
-      expect(r.status).toBe(503);
+      const callback = path.includes('callback');
+      expect(r.status).toBe(callback ? 303 : 503);
       expect(r.headers.get('Cache-Control')).toBe('private, no-store');
       expect(r.headers.has('Set-Cookie')).toBe(false);
-      expect(r.headers.has('Location')).toBe(false);
-      expect(await r.text()).toBe('{"error":"authentication_unavailable"}');
+      expect(r.headers.get('Location')).toBe(callback ? '/#' : null);
+      expect(await r.text()).toBe(callback ? '' : '{"error":"authentication_unavailable"}');
     }
   expect(await count('oauth_attempts')).toBe(attempts);
   expect(exchanges).toBe(before);
