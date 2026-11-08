@@ -11,6 +11,8 @@ const cookie=(value:string,age:number)=>`${NAME}=${value}; Path=/; Secure; HttpO
 async function hash(value:string){return new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))}
 const tokenHash=async(token:string)=>Array.from(await hash('session-v1:'+token),x=>x.toString(16).padStart(2,'0')).join('');
 const csrf=async(token:string)=>base64url.encode(await hash('csrf-v1:'+token));
+/** Server-private issuance material. Return only the cookie and explicit CSRF DTO to a browser. */
+export async function newSessionMaterial(){const raw=base64url.encode(crypto.getRandomValues(new Uint8Array(32)));return {tokenHash:await tokenHash(raw),csrfToken:await csrf(raw),setCookie:cookie(raw,SESSION_ABSOLUTE_MS/1000)}}
 function rawCookie(request:Request){
  const header=request.headers.get('Cookie');if(!header||header.length>16384)return null;
  const values=header.split(';').map(x=>x.trim()).filter(x=>x.startsWith(NAME+'=')).map(x=>x.slice(NAME.length+1));return values.length===1&&validToken(values[0])?values[0]:null;
@@ -27,13 +29,13 @@ export class SessionStore {
  async create(identity:VerifiedSchoolIdentity,claim:BrowserClaim):Promise<{setCookie:string;csrfToken:string;actor:ServerSessionActor}|null>{
   if(!claim||!this.configured()||identity?.provider!=='google'||typeof identity.subject!=='string'||(!identity.subject.trim()||identity.subject.length>255)||typeof identity.email!=='string'||identity.email.length>320||!/^[^@\s]+@st\.kobedenshi\.ac\.jp$/i.test(identity.email))return null;
   try{
-   const raw=base64url.encode(crypto.getRandomValues(new Uint8Array(32)));const digest=await tokenHash(raw);const csrfToken=await csrf(raw);const now=this.now();if(now===null)return null;
+   const material=await newSessionMaterial();const digest=material.tokenHash;const now=this.now();if(now===null)return null;
    const row=await this.db.prepare(`INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash)
     SELECT ?1,a.id,a.session_epoch,?2,?2,min(?3,c.expires_at_ms,?15),c.context_hash,c.generation,t.state_hash FROM private_accounts a JOIN oauth_attempts t ON t.state_hash=?4 JOIN auth_browser_contexts c ON c.context_hash=t.context_hash JOIN auth_revocation_fence f ON f.id=1
     WHERE a.google_subject=?5 AND a.status=${this.restriction?"'pending'":"'active'"} AND t.intent='login' AND t.claim_owner=?6 AND t.completed_at_ms IS NULL AND t.consumed_at_ms<=?2 AND t.created_at_ms<=?2 AND t.expires_at_ms>?2
     AND c.context_hash=?7 AND c.generation=?8 AND t.context_generation=c.generation AND c.created_at_ms<=?2 AND c.expires_at_ms>?2 AND t.revocation_fence=?9 AND t.revocation_fence>=f.minimum_generation AND NOT EXISTS(SELECT 1 FROM auth_subject_fences b WHERE b.google_subject=a.google_subject AND b.generation>t.revocation_fence) ${this.restriction?"AND (a.id=?10 AND a.session_epoch=?11 AND ?12>?13 AND EXISTS(SELECT 1 FROM limited_draft_grants g WHERE g.account_id=a.id AND g.account_epoch=a.session_epoch AND g.expires_at_ms=?14 AND g.revoked_at_ms IS NULL AND g.expires_at_ms>CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)))":"AND ?10 IS NULL AND ?11 IS NULL AND ?12 IS NULL AND ?13>=0 AND ?14 IS NULL"} RETURNING account_id`)
     .bind(digest,now,now+SESSION_ABSOLUTE_MS,claim.stateHash,identity.subject,claim.owner,claim.contextHash,claim.generation,claim.fence,...sessionRestrictionBindings(this.restriction,now),readSessionRestriction(this.restriction,now)?.expiresAtMs??now+SESSION_ABSOLUTE_MS).first<{account_id:string}>();
-   return row?{setCookie:cookie(raw,SESSION_ABSOLUTE_MS/1000),csrfToken,actor:{accountId:row.account_id,accountStatus:this.restriction?'pending':'active'}}:null;
+   return row?{setCookie:material.setCookie,csrfToken:material.csrfToken,actor:{accountId:row.account_id,accountStatus:this.restriction?'pending':'active'}}:null;
   }catch{return null}
  }
  private async lookup(request:Request):Promise<SessionInspection>{

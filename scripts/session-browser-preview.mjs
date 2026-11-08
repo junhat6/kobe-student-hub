@@ -5,6 +5,7 @@ import {resolve} from 'node:path';
 import {build} from 'esbuild';
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
+import {enrollmentWindow} from '../src/shared/enrollment.ts';
 await viteBuild({configFile:false,root:resolve('tests/generation-editor'),plugins:[react()],build:{outDir:resolve('.generation-preview'),emptyOutDir:true}});
 await build({entryPoints:['tests/fixtures/session-browser-worker.ts'],outfile:'.worker/session-browser.js',bundle:true,format:'esm',platform:'browser',loader:{'.sql':'text'}});
 await build({entryPoints:['tests/helpers/google-fixtures.ts'],outfile:'.worker/browser-google.mjs',bundle:true,format:'esm',platform:'node'});
@@ -27,10 +28,12 @@ mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/ses
  throw Error('Unexpected outbound request blocked: '+u.origin);
 }}));
 const db=await mf.getD1Database('DB');
-for(const f of ['0001_discovery.sql','0003_oauth_attempts.sql','0004_private_sessions.sql','0005_private_article_drafts.sql','0006_article_reports.sql','0007_article_publications.sql','0008_article_likes.sql','0009_standalone_projects.sql','0010_project_reports.sql','0011_publication_stops.sql','0012_browser_session_order.sql']){
+for(const f of ['0001_discovery.sql','0003_oauth_attempts.sql','0004_private_sessions.sql','0005_private_article_drafts.sql','0006_article_reports.sql','0007_article_publications.sql','0008_article_likes.sql','0009_standalone_projects.sql','0010_project_reports.sql','0011_publication_stops.sql','0012_browser_session_order.sql','0016_self_declared_enrollment.sql','0017_self_registration.sql']){
  const sql=readFileSync('migrations/'+f,'utf8');const parts=sql.includes('-- @statement')?sql.split('-- @statement'):sql.replace(/^--.*$/gm,'').split(/;\s*(?:\n|$)/);
  for(const part of parts)if(part.replace(/^--.*$/gm,'').trim())await db.prepare(part).run();
 }
 for(const actor of ['fictional-browser-a','fictional-browser-b'])await db.prepare('INSERT INTO private_accounts VALUES(?,?,?,?,?,?)').bind(actor,actor,actor+'@st.kobedenshi.ac.jp','active',0,Date.now()).run();
+const fixtureNow=Date.now(),fixtureDate=new Date(fixtureNow+9*3600000),fixtureYear=fixtureDate.getUTCFullYear()-(fixtureDate.getUTCMonth()<3?1:0),fixtureWindow=enrollmentWindow({admissionYear:fixtureYear-1,graduationYear:fixtureYear+1});
+for(const actor of ['fictional-browser-a','fictional-browser-b'])await db.prepare('INSERT INTO private_enrollment_periods VALUES(?,?,?,?,?,1,1,?)').bind(actor,fixtureYear-1,fixtureYear+1,fixtureWindow.startsAtMs,fixtureWindow.endsAtMs,fixtureNow).run();
 initialized=true;await mf.ready;console.log('Local HTTPS generation fixture ready');
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{await mf.dispose();process.exit(0)});

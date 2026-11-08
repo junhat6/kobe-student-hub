@@ -5,6 +5,8 @@ import {base64url} from 'jose';
 import {BrowserSessionCoordinator,type BrowserAction} from './browser-session';
 import {GoogleLoginBroker,type GoogleLoginConfig} from './google-login';
 import {createPrivateSessionHandler} from '../session-http';
+import {isSameOriginPost} from './browser-flow';
+import {canonicalEnrollmentYears} from '../../src/shared/enrollment';
 /** Optional binding names only. This does not create secrets or alter generated Env/configuration. */
 export interface OAuthBindings {AUTH_ORIGIN?:string;GOOGLE_CLIENT_ID?:string;GOOGLE_CLIENT_SECRET?:string;OAUTH_COOKIE_KEY?:string;OAUTH_PENDING_PILOT?:string}
 export function parseOAuthConfig(raw:OAuthBindings):GoogleLoginConfig|null{
@@ -15,6 +17,23 @@ export function parseOAuthConfig(raw:OAuthBindings):GoogleLoginConfig|null{
 }
 const headers={'Cache-Control':'private, no-store','Vary':'Cookie','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow'};
 const json=(status:number,code:string)=>new Response(JSON.stringify({error:code}),{status,headers:{...headers,'Content-Type':'application/json; charset=utf-8'}});
+const REGISTRATION_BODY_BYTES=128,REGISTRATION_BODY_CHUNKS=128;
+async function registrationYears(request:Request){
+ const length=request.headers.get('Content-Length'),encoding=request.headers.get('Content-Encoding');
+ if(!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(request.headers.get('Content-Type')??'')||encoding!==null&&encoding.toLowerCase()!=='identity'||length!==null&&(!/^\d+$/.test(length)||Number(length)>REGISTRATION_BODY_BYTES)||!request.body){void request.body?.cancel().catch(()=>{});return null}
+ const reader=request.body.getReader();let expired=false,timer:ReturnType<typeof setTimeout>|undefined;
+ const cancel=()=>{void reader.cancel().catch(()=>{})};
+ const read=(async()=>{
+  try{const bytes=new Uint8Array(REGISTRATION_BODY_BYTES);let size=0,count=0;
+   for(;;){const part=await reader.read();if(expired)return null;if(part.done)break;if(++count>REGISTRATION_BODY_CHUNKS||size+part.value.byteLength>REGISTRATION_BODY_BYTES){cancel();return null}bytes.set(part.value,size);size+=part.value.byteLength}
+   if(length!==null&&Number(length)!==size)return null;
+   return canonicalEnrollmentYears(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(0,size))));
+  }catch{return null}finally{reader.releaseLock()}
+ })();
+ // The deadline includes EOF; complete-looking JSON alone cannot authorize a start.
+ const deadline=new Promise<null>(resolve=>{timer=setTimeout(()=>{expired=true;cancel();resolve(null)},5000)});
+ try{return await Promise.race([read,deadline])}finally{clearTimeout(timer)}
+}
 /** Independently testable HTTP glue. Production's separate source release gate must remain false.
  * Normal login remains source-gated. Explicit pendingPilot mode requires a valid private policy. */
 export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,options:{enabled?:boolean;pendingPilot?:boolean;restriction?:SessionRestrictionReader;loginOnly?:boolean;authorizationJson?:boolean}={},clock:()=>number=Date.now){
@@ -35,7 +54,7 @@ export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,opti
   if(url.pathname==='/api/auth/bootstrap'||url.pathname==='/api/auth/command'){
    if(request.method!=='POST')return json(405,'method_not_allowed');
    try{if(url.pathname.endsWith('bootstrap')){if(url.search||url.hash)return json(404,'authentication_unavailable');const result=await coordinator.bootstrap(request);return result?new Response(null,{status:204,headers:{...headers,'Set-Cookie':result.setCookie}}):json(409,'authentication_restart_required')}
-    const action=url.searchParams.get('action');if(url.hash||url.searchParams.getAll('action').length!==1||[...url.searchParams.keys()].some(k=>k!=='action')||!['login','pending-registration'].includes(action??''))return json(400,'authentication_unavailable');if(options.loginOnly&&action!=='login')return json(400,'authentication_unavailable');if(pilot&&action!=='pending-registration')return json(400,'authentication_unavailable');const result=await coordinator.command(request,action as BrowserAction);return result?new Response(JSON.stringify(result),{headers:{...headers,'Content-Type':'application/json; charset=utf-8'}}):json(409,'authentication_restart_required');
+    const action=url.searchParams.get('action');if(url.hash||url.searchParams.getAll('action').length!==1||[...url.searchParams.keys()].some(k=>k!=='action')||!(pilot?['pending-registration']:['login','self-registration']).includes(action??''))return json(400,'authentication_unavailable');if(options.loginOnly&&action!=='login')return json(400,'authentication_unavailable');const result=await coordinator.command(request,(action==='self-registration'?'login':action) as BrowserAction);return result?new Response(JSON.stringify(result),{headers:{...headers,'Content-Type':'application/json; charset=utf-8'}}):json(409,'authentication_restart_required');
    }catch{return json(503,'authentication_unavailable')}
   }
   const callback=url.pathname==='/api/auth/callback',login=url.pathname==='/api/auth/start',register=url.pathname==='/api/auth/register';
@@ -46,14 +65,14 @@ export function createOAuthHttpHandler(db:D1Database,bindings:OAuthBindings,opti
   if(callback){
    // A matched failure already consumed its attempt. Only an unmatched claim may try the other sealed purpose.
    let result:Awaited<ReturnType<GoogleLoginBroker['callback']>>|Awaited<ReturnType<GoogleLoginBroker['registrationCallback']>>=null;
-   try{if(!url.hash){if(pilot)result=await broker.registrationCallback(request,identity=>identity.email===pilot.allowedEmail&&parsePendingPilot(bindings.OAUTH_PENDING_PILOT,clock())!==null);else{result=await broker.callback(request);if(result===null&&!options.loginOnly)result=await broker.registrationCallback(request)}}}catch{/* No provider/body/error reflection. */}
+   try{if(!url.hash){if(pilot)result=await broker.registrationCallback(request,identity=>identity.email===pilot.allowedEmail&&parsePendingPilot(bindings.OAUTH_PENDING_PILOT,clock())!==null);else{result=await broker.callback(request);if(result===null&&!options.loginOnly)result=await broker.selfRegistrationCallback(request)}}}catch{/* No provider/body/error reflection. */}
    const response=new Response(null,{status:303,headers:{...headers,Location:config.origin+(pilot?'/api/auth/pilot#'+(result?.kind==='pending-receipt'?'received':'unavailable'):'/')}});
    // Never mutate the shared attempt cookie: even a claimed response can arrive after a newer start.
    // Its original expiry remains in force; consumed attempts cannot be replayed.
    if(result?.kind==='authenticated')response.headers.append('Set-Cookie',result.setCookie);return response;
   }
-  // Start commands derive no authority from a payload. Do not read or allocate an unbounded body.
-  void request.body?.cancel().catch(()=>{});
-  try{const target=register?new Request(config.origin+'/api/auth/start',{method:'POST',headers:request.headers}):request;const result=register?await broker.startRegistration(target):await broker.start(target);if(!result)return json(400,'authentication_unavailable');if(pilot||options.authorizationJson){const authorizationUrl=new URL(result.location);authorizationUrl.searchParams.set('prompt','select_account');return new Response(JSON.stringify({authorizationUrl:authorizationUrl.toString()}),{status:200,headers:{...headers,'Content-Type':'application/json; charset=utf-8','Set-Cookie':result.setCookie}})}return new Response(null,{status:303,headers:{...headers,Location:result.location,'Set-Cookie':result.setCookie}})}catch{return json(503,'authentication_unavailable')}
+  // Normal registration accepts only two bounded self-declared years, never client identity.
+  let years=null;if(register&&!pilot){if(!isSameOriginPost(request,config.origin)){void request.body?.cancel().catch(()=>{});return json(400,'authentication_unavailable')}years=await registrationYears(request);if(!years)return json(400,'authentication_unavailable')}else void request.body?.cancel().catch(()=>{});
+  try{const target=register?new Request(config.origin+'/api/auth/start',{method:'POST',headers:request.headers}):request;const result=register?(pilot?await broker.startRegistration(target):await broker.startSelfRegistration(target,years)):await broker.start(target);if(!result)return json(400,'authentication_unavailable');if(pilot||options.authorizationJson){const authorizationUrl=new URL(result.location);authorizationUrl.searchParams.set('prompt','select_account');return new Response(JSON.stringify({authorizationUrl:authorizationUrl.toString()}),{status:200,headers:{...headers,'Content-Type':'application/json; charset=utf-8','Set-Cookie':result.setCookie}})}return new Response(null,{status:303,headers:{...headers,Location:result.location,'Set-Cookie':result.setCookie}})}catch{return json(503,'authentication_unavailable')}
  };
 }

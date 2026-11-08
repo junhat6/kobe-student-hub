@@ -1,3 +1,4 @@
+import {liveStudentSessionSql as writerLive,liveStudentSessionBindings as writerBindings} from './auth/student-participation';
 import {liveSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
 import {SessionStore} from './auth/sessions';
 export interface OwnPublicProfile {id:string;displayName:string;department:string;yearLabel:string;bio:string;initials:string}
@@ -18,8 +19,9 @@ function dto(r:Row):OwnPublicProfile|null{return typeof r.id==='string'&&/^[A-Za
 export class PublicProfileStore {
  private readonly sessions:SessionStore;
  constructor(private readonly db:D1Database,origin:string,clock:()=>number=Date.now){this.sessions=new SessionStore(db,origin,clock)}
- private async current(p:Proof):Promise<OwnProfileResult|null>{
-  const rows=await this.db.prepare(`SELECT m.public_profile_id mapped_id,p.id,p.display_name,p.department,p.year_label,p.bio,p.initials FROM (SELECT 1 WHERE ${live}) authorized LEFT JOIN account_public_profiles m ON m.owner_account_id=? LEFT JOIN public_profiles p ON p.id=m.public_profile_id AND ${validProfile}`).bind(...bindings(p),p.accountId).all<Row&{mapped_id:string|null}>();
+ private async current(p:Proof,writer=false):Promise<OwnProfileResult|null>{
+  const sql=writer?writerLive:live,values=writer?writerBindings(p):bindings(p);
+  const rows=await this.db.prepare(`SELECT m.public_profile_id mapped_id,p.id,p.display_name,p.department,p.year_label,p.bio,p.initials FROM (SELECT 1 WHERE ${sql}) authorized LEFT JOIN account_public_profiles m ON m.owner_account_id=? LEFT JOIN public_profiles p ON p.id=m.public_profile_id AND ${validProfile}`).bind(...values,p.accountId).all<Row&{mapped_id:string|null}>();
   if(!rows.results.length)return null;const row=rows.results[0];if(row.id===null)return row.mapped_id===null?{profile:null}:null;const profile=dto(row);return profile?{profile}:null;
  }
  async getOwn(request:Request):Promise<OwnProfileResult|null>{
@@ -28,23 +30,23 @@ export class PublicProfileStore {
  async create(request:Request,input:unknown):Promise<OwnProfileResult|null>{
   const value=canonical(input);if(request.method!=='POST'||!value)return null;
   try{const proof=await this.sessions.storageAuthorization(request);if(!proof)return null;
-   const existing=await this.current(proof);if(!existing)return null;
+   const existing=await this.current(proof,true);if(!existing)return null;
    const same=(profile:OwnPublicProfile)=>profile.displayName===value.displayName&&profile.department===value.department&&profile.yearLabel===value.yearLabel&&profile.bio===value.bio&&profile.initials===value.initials;
    if(existing.profile)return same(existing.profile)?existing:null;
    const id='profile-'+crypto.randomUUID();
    try{
     // D1 batch is one transaction: any ownership/auth/constraint failure rolls back the profile too.
     await this.db.batch([
-     this.db.prepare(`INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) SELECT ?,?,?,?,?,?,0 WHERE ${live} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=? OR private_id.google_subject=?) AND NOT EXISTS(SELECT 1 FROM account_public_profiles WHERE owner_account_id=?)`).bind(id,value.displayName,value.department,value.yearLabel,value.bio,value.initials,...bindings(proof),id,id,proof.accountId),
-     this.db.prepare(`INSERT INTO account_public_profiles(owner_account_id,public_profile_id) VALUES(?,(SELECT p.id FROM public_profiles p WHERE p.id=? AND ${validProfile} AND ${live}))`).bind(proof.accountId,id,...bindings(proof)),
+     this.db.prepare(`INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) SELECT ?,?,?,?,?,?,0 WHERE ${writerLive} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=? OR private_id.google_subject=?) AND NOT EXISTS(SELECT 1 FROM account_public_profiles WHERE owner_account_id=?)`).bind(id,value.displayName,value.department,value.yearLabel,value.bio,value.initials,...writerBindings(proof),id,id,proof.accountId),
+     this.db.prepare(`INSERT INTO account_public_profiles(owner_account_id,public_profile_id) VALUES(?,(SELECT p.id FROM public_profiles p WHERE p.id=? AND ${validProfile} AND ${writerLive}))`).bind(proof.accountId,id,...writerBindings(proof)),
      // SELECT cannot be skipped by INSERT IGNORE triggers; a failed guard aborts the entire batch.
-     this.db.prepare(`SELECT CASE WHEN EXISTS(SELECT 1 FROM account_public_profiles m JOIN public_profiles p ON p.id=m.public_profile_id WHERE m.owner_account_id=? AND p.id=? AND p.display_name=? AND p.department=? AND p.year_label=? AND p.bio=? AND p.initials=? AND ${validProfile} AND ${live}) THEN 1 ELSE json('') END AS guarded`).bind(proof.accountId,id,value.displayName,value.department,value.yearLabel,value.bio,value.initials,...bindings(proof)),
+     this.db.prepare(`SELECT CASE WHEN EXISTS(SELECT 1 FROM account_public_profiles m JOIN public_profiles p ON p.id=m.public_profile_id WHERE m.owner_account_id=? AND p.id=? AND p.display_name=? AND p.department=? AND p.year_label=? AND p.bio=? AND p.initials=? AND ${validProfile} AND ${writerLive}) THEN 1 ELSE json('') END AS guarded`).bind(proof.accountId,id,value.displayName,value.department,value.yearLabel,value.bio,value.initials,...writerBindings(proof)),
     ]);
    }catch{
     // A concurrent winner can be acknowledged only through another fully authenticated final read.
-    const retry=await this.sessions.storageAuthorization(request);if(!retry)return null;const result=await this.current(retry);return result?.profile&&same(result.profile)?result:null;
+    const retry=await this.sessions.storageAuthorization(request);if(!retry)return null;const result=await this.current(retry,true);return result?.profile&&same(result.profile)?result:null;
    }
-   const final=await this.sessions.storageAuthorization(request);if(!final)return null;const result=await this.current(final);return result?.profile&&same(result.profile)?result:null;
+   const final=await this.sessions.storageAuthorization(request);if(!final)return null;const result=await this.current(final,true);return result?.profile&&same(result.profile)?result:null;
   }catch{return null}
  }
 }

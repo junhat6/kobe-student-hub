@@ -1,3 +1,4 @@
+import {liveStudentRestrictedSessionSql as writerLive,liveStudentSessionBindings as writerBindings} from './auth/student-participation';
 import type {SessionRestrictionReader} from './auth/session-guard';
 import {liveRestrictedSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
 import {SessionStore} from './auth/sessions';
@@ -20,7 +21,7 @@ export class PrivateDraftStore {
   if(!fields(input,['title','body'])||!content(input))return null;
   try{const p=await this.proof(request,['POST']);if(!p)return null;
    const row=await this.db.prepare(`INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms)
-    SELECT ?,?,?,?,1,? WHERE ${live(p)} RETURNING id,title,body,version,updated_at_ms`).bind(crypto.randomUUID(),p.accountId,input.title,input.body,p.nowMs,...bindings(p)).first<Row>();return row?dto(row):null;
+    SELECT ?,?,?,?,1,? WHERE ${writerLive(p)} RETURNING id,title,body,version,updated_at_ms`).bind(crypto.randomUUID(),p.accountId,input.title,input.body,p.nowMs,...writerBindings(p)).first<Row>();return row?dto(row):null;
   }catch{return null}
  }
  async read(request:Request,id:unknown):Promise<PrivateDraft|null>{
@@ -36,7 +37,7 @@ export class PrivateDraftStore {
  async update(request:Request,id:unknown,input:unknown):Promise<PrivateDraft|null>{
   if(!idValid(id)||!fields(input,['title','body','expectedVersion'])||!content(input)||(!versionValid(input.expectedVersion)||input.expectedVersion>=Number.MAX_SAFE_INTEGER))return null;
   try{const p=await this.proof(request,['PUT','PATCH']);if(!p)return null;
-   const row=await this.db.prepare(`UPDATE private_article_drafts SET title=?,body=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${live(p)} RETURNING id,title,body,version,updated_at_ms`).bind(input.title,input.body,p.nowMs,id,p.accountId,input.expectedVersion,p.nowMs,...bindings(p)).first<Row>();return row?dto(row):null;
+   const row=await this.db.prepare(`UPDATE private_article_drafts SET title=?,body=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${writerLive(p)} RETURNING id,title,body,version,updated_at_ms`).bind(input.title,input.body,p.nowMs,id,p.accountId,input.expectedVersion,p.nowMs,...writerBindings(p)).first<Row>();return row?dto(row):null;
   }catch{return null}
  }
  async delete(request:Request,id:unknown,input:unknown):Promise<{deleted:true}|null>{

@@ -1,3 +1,4 @@
+import {liveStudentSessionSql as writerLive,liveStudentSessionBindings as writerBindings} from './auth/student-participation';
 import {liveSessionSql as live,liveSessionBindings as bindings} from './auth/session-guard';
 import {SessionStore} from './auth/sessions';
 type Proof=NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
@@ -21,9 +22,9 @@ export class ArticleModerationStore {
   if(request.method!=='POST'||!idValid(targetId)||!reportInput(input))return null;
   try{const p=await this.sessions.storageAuthorization(request);if(!p)return null;
    const row=await this.db.prepare(`INSERT INTO article_reports(id,content_id,reporter_account_id,reason,detail,created_at_ms)
-    SELECT ?,id,?,?,?,? FROM content WHERE id=? AND kind='article' AND status='published' AND ${live}
+    SELECT ?,id,?,?,?,? FROM content WHERE id=? AND kind='article' AND status='published' AND ${writerLive}
     AND NOT EXISTS(SELECT 1 FROM article_reports WHERE content_id=content.id AND created_at_ms>?)
-    ON CONFLICT(content_id,reporter_account_id) DO UPDATE SET id=article_reports.id RETURNING id`).bind(crypto.randomUUID(),p.accountId,input.reason,input.detail??'',p.nowMs,targetId,...bindings(p),p.nowMs).first();
+    ON CONFLICT(content_id,reporter_account_id) DO UPDATE SET id=article_reports.id RETURNING id`).bind(crypto.randomUUID(),p.accountId,input.reason,input.detail??'',p.nowMs,targetId,...writerBindings(p),p.nowMs).first();
    return row?{received:true}:null;
   }catch{return null}
  }

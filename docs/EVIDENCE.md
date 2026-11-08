@@ -547,3 +547,11 @@ PR #99をmain `5177d957d5fbd70eea1c6fa1e48dc82250bda9c5`へ反映し、PR head�
 同日05:14 UTCに、前回の検証済み配備記録と現在の接続先・公開domain・active versionを非公開で照合してeditorial適用した。旧行全15列と他sample/profile・runtimeを再確認後、レビュー済みSQLへ値を戻すとバイト一致する21値のparameterized statementを一度実行。変更1件、改訂行全値一致、他3samples／2profiles・全件数・settings/deployment指紋保持を確認した。schema/auth/secret/grant変更・Worker再配備はない。公開catalog全DTOはmain sourceと一致し、writesEnabled:false、別previewのcatalog指紋も保持した。
 
 別コンテキストの独立本番QAは、明示GET16件、PC/mobile各11受入群、横overflow20地点、記録枠7行、記事→著者→記事→関連作品の往復が成功。画像18枚を独立担当が目視確認し、実装者も3枚を確認した。既存Cloudflare beaconのCSP拒否は厳密に分離し、pageerror・予期しないconsole errorはなし。全通信GETのみ、ブラウザー終了済み、サーバー未起動。画像と運用値は公開しない。詳細と再計画は[PR #99の最終運用記録](https://github.com/junhat6/kobe-student-hub/pull/99#issuecomment-6717645879)。実端末／Safari、改稿後の学生の理解・実践・就職成果は未検証のままとする。
+
+## 学校Google本人確認と自己申告年度の通常参加準備 — 2026-11-08
+
+[採用判断](adr/0001-self-declared-enrollment.md)に沿い、必須2年度を一回の学校Google認証へ結合し、account・私的年度・sessionを原子的に保存する通常登録を実装。本人の年度訂正と卒業後の整理を維持し、新規参加は最終SQLの保存値／server時刻で判断する。手動の在籍審査を必須にせず、自己申告を学校による在籍証明とは表示しない。
+
+build・全74files/658tests・公開E2E60・editor197passed/既存skip1・auth browser・pending pilot1・retired8・deploy dry-runが成功。別コンテキストのwriter26件・登録27件・PC/mobileフォーム16件とSQL inventory29件に阻害所見なし。[実行結果、source指紋、限界](QA-SELF-DECLARED-ENROLLMENT.md)。一時serverと子process／待受は終了済み。
+
+source gateはfalse、public writesはfalseのまま。remote0016/0017、credential／operator grant、production設定／配備変更は実施していない。通常signup入口・実Google／ログ・実端末・実運用の接続は未完了で、登録の離脱率や学生価値の改善も未実測。PR/main CIは実行後にPRの完了記録へ追記する。

@@ -1,5 +1,8 @@
 # Local pending review and withdrawal
 
+現行の通常参加方針は[学校Google本人確認＋自己申告の参加年度](adr/0001-self-declared-enrollment.md)。以下は以前のpending／運営審査の準備記録で、手動の在籍審査や証明書提出を通常入会の必須条件としない。取消・運営権限などの安全な基盤は、通常入会とは分けて保持する。
+
+
 This prepares a narrow server-only procedure over fictional local data. It is not mounted in `worker/index.ts`, provisions no operator, makes no school-eligibility decision and enables no real signup/login/posting. Use the existing verified pending-registration broker, `SessionStore`, central final SQL guard and account status/epoch/subject-floor triggers; do not introduce a second authentication mechanism or copy an identity from request JSON.
 
 ## Explicit review, separate authority

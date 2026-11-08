@@ -1,19 +1,21 @@
 import {EncryptJWT,jwtDecrypt,base64url} from 'jose';
 import {OAUTH_ATTEMPT_TTL_MS} from './oauth-attempts';
 import {BrowserSessionCoordinator,freshBrowserSecret,type BrowserClaim} from './browser-session';
+import {canonicalEnrollmentYears,type EnrollmentYears} from '../../src/shared/enrollment';
 const plainHash=async(v:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v))),x=>x.toString(16).padStart(2,'0')).join('');
 const COOKIE='__Host-kobe-oauth';
 const ISSUER='kobe-student-hub:oauth-attempt';
 const secret=(v:unknown):v is string=>typeof v==='string'&&/^[A-Za-z0-9_-]{43}$/.test(v);
 export interface BrowserFlowConfig {origin:string;clientId:string;cookieKey:Uint8Array}
 export type OAuthIntent='login'|'pending-registration';
-const validIntent=(v:unknown):v is OAuthIntent=>v==='login'||v==='pending-registration';
-function context(config:BrowserFlowConfig,intent:OAuthIntent){
+type FlowIntent=OAuthIntent|'self-registration';
+const validIntent=(v:unknown):v is FlowIntent=>v==='login'||v==='pending-registration'||v==='self-registration';
+function context(config:BrowserFlowConfig,intent:FlowIntent){
  if(!validIntent(intent))return null;
  try{
   const url=new URL(config.origin);
   if(url.protocol!=='https:'||url.origin!==config.origin||!config.cookieKey||config.cookieKey.byteLength!==32||!(config.cookieKey instanceof Uint8Array)||!/^[A-Za-z0-9_-]{1,220}\.apps\.googleusercontent\.com$/.test(config.clientId))return null;
-  const redirect=config.origin+'/api/auth/callback';return {redirect,audience:config.clientId+'|'+redirect+(intent==='login'?'':'|pending-registration')};
+  const redirect=config.origin+'/api/auth/callback';return {redirect,audience:config.clientId+'|'+redirect+(intent==='login'?'':'|'+intent)};
  }catch{return null}
 }
 // Only start/mutating actions use this check. Cross-site provider GET callbacks use state/binding.
@@ -35,6 +37,12 @@ export class BrowserOAuthFlow {
  constructor(private readonly db:D1Database,private readonly config:BrowserFlowConfig,private readonly clock:()=>number=Date.now){}
  private now(){const value=this.clock();return Number.isSafeInteger(value)&&value>=0&&value<Number.MAX_SAFE_INTEGER-OAUTH_ATTEMPT_TTL_MS?value:null}
  async start(request:Request,intent:OAuthIntent='login'):Promise<{location:string;setCookie:string}|null>{
+  // The public legacy method cannot select a registration policy from unchecked runtime input.
+  if(intent!=='login'&&intent!=='pending-registration')return null;
+  return this.startPurpose(request,intent);
+ }
+ async startSelfRegistration(request:Request,input:unknown){const years=canonicalEnrollmentYears(input);return years?this.startPurpose(request,'self-registration',years):null}
+ private async startPurpose(request:Request,intent:FlowIntent,enrollment?:EnrollmentYears):Promise<{location:string;setCookie:string}|null>{
   const ctx=context(this.config,intent);const now=this.now();
   if(!ctx||now===null||request.url.length>8192||new URL(request.url).pathname!=='/api/auth/start'||!isSameOriginPost(request,this.config.origin))return null;
   try{
@@ -46,12 +54,17 @@ export class BrowserOAuthFlow {
    const readyAt=this.now();if(readyAt===null||readyAt<now||readyAt>=(issued+600)*1000)return null;
    const location=new URL('https://accounts.google.com/o/oauth2/v2/auth');
    for(const [key,value] of Object.entries({client_id:this.config.clientId,redirect_uri:ctx.redirect,response_type:'code',scope:'openid email',hd:'st.kobedenshi.ac.jp',state:attempt.state,nonce:attempt.nonce,code_challenge:challenge,code_challenge_method:'S256'}))location.searchParams.set(key,value);
-   const executed=await new BrowserSessionCoordinator(this.db,this.config.origin,this.clock).execute(request,intent,{stateHash:await plainHash(attempt.state),browserHash:await plainHash(attempt.browserBinding),nonce:attempt.nonce});if(executed.kind!=='executed')return null;
+   const executed=await new BrowserSessionCoordinator(this.db,this.config.origin,this.clock).execute(request,intent==='self-registration'?'login':intent,{stateHash:await plainHash(attempt.state),browserHash:await plainHash(attempt.browserBinding),nonce:attempt.nonce,...(enrollment?{enrollment}:{})});if(executed.kind!=='executed')return null;
    return {location:location.toString(),setCookie:cookie(sealed,600)};
   }catch{return null}
  }
  /** Claimed secrets are for server-side exchange only, never a JSON response or log. */
  async claim(request:Request,intent:OAuthIntent='login'):Promise<{kind:'code';code:string;verifier:string;nonce:string;clearCookie:string;proof:BrowserClaim}|{kind:'denied';clearCookie:string}|null>{
+  if(intent!=='login'&&intent!=='pending-registration')return null;
+  return this.claimPurpose(request,intent);
+ }
+ async claimSelfRegistration(request:Request){return this.claimPurpose(request,'self-registration')}
+ private async claimPurpose(request:Request,intent:FlowIntent):Promise<{kind:'code';code:string;verifier:string;nonce:string;clearCookie:string;proof:BrowserClaim}|{kind:'denied';clearCookie:string}|null>{
   const ctx=context(this.config,intent);const now=this.now();if(!ctx||now===null||request.url.length>8192)return null;
   try{
    const url=new URL(request.url);if(request.method!=='GET'||url.origin!==this.config.origin||url.pathname!=='/api/auth/callback')return null;
@@ -64,7 +77,7 @@ export class BrowserOAuthFlow {
    if(!secret(payload.state)||!secret(payload.browserBinding)||!secret(payload.verifier)||payload.state!==params.get('state'))return null;
    const claimedAt=this.now();
    if(claimedAt===null||claimedAt<now||typeof payload.exp!=='number'||claimedAt>=payload.exp*1000)return null;
-   const claimed=await new BrowserSessionCoordinator(this.db,this.config.origin,()=>claimedAt).claim(request,payload.state,payload.browserBinding,intent);if(!claimed)return null;
+   const claimed=await new BrowserSessionCoordinator(this.db,this.config.origin,()=>claimedAt).claim(request,payload.state,payload.browserBinding,intent==='self-registration'?'login':intent);if(!claimed)return null;
    const clearCookie=cookie('',0);
    return error!==null?{kind:'denied',clearCookie}:{kind:'code',code:code!,verifier:payload.verifier,nonce:claimed.nonce,clearCookie,proof:claimed.proof};
   }catch{return null}

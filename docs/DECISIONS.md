@@ -2,6 +2,12 @@
 
 Recorded 2026-11-03. These records supplement the PRD; they do not rewrite it.
 
+## 2026-11-08 — 通常の参加条件を自己申告年度へ更新
+
+[採用判断](adr/0001-self-declared-enrollment.md)と[用語](../CONTEXT.md)を追加した。通常の参加はサーバーでの学校Google本人確認と、必須の入学年度・卒業予定年度の本人申告で判定し、手動の在籍審査や証明書提出を必須にしない。登録負担を抑える方針であり、離脱率への効果は未測定。学校による在籍認定を示す表示は使わない。公開学年表示は資格に使わず、私的な申告年度を公開プロフィールへ自動投影しない。
+
+有効アカウントは本人管理の権限、学生参加資格は期間内の新規投稿・参加の権限として区別する。年度訂正に人手承認を挟まず、停止・削除済みのアカウントは年度変更で復帰しない。以前のpending→運営審査という準備は、通常入会の必須工程から外す。実運営権限・通知・問い合わせと実ログ等の公開条件は引き続き別に満たす。
+
 ## Source and priority
 
 PRD: user-provided Google Doc. Latest tab: 設計判断・MVP方針｜Q01〜Q40; also read the original draft and 実現したいユーザー体験. The private source document is not republished here. Original v0.1 is a draft; later tab broadens the emphasis to articles × student activities. Adopted experiences are not promises to implement every feature at first release.

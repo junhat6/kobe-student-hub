@@ -1,3 +1,5 @@
+import enrollmentSchema from '../../migrations/0016_self_declared_enrollment.sql';
+import {enrollmentWindow} from '../../src/shared/enrollment';
 import {AUTHORIZATION_HEADER,proofAuthorization} from '../../src/shared/auth-proof';
 // Test-only identity/schema preparation. Never import from worker/ or production bundles.
 import migration from '../../migrations/0012_browser_session_order.sql';
@@ -28,6 +30,15 @@ export async function fixtureClaim(db:D1Database,origin:string,now:number,intent
  const claim=await flow.claim(new Request(origin+'/api/auth/callback?state='+state+'&code=fictional',{headers:{Cookie:start.contextCookie.split(';')[0]+'; '+attempt.setCookie.split(';')[0]}}),intent);
  return claim?.kind==='code'?{proof:claim.proof,contextCookie:start.contextCookie}:null;
 }
-export async function createFixtureSession(db:D1Database,origin:string,clock:()=>number,identity:VerifiedSchoolIdentity){
- try{if(!(await db.prepare('PRAGMA table_info(auth_sessions)').all()).results.length)return null;const now=clock();if(!Number.isSafeInteger(now)||now<0||now>=Number.MAX_SAFE_INTEGER-28800000)return null;const claim=await fixtureClaim(db,origin,now);if(!claim)return null;const session=await new SessionStore(db,origin,clock).create(identity,claim.proof);return session?{...session,contextCookie:claim.contextCookie}:null}catch{return null}
+export async function seedFixtureEnrollment(db:D1Database,now:number,subject:string){
+ if(!await db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='private_enrollment_periods'").first()){
+  const statements=(enrollmentSchema.includes('-- @statement')?enrollmentSchema.split(/^-- @statement\s*$/m):enrollmentSchema.split(/;\s*(?:\n|$)/)).map(s=>s.replace(/^--.*$/gm,'').trim()).filter(Boolean);
+  try{await db.batch(statements.map(s=>db.prepare(s)))}catch(e){if(!await db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='private_enrollment_periods'").first())throw e}
+ }
+ const date=new Date(now+9*3600000),academicYear=date.getUTCFullYear()-(date.getUTCMonth()<3?1:0);
+ const years={admissionYear:academicYear-1,graduationYear:academicYear+1},period=enrollmentWindow(years);if(!period)throw Error('Invalid fixture enrollment window');
+ await db.prepare(`INSERT INTO private_enrollment_periods(owner_account_id,admission_year,graduation_year,starts_at_ms,ends_at_ms,policy_version,version,updated_at_ms) SELECT id,?,?,?,?,1,1,? FROM private_accounts WHERE google_subject=? ON CONFLICT(owner_account_id) DO NOTHING`).bind(years.admissionYear,years.graduationYear,period.startsAtMs,period.endsAtMs,now,subject).run();
+}
+export async function createFixtureSession(db:D1Database,origin:string,clock:()=>number,identity:VerifiedSchoolIdentity,options:{enrollment?:boolean}={}){
+ try{if(!(await db.prepare('PRAGMA table_info(auth_sessions)').all()).results.length)return null;const now=clock();if(!Number.isSafeInteger(now)||now<0||now>=Number.MAX_SAFE_INTEGER-28800000)return null;const claim=await fixtureClaim(db,origin,now);if(!claim)return null;const session=await new SessionStore(db,origin,clock).create(identity,claim.proof);if(session&&options.enrollment!==false)await seedFixtureEnrollment(db,now,identity.subject);return session?{...session,contextCookie:claim.contextCookie}:null}catch{return null}
 }

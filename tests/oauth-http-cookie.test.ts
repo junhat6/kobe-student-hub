@@ -1,4 +1,4 @@
-import {applyOrderSchema} from './helpers/order-schema';
+import {applySelfRegistrationSchema} from './helpers/order-schema';
 import {beforeAll,afterAll,it,expect} from 'vitest';
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
@@ -18,10 +18,10 @@ async function call(jar:Jar,path:string,method='GET',extra:Record<string,unknown
  const r=await mf.dispatchFetch('https://fixture.invalid',{method:'POST',redirect:'manual',body:JSON.stringify({url:O+path,method,headers:{Cookie:jar.header(),...(method==='POST'?{Origin:O}:{})},bindings,enabled:true,now:NOW,...extra})});jar.apply(r);return r;
 }
 async function start(jar:Jar,registration=false,subject='cookie-active'){
- await applyOrderSchema(await mf.getD1Database('DB'));
+ await applySelfRegistrationSchema(await mf.getD1Database('DB'));
  if(!jar.header().includes('__Host-kobe-browser='))await call(jar,'/api/auth/bootstrap','POST');
- const commandResponse=await call(jar,'/api/auth/command?action='+(registration?'pending-registration':'login'),'POST');const {commandToken}=await commandResponse.json() as {commandToken:string};
-const r=await call(jar,registration?'/api/auth/register':'/api/auth/start','POST',{headers:{Origin:O,Cookie:jar.header(),Authorization:'Bearer command.'+(commandToken)}});expect(r.status).toBe(303);const u=new URL(r.headers.get('Location')!),state=u.searchParams.get('state')!;tokens.set(state,await signer.sign({sub:subject,email:subject+'@st.kobedenshi.ac.jp',nonce:u.searchParams.get('nonce')}));return state}
+ const commandResponse=await call(jar,'/api/auth/command?action='+(registration?'self-registration':'login'),'POST');const {commandToken}=await commandResponse.json() as {commandToken:string};
+const r=await call(jar,registration?'/api/auth/register':'/api/auth/start','POST',{headers:{Origin:O,Cookie:jar.header(),Authorization:'Bearer command.'+(commandToken),...(registration?{'Content-Type':'application/json'}:{})},...(registration?{body:JSON.stringify({admissionYear:2026,graduationYear:2027})}:{})});expect(r.status).toBe(303);const u=new URL(r.headers.get('Location')!),state=u.searchParams.get('state')!;tokens.set(state,await signer.sign({sub:subject,email:subject+'@st.kobedenshi.ac.jp',nonce:u.searchParams.get('nonce')}));return state}
 const callback=(jar:Jar,state:string,suffix='')=>call(jar,'/api/auth/callback?state='+state+'&code='+state+suffix);
 beforeAll(async()=>{signer=await googleFixture();mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/oauth-http-test.js',compatibilityDate:'2026-11-03',d1Databases:['DB'],outboundService:async r=>{if(r.url==='https://www.googleapis.com/oauth2/v3/certs')return Response.json(signer.jwks);expect(r.url).toBe('https://oauth2.googleapis.com/token');exchanges++;const form=new URLSearchParams(await r.text());return refuse?new Response('PRIVATE_PROVIDER_FAILURE',{status:400}):Response.json({id_token:tokens.get(form.get('code')!)})}}));const db=await mf.getD1Database('DB');for(const f of ['0003_oauth_attempts.sql','0004_private_sessions.sql'])for(const sql of readFileSync('migrations/'+f,'utf8').replace(/^--.*$/gm,'').split(/;\s*(?:\n|$)/).filter(s=>s.trim()))await db.prepare(sql).run();await db.prepare("INSERT INTO private_accounts VALUES('cookie-active-id','cookie-active','cookie-active@st.kobedenshi.ac.jp','active',0,?)").bind(NOW).run()});
 afterAll(async()=>{await mf?.dispose()});
@@ -56,9 +56,9 @@ it('leaves B usable after malformed, missing, duplicate and fragment callbacks',
  for(const path of ['/api/auth/callback','/api/auth/callback?state=not-a-state&code=PRIVATE','/api/auth/callback?state='+b+'&state='+b+'&code='+b,'/api/auth/callback?state='+b+'&code='+b+'#fragment']){const r=await call(jar,path);clean(r);expect(r.headers.getSetCookie()).toHaveLength(0);expect(jar.values.get('__Host-kobe-oauth')===saved).toBe(true)}expect(exchanges).toBe(before);await callback(jar,b);expect((await call(jar,'/api/private/session')).status).toBe(200);
 });
 it('preserves newer sealed login and registration purposes across stale callbacks',async()=>{
- for(const [index,aReg,bReg]of [[0,true,false],[1,false,true],[2,true,true]] as const){const jar=new Jar();await callback(jar,await start(jar));const session=jar.values.get('__Host-kobe-session'),a=await start(jar,aReg),b=await start(jar,bReg,bReg?'cookie-pending-'+index:'cookie-active'),saved=jar.values.get('__Host-kobe-oauth'),before=exchanges;
+ for(const [index,aReg,bReg]of [[0,true,false],[1,false,true],[2,true,true]] as const){const jar=new Jar();await callback(jar,await start(jar));const session=jar.values.get('__Host-kobe-session'),a=await start(jar,aReg),b=await start(jar,bReg,bReg?'cookie-new-'+index:'cookie-active'),saved=jar.values.get('__Host-kobe-oauth'),before=exchanges;
  const stale=await callback(jar,a);clean(stale);expect(stale.headers.getSetCookie()).toHaveLength(0);expect(jar.values.get('__Host-kobe-oauth')===saved).toBe(true);expect(jar.values.get('__Host-kobe-session')===session).toBe(true);expect(exchanges).toBe(before);
- const result=await callback(jar,b);clean(result);expect(jar.values.has('__Host-kobe-oauth')).toBe(true);expect(result.headers.getSetCookie()).toHaveLength(bReg?0:1);if(bReg)expect(jar.values.get('__Host-kobe-session')===session).toBe(true);expect((await call(jar,'/api/private/session')).status).toBe(bReg?401:200);
+ const result=await callback(jar,b);clean(result);expect(jar.values.has('__Host-kobe-oauth')).toBe(true);expect(result.headers.getSetCookie()).toHaveLength(1);expect(jar.values.get('__Host-kobe-session')===session).toBe(false);expect((await call(jar,'/api/private/session')).status).toBe(200);
  }
 });
 it('preserves the attempt and session when a database claim fails closed, then permits retry',async()=>{

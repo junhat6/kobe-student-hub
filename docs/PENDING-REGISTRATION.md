@@ -1,5 +1,8 @@
 # Verified pending registration — local server-only step
 
+現行の通常参加方針は[学校Google本人確認＋自己申告の参加年度](adr/0001-self-declared-enrollment.md)。以下は以前のpending／運営審査の準備記録で、手動の在籍審査や証明書提出を通常入会の必須条件としない。取消・運営権限などの安全な基盤は、通常入会とは分けて保持する。
+
+
 Issue75 adds the missing first-registration step while preserving ordinary login. The existing broker verifies Google signature/issuer/audience/nonce/verified school email/domain, but session creation only accepts an existing active Google subject. Registration records a pending request; it neither establishes current enrollment nor grants login or writing access.
 
 ## Explicit purpose and verification
