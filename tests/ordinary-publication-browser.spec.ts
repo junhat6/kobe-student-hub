@@ -3,6 +3,26 @@ import { test, expect, type BrowserContext, type Page, type TestInfo } from '@pl
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
 
+test('ordinary moderation route keeps signed-out readers and ordinary students outside operator data', async ({
+  page,
+}, info) => {
+  await page.goto('/moderation');
+  await expect(page.getByRole('heading', { name: '通報の確認と判断', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+  await expect(page.locator('.operator-read-private')).toBeHidden();
+  await register(page, info);
+  await page.getByRole('link', { name: '運営者用画面', exact: true }).click();
+  const denied = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/private/moderation/cases',
+  );
+  await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+  expect((await denied).status()).toBe(404);
+  await expect(page.locator('.operator-read-private')).toBeHidden();
+  await expect(page.getByRole('button', { name: '確認した内容で復元', exact: true })).toHaveCount(
+    0,
+  );
+});
+
 async function register(page: Page, info: TestInfo) {
   const actor = `fictional-publishing-${info.project.name}-${Date.now().toString(36)}`;
   await page.route(provider, async (route) => {

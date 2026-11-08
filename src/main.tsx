@@ -26,6 +26,7 @@ const Registration = React.lazy(() => import('./account/Registration'));
 const AccountPage = React.lazy(() => import('./account/AccountPage'));
 const OrdinaryDrafts = React.lazy(() => import('./account/OrdinaryDrafts'));
 const OrdinaryProjects = React.lazy(() => import('./account/OrdinaryProjects'));
+const ModerationPage = React.lazy(() => import('./account/ModerationPage'));
 const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
 const Community = React.lazy(() => import('./community/Community'));
 class BodyBoundary extends React.Component<
@@ -69,7 +70,9 @@ function App() {
   const location = useLocation();
   const draftPath = isDraftRoute(location.pathname);
   const projectWritePath = isProjectWriteRoute(location.pathname);
-  const accountPath = isAccountRoute(location.pathname) || draftPath || projectWritePath;
+  const moderationPath = authoringUiEnabled && location.pathname === '/moderation';
+  const accountPath =
+    isAccountRoute(location.pathname) || draftPath || projectWritePath || moderationPath;
   const communityPath =
     authoringUiEnabled &&
     (['/', '/search', '/works'].includes(location.pathname) ||
@@ -148,13 +151,19 @@ function App() {
             <React.Suspense
               fallback={
                 <p className="shell empty" role="status">
-                  {draftPath
-                    ? '下書き画面を読み込んでいます…'
-                    : 'アカウント画面を読み込んでいます…'}
+                  {moderationPath
+                    ? '運営画面を読み込んでいます…'
+                    : projectWritePath
+                      ? '作品画面を読み込んでいます…'
+                      : draftPath
+                        ? '下書き画面を読み込んでいます…'
+                        : 'アカウント画面を読み込んでいます…'}
                 </p>
               }
             >
-              {projectWritePath ? (
+              {moderationPath ? (
+                <ModerationPage />
+              ) : projectWritePath ? (
                 <OrdinaryProjects />
               ) : draftPath ? (
                 <OrdinaryDrafts />

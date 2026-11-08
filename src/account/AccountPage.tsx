@@ -69,6 +69,12 @@ export default function AccountPage() {
       </AccountSessionBoundary>
       <p className="account-read-link">
         <Link to="/">記事・作品を読む</Link>
+        {authoringUiEnabled && (
+          <>
+            {' '}
+            · <Link to="/moderation">運営者用画面</Link>
+          </>
+        )}
       </p>
     </section>
   );
