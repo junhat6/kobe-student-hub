@@ -89,10 +89,10 @@ async function prepare(
 async function finish(attempt: Start, extra: Record<string, unknown> = {}) {
   const state = attempt.url.searchParams.get('state')!;
   const response = await http(
-    '/api/auth/callback?state=' + state + '&code=' + state,
-    'GET',
-    { Cookie: attempt.cookies },
-    undefined,
+    '/api/auth/callback',
+    'POST',
+    { Cookie: attempt.cookies, Origin: O, 'Content-Type': 'application/x-www-form-urlencoded' },
+    new URLSearchParams({ state, code: state }).toString(),
     extra,
   );
   expect(response.status).toBe(303);
@@ -594,3 +594,91 @@ it('expires complete-looking JSON with late or missing EOF without consuming its
     );
   expect(await count('oauth_attempts')).toBe(before + 2);
 }, 15000);
+
+it('normal GET never consumes a valid code, and the clean receiver has only same-origin script access', async () => {
+  const attempt = await prepare('fragment-query-unused'),
+    state = attempt.url.searchParams.get('state')!;
+  const before = exchanges;
+  const stale = await http(
+    '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+    'GET',
+    { Cookie: attempt.cookies },
+  );
+  expect(stale.status).toBe(303);
+  expect(stale.headers.getSetCookie()).toEqual([]);
+  const shell = await http('/api/auth/callback');
+  expect(shell.status).toBe(200);
+  expect(shell.headers.get('Content-Security-Policy')).toContain("default-src 'none'");
+  expect(shell.headers.get('Content-Security-Policy')).toContain("script-src 'self'");
+  expect(await shell.text()).toContain('/api/auth/callback/receive.js');
+  const script = await http('/api/auth/callback/receive.js');
+  expect(script.status).toBe(200);
+  expect(script.headers.get('Cache-Control')).toBe('private, no-store');
+  expect(await script.text()).not.toContain(state);
+  expect(exchanges).toBe(before);
+  expect(sessionCookie(await finish(attempt))).toBeTruthy();
+  expect(exchanges - before).toBe(1);
+});
+it('normal callback rejects cross-origin, legacy proof, body ambiguity and limits before consuming a valid attempt', async () => {
+  const attempt = await prepare('fragment-body-boundaries'),
+    state = attempt.url.searchParams.get('state')!;
+  const body = new URLSearchParams({ state, code: state }).toString();
+  const base = {
+    Origin: O,
+    Cookie: attempt.cookies,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  const before = exchanges;
+  for (const test of [
+    { headers: { ...base, Origin: 'https://other.invalid' } },
+    { headers: { ...base, 'Sec-Fetch-Site': 'cross-site' } },
+    { headers: { ...base, 'X-CSRF-Token': 'legacy' } },
+    { headers: { ...base, 'X-Session-Command': 'legacy' } },
+    { headers: { ...base, 'Content-Type': 'application/json' } },
+    { headers: { ...base, 'Content-Encoding': 'gzip' } },
+    { headers: { ...base, 'Content-Length': '8193' } },
+    { headers: { ...base, 'Content-Length': String(body.length + 1) } },
+    { body: body + '&code=duplicate' },
+    { body: body + '&unknown=not-forwarded' },
+    { body: body + '&iss=https%3A%2F%2Fevil.invalid' },
+    { body: 'state=' + state + '&code=%ZZ' },
+    { body: body + '&error_description=' + 'x'.repeat(8192) },
+  ]) {
+    const response = await http(
+      '/api/auth/callback',
+      'POST',
+      test.headers ?? base,
+      test.body ?? body,
+    );
+    expect(response.status).toBe(400);
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(await response.text()).toBe('{"error":"authentication_unavailable"}');
+  }
+  expect(exchanges).toBe(before);
+  expect(sessionCookie(await finish(attempt))).toBeTruthy();
+  expect(exchanges - before).toBe(1);
+});
+it('callback waits for bounded EOF, rejects appended duplicates, and times out non-cooperative EOF without consuming the attempt', async () => {
+  const attempt = await prepare('fragment-eof-boundaries'),
+    state = attempt.url.searchParams.get('state')!;
+  const body = new URLSearchParams({ state, code: state }).toString();
+  const headers = {
+    Origin: O,
+    Cookie: attempt.cookies,
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  const before = exchanges;
+  const appended = await http('/api/auth/callback', 'POST', headers, body, {
+    streamMode: 'append-eof',
+  });
+  expect(appended.status).toBe(400);
+  const at = Date.now();
+  const late = await http('/api/auth/callback', 'POST', headers, body, { streamMode: 'never-eof' });
+  expect(late.status).toBe(400);
+  expect(Date.now() - at).toBeGreaterThanOrEqual(4500);
+  expect(late.headers.get('X-Fixture-Stream-Cancelled')).toBe('true');
+  expect(late.headers.getSetCookie()).toEqual([]);
+  expect(exchanges).toBe(before);
+  expect(sessionCookie(await finish(attempt, { streamMode: 'small' }))).toBeTruthy();
+  expect(exchanges - before).toBe(1);
+}, 12000);

@@ -26,7 +26,10 @@ export default {
       { enabled: true, authorizationJson: true, accountLanding: true },
     )(request);
     if (result) {
-      const hold = u.searchParams.get('hold');
+      const hold =
+        u.pathname === '/api/auth/callback' && request.method === 'POST'
+          ? request.headers.get('X-Test-Callback-Hold')
+          : null;
       if (hold && result.headers.has('Set-Cookie'))
         await fetch('https://fixture-control.invalid/pause?tag=' + encodeURIComponent(hold));
       return result;

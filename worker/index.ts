@@ -1,3 +1,4 @@
+import { callbackReceiverCsp } from './auth/callback-receiver';
 import { pendingPilotPage } from './auth/pending-pilot-ui';
 import { createOrdinaryDraftHandler } from './ordinary-drafts-http';
 import {
@@ -19,6 +20,17 @@ const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = false;
 // Pure module/codec setup belongs to isolate startup, not the first image request.
 if (OAUTH_HTTP_RELEASE_ENABLED && ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) await warmMediaCodec();
 const app = new Hono<{ Bindings: Env }>();
+// This outer layer runs after global secureHeaders, keeping the receiver's narrower policy.
+app.use('*', async (c, next) => {
+  await next();
+  const path = new URL(c.req.url).pathname;
+  if (
+    OAUTH_HTTP_RELEASE_ENABLED &&
+    c.res.status === 200 &&
+    (path === '/api/auth/callback' || path === '/api/auth/callback/receive.js')
+  )
+    c.header('Content-Security-Policy', callbackReceiverCsp);
+});
 app.use(
   '*',
   secureHeaders({

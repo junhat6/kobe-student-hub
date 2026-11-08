@@ -6,6 +6,7 @@ async function register(page: Page, info: TestInfo) {
   const actor = `fictional-project-${info.project.name}-${Date.now().toString(36)}`;
   await page.route(provider, async (route) => {
     const url = new URL(route.request().url());
+    expect(url.searchParams.get('response_mode')).toBe('fragment');
     const state = url.searchParams.get('state')!,
       nonce = url.searchParams.get('nonce')!;
     expect(
@@ -16,7 +17,7 @@ async function register(page: Page, info: TestInfo) {
     await route.fulfill({
       status: 302,
       headers: {
-        Location: ORIGIN + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
         'Cache-Control': 'no-store',
       },
       body: '',

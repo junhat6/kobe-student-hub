@@ -1,3 +1,9 @@
+import {
+  callbackReceiverScript,
+  callbackReceiverHtml,
+  callbackReceiverCsp,
+  callbackParameters,
+} from './callback-receiver';
 import type { SessionRestrictionReader } from './session-guard';
 import { parsePendingPilot } from './pending-pilot-policy';
 import { hasLegacyProofHeader } from '../../src/shared/auth-proof';
@@ -53,6 +59,7 @@ const json = (status: number, code: string) =>
     status,
     headers: { ...headers, 'Content-Type': 'application/json; charset=utf-8' },
   });
+const CALLBACK_BODY_BYTES = 8192;
 const REGISTRATION_BODY_BYTES = 128,
   REGISTRATION_BODY_CHUNKS = 128;
 async function registrationYears(request: Request) {
@@ -105,6 +112,66 @@ async function registrationYears(request: Request) {
     }
   })();
   // The deadline includes EOF; complete-looking JSON alone cannot authorize a start.
+  const deadline = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      expired = true;
+      cancel();
+      resolve(null);
+    }, 5000);
+  });
+  try {
+    return await Promise.race([read, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+/** Require complete bounded EOF before any callback attempt can be claimed. */
+async function callbackBody(request: Request): Promise<URLSearchParams | null> {
+  const length = request.headers.get('Content-Length');
+  const encoding = request.headers.get('Content-Encoding');
+  if (
+    !/^application\/x-www-form-urlencoded(?:\s*;\s*charset=utf-8)?$/i.test(
+      request.headers.get('Content-Type') ?? '',
+    ) ||
+    (encoding !== null && encoding.toLowerCase() !== 'identity') ||
+    (length !== null && (!/^\d+$/.test(length) || Number(length) > CALLBACK_BODY_BYTES)) ||
+    !request.body
+  ) {
+    void request.body?.cancel().catch(() => {});
+    return null;
+  }
+  const reader = request.body.getReader();
+  let expired = false,
+    timer: ReturnType<typeof setTimeout> | undefined;
+  const cancel = () => {
+    void reader.cancel().catch(() => {});
+  };
+  const read = (async () => {
+    try {
+      const bytes = new Uint8Array(CALLBACK_BODY_BYTES);
+      let size = 0,
+        chunks = 0;
+      for (;;) {
+        const next = await reader.read();
+        if (expired) return null;
+        if (next.done) break;
+        if (++chunks > 128 || size + next.value.byteLength > CALLBACK_BODY_BYTES) {
+          cancel();
+          return null;
+        }
+        bytes.set(next.value, size);
+        size += next.value.byteLength;
+      }
+      if (length !== null && Number(length) !== size) return null;
+      return callbackParameters(
+        new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
+      );
+    } catch {
+      return null;
+    } finally {
+      reader.releaseLock();
+    }
+  })();
   const deadline = new Promise<null>((resolve) => {
     timer = setTimeout(() => {
       expired = true;
@@ -174,8 +241,10 @@ export function createOAuthHttpHandler(
     if (!config) return normalCallback ? cleanLanding() : json(503, 'authentication_unavailable');
     if (url.origin !== config.origin)
       return normalCallback ? cleanLanding() : json(404, 'authentication_unavailable');
-    if (hasLegacyProofHeader(request.headers))
+    if (hasLegacyProofHeader(request.headers)) {
+      void request.body?.cancel().catch(() => {});
       return normalCallback ? cleanLanding(config.origin) : json(400, 'authentication_unavailable');
+    }
     if (pilot && session) return json(404, 'authentication_unavailable');
     if (session)
       return createPrivateSessionHandler(db, config.origin, clock, options.restriction)(request);
@@ -217,6 +286,17 @@ export function createOAuthHttpHandler(
         return json(503, 'authentication_unavailable');
       }
     }
+    if (!pilot && url.pathname === '/api/auth/callback/receive.js') {
+      if (request.method !== 'GET') return json(405, 'method_not_allowed');
+      if (url.search || url.hash) return json(404, 'authentication_unavailable');
+      return new Response(callbackReceiverScript, {
+        headers: {
+          ...headers,
+          'Content-Type': 'text/javascript; charset=utf-8',
+          'Content-Security-Policy': callbackReceiverCsp,
+        },
+      });
+    }
     const callback = url.pathname === '/api/auth/callback',
       login = url.pathname === '/api/auth/start',
       register = url.pathname === '/api/auth/register';
@@ -224,11 +304,38 @@ export function createOAuthHttpHandler(
       return json(404, 'authentication_unavailable');
     if (options.loginOnly && register) return json(404, 'authentication_unavailable');
     if (pilot && login) return json(404, 'authentication_unavailable');
-    const method = callback ? 'GET' : 'POST';
-    if (request.method !== method) {
+    const method = callback ? (pilot ? 'GET' : 'GET, POST') : 'POST';
+    if (
+      !(callback && !pilot ? ['GET', 'POST'].includes(request.method) : request.method === method)
+    ) {
       const r = json(405, 'method_not_allowed');
       r.headers.set('Allow', method);
       return r;
+    }
+    let callbackRequest = request;
+    if (callback && !pilot) {
+      if (request.method === 'GET') {
+        // Query callbacks are never processed, even for a still-valid old attempt.
+        if (url.search || url.hash) return cleanLanding(config.origin);
+        return new Response(callbackReceiverHtml, {
+          headers: {
+            ...headers,
+            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Security-Policy': callbackReceiverCsp,
+          },
+        });
+      }
+      if (url.search || url.hash || !isSameOriginPost(request, config.origin)) {
+        void request.body?.cancel().catch(() => {});
+        return json(400, 'authentication_unavailable');
+      }
+      const params = await callbackBody(request);
+      if (!params) return json(400, 'authentication_unavailable');
+      // This URL exists only in Worker memory. No query request is sent to the platform/provider.
+      callbackRequest = new Request(config.origin + '/api/auth/callback?' + params.toString(), {
+        method: 'GET',
+        headers: request.headers,
+      });
     }
     const broker = new GoogleLoginBroker(db, config, clock, options.restriction);
     if (callback) {
@@ -246,9 +353,9 @@ export function createOAuthHttpHandler(
                 parsePendingPilot(bindings.OAUTH_PENDING_PILOT, clock()) !== null,
             );
           else {
-            result = await broker.callback(request);
+            result = await broker.callback(callbackRequest);
             if (result === null && !options.loginOnly)
-              result = await broker.selfRegistrationCallback(request);
+              result = await broker.selfRegistrationCallback(callbackRequest);
           }
         }
       } catch {

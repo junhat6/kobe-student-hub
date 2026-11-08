@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 const A = 'fictional-browser-a',
   B = 'fictional-browser-b';
 async function call(p: Page, path: string, method = 'GET', headers: Record<string, string> = {}) {
@@ -25,6 +25,7 @@ async function start(p: Page, actor: string) {
   });
   expect(response.status).toBe(200);
   const location = new URL(JSON.parse(response.body).authorizationUrl);
+  expect(location.searchParams.get('response_mode')).toBe('fragment');
   const state = location.searchParams.get('state')!;
   expect(
     (
@@ -38,9 +39,21 @@ async function start(p: Page, actor: string) {
   return state;
 }
 async function complete(p: Page, state: string, hold?: string) {
-  await p.goto(
-    '/api/auth/callback?' + new URLSearchParams({ state, code: state, ...(hold ? { hold } : {}) }),
-  );
+  const intercept = async (route: Route) =>
+    route.request().method() === 'POST'
+      ? route.continue({
+          headers: { ...(await route.request().allHeaders()), 'X-Test-Callback-Hold': hold! },
+        })
+      : route.continue();
+  if (hold) await p.route('**/api/auth/callback', intercept);
+  try {
+    await p.goto('/api/auth/callback#' + new URLSearchParams({ state, code: state }));
+    // The shell stays at the bare callback until its real POST finishes. A native
+    // opaqueredirect followed by navigation may cancel Playwright's response event.
+    await expect(p).toHaveURL('https://127.0.0.1:8790/account');
+  } finally {
+    if (hold && !p.isClosed()) await p.unroute('**/api/auth/callback', intercept);
+  }
 }
 async function actor(p: Page, expected: string) {
   const r = await call(p, '/fixture/private');

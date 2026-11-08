@@ -63,19 +63,21 @@ export default {
     const body =
       i.body === undefined
         ? undefined
-        : new ReadableStream<Uint8Array>({
-            async pull(c) {
-              await authorized;
-              if (i.race === 'expiry') now = i.policy!.expiresAtMs;
-              if (i.race === 'remove') policy = null;
-              if (i.race === 'epoch')
-                await env.DB.prepare(
-                  "UPDATE private_accounts SET session_epoch=session_epoch+1 WHERE id='account-a'",
-                ).run();
-              c.enqueue(new TextEncoder().encode(i.body));
-              c.close();
-            },
-          });
+        : new URL(i.url).pathname === '/api/auth/callback'
+          ? i.body
+          : new ReadableStream<Uint8Array>({
+              async pull(c) {
+                await authorized;
+                if (i.race === 'expiry') now = i.policy!.expiresAtMs;
+                if (i.race === 'remove') policy = null;
+                if (i.race === 'epoch')
+                  await env.DB.prepare(
+                    "UPDATE private_accounts SET session_epoch=session_epoch+1 WHERE id='account-a'",
+                  ).run();
+                c.enqueue(new TextEncoder().encode(i.body));
+                c.close();
+              },
+            });
     const target = new Request(i.url, { method: i.method, headers: i.headers, body });
     if (i.url.endsWith('/fixture/ordinary-session')) {
       const ordinary = new Request(new URL('/api/private/session', i.url), {

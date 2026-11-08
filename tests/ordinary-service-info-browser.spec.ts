@@ -7,6 +7,7 @@ const contact = 'https://support.example.org/student-help?topic=hub#contact';
 async function register(page: Page) {
   await page.route(provider, async (route) => {
     const authorization = new URL(route.request().url());
+    expect(authorization.searchParams.get('response_mode')).toBe('fragment');
     const state = authorization.searchParams.get('state')!,
       nonce = authorization.searchParams.get('nonce')!;
     expect(
@@ -24,7 +25,7 @@ async function register(page: Page) {
     await route.fulfill({
       status: 302,
       headers: {
-        Location: ORIGIN + '/api/auth/callback?' + new URLSearchParams({ state, code: state }),
+        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
       },
       body: '',
     });
