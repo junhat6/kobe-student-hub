@@ -1,33 +1,524 @@
-import {beforeAll,afterAll,it,expect} from 'vitest';
-import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
-import {readFileSync,readdirSync} from 'node:fs';
-import {normalizeProjectFields} from '../src/project-input';
-import type {ProjectDraft,PublicProjectReader,PublicProjectDiscovery} from '../src/project-types';
-const O='https://app.example.invalid',NOW=1800000000000;let mf:Miniflare;type Session={setCookie:string;contextCookie:string;csrfToken:string};let users:Session[];
-const f={title:'Standalone project',description:'Plain saved description',githubUrl:'https://github.com',demoUrl:''};
-const h=(n=0)=>({Cookie:[users[n].setCookie,users[n].contextCookie].map(v=>v.split(';')[0]).join('; '),Origin:O,Authorization:'Bearer csrf.'+(users[n].csrfToken),'Content-Type':'application/json'});
-async function req(path:string,method='GET',input?:unknown,n=0,extra:Record<string,string>={}){const r=await mf.dispatchFetch(O+path,{method,headers:{...h(n),...extra},...(input===undefined?{}:{body:JSON.stringify(input)})});if(path.startsWith('/api/')){expect(r.headers.get('Cache-Control')).toBe('private, no-store');expect(r.headers.get('Vary')).toBe('Cookie');expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');expect(r.headers.has('Set-Cookie')).toBe(false)}return r}
-async function create(input:unknown=f,n=0){return await(await req('/api/private/project-drafts','POST',input,n)).json() as ProjectDraft}
-async function publish(d:ProjectDraft,n=0){return await req('/api/private/project-publications/'+d.id,'POST',{expectedVersion:d.version,confirmPublic:true},n)}
-async function publicRead(id:string){return await(await req('/public/project/'+id)).json() as PublicProjectReader|null}
-beforeAll(async()=>{mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/projects-test.js',compatibilityDate:'2026-11-03',d1Databases:['DB']}));const db=await mf.getD1Database('DB');for(const file of readdirSync('migrations').filter(f=>/^000[1-9]_/.test(f)||/^0011_/.test(f)).sort())for(const sql of readFileSync('migrations/'+file,'utf8').replace(/^--.*$/gm,'').split(/;\s*(?:\n|$)/).filter(s=>s.trim()))await db.prepare(sql).run();users=[];for(let n=0;n<3;n++){await db.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)").bind('account-'+n,'subject-'+n,n+'@st.kobedenshi.ac.jp',NOW).run();users.push(await(await mf.dispatchFetch(O+'/fixture/session',{headers:{'X-Test-Who':String(n)}})).json() as Session);if(n<2)expect((await req('/fixture/profile','POST',{displayName:'Project author '+n,department:'Explicit',yearLabel:'Manual',bio:'Public biography',confirmPublic:true},n)).status).toBe(200)}});
-afterAll(async()=>{await mf?.dispose()});
-it('normalizes optional HTTPS links without fetching and rejects unsafe/oversized malformed input',()=>{expect(normalizeProjectFields(f)?.githubUrl).toBe('https://github.com/');for(const url of ['http://example.invalid','javascript:alert(1)','https://u:p@example.invalid','https://example.invalid/ bad','https://example.invalid/\\bad','https://example.invalid/\u0000'])expect(normalizeProjectFields({...f,demoUrl:url})).toBeNull();for(const v of [{...f,title:'\ud800'},{...f,description:'x'.repeat(4001)},{...f,title:'😀'.repeat(201)},{...f,owner:'account-1'}])expect(normalizeProjectFields(v)).toBeNull()});
-it('saves standalone drafts, enforces owner/CAS and lists metadata only',async()=>{const d=await create();expect(d).toMatchObject({...f,githubUrl:'https://github.com/',version:1});expect((await req('/api/private/project-drafts/'+d.id,'GET',undefined,1)).status).toBe(404);const results=await Promise.all([0,1].map(()=>req('/api/private/project-drafts/'+d.id,'PUT',{...f,title:'Changed',expectedVersion:1})));expect(results.map(r=>r.status).sort()).toEqual([200,404]);const list=await(await req('/api/private/project-drafts')).json() as object[];expect(list.length).toBeGreaterThan(0);expect(Object.keys(list[0]).sort()).toEqual(['id','title','updatedAt','version'])});
-it('distinguishes genuine empty discovery and storage failure',async()=>{expect(await(await req('/public/discovery')).json()).toEqual({cards:[]});expect(await(await req('/public/discovery','GET',undefined,0,{'X-Test-Discovery-Fault':'1'})).json()).toBeNull()});
-it('publishes only explicit saved snapshots and preserves original after edit and repeated publication',async()=>{const d=await create();expect(await(await req('/api/private/project-publications/'+d.id)).json()).toEqual({publication:null});const ids=await Promise.all(Array.from({length:12},async()=>{const response=await publish(d);expect(response.status).toBe(201);return (await response.json() as {projectId:string}).projectId}));expect(new Set(ids).size).toBe(1);const reader=await publicRead(ids[0]);expect(reader?.project).toMatchObject({title:f.title,description:f.description,githubUrl:'https://github.com/',publishedOn:'2027-01-15'});expect(JSON.stringify(reader)).not.toMatch(/account-0|subject-0|sourceVersion|owner_account|draft_id|minutes|report/);await req('/api/private/project-drafts/'+d.id,'PUT',{...f,title:'Private newer',expectedVersion:1});expect((await publish(d)).status).toBe(201);expect((await publicRead(ids[0]))?.project.title).toBe(f.title);const receipt=await(await req('/api/private/project-publications/'+d.id)).json() as {publication:{sourceVersion:number}};expect(receipt.publication.sourceVersion).toBe(1);expect((await req('/api/private/project-publications/'+d.id,'GET',undefined,1)).status).toBe(404);expect((await req('/api/private/project-publications/'+d.id,'POST',{expectedVersion:2,confirmPublic:true})).status).toBe(404)});
-it('refuses blank/stale/missing-profile and client-controlled publication fields',async()=>{const blank=await create({...f,description:' '});expect((await publish(blank)).status).toBe(404);const d=await create(f,2);expect((await publish(d,2)).status).toBe(404);for(const input of [{expectedVersion:1,confirmPublic:false},{expectedVersion:2,confirmPublic:true},{expectedVersion:1,confirmPublic:true,title:'client'}])expect((await req('/api/private/project-publications/'+d.id,'POST',input,2)).status).toBe(404)});
-it('freshly hides projects and refuses receipt/replay without restoring; deleted draft snapshot persists',async()=>{const d=await create(),id=(await(await publish(d)).json() as {projectId:string}).projectId,db=await mf.getD1Database('DB');await db.prepare("UPDATE project_publications SET status='hidden' WHERE id=?").bind(id).run();expect(await publicRead(id)).toBeNull();expect((await req('/api/private/project-publications/'+d.id)).status).toBe(404);expect((await publish(d)).status).toBe(404);const other=await create(),pub=(await(await publish(other)).json() as {projectId:string}).projectId;await db.prepare('DELETE FROM project_drafts WHERE id=?').bind(other.id).run();expect(await publicRead(pub)).not.toBeNull()});
-it('rejects changed browser generation across private project read/write/receipt paths',async()=>{const login=async()=>{users[0]=await(await mf.dispatchFetch(O+'/fixture/session',{headers:{'X-Test-Who':'0'}})).json() as Session};await login();const d=await create(),base='/api/private/project-drafts',pub='/api/private/project-publications/'+d.id;for(const [path,method,input] of [[base,'POST',f],[base,'GET',undefined],[base+'/'+d.id,'GET',undefined],[base+'/'+d.id,'PUT',{...f,title:'denied',expectedVersion:1}],[pub,'POST',{expectedVersion:1,confirmPublic:true}],[pub,'GET',undefined]] as const){await login();const r=await req(path,method,input,0,{'X-Test-Race':'context','X-Test-Race-At':path===pub&&method==='POST'?'3':'2'});expect(r.status).toBe(404);const db=await mf.getD1Database('DB');expect((await db.prepare('SELECT version FROM project_drafts WHERE id=?').bind(d.id).first<{version:number}>())!.version).toBe(1);expect((await db.prepare('SELECT count(*) n FROM project_publications WHERE draft_id=?').bind(d.id).first<{n:number}>())!.n).toBe(0)}await login()});
-it('requires session CSRF and live final SQL after authorization',async()=>{for(const extra of ([{Cookie:''},{Origin:'https://evil.invalid'},{Authorization:'Bearer csrf.'+(users[1].csrfToken)}] as Record<string,string>[]))expect((await req('/api/private/project-drafts','POST',f,0,extra)).status).toBe(401);expect((await req('/api/private/project-drafts','POST',f,0,{'X-Test-Now':String(NOW+1800000)})).status).toBe(401);expect((await req('/api/private/project-drafts','POST',f,2,{'X-Test-Race':'revoke'})).status).toBe(404);for(let n=0;n<3;n++)users[n]=await(await mf.dispatchFetch(O+'/fixture/session',{headers:{'X-Test-Who':String(n)}})).json() as Session});
-it('bounds HTTP media/input/routes and does not reflect invalid payloads',async()=>{expect((await req('/api/private/project-drafts','POST',f,0,{'Content-Type':'text/plain'})).status).toBe(415);expect((await req('/api/private/project-drafts','POST',{...f,description:'x'.repeat(33000)})).status).toBe(413);expect((await req('/api/private/project-drafts?PRIVATE=1')).status).toBe(404);expect((await req('/api/private/project-drafts','DELETE')).headers.get('Allow')).toBe('GET, POST');expect((await req('/api/private/project-drafts','GET',undefined,0,{'X-Test-Origin':'http://invalid.example'})).status).toBe(503)});
-it('bounds stalled and empty chunk bodies without a late saved record',async()=>{const db=await mf.getD1Database('DB');const count=async()=>await db.prepare('SELECT count(*) n FROM project_drafts').first<{n:number}>();const before=await count();expect((await req('/api/private/project-drafts','POST',undefined,0,{'X-Test-Body':'empty'})).status).toBe(413);const start=Date.now();expect((await req('/api/private/project-drafts','POST',undefined,0,{'X-Test-Body':'late'})).status).toBe(408);expect(Date.now()-start).toBeLessThan(6500);await new Promise(r=>setTimeout(r,700));expect(await count()).toEqual(before)},8000);
-it('rolls back refused publication inserts and denies malformed profile projections',async()=>{const db=await mf.getD1Database('DB');const d=await create();await db.prepare("CREATE TRIGGER fixture_project_abort BEFORE INSERT ON project_publications BEGIN SELECT RAISE(ABORT,'fixture'); END").run();try{expect((await publish(d)).status).toBe(404);expect(await(await req('/api/private/project-publications/'+d.id)).json()).toEqual({publication:null})}finally{await db.prepare('DROP TRIGGER fixture_project_abort').run()}const id=(await(await publish(d)).json() as {projectId:string}).projectId;const profile=await db.prepare("SELECT public_profile_id id FROM account_public_profiles WHERE owner_account_id='account-0'").first<{id:string}>();await db.prepare('UPDATE public_profiles SET bio=? WHERE id=?').bind('x'.repeat(801),profile!.id).run();expect(await publicRead(id)).toBeNull();expect((await req('/api/private/project-publications/'+d.id)).status).toBe(404);expect((await publish(d)).status).toBe(404);await db.prepare('UPDATE public_profiles SET bio=? WHERE id=?').bind('Public biography',profile!.id).run();await db.prepare("UPDATE project_publications SET status='deleted' WHERE id=?").bind(id).run();expect(await publicRead(id)).toBeNull();expect((await publish(d)).status).toBe(404)});
-it('discovers newest20 immutable cross-author snapshots with short DTOs and fresh stop exclusion',async()=>{const db=await mf.getD1Database('DB');await db.prepare("UPDATE project_publications SET status='hidden'").run();await db.prepare("INSERT INTO public_profiles VALUES('orphan-project-profile','Orphan','','','','O',0)").run();const expected:{id:string;time:number;owner:number;draft:ProjectDraft}[]=[];
- for(let n=0;n<22;n++){const owner=n%2,d=await create({...f,title:'Discovered '+n,description:'Description '+n+'😀'.repeat(320),githubUrl:'https://example.invalid/source',demoUrl:'https://example.invalid/demo'},owner);const id=(await(await publish(d,owner)).json() as {projectId:string}).projectId,time=NOW+Math.floor(n/2);await db.prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?').bind(time,id).run();expected.push({id,time,owner,draft:d})}
- const ordered=[...expected].sort((a,b)=>b.time-a.time||a.id.localeCompare(b.id));const read=async(extra:Record<string,string>={})=>await(await req('/public/discovery','GET',undefined,0,extra)).json() as PublicProjectDiscovery|null;let result=(await read())!;expect(result.cards.map(c=>c.project.id)).toEqual(ordered.slice(0,20).map(e=>e.id));for(const card of result.cards){const source=expected.find(e=>e.id===card.project.id)!;expect(card.author.name).toBe('Project author '+source.owner);expect(Array.from(card.project.descriptionPreview).length).toBe(300);expect(Object.keys(card.project).sort()).toEqual(['descriptionPreview','id','publishedOn','title']);expect(Object.keys(card.author).sort()).toEqual(['department','id','initials','name','year'])}for(const marker of ['githubUrl','demoUrl','biography','account-','subject-','sourceVersion','draft_id','st.kobedenshi','orphan-project-profile'])expect(JSON.stringify(result)).not.toContain(marker);expect(new TextEncoder().encode(JSON.stringify(result)).length).toBeLessThanOrEqual(262144);
- const first=ordered[0];await req('/api/private/project-drafts/'+first.draft.id,'PUT',{...f,title:'UNSAVED PUBLIC DRIFT',expectedVersion:1},first.owner);expect((await read())!.cards[0].project.title).not.toBe('UNSAVED PUBLIC DRIFT');
- await db.prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?').bind(NOW,first.id).run();expect((await(await req('/fixture/stop/'+first.id,'POST',{expectedSourceVersion:1,confirmStop:true},first.owner)).json() as {stopped:boolean}).stopped).toBe(true);expect((await read())!.cards.map(c=>c.project.id)).not.toContain(first.id);expect((await db.prepare('SELECT title FROM project_publications WHERE id=?').bind(first.id).first<{title:string}>())!.title).toBe(first.draft.title);
- const selected=(await read())!.cards[0].project.id;const selectedProfile=(await db.prepare('SELECT public_profile_id id FROM project_publications WHERE id=?').bind(selected).first<{id:string}>())!.id;await db.prepare('UPDATE public_profiles SET is_sample=1 WHERE id=?').bind(selectedProfile).run();expect(await read()).toBeNull();await db.prepare('UPDATE public_profiles SET is_sample=0 WHERE id=?').bind(selectedProfile).run();await db.prepare('UPDATE project_publications SET description=? WHERE id=?').bind('bad\0text',selected).run();expect(await read()).toBeNull();await db.prepare('UPDATE project_publications SET description=? WHERE id=?').bind('Restored description',selected).run();expect(await read({'X-Test-Discovery-Race':'1'})).toBeNull();expect(await read({'X-Test-Discovery-Fault':'1'})).toBeNull();
+import { beforeAll, afterAll, it, expect } from 'vitest';
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
+import { readFileSync, readdirSync } from 'node:fs';
+import { normalizeProjectFields } from '../src/project-input';
+import type {
+  ProjectDraft,
+  PublicProjectReader,
+  PublicProjectDiscovery,
+} from '../src/project-types';
+const O = 'https://app.example.invalid',
+  NOW = 1800000000000;
+let mf: Miniflare;
+type Session = { setCookie: string; contextCookie: string; csrfToken: string };
+let users: Session[];
+const f = {
+  title: 'Standalone project',
+  description: 'Plain saved description',
+  githubUrl: 'https://github.com',
+  demoUrl: '',
+};
+const h = (n = 0) => ({
+  Cookie: [users[n].setCookie, users[n].contextCookie].map((v) => v.split(';')[0]).join('; '),
+  Origin: O,
+  Authorization: 'Bearer csrf.' + users[n].csrfToken,
+  'Content-Type': 'application/json',
 });
-it('bounds author list newest20, rejects corrupt snapshots and fails storage errors closed',async()=>{const db=await mf.getD1Database('DB');await db.prepare("UPDATE project_publications SET status='hidden'").run();const ids:string[]=[];for(let n=0;n<22;n++){const d=await create({...f,title:'Project '+n},1);const id=(await(await publish(d,1)).json() as {projectId:string}).projectId;ids.push(id);await db.prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?').bind(NOW+n,id).run()}const profile=await db.prepare("SELECT public_profile_id id FROM account_public_profiles WHERE owner_account_id='account-1'").first<{id:string}>();const url='/public/author/'+profile!.id;const result=await(await req(url)).json() as {projects:{id:string;descriptionPreview:string}[]};expect(result.projects.map(p=>p.id)).toEqual(ids.slice(-20).reverse());await db.prepare('UPDATE project_publications SET description=? WHERE id=?').bind('bad\0text',ids[21]).run();expect(await(await req(url)).json()).toBeNull();await db.prepare('UPDATE project_publications SET description=? WHERE id=?').bind('Restored valid description',ids[21]).run();expect(await(await req(url)).json()).not.toBeNull();expect(await(await req(url,'GET',undefined,0,{'X-Test-Discovery-Fault':'1'})).json()).toBeNull()});
+async function req(
+  path: string,
+  method = 'GET',
+  input?: unknown,
+  n = 0,
+  extra: Record<string, string> = {},
+) {
+  const r = await mf.dispatchFetch(O + path, {
+    method,
+    headers: { ...h(n), ...extra },
+    ...(input === undefined ? {} : { body: JSON.stringify(input) }),
+  });
+  if (path.startsWith('/api/')) {
+    expect(r.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(r.headers.get('Vary')).toBe('Cookie');
+    expect(r.headers.get('Referrer-Policy')).toBe('no-referrer');
+    expect(r.headers.has('Set-Cookie')).toBe(false);
+  }
+  return r;
+}
+async function create(input: unknown = f, n = 0) {
+  return (await (
+    await req('/api/private/project-drafts', 'POST', input, n)
+  ).json()) as ProjectDraft;
+}
+async function publish(d: ProjectDraft, n = 0) {
+  return await req(
+    '/api/private/project-publications/' + d.id,
+    'POST',
+    { expectedVersion: d.version, confirmPublic: true },
+    n,
+  );
+}
+async function publicRead(id: string) {
+  return (await (await req('/public/project/' + id)).json()) as PublicProjectReader | null;
+}
+beforeAll(async () => {
+  mf = new Miniflare(
+    convertV4MiniflareOptions({
+      modules: true,
+      scriptPath: '.worker/projects-test.js',
+      compatibilityDate: '2026-11-03',
+      d1Databases: ['DB'],
+    }),
+  );
+  const db = await mf.getD1Database('DB');
+  for (const file of readdirSync('migrations')
+    .filter((f) => /^000[1-9]_/.test(f) || /^0011_/.test(f))
+    .sort())
+    for (const sql of readFileSync('migrations/' + file, 'utf8')
+      .replace(/^--.*$/gm, '')
+      .split(/;\s*(?:\n|$)/)
+      .filter((s) => s.trim()))
+      await db.prepare(sql).run();
+  users = [];
+  for (let n = 0; n < 3; n++) {
+    await db
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
+      )
+      .bind('account-' + n, 'subject-' + n, n + '@st.kobedenshi.ac.jp', NOW)
+      .run();
+    users.push(
+      (await (
+        await mf.dispatchFetch(O + '/fixture/session', { headers: { 'X-Test-Who': String(n) } })
+      ).json()) as Session,
+    );
+    if (n < 2)
+      expect(
+        (
+          await req(
+            '/fixture/profile',
+            'POST',
+            {
+              displayName: 'Project author ' + n,
+              department: 'Explicit',
+              yearLabel: 'Manual',
+              bio: 'Public biography',
+              confirmPublic: true,
+            },
+            n,
+          )
+        ).status,
+      ).toBe(200);
+  }
+});
+afterAll(async () => {
+  await mf?.dispose();
+});
+it('normalizes optional HTTPS links without fetching and rejects unsafe/oversized malformed input', () => {
+  expect(normalizeProjectFields(f)?.githubUrl).toBe('https://github.com/');
+  for (const url of [
+    'http://example.invalid',
+    'javascript:alert(1)',
+    'https://u:p@example.invalid',
+    'https://example.invalid/ bad',
+    'https://example.invalid/\\bad',
+    'https://example.invalid/\u0000',
+  ])
+    expect(normalizeProjectFields({ ...f, demoUrl: url })).toBeNull();
+  for (const v of [
+    { ...f, title: '\ud800' },
+    { ...f, description: 'x'.repeat(4001) },
+    { ...f, title: '😀'.repeat(201) },
+    { ...f, owner: 'account-1' },
+  ])
+    expect(normalizeProjectFields(v)).toBeNull();
+});
+it('saves standalone drafts, enforces owner/CAS and lists metadata only', async () => {
+  const d = await create();
+  expect(d).toMatchObject({ ...f, githubUrl: 'https://github.com/', version: 1 });
+  expect((await req('/api/private/project-drafts/' + d.id, 'GET', undefined, 1)).status).toBe(404);
+  const results = await Promise.all(
+    [0, 1].map(() =>
+      req('/api/private/project-drafts/' + d.id, 'PUT', {
+        ...f,
+        title: 'Changed',
+        expectedVersion: 1,
+      }),
+    ),
+  );
+  expect(results.map((r) => r.status).sort()).toEqual([200, 404]);
+  const list = (await (await req('/api/private/project-drafts')).json()) as object[];
+  expect(list.length).toBeGreaterThan(0);
+  expect(Object.keys(list[0]).sort()).toEqual(['id', 'title', 'updatedAt', 'version']);
+});
+it('distinguishes genuine empty discovery and storage failure', async () => {
+  expect(await (await req('/public/discovery')).json()).toEqual({ cards: [] });
+  expect(
+    await (
+      await req('/public/discovery', 'GET', undefined, 0, { 'X-Test-Discovery-Fault': '1' })
+    ).json(),
+  ).toBeNull();
+});
+it('publishes only explicit saved snapshots and preserves original after edit and repeated publication', async () => {
+  const d = await create();
+  expect(await (await req('/api/private/project-publications/' + d.id)).json()).toEqual({
+    publication: null,
+  });
+  const ids = await Promise.all(
+    Array.from({ length: 12 }, async () => {
+      const response = await publish(d);
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { projectId: string }).projectId;
+    }),
+  );
+  expect(new Set(ids).size).toBe(1);
+  const reader = await publicRead(ids[0]);
+  expect(reader?.project).toMatchObject({
+    title: f.title,
+    description: f.description,
+    githubUrl: 'https://github.com/',
+    publishedOn: '2027-01-15',
+  });
+  expect(JSON.stringify(reader)).not.toMatch(
+    /account-0|subject-0|sourceVersion|owner_account|draft_id|minutes|report/,
+  );
+  await req('/api/private/project-drafts/' + d.id, 'PUT', {
+    ...f,
+    title: 'Private newer',
+    expectedVersion: 1,
+  });
+  expect((await publish(d)).status).toBe(201);
+  expect((await publicRead(ids[0]))?.project.title).toBe(f.title);
+  const receipt = (await (await req('/api/private/project-publications/' + d.id)).json()) as {
+    publication: { sourceVersion: number };
+  };
+  expect(receipt.publication.sourceVersion).toBe(1);
+  expect((await req('/api/private/project-publications/' + d.id, 'GET', undefined, 1)).status).toBe(
+    404,
+  );
+  expect(
+    (
+      await req('/api/private/project-publications/' + d.id, 'POST', {
+        expectedVersion: 2,
+        confirmPublic: true,
+      })
+    ).status,
+  ).toBe(404);
+});
+it('refuses blank/stale/missing-profile and client-controlled publication fields', async () => {
+  const blank = await create({ ...f, description: ' ' });
+  expect((await publish(blank)).status).toBe(404);
+  const d = await create(f, 2);
+  expect((await publish(d, 2)).status).toBe(404);
+  for (const input of [
+    { expectedVersion: 1, confirmPublic: false },
+    { expectedVersion: 2, confirmPublic: true },
+    { expectedVersion: 1, confirmPublic: true, title: 'client' },
+  ])
+    expect((await req('/api/private/project-publications/' + d.id, 'POST', input, 2)).status).toBe(
+      404,
+    );
+});
+it('freshly hides projects and refuses receipt/replay without restoring; deleted draft snapshot persists', async () => {
+  const d = await create(),
+    id = ((await (await publish(d)).json()) as { projectId: string }).projectId,
+    db = await mf.getD1Database('DB');
+  await db.prepare("UPDATE project_publications SET status='hidden' WHERE id=?").bind(id).run();
+  expect(await publicRead(id)).toBeNull();
+  expect((await req('/api/private/project-publications/' + d.id)).status).toBe(404);
+  expect((await publish(d)).status).toBe(404);
+  const other = await create(),
+    pub = ((await (await publish(other)).json()) as { projectId: string }).projectId;
+  await db.prepare('DELETE FROM project_drafts WHERE id=?').bind(other.id).run();
+  expect(await publicRead(pub)).not.toBeNull();
+});
+it('rejects changed browser generation across private project read/write/receipt paths', async () => {
+  const login = async () => {
+    users[0] = (await (
+      await mf.dispatchFetch(O + '/fixture/session', { headers: { 'X-Test-Who': '0' } })
+    ).json()) as Session;
+  };
+  await login();
+  const d = await create(),
+    base = '/api/private/project-drafts',
+    pub = '/api/private/project-publications/' + d.id;
+  for (const [path, method, input] of [
+    [base, 'POST', f],
+    [base, 'GET', undefined],
+    [base + '/' + d.id, 'GET', undefined],
+    [base + '/' + d.id, 'PUT', { ...f, title: 'denied', expectedVersion: 1 }],
+    [pub, 'POST', { expectedVersion: 1, confirmPublic: true }],
+    [pub, 'GET', undefined],
+  ] as const) {
+    await login();
+    const r = await req(path, method, input, 0, {
+      'X-Test-Race': 'context',
+      'X-Test-Race-At': path === pub && method === 'POST' ? '3' : '2',
+    });
+    expect(r.status).toBe(404);
+    const db = await mf.getD1Database('DB');
+    expect(
+      (await db
+        .prepare('SELECT version FROM project_drafts WHERE id=?')
+        .bind(d.id)
+        .first<{ version: number }>())!.version,
+    ).toBe(1);
+    expect(
+      (await db
+        .prepare('SELECT count(*) n FROM project_publications WHERE draft_id=?')
+        .bind(d.id)
+        .first<{ n: number }>())!.n,
+    ).toBe(0);
+  }
+  await login();
+});
+it('requires session CSRF and live final SQL after authorization', async () => {
+  for (const extra of [
+    { Cookie: '' },
+    { Origin: 'https://evil.invalid' },
+    { Authorization: 'Bearer csrf.' + users[1].csrfToken },
+  ] as Record<string, string>[])
+    expect((await req('/api/private/project-drafts', 'POST', f, 0, extra)).status).toBe(401);
+  expect(
+    (
+      await req('/api/private/project-drafts', 'POST', f, 0, {
+        'X-Test-Now': String(NOW + 1800000),
+      })
+    ).status,
+  ).toBe(401);
+  expect(
+    (await req('/api/private/project-drafts', 'POST', f, 2, { 'X-Test-Race': 'revoke' })).status,
+  ).toBe(404);
+  for (let n = 0; n < 3; n++)
+    users[n] = (await (
+      await mf.dispatchFetch(O + '/fixture/session', { headers: { 'X-Test-Who': String(n) } })
+    ).json()) as Session;
+});
+it('bounds HTTP media/input/routes and does not reflect invalid payloads', async () => {
+  expect(
+    (await req('/api/private/project-drafts', 'POST', f, 0, { 'Content-Type': 'text/plain' }))
+      .status,
+  ).toBe(415);
+  expect(
+    (await req('/api/private/project-drafts', 'POST', { ...f, description: 'x'.repeat(33000) }))
+      .status,
+  ).toBe(413);
+  expect((await req('/api/private/project-drafts?PRIVATE=1')).status).toBe(404);
+  expect((await req('/api/private/project-drafts', 'DELETE')).headers.get('Allow')).toBe(
+    'GET, POST',
+  );
+  expect(
+    (
+      await req('/api/private/project-drafts', 'GET', undefined, 0, {
+        'X-Test-Origin': 'http://invalid.example',
+      })
+    ).status,
+  ).toBe(503);
+});
+it('bounds stalled and empty chunk bodies without a late saved record', async () => {
+  const db = await mf.getD1Database('DB');
+  const count = async () =>
+    await db.prepare('SELECT count(*) n FROM project_drafts').first<{ n: number }>();
+  const before = await count();
+  expect(
+    (await req('/api/private/project-drafts', 'POST', undefined, 0, { 'X-Test-Body': 'empty' }))
+      .status,
+  ).toBe(413);
+  const start = Date.now();
+  expect(
+    (await req('/api/private/project-drafts', 'POST', undefined, 0, { 'X-Test-Body': 'late' }))
+      .status,
+  ).toBe(408);
+  expect(Date.now() - start).toBeLessThan(6500);
+  await new Promise((r) => setTimeout(r, 700));
+  expect(await count()).toEqual(before);
+}, 8000);
+it('rolls back refused publication inserts and denies malformed profile projections', async () => {
+  const db = await mf.getD1Database('DB');
+  const d = await create();
+  await db
+    .prepare(
+      "CREATE TRIGGER fixture_project_abort BEFORE INSERT ON project_publications BEGIN SELECT RAISE(ABORT,'fixture'); END",
+    )
+    .run();
+  try {
+    expect((await publish(d)).status).toBe(404);
+    expect(await (await req('/api/private/project-publications/' + d.id)).json()).toEqual({
+      publication: null,
+    });
+  } finally {
+    await db.prepare('DROP TRIGGER fixture_project_abort').run();
+  }
+  const id = ((await (await publish(d)).json()) as { projectId: string }).projectId;
+  const profile = await db
+    .prepare(
+      "SELECT public_profile_id id FROM account_public_profiles WHERE owner_account_id='account-0'",
+    )
+    .first<{ id: string }>();
+  await db
+    .prepare('UPDATE public_profiles SET bio=? WHERE id=?')
+    .bind('x'.repeat(801), profile!.id)
+    .run();
+  expect(await publicRead(id)).toBeNull();
+  expect((await req('/api/private/project-publications/' + d.id)).status).toBe(404);
+  expect((await publish(d)).status).toBe(404);
+  await db
+    .prepare('UPDATE public_profiles SET bio=? WHERE id=?')
+    .bind('Public biography', profile!.id)
+    .run();
+  await db.prepare("UPDATE project_publications SET status='deleted' WHERE id=?").bind(id).run();
+  expect(await publicRead(id)).toBeNull();
+  expect((await publish(d)).status).toBe(404);
+});
+it('discovers newest20 immutable cross-author snapshots with short DTOs and fresh stop exclusion', async () => {
+  const db = await mf.getD1Database('DB');
+  await db.prepare("UPDATE project_publications SET status='hidden'").run();
+  await db
+    .prepare("INSERT INTO public_profiles VALUES('orphan-project-profile','Orphan','','','','O',0)")
+    .run();
+  const expected: { id: string; time: number; owner: number; draft: ProjectDraft }[] = [];
+  for (let n = 0; n < 22; n++) {
+    const owner = n % 2,
+      d = await create(
+        {
+          ...f,
+          title: 'Discovered ' + n,
+          description: 'Description ' + n + '😀'.repeat(320),
+          githubUrl: 'https://example.invalid/source',
+          demoUrl: 'https://example.invalid/demo',
+        },
+        owner,
+      );
+    const id = ((await (await publish(d, owner)).json()) as { projectId: string }).projectId,
+      time = NOW + Math.floor(n / 2);
+    await db
+      .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
+      .bind(time, id)
+      .run();
+    expected.push({ id, time, owner, draft: d });
+  }
+  const ordered = [...expected].sort((a, b) => b.time - a.time || a.id.localeCompare(b.id));
+  const read = async (extra: Record<string, string> = {}) =>
+    (await (
+      await req('/public/discovery', 'GET', undefined, 0, extra)
+    ).json()) as PublicProjectDiscovery | null;
+  let result = (await read())!;
+  expect(result.cards.map((c) => c.project.id)).toEqual(ordered.slice(0, 20).map((e) => e.id));
+  for (const card of result.cards) {
+    const source = expected.find((e) => e.id === card.project.id)!;
+    expect(card.author.name).toBe('Project author ' + source.owner);
+    expect(Array.from(card.project.descriptionPreview).length).toBe(300);
+    expect(Object.keys(card.project).sort()).toEqual([
+      'descriptionPreview',
+      'id',
+      'publishedOn',
+      'title',
+    ]);
+    expect(Object.keys(card.author).sort()).toEqual([
+      'department',
+      'id',
+      'initials',
+      'name',
+      'year',
+    ]);
+  }
+  for (const marker of [
+    'githubUrl',
+    'demoUrl',
+    'biography',
+    'account-',
+    'subject-',
+    'sourceVersion',
+    'draft_id',
+    'st.kobedenshi',
+    'orphan-project-profile',
+  ])
+    expect(JSON.stringify(result)).not.toContain(marker);
+  expect(new TextEncoder().encode(JSON.stringify(result)).length).toBeLessThanOrEqual(262144);
+  const first = ordered[0];
+  await req(
+    '/api/private/project-drafts/' + first.draft.id,
+    'PUT',
+    { ...f, title: 'UNSAVED PUBLIC DRIFT', expectedVersion: 1 },
+    first.owner,
+  );
+  expect((await read())!.cards[0].project.title).not.toBe('UNSAVED PUBLIC DRIFT');
+  await db
+    .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
+    .bind(NOW, first.id)
+    .run();
+  expect(
+    (
+      (await (
+        await req(
+          '/fixture/stop/' + first.id,
+          'POST',
+          { expectedSourceVersion: 1, confirmStop: true },
+          first.owner,
+        )
+      ).json()) as { stopped: boolean }
+    ).stopped,
+  ).toBe(true);
+  expect((await read())!.cards.map((c) => c.project.id)).not.toContain(first.id);
+  expect(
+    (await db
+      .prepare('SELECT title FROM project_publications WHERE id=?')
+      .bind(first.id)
+      .first<{ title: string }>())!.title,
+  ).toBe(first.draft.title);
+  const selected = (await read())!.cards[0].project.id;
+  const selectedProfile = (await db
+    .prepare('SELECT public_profile_id id FROM project_publications WHERE id=?')
+    .bind(selected)
+    .first<{ id: string }>())!.id;
+  await db.prepare('UPDATE public_profiles SET is_sample=1 WHERE id=?').bind(selectedProfile).run();
+  expect(await read()).toBeNull();
+  await db.prepare('UPDATE public_profiles SET is_sample=0 WHERE id=?').bind(selectedProfile).run();
+  await db
+    .prepare('UPDATE project_publications SET description=? WHERE id=?')
+    .bind('bad\0text', selected)
+    .run();
+  expect(await read()).toBeNull();
+  await db
+    .prepare('UPDATE project_publications SET description=? WHERE id=?')
+    .bind('Restored description', selected)
+    .run();
+  expect(await read({ 'X-Test-Discovery-Race': '1' })).toBeNull();
+  expect(await read({ 'X-Test-Discovery-Fault': '1' })).toBeNull();
+});
+it('bounds author list newest20, rejects corrupt snapshots and fails storage errors closed', async () => {
+  const db = await mf.getD1Database('DB');
+  await db.prepare("UPDATE project_publications SET status='hidden'").run();
+  const ids: string[] = [];
+  for (let n = 0; n < 22; n++) {
+    const d = await create({ ...f, title: 'Project ' + n }, 1);
+    const id = ((await (await publish(d, 1)).json()) as { projectId: string }).projectId;
+    ids.push(id);
+    await db
+      .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
+      .bind(NOW + n, id)
+      .run();
+  }
+  const profile = await db
+    .prepare(
+      "SELECT public_profile_id id FROM account_public_profiles WHERE owner_account_id='account-1'",
+    )
+    .first<{ id: string }>();
+  const url = '/public/author/' + profile!.id;
+  const result = (await (await req(url)).json()) as {
+    projects: { id: string; descriptionPreview: string }[];
+  };
+  expect(result.projects.map((p) => p.id)).toEqual(ids.slice(-20).reverse());
+  await db
+    .prepare('UPDATE project_publications SET description=? WHERE id=?')
+    .bind('bad\0text', ids[21])
+    .run();
+  expect(await (await req(url)).json()).toBeNull();
+  await db
+    .prepare('UPDATE project_publications SET description=? WHERE id=?')
+    .bind('Restored valid description', ids[21])
+    .run();
+  expect(await (await req(url)).json()).not.toBeNull();
+  expect(
+    await (await req(url, 'GET', undefined, 0, { 'X-Test-Discovery-Fault': '1' })).json(),
+  ).toBeNull();
+});

@@ -34,7 +34,12 @@ export async function verifySchoolGoogleIdToken(
   const { clientId, expectedNonce } = context;
   if (!clientId || !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(clientId)) return null;
   if (!expectedNonce || !/^[A-Za-z0-9_-]{32,128}$/.test(expectedNonce)) return null;
-  if (typeof token !== 'string' || token.length > 16_384 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) return null;
+  if (
+    typeof token !== 'string' ||
+    token.length > 16_384 ||
+    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)
+  )
+    return null;
 
   try {
     const { payload } = await jwtVerify(token, googleKeys, {
@@ -46,12 +51,24 @@ export async function verifySchoolGoogleIdToken(
       clockTolerance: 5,
     });
     // A dedicated single web-client audience is supported initially. No implicit multi-client trust.
-    if (payload.aud !== clientId || (payload.azp !== undefined && payload.azp !== clientId)) return null;
-    if (typeof payload.sub !== 'string' || !payload.sub.trim() || payload.sub.length > 255) return null;
-    if (!Number.isInteger(payload.iat) || !Number.isInteger(payload.exp) || payload.exp! <= payload.iat!) return null;
+    if (payload.aud !== clientId || (payload.azp !== undefined && payload.azp !== clientId))
+      return null;
+    if (typeof payload.sub !== 'string' || !payload.sub.trim() || payload.sub.length > 255)
+      return null;
+    if (
+      !Number.isInteger(payload.iat) ||
+      !Number.isInteger(payload.exp) ||
+      payload.exp! <= payload.iat!
+    )
+      return null;
     if (payload.nonce !== expectedNonce) return null;
     if (payload.email_verified !== true || payload.hd !== SCHOOL_GOOGLE_DOMAIN) return null;
-    if (typeof payload.email !== 'string' || payload.email.length > 320 || !/^[^\s@]+@[^\s@]+$/.test(payload.email)) return null;
+    if (
+      typeof payload.email !== 'string' ||
+      payload.email.length > 320 ||
+      !/^[^\s@]+@[^\s@]+$/.test(payload.email)
+    )
+      return null;
     if (payload.email.split('@')[1].toLowerCase() !== SCHOOL_GOOGLE_DOMAIN) return null;
 
     // Deliberately omit Google name, picture, domain hints and the original token.

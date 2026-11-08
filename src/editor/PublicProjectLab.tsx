@@ -1,8 +1,71 @@
 import ProjectReport from './ProjectReport';
-import {useEffect,useMemo,useState} from 'react';
-import {Button} from '@base-ui/react/button';
-import type {PublicProjectReader} from '../project-types';
-import {createPublicProjectClient} from './public-project-client';
-import {ProjectText} from './ProjectRegistration';
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@base-ui/react/button';
+import type { PublicProjectReader } from '../project-types';
+import { createPublicProjectClient } from './public-project-client';
+import { ProjectText } from './ProjectRegistration';
 import './project.css';
-export default function PublicProjectLab({projectId}:{projectId:string}){const client=useMemo(()=>createPublicProjectClient(),[]);const [state,setState]=useState<{id:string;value:PublicProjectReader|null;failed:boolean}>({id:projectId,value:null,failed:false}),[attempt,setAttempt]=useState(0);useEffect(()=>{const controller=new AbortController();setState({id:projectId,value:null,failed:false});client.read(projectId,controller.signal).then(value=>{if(!controller.signal.aborted)setState({id:projectId,value,failed:false})}).catch(()=>{if(!controller.signal.aborted)setState({id:projectId,value:null,failed:true})});return()=>controller.abort()},[client,projectId,attempt]);const value=state.id===projectId?state.value:null,failed=state.id===projectId&&state.failed;return <div className="project-public"><header>Kobe Student Hub · ローカル作品</header><main><nav className="project-public-nav" aria-label="公開内容のナビゲーション"><a href="/lab/discover">公開記事を探す</a><a href="/lab/works">公開作品を探す</a></nav><p className="project-local">画像なしの架空作品によるローカル検証です。実際の一般投稿や運営対応は提供していません。作品通報の受付だけをローカルで試せます。</p>{failed?<section><h1>この作品を表示できません</h1><p>公開状態や接続を確認できません。</p><Button onClick={()=>setAttempt(v=>v+1)}>もう一度確認</Button></section>:!value?<p role="status">作品を読み込んでいます…</p>:<><p>作品 · {value.project.publishedOn} 公開</p><h1>{value.project.title}</h1><ProjectText value={value.project} showTitle={false}/><section aria-label="作品の投稿者"><h2>{value.author.name}</h2><p>{[value.author.department,value.author.year].filter(Boolean).join(' · ')}</p><p className="project-description">{value.author.bio}</p><a href={'/lab/project-authors/'+value.author.id}>この投稿者の公開作品を見る</a></section><p>URLは文字列として表示し、外部ページは自動取得していません。リンクを開くと外部サイトへ移動します。</p><ProjectReport key={value.project.id} projectId={value.project.id}/></>}</main><footer>ローカル専用 · 学生・実端末による価値検証は未実施です。</footer></div>}
+export default function PublicProjectLab({ projectId }: { projectId: string }) {
+  const client = useMemo(() => createPublicProjectClient(), []);
+  const [state, setState] = useState<{
+      id: string;
+      value: PublicProjectReader | null;
+      failed: boolean;
+    }>({ id: projectId, value: null, failed: false }),
+    [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ id: projectId, value: null, failed: false });
+    client
+      .read(projectId, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) setState({ id: projectId, value, failed: false });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setState({ id: projectId, value: null, failed: true });
+      });
+    return () => controller.abort();
+  }, [client, projectId, attempt]);
+  const value = state.id === projectId ? state.value : null,
+    failed = state.id === projectId && state.failed;
+  return (
+    <div className="project-public">
+      <header>Kobe Student Hub · ローカル作品</header>
+      <main>
+        <nav className="project-public-nav" aria-label="公開内容のナビゲーション">
+          <a href="/lab/discover">公開記事を探す</a>
+          <a href="/lab/works">公開作品を探す</a>
+        </nav>
+        <p className="project-local">
+          画像なしの架空作品によるローカル検証です。実際の一般投稿や運営対応は提供していません。作品通報の受付だけをローカルで試せます。
+        </p>
+        {failed ? (
+          <section>
+            <h1>この作品を表示できません</h1>
+            <p>公開状態や接続を確認できません。</p>
+            <Button onClick={() => setAttempt((v) => v + 1)}>もう一度確認</Button>
+          </section>
+        ) : !value ? (
+          <p role="status">作品を読み込んでいます…</p>
+        ) : (
+          <>
+            <p>作品 · {value.project.publishedOn} 公開</p>
+            <h1>{value.project.title}</h1>
+            <ProjectText value={value.project} showTitle={false} />
+            <section aria-label="作品の投稿者">
+              <h2>{value.author.name}</h2>
+              <p>{[value.author.department, value.author.year].filter(Boolean).join(' · ')}</p>
+              <p className="project-description">{value.author.bio}</p>
+              <a href={'/lab/project-authors/' + value.author.id}>この投稿者の公開作品を見る</a>
+            </section>
+            <p>
+              URLは文字列として表示し、外部ページは自動取得していません。リンクを開くと外部サイトへ移動します。
+            </p>
+            <ProjectReport key={value.project.id} projectId={value.project.id} />
+          </>
+        )}
+      </main>
+      <footer>ローカル専用 · 学生・実端末による価値検証は未実施です。</footer>
+    </div>
+  );
+}

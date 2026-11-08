@@ -16,11 +16,20 @@ beforeAll(async () => {
 afterAll(() => vi.unstubAllGlobals());
 describe('server Google identity boundary with real JOSE signatures', () => {
   it('verifies a signed school identity and returns only private minimal fields', async () => {
-    expect(await verifySchoolGoogleIdToken(await fixture.sign(), context)).toEqual({ provider: 'google', subject: 'fictional-google-subject', email: TEST_EMAIL });
+    expect(await verifySchoolGoogleIdToken(await fixture.sign(), context)).toEqual({
+      provider: 'google',
+      subject: 'fictional-google-subject',
+      email: TEST_EMAIL,
+    });
     expect(fetchKeys).toHaveBeenCalledTimes(1);
   });
   it('supports the documented alternate Google issuer and matching azp', async () => {
-    expect(await verifySchoolGoogleIdToken(await fixture.sign({ iss: 'accounts.google.com', azp: TEST_CLIENT_ID }), context)).not.toBeNull();
+    expect(
+      await verifySchoolGoogleIdToken(
+        await fixture.sign({ iss: 'accounts.google.com', azp: TEST_CLIENT_ID }),
+        context,
+      ),
+    ).not.toBeNull();
   });
   it.each([
     ['foreign issuer', { iss: 'https://example.invalid' }],
@@ -46,22 +55,36 @@ describe('server Google identity boundary with real JOSE signatures', () => {
     expect(await verifySchoolGoogleIdToken(await fixture.sign(patch), context)).toBeNull();
   });
   it('rejects tampering, foreign signing keys, unknown kid and algorithm confusion', async () => {
-    const parts = (await fixture.sign()).split('.'); parts[1] = base64url.encode(JSON.stringify({ ...fixture.claims, sub: 'tampered' }));
+    const parts = (await fixture.sign()).split('.');
+    parts[1] = base64url.encode(JSON.stringify({ ...fixture.claims, sub: 'tampered' }));
     expect(await verifySchoolGoogleIdToken(parts.join('.'), context)).toBeNull();
     const foreign = await googleFixture();
     expect(await verifySchoolGoogleIdToken(await foreign.sign(), context)).toBeNull();
-    expect(await verifySchoolGoogleIdToken(await fixture.sign({}, 'unrecognized-key'), context)).toBeNull();
-    const hmac = await new SignJWT(fixture.claims).setProtectedHeader({ alg: 'HS256', kid: 'fixture-rsa-key' }).sign(new Uint8Array(32));
+    expect(
+      await verifySchoolGoogleIdToken(await fixture.sign({}, 'unrecognized-key'), context),
+    ).toBeNull();
+    const hmac = await new SignJWT(fixture.claims)
+      .setProtectedHeader({ alg: 'HS256', kid: 'fixture-rsa-key' })
+      .sign(new Uint8Array(32));
     expect(await verifySchoolGoogleIdToken(hmac, context)).toBeNull();
   });
   it('fails closed before network for missing configuration or malformed/oversized token', async () => {
-    const before = fetchKeys.mock.calls.length; const signed = await fixture.sign();
-    for (const c of [{}, { clientId: TEST_CLIENT_ID }, { ...context, expectedNonce: 'short' }, { ...context, clientId: 'not-a-client' }]) expect(await verifySchoolGoogleIdToken(signed, c)).toBeNull();
-    for (const token of ['not-a-jwt', 'a.b.', 'a'.repeat(17000), JSON.stringify(fixture.claims)]) expect(await verifySchoolGoogleIdToken(token, context)).toBeNull();
+    const before = fetchKeys.mock.calls.length;
+    const signed = await fixture.sign();
+    for (const c of [
+      {},
+      { clientId: TEST_CLIENT_ID },
+      { ...context, expectedNonce: 'short' },
+      { ...context, clientId: 'not-a-client' },
+    ])
+      expect(await verifySchoolGoogleIdToken(signed, c)).toBeNull();
+    for (const token of ['not-a-jwt', 'a.b.', 'a'.repeat(17000), JSON.stringify(fixture.claims)])
+      expect(await verifySchoolGoogleIdToken(token, context)).toBeNull();
     expect(fetchKeys.mock.calls).toHaveLength(before);
   });
   it('fails closed if the public-key fetch is unavailable', async () => {
-    vi.resetModules(); fetchKeys.mockRejectedValueOnce(new Error('fixture-network-unavailable'));
+    vi.resetModules();
+    fetchKeys.mockRejectedValueOnce(new Error('fixture-network-unavailable'));
     const fresh = await import('../worker/auth/google-identity');
     expect(await fresh.verifySchoolGoogleIdToken(await fixture.sign(), context)).toBeNull();
   });

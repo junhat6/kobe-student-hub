@@ -1,6 +1,178 @@
-import{test,expect,type Page,type Locator}from'@playwright/test';import{mkdir}from'node:fs/promises';import{join,resolve}from'node:path';
-const O='https://127.0.0.1:8788',form=(p:Page)=>p.getByRole('region',{name:'画像なし作品の登録'});
-async function shot(l:Locator,device:string,name:string){const root=process.env.KOBE_LOCAL_EVIDENCE_DIR;if(!root)return;const dir=resolve(root,device);if(!dir.startsWith('/tmp/'))throw Error('Evidence must stay under/tmp');await mkdir(dir,{recursive:true});await l.screenshot({path:join(dir,name),scale:'css'})}
-async function setup(p:Page,publish=false){await p.goto('/lab/account');const t=await p.evaluate(async publish=>{const{csrfToken}=await(await fetch('/__fixture/profile-session',{method:'POST'})).json()as{csrfToken:string};async function post(path:string,value:unknown){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer csrf.'+(csrfToken)},body:JSON.stringify(value)});if(r.status!==201)throw Error('fictional setup failed');return r.json()as Promise<{id:string;projectId:string}>}if(publish)await post('/api/private/profile',{displayName:'版表示の架空著者',confirmPublic:true});const title='版一覧の架空作品-'+crypto.randomUUID().slice(0,8),d=await post('/api/private/project-drafts',{title,description:'公開版一の架空説明',githubUrl:'',demoUrl:''}),pub=publish?await post('/api/private/project-publications/'+d.id,{expectedVersion:1,confirmPublic:true}):null;return{title,id:d.id,csrf:csrfToken,publicId:pub?.projectId}},publish);await p.reload();await expect(form(p)).toBeVisible();return t}
-test('independent delayed confirmed draft metadata cannot merge into another actual cookie scope',async({page},info)=>{const t=await setup(page);const initialRow=form(page).locator('.project-draft-list li').filter({hasText:t.title});await expect(initialRow.getByRole('button',{name:'保存版を確認：'+t.title,exact:true})).toBeVisible();await expect(initialRow.locator('small')).toHaveText('版 1');expect((await page.context().request.put('/api/private/project-drafts/'+t.id,{headers:{Origin:O,Authorization:'Bearer csrf.'+(t.csrf)},data:{expectedVersion:1,title:t.title+' 新保存版',description:'新しい私的保存版二',githubUrl:'',demoUrl:''}})).status()).toBe(200);const path=O+'/api/private/project-drafts/'+t.id;let at=0,proofs=0;page.on('response',r=>{if(r.url()===path)at=Date.now();else if(at&&r.url().endsWith('/api/private/session')&&r.status()===200)proofs++});await page.route(path,r=>r.continue({headers:{...r.request().headers(),'X-Lab-Body-Delay':'5000'}}));await form(page).getByRole('button',{name:'保存版を確認：'+t.title,exact:true}).click();await expect.poll(()=>proofs).toBeGreaterThan(0);expect(Date.now()-at).toBeLessThan(4000);expect((await page.context().request.post('/__fixture/profile-session',{headers:{Origin:O},data:{}})).status()).toBe(200);expect(Date.now()-at).toBeLessThan(4000);await expect(page.getByText('別のセッションを検出したため、前の編集画面を閉じました。セッションを再確認してから続行してください。',{exact:true})).toBeVisible({timeout:10000});await expect(form(page)).toHaveCount(0);await expect(page.getByText(t.title+' 新保存版',{exact:true})).toHaveCount(0);await shot(page.getByRole('region',{name:'既存セッションの確認'}),info.project.name,'01-old-draft-metadata-scope-discarded.png');await page.unroute(path);await page.getByRole('button',{name:'セッションを再確認',exact:true}).click();await page.getByRole('button',{name:'確認したセッションで編集を開く',exact:true}).click();await expect(form(page)).toBeVisible();await expect(form(page).locator('.project-draft-list li')).toHaveCount(0);await expect(page.getByText(t.title+' 新保存版',{exact:true})).toHaveCount(0);await shot(form(page),info.project.name,'02-new-account-no-old-row-merge.png')});
-test('independent private list version advances while published snapshot and newer unsaved input remain separate',async({page,browser},info)=>{const t=await setup(page,true);await form(page).getByRole('button',{name:'保存版を確認：'+t.title,exact:true}).click();await form(page).getByRole('button',{name:'この保存版を開く',exact:true}).click();const next=t.title+' 私的改訂';await form(page).getByLabel('作品タイトル',{exact:true}).fill(next);const input=form(page).getByLabel('作品説明（プレーンテキスト）',{exact:true});await input.fill('私的な保存版二の説明');await form(page).getByRole('button',{name:'作品を保存',exact:true}).click();await expect(form(page).getByRole('status')).toContainText('確認した入力を保存しました');await input.fill('未保存版三の私的入力');const row=form(page).locator('.project-draft-list li').filter({hasText:next});await expect(row.getByRole('button',{name:'保存版を確認：'+next,exact:true})).toBeVisible();await expect(row.locator('small')).toHaveText('版 2');await expect(input).toHaveValue('未保存版三の私的入力');await shot(form(page),info.project.name,'03-confirmed-list-two-unsaved-three.png');const device=info.project.use,anon=await browser.newContext({baseURL:O,ignoreHTTPSErrors:true,viewport:page.viewportSize(),screen:device.screen,isMobile:device.isMobile,hasTouch:device.hasTouch,deviceScaleFactor:device.deviceScaleFactor,userAgent:device.userAgent});try{const r=await anon.request.get('/__lab/projects/'+t.publicId);expect(r.status()).toBe(200);const data=await r.json()as{project:{title:string;description:string}};expect(data.project.title).toBe(t.title);expect(data.project.description).toBe('公開版一の架空説明');const feed=await(await anon.request.get('/__lab/project-discovery')).json()as{cards:{project:{id:string;title:string;descriptionPreview:string}}[]};expect(feed.cards.find(c=>c.project.id===t.publicId)?.project).toMatchObject({title:t.title,descriptionPreview:'公開版一の架空説明'});const reader=await anon.newPage();await reader.goto('/lab/projects/'+t.publicId);expect(reader.viewportSize()).toEqual(page.viewportSize());await expect(reader.getByRole('heading',{name:t.title,exact:true})).toBeVisible();await expect(reader.getByText('公開版一の架空説明',{exact:true})).toBeVisible();await expect(reader.getByText('未保存版三の私的入力',{exact:true})).toHaveCount(0);await shot(reader.locator('main'),info.project.name,'04-anonymous-original-public-one.png');expect(await anon.cookies()).toEqual([]);await expect(input).toHaveValue('未保存版三の私的入力')}finally{await anon.close()}});
+import { test, expect, type Page, type Locator } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+const O = 'https://127.0.0.1:8788',
+  form = (p: Page) => p.getByRole('region', { name: '画像なし作品の登録' });
+async function shot(l: Locator, device: string, name: string) {
+  const root = process.env.KOBE_LOCAL_EVIDENCE_DIR;
+  if (!root) return;
+  const dir = resolve(root, device);
+  if (!dir.startsWith('/tmp/')) throw Error('Evidence must stay under/tmp');
+  await mkdir(dir, { recursive: true });
+  await l.screenshot({ path: join(dir, name), scale: 'css' });
+}
+async function setup(p: Page, publish = false) {
+  await p.goto('/lab/account');
+  const t = await p.evaluate(async (publish) => {
+    const { csrfToken } = (await (
+      await fetch('/__fixture/profile-session', { method: 'POST' })
+    ).json()) as { csrfToken: string };
+    async function post(path: string, value: unknown) {
+      const r = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer csrf.' + csrfToken },
+        body: JSON.stringify(value),
+      });
+      if (r.status !== 201) throw Error('fictional setup failed');
+      return r.json() as Promise<{ id: string; projectId: string }>;
+    }
+    if (publish)
+      await post('/api/private/profile', { displayName: '版表示の架空著者', confirmPublic: true });
+    const title = '版一覧の架空作品-' + crypto.randomUUID().slice(0, 8),
+      d = await post('/api/private/project-drafts', {
+        title,
+        description: '公開版一の架空説明',
+        githubUrl: '',
+        demoUrl: '',
+      }),
+      pub = publish
+        ? await post('/api/private/project-publications/' + d.id, {
+            expectedVersion: 1,
+            confirmPublic: true,
+          })
+        : null;
+    return { title, id: d.id, csrf: csrfToken, publicId: pub?.projectId };
+  }, publish);
+  await p.reload();
+  await expect(form(p)).toBeVisible();
+  return t;
+}
+test('independent delayed confirmed draft metadata cannot merge into another actual cookie scope', async ({
+  page,
+}, info) => {
+  const t = await setup(page);
+  const initialRow = form(page).locator('.project-draft-list li').filter({ hasText: t.title });
+  await expect(
+    initialRow.getByRole('button', { name: '保存版を確認：' + t.title, exact: true }),
+  ).toBeVisible();
+  await expect(initialRow.locator('small')).toHaveText('版 1');
+  expect(
+    (
+      await page
+        .context()
+        .request.put('/api/private/project-drafts/' + t.id, {
+          headers: { Origin: O, Authorization: 'Bearer csrf.' + t.csrf },
+          data: {
+            expectedVersion: 1,
+            title: t.title + ' 新保存版',
+            description: '新しい私的保存版二',
+            githubUrl: '',
+            demoUrl: '',
+          },
+        })
+    ).status(),
+  ).toBe(200);
+  const path = O + '/api/private/project-drafts/' + t.id;
+  let at = 0,
+    proofs = 0;
+  page.on('response', (r) => {
+    if (r.url() === path) at = Date.now();
+    else if (at && r.url().endsWith('/api/private/session') && r.status() === 200) proofs++;
+  });
+  await page.route(path, (r) =>
+    r.continue({ headers: { ...r.request().headers(), 'X-Lab-Body-Delay': '5000' } }),
+  );
+  await form(page)
+    .getByRole('button', { name: '保存版を確認：' + t.title, exact: true })
+    .click();
+  await expect.poll(() => proofs).toBeGreaterThan(0);
+  expect(Date.now() - at).toBeLessThan(4000);
+  expect(
+    (
+      await page
+        .context()
+        .request.post('/__fixture/profile-session', { headers: { Origin: O }, data: {} })
+    ).status(),
+  ).toBe(200);
+  expect(Date.now() - at).toBeLessThan(4000);
+  await expect(
+    page.getByText(
+      '別のセッションを検出したため、前の編集画面を閉じました。セッションを再確認してから続行してください。',
+      { exact: true },
+    ),
+  ).toBeVisible({ timeout: 10000 });
+  await expect(form(page)).toHaveCount(0);
+  await expect(page.getByText(t.title + ' 新保存版', { exact: true })).toHaveCount(0);
+  await shot(
+    page.getByRole('region', { name: '既存セッションの確認' }),
+    info.project.name,
+    '01-old-draft-metadata-scope-discarded.png',
+  );
+  await page.unroute(path);
+  await page.getByRole('button', { name: 'セッションを再確認', exact: true }).click();
+  await page.getByRole('button', { name: '確認したセッションで編集を開く', exact: true }).click();
+  await expect(form(page)).toBeVisible();
+  await expect(form(page).locator('.project-draft-list li')).toHaveCount(0);
+  await expect(page.getByText(t.title + ' 新保存版', { exact: true })).toHaveCount(0);
+  await shot(form(page), info.project.name, '02-new-account-no-old-row-merge.png');
+});
+test('independent private list version advances while published snapshot and newer unsaved input remain separate', async ({
+  page,
+  browser,
+}, info) => {
+  const t = await setup(page, true);
+  await form(page)
+    .getByRole('button', { name: '保存版を確認：' + t.title, exact: true })
+    .click();
+  await form(page).getByRole('button', { name: 'この保存版を開く', exact: true }).click();
+  const next = t.title + ' 私的改訂';
+  await form(page).getByLabel('作品タイトル', { exact: true }).fill(next);
+  const input = form(page).getByLabel('作品説明（プレーンテキスト）', { exact: true });
+  await input.fill('私的な保存版二の説明');
+  await form(page).getByRole('button', { name: '作品を保存', exact: true }).click();
+  await expect(form(page).getByRole('status')).toContainText('確認した入力を保存しました');
+  await input.fill('未保存版三の私的入力');
+  const row = form(page).locator('.project-draft-list li').filter({ hasText: next });
+  await expect(
+    row.getByRole('button', { name: '保存版を確認：' + next, exact: true }),
+  ).toBeVisible();
+  await expect(row.locator('small')).toHaveText('版 2');
+  await expect(input).toHaveValue('未保存版三の私的入力');
+  await shot(form(page), info.project.name, '03-confirmed-list-two-unsaved-three.png');
+  const device = info.project.use,
+    anon = await browser.newContext({
+      baseURL: O,
+      ignoreHTTPSErrors: true,
+      viewport: page.viewportSize(),
+      screen: device.screen,
+      isMobile: device.isMobile,
+      hasTouch: device.hasTouch,
+      deviceScaleFactor: device.deviceScaleFactor,
+      userAgent: device.userAgent,
+    });
+  try {
+    const r = await anon.request.get('/__lab/projects/' + t.publicId);
+    expect(r.status()).toBe(200);
+    const data = (await r.json()) as { project: { title: string; description: string } };
+    expect(data.project.title).toBe(t.title);
+    expect(data.project.description).toBe('公開版一の架空説明');
+    const feed = (await (await anon.request.get('/__lab/project-discovery')).json()) as {
+      cards: { project: { id: string; title: string; descriptionPreview: string } }[];
+    };
+    expect(feed.cards.find((c) => c.project.id === t.publicId)?.project).toMatchObject({
+      title: t.title,
+      descriptionPreview: '公開版一の架空説明',
+    });
+    const reader = await anon.newPage();
+    await reader.goto('/lab/projects/' + t.publicId);
+    expect(reader.viewportSize()).toEqual(page.viewportSize());
+    await expect(reader.getByRole('heading', { name: t.title, exact: true })).toBeVisible();
+    await expect(reader.getByText('公開版一の架空説明', { exact: true })).toBeVisible();
+    await expect(reader.getByText('未保存版三の私的入力', { exact: true })).toHaveCount(0);
+    await shot(reader.locator('main'), info.project.name, '04-anonymous-original-public-one.png');
+    expect(await anon.cookies()).toEqual([]);
+    await expect(input).toHaveValue('未保存版三の私的入力');
+  } finally {
+    await anon.close();
+  }
+});

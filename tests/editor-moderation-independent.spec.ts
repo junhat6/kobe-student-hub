@@ -1,22 +1,194 @@
-import {test,expect,type Page,type Browser,type BrowserContext} from '@playwright/test';
-const ORIGIN='https://127.0.0.1:8788';
-async function context(browser:Browser,page:Page):Promise<BrowserContext>{const device=test.info().project.use;return browser.newContext({ignoreHTTPSErrors:true,baseURL:ORIGIN,viewport:page.viewportSize(),screen:device.screen,isMobile:device.isMobile,hasTouch:device.hasTouch,deviceScaleFactor:device.deviceScaleFactor,userAgent:device.userAgent})}
-async function article(page:Page){let csrf='';await page.route('**/__fixture/session',async route=>{if(csrf){await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({csrfToken:csrf})});return}const response=await route.fetch({url:ORIGIN+'/__fixture/profile-session'});expect(response.status()).toBe(200);csrf=(await response.json() as {csrfToken:string}).csrfToken;await route.fulfill({response})});await page.goto('/');await expect(page.getByRole('button',{name:'新しい下書き',exact:true})).toBeVisible();return await page.evaluate(async token=>{
- const post=async(path:string,value:unknown,method='POST')=>{const response=await fetch(path,{method,headers:{'Content-Type':'application/json',Authorization:'Bearer csrf.'+(token)},body:JSON.stringify(value)});if(response.status!==201)throw new Error('fictional article setup unavailable');return await response.json()};
- await post('/api/private/profile',{displayName:'架空の通報対象の著者',department:'',yearLabel:'',bio:'ローカルだけの紹介',confirmPublic:true});
- const title='通報の対象-'+crypto.randomUUID().slice(0,8);const draft=await post('/api/private/drafts',{title,body:'# 対象本文\n\n<script>window.__moderationBodyInjected=true</script>\n\n![hidden](https://moderation-body-exfil.invalid/x)\n\n架空の公開本文です。'}) as {id:string;version:number};
- const result=await post('/api/private/publications/'+draft.id,{expectedVersion:draft.version,confirmPublic:true,summary:'架空の通報検証記事',tags:[],minutes:1}) as {contentId:string};return {contentId:result.contentId,title};
- },csrf)}
-async function reporter(browser:Browser,page:Page,contentId:string){const ctx=await context(browser,page);expect((await ctx.request.post('/__fixture/profile-session',{headers:{Origin:ORIGIN},data:{}})).status()).toBe(200);const reader=await ctx.newPage();await reader.goto('/lab/articles/'+contentId);await expect(reader.getByRole('button',{name:'この記事を通報する（ローカル検証）',exact:true})).toBeVisible();return {ctx,page:reader}}
-async function form(page:Page,reason:string,detail='架空の詳しい説明'){const region=page.getByRole('region',{name:'記事の通報'});await region.getByRole('button',{name:'この記事を通報する（ローカル検証）',exact:true}).click();await region.getByLabel('通報理由（必須）',{exact:true}).fill(reason);await region.getByLabel('詳しい説明（任意）',{exact:true}).fill(detail);return region}
-const confirm=(page:Page)=>page.getByRole('checkbox',{name:'入力した理由・詳細を運営の確認用として送信します',exact:true});
-const submit=(page:Page)=>page.getByRole('button',{name:'確認した内容で通報を送信',exact:true});
-test('independent own accepted hidden receipt resolves lost ACK without another report',async({page,browser},info)=>{
- const target=await article(page);const accounts:Awaited<ReturnType<typeof reporter>>[]=[];let op:BrowserContext|undefined;let anon:BrowserContext|undefined;try{
- const first=await reporter(browser,page,target.contentId);accounts.push(first);await form(first.page,'結果不明から確認する架空の理由','一般には出さない架空の説明');let posts=0;await first.page.route('**/api/private/reports/*',async route=>{if(route.request().method()==='POST'){posts++;const response=await route.fetch();expect(response.status()).toBe(200);await route.fulfill({status:503,contentType:'application/json',body:'{"error":"synthetic_lost_ack"}'})}else await route.continue()});await confirm(first.page).check();await submit(first.page).click();await expect(first.page.getByText(/送信結果を確認できませんでした/)).toBeVisible();await first.page.getByRole('region',{name:'記事の通報'}).screenshot({path:info.outputPath('01-uncertain-private-input.png'),scale:'css'});
- for(let n=1;n<3;n++){const r=await reporter(browser,page,target.contentId);accounts.push(r);await form(r.page,'追加の架空の理由'+n);await confirm(r.page).check();await submit(r.page).click();await expect(r.page.getByText(/通報の受付を確認しました。運営判断や通知メール/)).toBeVisible()}
- await first.page.getByRole('button',{name:'受付状態を確認',exact:true}).click();await expect(first.page.getByText('このアカウントの通報受付を確認しました。重複して送信しません。',{exact:true})).toBeVisible();expect(posts).toBe(1);await expect(submit(first.page)).toHaveCount(0);await first.page.getByRole('region',{name:'記事の通報'}).screenshot({path:info.outputPath('02-own-hidden-receipt-confirmed.png'),scale:'css'});
- anon=await context(browser,page);const hidden=await anon.newPage();await hidden.goto('/lab/articles/'+target.contentId);await expect(hidden.getByRole('heading',{name:'この記事を表示できません',exact:true})).toBeVisible();expect(hidden.viewportSize()).toEqual(page.viewportSize());expect(await anon.cookies()).toEqual([]);await hidden.screenshot({path:info.outputPath('03-new-anonymous-hidden.png'),fullPage:true,scale:'css'});
- op=await context(browser,page);expect((await op.request.post('/__fixture/operator-session',{headers:{Origin:ORIGIN},data:{}})).status()).toBe(200);const operator=await op.newPage();await operator.goto('/lab/moderation');await operator.getByRole('region',{name:'通報対象の一覧'}).getByRole('button').filter({hasText:target.title}).click();const detail=operator.getByRole('region',{name:'選択した通報内容'});await expect(detail).toContainText('通報 3件');await expect(detail).toContainText('一般には出さない架空の説明');expect(operator.viewportSize()).toEqual(page.viewportSize());await operator.screenshot({path:info.outputPath('04-readonly-operator-case.png'),fullPage:true,scale:'css'});
- }finally{for(const a of accounts)await a.ctx.close();await op?.close();await anon?.close()}
+import { test, expect, type Page, type Browser, type BrowserContext } from '@playwright/test';
+const ORIGIN = 'https://127.0.0.1:8788';
+async function context(browser: Browser, page: Page): Promise<BrowserContext> {
+  const device = test.info().project.use;
+  return browser.newContext({
+    ignoreHTTPSErrors: true,
+    baseURL: ORIGIN,
+    viewport: page.viewportSize(),
+    screen: device.screen,
+    isMobile: device.isMobile,
+    hasTouch: device.hasTouch,
+    deviceScaleFactor: device.deviceScaleFactor,
+    userAgent: device.userAgent,
+  });
+}
+async function article(page: Page) {
+  let csrf = '';
+  await page.route('**/__fixture/session', async (route) => {
+    if (csrf) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ csrfToken: csrf }),
+      });
+      return;
+    }
+    const response = await route.fetch({ url: ORIGIN + '/__fixture/profile-session' });
+    expect(response.status()).toBe(200);
+    csrf = ((await response.json()) as { csrfToken: string }).csrfToken;
+    await route.fulfill({ response });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toBeVisible();
+  return await page.evaluate(async (token) => {
+    const post = async (path: string, value: unknown, method = 'POST') => {
+      const response = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer csrf.' + token },
+        body: JSON.stringify(value),
+      });
+      if (response.status !== 201) throw new Error('fictional article setup unavailable');
+      return await response.json();
+    };
+    await post('/api/private/profile', {
+      displayName: '架空の通報対象の著者',
+      department: '',
+      yearLabel: '',
+      bio: 'ローカルだけの紹介',
+      confirmPublic: true,
+    });
+    const title = '通報の対象-' + crypto.randomUUID().slice(0, 8);
+    const draft = (await post('/api/private/drafts', {
+      title,
+      body: '# 対象本文\n\n<script>window.__moderationBodyInjected=true</script>\n\n![hidden](https://moderation-body-exfil.invalid/x)\n\n架空の公開本文です。',
+    })) as { id: string; version: number };
+    const result = (await post('/api/private/publications/' + draft.id, {
+      expectedVersion: draft.version,
+      confirmPublic: true,
+      summary: '架空の通報検証記事',
+      tags: [],
+      minutes: 1,
+    })) as { contentId: string };
+    return { contentId: result.contentId, title };
+  }, csrf);
+}
+async function reporter(browser: Browser, page: Page, contentId: string) {
+  const ctx = await context(browser, page);
+  expect(
+    (
+      await ctx.request.post('/__fixture/profile-session', {
+        headers: { Origin: ORIGIN },
+        data: {},
+      })
+    ).status(),
+  ).toBe(200);
+  const reader = await ctx.newPage();
+  await reader.goto('/lab/articles/' + contentId);
+  await expect(
+    reader.getByRole('button', { name: 'この記事を通報する（ローカル検証）', exact: true }),
+  ).toBeVisible();
+  return { ctx, page: reader };
+}
+async function form(page: Page, reason: string, detail = '架空の詳しい説明') {
+  const region = page.getByRole('region', { name: '記事の通報' });
+  await region
+    .getByRole('button', { name: 'この記事を通報する（ローカル検証）', exact: true })
+    .click();
+  await region.getByLabel('通報理由（必須）', { exact: true }).fill(reason);
+  await region.getByLabel('詳しい説明（任意）', { exact: true }).fill(detail);
+  return region;
+}
+const confirm = (page: Page) =>
+  page.getByRole('checkbox', {
+    name: '入力した理由・詳細を運営の確認用として送信します',
+    exact: true,
+  });
+const submit = (page: Page) =>
+  page.getByRole('button', { name: '確認した内容で通報を送信', exact: true });
+test('independent own accepted hidden receipt resolves lost ACK without another report', async ({
+  page,
+  browser,
+}, info) => {
+  const target = await article(page);
+  const accounts: Awaited<ReturnType<typeof reporter>>[] = [];
+  let op: BrowserContext | undefined;
+  let anon: BrowserContext | undefined;
+  try {
+    const first = await reporter(browser, page, target.contentId);
+    accounts.push(first);
+    await form(first.page, '結果不明から確認する架空の理由', '一般には出さない架空の説明');
+    let posts = 0;
+    await first.page.route('**/api/private/reports/*', async (route) => {
+      if (route.request().method() === 'POST') {
+        posts++;
+        const response = await route.fetch();
+        expect(response.status()).toBe(200);
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: '{"error":"synthetic_lost_ack"}',
+        });
+      } else await route.continue();
+    });
+    await confirm(first.page).check();
+    await submit(first.page).click();
+    await expect(first.page.getByText(/送信結果を確認できませんでした/)).toBeVisible();
+    await first.page
+      .getByRole('region', { name: '記事の通報' })
+      .screenshot({ path: info.outputPath('01-uncertain-private-input.png'), scale: 'css' });
+    for (let n = 1; n < 3; n++) {
+      const r = await reporter(browser, page, target.contentId);
+      accounts.push(r);
+      await form(r.page, '追加の架空の理由' + n);
+      await confirm(r.page).check();
+      await submit(r.page).click();
+      await expect(
+        r.page.getByText(/通報の受付を確認しました。運営判断や通知メール/),
+      ).toBeVisible();
+    }
+    await first.page.getByRole('button', { name: '受付状態を確認', exact: true }).click();
+    await expect(
+      first.page.getByText('このアカウントの通報受付を確認しました。重複して送信しません。', {
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(posts).toBe(1);
+    await expect(submit(first.page)).toHaveCount(0);
+    await first.page
+      .getByRole('region', { name: '記事の通報' })
+      .screenshot({ path: info.outputPath('02-own-hidden-receipt-confirmed.png'), scale: 'css' });
+    anon = await context(browser, page);
+    const hidden = await anon.newPage();
+    await hidden.goto('/lab/articles/' + target.contentId);
+    await expect(
+      hidden.getByRole('heading', { name: 'この記事を表示できません', exact: true }),
+    ).toBeVisible();
+    expect(hidden.viewportSize()).toEqual(page.viewportSize());
+    expect(await anon.cookies()).toEqual([]);
+    await hidden.screenshot({
+      path: info.outputPath('03-new-anonymous-hidden.png'),
+      fullPage: true,
+      scale: 'css',
+    });
+    op = await context(browser, page);
+    expect(
+      (
+        await op.request.post('/__fixture/operator-session', {
+          headers: { Origin: ORIGIN },
+          data: {},
+        })
+      ).status(),
+    ).toBe(200);
+    const operator = await op.newPage();
+    await operator.goto('/lab/moderation');
+    await operator
+      .getByRole('region', { name: '通報対象の一覧' })
+      .getByRole('button')
+      .filter({ hasText: target.title })
+      .click();
+    const detail = operator.getByRole('region', { name: '選択した通報内容' });
+    await expect(detail).toContainText('通報 3件');
+    await expect(detail).toContainText('一般には出さない架空の説明');
+    expect(operator.viewportSize()).toEqual(page.viewportSize());
+    await operator.screenshot({
+      path: info.outputPath('04-readonly-operator-case.png'),
+      fullPage: true,
+      scale: 'css',
+    });
+  } finally {
+    for (const a of accounts) await a.ctx.close();
+    await op?.close();
+    await anon?.close();
+  }
 });

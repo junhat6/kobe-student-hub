@@ -1,9 +1,234 @@
-import {test,expect,type Page} from '@playwright/test';
-const origin='https://127.0.0.1:8788';
-async function seed(page:Page){await page.goto('/lab/articles/00000000-0000-4000-8000-000000000000');return page.evaluate(async()=>{const session=await(await fetch('/__fixture/profile-session',{method:'POST'})).json() as {csrfToken:string};const headers={'Content-Type':'application/json',Authorization:'Bearer csrf.'+(session.csrfToken)};async function post(path:string,value:unknown){const r=await fetch(path,{method:'POST',headers,body:JSON.stringify(value)});if(!r.ok)throw Error('fixture setup failed');return r.json() as Promise<{id:string;version:number;contentId:string;profile:{id:string}}>}const p=await post('/api/private/profile',{displayName:'架空の活動投稿者',bio:'<script>window.authorInjected=true</script>',confirmPublic:true});const ids=[];for(const title of ['最初の公開記事','次に試せる公開記事']){const d=await post('/api/private/drafts',{title,body:'# 架空の本文\n\n試すための手順'});const published=await post('/api/private/publications/'+d.id,{expectedVersion:d.version,confirmPublic:true,summary:'活動を試すための概要',tags:['学び'],minutes:5,prerequisite:'基本操作',outcome:'自分で試せる'});ids.push(published.contentId)}await post('/api/private/drafts',{title:'公開していない秘密の下書き',body:'秘密の本文'});return {authorId:p.profile.id as string,ids:ids as string[]}})}
-async function reader(page:Page,name='架空の読者'){return page.evaluate(async name=>{const s=await(await fetch('/__fixture/profile-session',{method:'POST'})).json() as {csrfToken:string};const r=await fetch('/api/private/profile',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer csrf.'+(s.csrfToken)},body:JSON.stringify({displayName:name,confirmPublic:true})});if(r.status!==201)throw Error('profile fixture failed');const p=await r.json() as {profile:{id:string}};return {csrf:s.csrfToken,id:p.profile.id}},name)}
-const panel=(page:Page)=>page.getByRole('region',{name:'記事への公開いいね'});
-async function check(page:Page){await panel(page).getByRole('button',{name:'いいねの状態を確認',exact:true}).click();await expect(panel(page).getByRole('button',{name:'公開していいね',exact:true})).toBeEnabled()}
-test('explicit like appears in an anonymous public list and withdrawal removes it',async({page,browser})=>{const data=await seed(page);const owner=await reader(page);await page.goto('/lab/articles/'+data.ids[0]);await expect(page.getByRole('heading',{name:'最初の公開記事',exact:true})).toBeVisible();let mutations=0;page.on('request',r=>{if(r.url().includes('/api/private/article-likes/')&&r.method()==='PUT')mutations++});await check(page);await panel(page).getByRole('button',{name:'公開していいね',exact:true}).click();await expect(panel(page).getByText('公開していいねしました。',{exact:true})).toBeVisible();expect(mutations).toBe(1);const device=test.info().project.use;const context=await browser.newContext({baseURL:origin,ignoreHTTPSErrors:true,viewport:page.viewportSize(),screen:device.screen,isMobile:device.isMobile,hasTouch:device.hasTouch,deviceScaleFactor:device.deviceScaleFactor,userAgent:device.userAgent});const checks:Promise<void>[]=[];try{const anonymous=await context.newPage();let privateCalls=0;anonymous.on('request',r=>{if(r.url().includes('/api/private/')||r.url().includes('/__fixture/'))privateCalls++;if(r.url().includes('/__lab/'))checks.push(r.allHeaders().then(h=>{expect(Object.hasOwn(h,'cookie')).toBe(false);expect(Object.hasOwn(h,'x-csrf-token')).toBe(false)}))});await anonymous.goto('/lab/likes/'+owner.id);await expect(anonymous.getByRole('heading',{name:'架空の読者の公開いいね',exact:true})).toBeVisible();await anonymous.getByRole('link',{name:'最初の公開記事',exact:true}).click();await expect(anonymous.getByRole('heading',{name:'最初の公開記事',exact:true})).toBeVisible();expect(privateCalls).toBe(0);await panel(page).getByRole('button',{name:'いいねの状態を確認',exact:true}).click();await expect(panel(page).getByRole('button',{name:'いいねを取り消す',exact:true})).toBeEnabled();await panel(page).getByRole('button',{name:'いいねを取り消す',exact:true}).click();await expect(panel(page).getByText('いいねの取り消しを確認しました。',{exact:true})).toBeVisible();await anonymous.goto('/lab/likes/'+owner.id);await expect(anonymous.getByRole('heading',{name:'表示できる公開いいねはありません',exact:true})).toBeVisible();expect(mutations).toBe(2);expect(await anonymous.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)}finally{try{await Promise.all(checks)}finally{await context.close()}}});
-test('lost like acknowledgement stays locked through focus and reconciles only by an explicit read',async({page})=>{const data=await seed(page);await reader(page);await page.goto('/lab/articles/'+data.ids[0]);let puts=0,gets=0;await page.route('**/api/private/article-likes/*',async route=>{if(route.request().method()==='PUT'){puts++;const response=await route.fetch();expect(response.status()).toBe(200);await route.fulfill({status:503,contentType:'application/json',body:'{"error":"synthetic_lost_ack"}'})}else{gets++;await route.continue()}});await check(page);await panel(page).getByRole('button',{name:'公開していいね',exact:true}).click();await expect(panel(page).getByText(/変更結果を確認できませんでした/)).toBeVisible();await expect(panel(page).getByRole('button',{name:'公開していいね',exact:true})).toBeDisabled();expect(puts).toBe(1);const before=gets;await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(panel(page).getByText(/同じセッションを確認しました/)).toBeVisible();expect(gets).toBe(before);await expect(panel(page).getByRole('button',{name:'公開していいね',exact:true})).toHaveCount(0);await panel(page).getByRole('button',{name:'いいねの状態を確認',exact:true}).click();await expect(panel(page).getByText('公開いいねの保存を確認しました。',{exact:true})).toBeVisible();await expect(panel(page).getByRole('button',{name:'いいねを取り消す',exact:true})).toBeEnabled();expect(puts).toBe(1)});
-test('a held old-account response is rejected after an existing cookie changes',async({page})=>{const data=await seed(page);const first=await reader(page,'読者A');await page.evaluate(async({id,csrf})=>{const r=await fetch('/api/private/article-likes/'+id,{method:'PUT',headers:{'Content-Type':'application/json',Authorization:'Bearer csrf.'+(csrf)},body:JSON.stringify({liked:true,confirmPublic:true})});if(r.status!==200)throw Error('like fixture failed')},{id:data.ids[0],csrf:first.csrf});await page.goto('/lab/articles/'+data.ids[0]);let release:()=>void=()=>{};const gate=new Promise<void>(r=>{release=r});let held=false;await page.route('**/api/private/article-likes/*',async route=>{if(!held&&route.request().method()==='GET'){held=true;const r=await route.fetch();await gate;await route.fulfill({response:r})}else await route.continue()});await panel(page).getByRole('button',{name:'いいねの状態を確認',exact:true}).click();await expect.poll(()=>held).toBe(true);await reader(page,'読者B');release();await expect(panel(page).getByText(/前の状態を閉じました/)).toBeVisible();await expect(panel(page).getByText('このセッションではいいね済みです。',{exact:true})).toHaveCount(0);await check(page);await expect(panel(page).getByText('このセッションではいいねしていません。',{exact:true})).toBeVisible();await expect(panel(page).getByText(/読者B/)).toBeVisible()});
+import { test, expect, type Page } from '@playwright/test';
+const origin = 'https://127.0.0.1:8788';
+async function seed(page: Page) {
+  await page.goto('/lab/articles/00000000-0000-4000-8000-000000000000');
+  return page.evaluate(async () => {
+    const session = (await (
+      await fetch('/__fixture/profile-session', { method: 'POST' })
+    ).json()) as { csrfToken: string };
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer csrf.' + session.csrfToken,
+    };
+    async function post(path: string, value: unknown) {
+      const r = await fetch(path, { method: 'POST', headers, body: JSON.stringify(value) });
+      if (!r.ok) throw Error('fixture setup failed');
+      return r.json() as Promise<{
+        id: string;
+        version: number;
+        contentId: string;
+        profile: { id: string };
+      }>;
+    }
+    const p = await post('/api/private/profile', {
+      displayName: '架空の活動投稿者',
+      bio: '<script>window.authorInjected=true</script>',
+      confirmPublic: true,
+    });
+    const ids = [];
+    for (const title of ['最初の公開記事', '次に試せる公開記事']) {
+      const d = await post('/api/private/drafts', {
+        title,
+        body: '# 架空の本文\n\n試すための手順',
+      });
+      const published = await post('/api/private/publications/' + d.id, {
+        expectedVersion: d.version,
+        confirmPublic: true,
+        summary: '活動を試すための概要',
+        tags: ['学び'],
+        minutes: 5,
+        prerequisite: '基本操作',
+        outcome: '自分で試せる',
+      });
+      ids.push(published.contentId);
+    }
+    await post('/api/private/drafts', { title: '公開していない秘密の下書き', body: '秘密の本文' });
+    return { authorId: p.profile.id as string, ids: ids as string[] };
+  });
+}
+async function reader(page: Page, name = '架空の読者') {
+  return page.evaluate(async (name) => {
+    const s = (await (await fetch('/__fixture/profile-session', { method: 'POST' })).json()) as {
+      csrfToken: string;
+    };
+    const r = await fetch('/api/private/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer csrf.' + s.csrfToken },
+      body: JSON.stringify({ displayName: name, confirmPublic: true }),
+    });
+    if (r.status !== 201) throw Error('profile fixture failed');
+    const p = (await r.json()) as { profile: { id: string } };
+    return { csrf: s.csrfToken, id: p.profile.id };
+  }, name);
+}
+const panel = (page: Page) => page.getByRole('region', { name: '記事への公開いいね' });
+async function check(page: Page) {
+  await panel(page).getByRole('button', { name: 'いいねの状態を確認', exact: true }).click();
+  await expect(
+    panel(page).getByRole('button', { name: '公開していいね', exact: true }),
+  ).toBeEnabled();
+}
+test('explicit like appears in an anonymous public list and withdrawal removes it', async ({
+  page,
+  browser,
+}) => {
+  const data = await seed(page);
+  const owner = await reader(page);
+  await page.goto('/lab/articles/' + data.ids[0]);
+  await expect(page.getByRole('heading', { name: '最初の公開記事', exact: true })).toBeVisible();
+  let mutations = 0;
+  page.on('request', (r) => {
+    if (r.url().includes('/api/private/article-likes/') && r.method() === 'PUT') mutations++;
+  });
+  await check(page);
+  await panel(page).getByRole('button', { name: '公開していいね', exact: true }).click();
+  await expect(panel(page).getByText('公開していいねしました。', { exact: true })).toBeVisible();
+  expect(mutations).toBe(1);
+  const device = test.info().project.use;
+  const context = await browser.newContext({
+    baseURL: origin,
+    ignoreHTTPSErrors: true,
+    viewport: page.viewportSize(),
+    screen: device.screen,
+    isMobile: device.isMobile,
+    hasTouch: device.hasTouch,
+    deviceScaleFactor: device.deviceScaleFactor,
+    userAgent: device.userAgent,
+  });
+  const checks: Promise<void>[] = [];
+  try {
+    const anonymous = await context.newPage();
+    let privateCalls = 0;
+    anonymous.on('request', (r) => {
+      if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
+      if (r.url().includes('/__lab/'))
+        checks.push(
+          r.allHeaders().then((h) => {
+            expect(Object.hasOwn(h, 'cookie')).toBe(false);
+            expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
+          }),
+        );
+    });
+    await anonymous.goto('/lab/likes/' + owner.id);
+    await expect(
+      anonymous.getByRole('heading', { name: '架空の読者の公開いいね', exact: true }),
+    ).toBeVisible();
+    await anonymous.getByRole('link', { name: '最初の公開記事', exact: true }).click();
+    await expect(
+      anonymous.getByRole('heading', { name: '最初の公開記事', exact: true }),
+    ).toBeVisible();
+    expect(privateCalls).toBe(0);
+    await panel(page).getByRole('button', { name: 'いいねの状態を確認', exact: true }).click();
+    await expect(
+      panel(page).getByRole('button', { name: 'いいねを取り消す', exact: true }),
+    ).toBeEnabled();
+    await panel(page).getByRole('button', { name: 'いいねを取り消す', exact: true }).click();
+    await expect(
+      panel(page).getByText('いいねの取り消しを確認しました。', { exact: true }),
+    ).toBeVisible();
+    await anonymous.goto('/lab/likes/' + owner.id);
+    await expect(
+      anonymous.getByRole('heading', { name: '表示できる公開いいねはありません', exact: true }),
+    ).toBeVisible();
+    expect(mutations).toBe(2);
+    expect(await anonymous.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  } finally {
+    try {
+      await Promise.all(checks);
+    } finally {
+      await context.close();
+    }
+  }
+});
+test('lost like acknowledgement stays locked through focus and reconciles only by an explicit read', async ({
+  page,
+}) => {
+  const data = await seed(page);
+  await reader(page);
+  await page.goto('/lab/articles/' + data.ids[0]);
+  let puts = 0,
+    gets = 0;
+  await page.route('**/api/private/article-likes/*', async (route) => {
+    if (route.request().method() === 'PUT') {
+      puts++;
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: '{"error":"synthetic_lost_ack"}',
+      });
+    } else {
+      gets++;
+      await route.continue();
+    }
+  });
+  await check(page);
+  await panel(page).getByRole('button', { name: '公開していいね', exact: true }).click();
+  await expect(panel(page).getByText(/変更結果を確認できませんでした/)).toBeVisible();
+  await expect(
+    panel(page).getByRole('button', { name: '公開していいね', exact: true }),
+  ).toBeDisabled();
+  expect(puts).toBe(1);
+  const before = gets;
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(panel(page).getByText(/同じセッションを確認しました/)).toBeVisible();
+  expect(gets).toBe(before);
+  await expect(
+    panel(page).getByRole('button', { name: '公開していいね', exact: true }),
+  ).toHaveCount(0);
+  await panel(page).getByRole('button', { name: 'いいねの状態を確認', exact: true }).click();
+  await expect(
+    panel(page).getByText('公開いいねの保存を確認しました。', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel(page).getByRole('button', { name: 'いいねを取り消す', exact: true }),
+  ).toBeEnabled();
+  expect(puts).toBe(1);
+});
+test('a held old-account response is rejected after an existing cookie changes', async ({
+  page,
+}) => {
+  const data = await seed(page);
+  const first = await reader(page, '読者A');
+  await page.evaluate(
+    async ({ id, csrf }) => {
+      const r = await fetch('/api/private/article-likes/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer csrf.' + csrf },
+        body: JSON.stringify({ liked: true, confirmPublic: true }),
+      });
+      if (r.status !== 200) throw Error('like fixture failed');
+    },
+    { id: data.ids[0], csrf: first.csrf },
+  );
+  await page.goto('/lab/articles/' + data.ids[0]);
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  let held = false;
+  await page.route('**/api/private/article-likes/*', async (route) => {
+    if (!held && route.request().method() === 'GET') {
+      held = true;
+      const r = await route.fetch();
+      await gate;
+      await route.fulfill({ response: r });
+    } else await route.continue();
+  });
+  await panel(page).getByRole('button', { name: 'いいねの状態を確認', exact: true }).click();
+  await expect.poll(() => held).toBe(true);
+  await reader(page, '読者B');
+  release();
+  await expect(panel(page).getByText(/前の状態を閉じました/)).toBeVisible();
+  await expect(
+    panel(page).getByText('このセッションではいいね済みです。', { exact: true }),
+  ).toHaveCount(0);
+  await check(page);
+  await expect(
+    panel(page).getByText('このセッションではいいねしていません。', { exact: true }),
+  ).toBeVisible();
+  await expect(panel(page).getByText(/読者B/)).toBeVisible();
+});

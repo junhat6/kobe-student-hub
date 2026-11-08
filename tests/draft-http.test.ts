@@ -1,40 +1,313 @@
-import {beforeAll,afterAll,describe,it,expect} from 'vitest';
-import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
-import {readFileSync} from 'node:fs';
-import type {PrivateDraft} from '../worker/drafts';
-const ORIGIN='https://app.example.invalid';const NOW=1800000000000;let mf:Miniflare;
-type Session={setCookie:string;contextCookie:string;csrfToken:string};let a:Session,b:Session;
-const privacy={'cache-control':'private, no-store','vary':'Cookie','referrer-policy':'no-referrer','x-content-type-options':'nosniff','x-robots-tag':'noindex, nofollow','content-type':'application/json; charset=utf-8'};
-function check<T extends {headers:{get(name:string):string|null;has(name:string):boolean}}>(r:T){for(const [k,v] of Object.entries(privacy))expect(r.headers.get(k)).toBe(v);for(const k of ['Set-Cookie','Location','Access-Control-Allow-Origin'])expect(r.headers.has(k)).toBe(false);return r}
-const headers=(s=a)=>({Cookie:[s.setCookie,s.contextCookie].map(v=>v.split(';')[0]).join('; '),Authorization:'Bearer csrf.'+(s.csrfToken),Origin:ORIGIN,'Content-Type':'application/json'});
-async function req(path='/api/private/drafts',method='GET',body?:unknown,extra:Record<string,string|undefined>={},s=a){const r=await mf.dispatchFetch(ORIGIN+path,{method,headers:{...headers(s),...extra} as Record<string,string>,...(body===undefined?{}:{body:JSON.stringify(body)})});return check(r)}
-async function session(who='a'):Promise<Session>{return await(await mf.dispatchFetch(ORIGIN+'/fixture/session',{headers:{'X-Test-Subject':'subject-'+who}})).json() as Session}
-async function create(title='private',body='markdown'){const r=await req(undefined,'POST',{title,body});expect(r.status).toBe(201);return await r.json() as PrivateDraft}
-beforeAll(async()=>{mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'.worker/draft-http-test.js',compatibilityDate:'2026-11-03',d1Databases:['DB']}));const db=await mf.getD1Database('DB');for(const file of ['0004_private_sessions.sql','0005_private_article_drafts.sql'])for(const sql of readFileSync('migrations/'+file,'utf8').replace(/^--.*$/gm,'').split(/;\s*(?:\n|$)/).filter(s=>s.trim()))await db.prepare(sql).run();for(const who of ['a','b'])await db.prepare("INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)").bind('account-'+who,'subject-'+who,who+'@st.kobedenshi.ac.jp',NOW).run();a=await session();b=await session('b')});
-afterAll(async()=>{await mf?.dispose()});
-describe('unconnected private draft HTTP boundary',()=>{
- it('uses the ordinary composition for owner CRUD while preserving CSRF, other-owner and version fences',async()=>{
-  const extra={'X-Test-Ordinary':'open'};
-  const created=await req(undefined,'POST',{title:'ordinary draft',body:'private ordinary text'},extra);expect(created.status).toBe(201);
-  const d=await created.json() as PrivateDraft,path='/api/private/drafts/'+d.id;
-  expect(await(await req(path,'GET',undefined,extra)).json()).toEqual(d);
-  expect((await req(path,'GET',undefined,extra,b)).status).toBe(404);
-  expect((await req(path,'PATCH',{title:'revised',body:'saved',expectedVersion:1},{...extra,Authorization:'Bearer csrf.'+b.csrfToken})).status).toBe(401);
-  const saved=await req(path,'PATCH',{title:'revised',body:'saved',expectedVersion:1},extra);expect(saved.status).toBe(200);
-  expect(await saved.json()).toMatchObject({id:d.id,title:'revised',body:'saved',version:2});
-  expect((await req(path,'PATCH',{title:'stale',body:'must not replace',expectedVersion:1},extra)).status).toBe(404);
-  expect((await req(path,'DELETE',{expectedVersion:2},extra,b)).status).toBe(404);
-  expect(await(await req(path,'DELETE',{expectedVersion:2},extra)).json()).toEqual({deleted:true});
- });
- it('performs authenticated CRUD and emits exact private headers and DTOs',async()=>{const d=await create();const path='/api/private/drafts/'+d.id;expect(await(await req(path)).json()).toEqual(d);const list=await(await req()).json() as Record<string,unknown>[];expect(list.find(x=>x.id===d.id)).toEqual({id:d.id,title:d.title,version:1,updatedAt:NOW});for(const method of ['PATCH','PUT']){const r=await req(path,method,{title:method,body:'',expectedVersion:method==='PATCH'?1:2});expect(r.status).toBe(200)}expect(await(await req(path,'DELETE',{expectedVersion:3})).json()).toEqual({deleted:true});expect((await req(path)).status).toBe(404)});
- it('returns identical unavailable responses for another owner, unknown and stale versions',async()=>{const d=await create();const path='/api/private/drafts/'+d.id;const responses=[await req(path,'GET',undefined,{},b),await req('/api/private/drafts/'+crypto.randomUUID()),await req(path,'PATCH',{title:'',body:'',expectedVersion:99}),await req(path,'DELETE',{expectedVersion:99}),await req(path,'PATCH',{title:'',body:'',expectedVersion:1},{},b),await req(path,'DELETE',{expectedVersion:1},{},b)];for(const r of responses){expect(r.status).toBe(404);expect(await r.json()).toEqual({error:'draft_unavailable'})}expect(await(await req(undefined,'GET',undefined,{},b)).json()).toEqual([])});
- it('rejects unsupported, malformed paths and queries without reflection and leaves unrelated paths unmatched',async()=>{for(const path of ['/api/private/drafts/','/api/private/drafts/not-an-id','/api/private/drafts?secret=PRIVATE','/api/private/drafts/'+crypto.randomUUID().toUpperCase(),'/api/private/drafts-extra']){const r=await req(path);expect(r.status).toBe(404);expect(await r.text()).not.toContain('PRIVATE')}for(const method of ['OPTIONS','HEAD']){const r=await req(undefined,method);expect(r.status).toBe(405);expect(r.headers.get('Allow')).toBe('GET, POST')}expect((await mf.dispatchFetch(ORIGIN+'/other')).status).toBe(418);expect((await req(undefined,'GET',undefined,{'X-Test-Origin':'http://invalid.example'})).status).toBe(503)});
- it('authenticates before body parsing and enforces cookie, CSRF and origin',async()=>{for(const extra of [{Cookie:''},{Authorization:'Bearer csrf.'+(b.csrfToken)},{Origin:'https://evil.invalid'},{'Sec-Fetch-Site':'cross-site'}]){const r=await req(undefined,'POST',{title:'',body:''},extra);expect(r.status).toBe(401);expect(await r.json()).toEqual({error:'authentication_required'})}expect((await req(undefined,'POST',undefined,{Cookie:'','X-Test-Body':'late'})).status).toBe(401)});
- it('rejects invalid JSON, UTF8, media types, encodings, size headers and streamed overflow',async()=>{for(const extra of [{'Content-Type':''},{'Content-Type':'text/plain'},{'Content-Type':'application/json; charset=latin1'},{'Content-Encoding':'gzip'}])expect((await req(undefined,'POST',{},extra)).status).toBe(415);expect((await req(undefined,'POST',undefined,{'X-Test-Body':'utf8'})).status).toBe(400);const raw=check(await mf.dispatchFetch(ORIGIN+'/api/private/drafts',{method:'POST',headers:headers(),body:'{PRIVATE'}));expect(raw.status).toBe(400);expect(await raw.text()).not.toContain('PRIVATE');expect((await req(undefined,'POST',undefined,{'X-Test-Length':'2097153'})).status).toBe(413);for(const declared of ['invalid','1'])expect((await req(undefined,'POST',{}, {'X-Test-Length':declared})).status).toBe(400);const began=Date.now();expect((await req(undefined,'POST',undefined,{'X-Test-Body':'oversize'})).status).toBe(413);expect(Date.now()-began).toBeLessThan(2000)});
- it('accepts small streamed chunks and bounds endless empty chunks',async()=>{expect((await req(undefined,'POST',undefined,{'X-Test-Body':'small'})).status).toBe(201);const began=Date.now();expect((await req(undefined,'POST',undefined,{'X-Test-Body':'empty-flood'})).status).toBe(413);expect(Date.now()-began).toBeLessThan(2000)});
- it('accepts escaped Markdown up to the storage UTF8 boundary, rejecting privileged/null input',async()=>{const d=await create('', '\u0001'.repeat(262144));expect(d.body.length).toBe(262144);for(const input of [null,{title:'',body:'',owner_account_id:'account-b'},{title:'',body:'',status:'published'},{title:'',body:'',publish:true}]){const r=await req(undefined,'POST',input);expect(r.status).toBe(404);expect(await r.json()).toEqual({error:'draft_unavailable'})}});
- it('bounds stalled reads and prevents late inserts',async()=>{const db=await mf.getD1Database('DB');const count=async()=> (await db.prepare('SELECT count(*) n FROM private_article_drafts').first<{n:number}>())!.n;const before=await count();const began=Date.now();const r=await req(undefined,'POST',undefined,{'X-Test-Body':'late'});expect(r.status).toBe(408);expect(Date.now()-began).toBeGreaterThanOrEqual(4500);expect(Date.now()-began).toBeLessThan(6500);await new Promise(resolve=>setTimeout(resolve,700));expect(await count()).toBe(before)},8000);
- it('reauthenticates after the account epoch changes during body acquisition',async()=>{const db=await mf.getD1Database('DB');const before=(await db.prepare('SELECT count(*) n FROM private_article_drafts').first<{n:number}>())!.n;const r=await req(undefined,'POST',undefined,{'X-Test-Body':'epoch'});expect(r.status).toBe(404);expect(await r.json()).toEqual({error:'draft_unavailable'});expect((await db.prepare('SELECT count(*) n FROM private_article_drafts').first<{n:number}>())!.n).toBe(before);a=await session()});
- it('turns storage failures into the generic unavailable body',async()=>{const r=await req(undefined,'POST',{title:'',body:''},{'X-Test-Fail-Store':'yes'});expect(r.status).toBe(404);expect(await r.json()).toEqual({error:'draft_unavailable'})});
- it('rejects expiry, revocation and account epoch changes',async()=>{expect((await req(undefined,'GET',undefined,{'X-Test-Now':String(NOW+1800000)})).status).toBe(401);const db=await mf.getD1Database('DB');await db.prepare('UPDATE auth_sessions SET revoked_at_ms=?').bind(NOW).run();expect((await req()).status).toBe(401);a=await session();await db.prepare("UPDATE private_accounts SET session_epoch=session_epoch+1 WHERE id='account-a'").run();expect((await req()).status).toBe(401)});
+import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
+import { readFileSync } from 'node:fs';
+import type { PrivateDraft } from '../worker/drafts';
+const ORIGIN = 'https://app.example.invalid';
+const NOW = 1800000000000;
+let mf: Miniflare;
+type Session = { setCookie: string; contextCookie: string; csrfToken: string };
+let a: Session, b: Session;
+const privacy = {
+  'cache-control': 'private, no-store',
+  vary: 'Cookie',
+  'referrer-policy': 'no-referrer',
+  'x-content-type-options': 'nosniff',
+  'x-robots-tag': 'noindex, nofollow',
+  'content-type': 'application/json; charset=utf-8',
+};
+function check<
+  T extends { headers: { get(name: string): string | null; has(name: string): boolean } },
+>(r: T) {
+  for (const [k, v] of Object.entries(privacy)) expect(r.headers.get(k)).toBe(v);
+  for (const k of ['Set-Cookie', 'Location', 'Access-Control-Allow-Origin'])
+    expect(r.headers.has(k)).toBe(false);
+  return r;
+}
+const headers = (s = a) => ({
+  Cookie: [s.setCookie, s.contextCookie].map((v) => v.split(';')[0]).join('; '),
+  Authorization: 'Bearer csrf.' + s.csrfToken,
+  Origin: ORIGIN,
+  'Content-Type': 'application/json',
+});
+async function req(
+  path = '/api/private/drafts',
+  method = 'GET',
+  body?: unknown,
+  extra: Record<string, string | undefined> = {},
+  s = a,
+) {
+  const r = await mf.dispatchFetch(ORIGIN + path, {
+    method,
+    headers: { ...headers(s), ...extra } as Record<string, string>,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  return check(r);
+}
+async function session(who = 'a'): Promise<Session> {
+  return (await (
+    await mf.dispatchFetch(ORIGIN + '/fixture/session', {
+      headers: { 'X-Test-Subject': 'subject-' + who },
+    })
+  ).json()) as Session;
+}
+async function create(title = 'private', body = 'markdown') {
+  const r = await req(undefined, 'POST', { title, body });
+  expect(r.status).toBe(201);
+  return (await r.json()) as PrivateDraft;
+}
+beforeAll(async () => {
+  mf = new Miniflare(
+    convertV4MiniflareOptions({
+      modules: true,
+      scriptPath: '.worker/draft-http-test.js',
+      compatibilityDate: '2026-11-03',
+      d1Databases: ['DB'],
+    }),
+  );
+  const db = await mf.getD1Database('DB');
+  for (const file of ['0004_private_sessions.sql', '0005_private_article_drafts.sql'])
+    for (const sql of readFileSync('migrations/' + file, 'utf8')
+      .replace(/^--.*$/gm, '')
+      .split(/;\s*(?:\n|$)/)
+      .filter((s) => s.trim()))
+      await db.prepare(sql).run();
+  for (const who of ['a', 'b'])
+    await db
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
+      )
+      .bind('account-' + who, 'subject-' + who, who + '@st.kobedenshi.ac.jp', NOW)
+      .run();
+  a = await session();
+  b = await session('b');
+});
+afterAll(async () => {
+  await mf?.dispose();
+});
+describe('unconnected private draft HTTP boundary', () => {
+  it('uses the ordinary composition for owner CRUD while preserving CSRF, other-owner and version fences', async () => {
+    const extra = { 'X-Test-Ordinary': 'open' };
+    const created = await req(
+      undefined,
+      'POST',
+      { title: 'ordinary draft', body: 'private ordinary text' },
+      extra,
+    );
+    expect(created.status).toBe(201);
+    const d = (await created.json()) as PrivateDraft,
+      path = '/api/private/drafts/' + d.id;
+    expect(await (await req(path, 'GET', undefined, extra)).json()).toEqual(d);
+    expect((await req(path, 'GET', undefined, extra, b)).status).toBe(404);
+    expect(
+      (
+        await req(
+          path,
+          'PATCH',
+          { title: 'revised', body: 'saved', expectedVersion: 1 },
+          { ...extra, Authorization: 'Bearer csrf.' + b.csrfToken },
+        )
+      ).status,
+    ).toBe(401);
+    const saved = await req(
+      path,
+      'PATCH',
+      { title: 'revised', body: 'saved', expectedVersion: 1 },
+      extra,
+    );
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({
+      id: d.id,
+      title: 'revised',
+      body: 'saved',
+      version: 2,
+    });
+    expect(
+      (
+        await req(
+          path,
+          'PATCH',
+          { title: 'stale', body: 'must not replace', expectedVersion: 1 },
+          extra,
+        )
+      ).status,
+    ).toBe(404);
+    expect((await req(path, 'DELETE', { expectedVersion: 2 }, extra, b)).status).toBe(404);
+    expect(await (await req(path, 'DELETE', { expectedVersion: 2 }, extra)).json()).toEqual({
+      deleted: true,
+    });
+  });
+  it('performs authenticated CRUD and emits exact private headers and DTOs', async () => {
+    const d = await create();
+    const path = '/api/private/drafts/' + d.id;
+    expect(await (await req(path)).json()).toEqual(d);
+    const list = (await (await req()).json()) as Record<string, unknown>[];
+    expect(list.find((x) => x.id === d.id)).toEqual({
+      id: d.id,
+      title: d.title,
+      version: 1,
+      updatedAt: NOW,
+    });
+    for (const method of ['PATCH', 'PUT']) {
+      const r = await req(path, method, {
+        title: method,
+        body: '',
+        expectedVersion: method === 'PATCH' ? 1 : 2,
+      });
+      expect(r.status).toBe(200);
+    }
+    expect(await (await req(path, 'DELETE', { expectedVersion: 3 })).json()).toEqual({
+      deleted: true,
+    });
+    expect((await req(path)).status).toBe(404);
+  });
+  it('returns identical unavailable responses for another owner, unknown and stale versions', async () => {
+    const d = await create();
+    const path = '/api/private/drafts/' + d.id;
+    const responses = [
+      await req(path, 'GET', undefined, {}, b),
+      await req('/api/private/drafts/' + crypto.randomUUID()),
+      await req(path, 'PATCH', { title: '', body: '', expectedVersion: 99 }),
+      await req(path, 'DELETE', { expectedVersion: 99 }),
+      await req(path, 'PATCH', { title: '', body: '', expectedVersion: 1 }, {}, b),
+      await req(path, 'DELETE', { expectedVersion: 1 }, {}, b),
+    ];
+    for (const r of responses) {
+      expect(r.status).toBe(404);
+      expect(await r.json()).toEqual({ error: 'draft_unavailable' });
+    }
+    expect(await (await req(undefined, 'GET', undefined, {}, b)).json()).toEqual([]);
+  });
+  it('rejects unsupported, malformed paths and queries without reflection and leaves unrelated paths unmatched', async () => {
+    for (const path of [
+      '/api/private/drafts/',
+      '/api/private/drafts/not-an-id',
+      '/api/private/drafts?secret=PRIVATE',
+      '/api/private/drafts/' + crypto.randomUUID().toUpperCase(),
+      '/api/private/drafts-extra',
+    ]) {
+      const r = await req(path);
+      expect(r.status).toBe(404);
+      expect(await r.text()).not.toContain('PRIVATE');
+    }
+    for (const method of ['OPTIONS', 'HEAD']) {
+      const r = await req(undefined, method);
+      expect(r.status).toBe(405);
+      expect(r.headers.get('Allow')).toBe('GET, POST');
+    }
+    expect((await mf.dispatchFetch(ORIGIN + '/other')).status).toBe(418);
+    expect(
+      (await req(undefined, 'GET', undefined, { 'X-Test-Origin': 'http://invalid.example' }))
+        .status,
+    ).toBe(503);
+  });
+  it('authenticates before body parsing and enforces cookie, CSRF and origin', async () => {
+    for (const extra of [
+      { Cookie: '' },
+      { Authorization: 'Bearer csrf.' + b.csrfToken },
+      { Origin: 'https://evil.invalid' },
+      { 'Sec-Fetch-Site': 'cross-site' },
+    ]) {
+      const r = await req(undefined, 'POST', { title: '', body: '' }, extra);
+      expect(r.status).toBe(401);
+      expect(await r.json()).toEqual({ error: 'authentication_required' });
+    }
+    expect(
+      (await req(undefined, 'POST', undefined, { Cookie: '', 'X-Test-Body': 'late' })).status,
+    ).toBe(401);
+  });
+  it('rejects invalid JSON, UTF8, media types, encodings, size headers and streamed overflow', async () => {
+    for (const extra of [
+      { 'Content-Type': '' },
+      { 'Content-Type': 'text/plain' },
+      { 'Content-Type': 'application/json; charset=latin1' },
+      { 'Content-Encoding': 'gzip' },
+    ])
+      expect((await req(undefined, 'POST', {}, extra)).status).toBe(415);
+    expect((await req(undefined, 'POST', undefined, { 'X-Test-Body': 'utf8' })).status).toBe(400);
+    const raw = check(
+      await mf.dispatchFetch(ORIGIN + '/api/private/drafts', {
+        method: 'POST',
+        headers: headers(),
+        body: '{PRIVATE',
+      }),
+    );
+    expect(raw.status).toBe(400);
+    expect(await raw.text()).not.toContain('PRIVATE');
+    expect((await req(undefined, 'POST', undefined, { 'X-Test-Length': '2097153' })).status).toBe(
+      413,
+    );
+    for (const declared of ['invalid', '1'])
+      expect((await req(undefined, 'POST', {}, { 'X-Test-Length': declared })).status).toBe(400);
+    const began = Date.now();
+    expect((await req(undefined, 'POST', undefined, { 'X-Test-Body': 'oversize' })).status).toBe(
+      413,
+    );
+    expect(Date.now() - began).toBeLessThan(2000);
+  });
+  it('accepts small streamed chunks and bounds endless empty chunks', async () => {
+    expect((await req(undefined, 'POST', undefined, { 'X-Test-Body': 'small' })).status).toBe(201);
+    const began = Date.now();
+    expect((await req(undefined, 'POST', undefined, { 'X-Test-Body': 'empty-flood' })).status).toBe(
+      413,
+    );
+    expect(Date.now() - began).toBeLessThan(2000);
+  });
+  it('accepts escaped Markdown up to the storage UTF8 boundary, rejecting privileged/null input', async () => {
+    const d = await create('', '\u0001'.repeat(262144));
+    expect(d.body.length).toBe(262144);
+    for (const input of [
+      null,
+      { title: '', body: '', owner_account_id: 'account-b' },
+      { title: '', body: '', status: 'published' },
+      { title: '', body: '', publish: true },
+    ]) {
+      const r = await req(undefined, 'POST', input);
+      expect(r.status).toBe(404);
+      expect(await r.json()).toEqual({ error: 'draft_unavailable' });
+    }
+  });
+  it('bounds stalled reads and prevents late inserts', async () => {
+    const db = await mf.getD1Database('DB');
+    const count = async () =>
+      (await db.prepare('SELECT count(*) n FROM private_article_drafts').first<{ n: number }>())!.n;
+    const before = await count();
+    const began = Date.now();
+    const r = await req(undefined, 'POST', undefined, { 'X-Test-Body': 'late' });
+    expect(r.status).toBe(408);
+    expect(Date.now() - began).toBeGreaterThanOrEqual(4500);
+    expect(Date.now() - began).toBeLessThan(6500);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(await count()).toBe(before);
+  }, 8000);
+  it('reauthenticates after the account epoch changes during body acquisition', async () => {
+    const db = await mf.getD1Database('DB');
+    const before = (await db
+      .prepare('SELECT count(*) n FROM private_article_drafts')
+      .first<{ n: number }>())!.n;
+    const r = await req(undefined, 'POST', undefined, { 'X-Test-Body': 'epoch' });
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: 'draft_unavailable' });
+    expect(
+      (await db.prepare('SELECT count(*) n FROM private_article_drafts').first<{ n: number }>())!.n,
+    ).toBe(before);
+    a = await session();
+  });
+  it('turns storage failures into the generic unavailable body', async () => {
+    const r = await req(undefined, 'POST', { title: '', body: '' }, { 'X-Test-Fail-Store': 'yes' });
+    expect(r.status).toBe(404);
+    expect(await r.json()).toEqual({ error: 'draft_unavailable' });
+  });
+  it('rejects expiry, revocation and account epoch changes', async () => {
+    expect(
+      (await req(undefined, 'GET', undefined, { 'X-Test-Now': String(NOW + 1800000) })).status,
+    ).toBe(401);
+    const db = await mf.getD1Database('DB');
+    await db.prepare('UPDATE auth_sessions SET revoked_at_ms=?').bind(NOW).run();
+    expect((await req()).status).toBe(401);
+    a = await session();
+    await db
+      .prepare("UPDATE private_accounts SET session_epoch=session_epoch+1 WHERE id='account-a'")
+      .run();
+    expect((await req()).status).toBe(401);
+  });
 });

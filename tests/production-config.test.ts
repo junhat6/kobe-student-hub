@@ -1,23 +1,270 @@
-import {it,expect} from 'vitest';
-import {mkdtempSync,readFileSync,writeFileSync,mkdirSync,rmSync,realpathSync,existsSync,statSync,symlinkSync,unlinkSync} from 'node:fs';
-import {join,resolve} from 'node:path';
-import {tmpdir} from 'node:os';
-import {spawnSync} from 'node:child_process';
+import { it, expect } from 'vitest';
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  realpathSync,
+  existsSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 // @ts-expect-error Plain JavaScript helper intentionally exposes only a local fixture test seam.
-import {validateProductionConfig,prepareProductionArtifact} from '../scripts/production-config.mjs';
-const template=JSON.parse(readFileSync('wrangler.jsonc','utf8')),source='const OAUTH_HTTP_RELEASE_ENABLED=false;\n';
-const preview={workerName:'kobe-student-hub-preview',accountId:'a'.repeat(32),databaseId:'11111111-2222-3333-4444-555555555555',databaseName:'kobe-student-hub-preview'};
-const target={workerName:'kobe-student-hub-production',accountId:preview.accountId,databaseId:'99999999-2222-3333-4444-555555555555',databaseName:'kobe-student-hub-production',origin:'https://kobe-student-hub-production.fixture-only.workers.dev'};
-const clone=()=>structuredClone(template);
-function workspace(){const root=realpathSync(mkdtempSync(join(tmpdir(),'hub-production-config-')));mkdirSync(join(root,'worker'));mkdirSync(join(root,'dist'));mkdirSync(join(root,'migrations'));writeFileSync(join(root,'worker/index.ts'),source);writeFileSync(join(root,'wrangler.jsonc'),JSON.stringify(template));return root}
-function scoped(fn:(root:string)=>void){const root=workspace();try{fn(root)}finally{rmSync(root,{recursive:true,force:true})}}
-it('constructs only bounded reviewed fields for a fictional same-account distinct target',()=>scoped(root=>{const out=prepareProductionArtifact(root,target,preview),config=JSON.parse(readFileSync(out,'utf8'));expect(config).toMatchObject({name:target.workerName,account_id:target.accountId,workers_dev:true,preview_urls:false,main:join(root,'worker/index.ts'),assets:{directory:join(root,'dist'),binding:'ASSETS'},d1_databases:[{binding:'DB',database_name:target.databaseName,database_id:target.databaseId,migrations_dir:join(root,'migrations')}]});expect(statSync(out).mode&0o777).toBe(0o600);for(const key of ['vars','secrets','routes','build','triggers','queues','services'])expect(config).not.toHaveProperty(key);expect(JSON.stringify(config)).not.toContain(target.origin)}));
-it('rejects account mixups and preview Worker/database reuse without treating agreement as authorization',()=>{for(const patch of [{accountId:'b'.repeat(32)},{workerName:preview.workerName},{databaseName:preview.databaseName},{databaseId:preview.databaseId},{databaseId:'00000000-0000-0000-0000-000000000000'},{origin:'http://student-app.example.test'},{origin:target.origin+'/'},{workerName:'trailing-'},{origin:'https://other.fixture-only.workers.dev'},{extra:'unknown'}])expect(()=>validateProductionConfig(clone(),{...target,...patch},preview,'/tmp/fixture',source)).toThrow()});
-it('pins the existing preview template even when caller mutates expected labels too',()=>{const c=clone();c.name='unrelated-preview';c.d1_databases[0].database_name='unrelated-preview';expect(()=>validateProductionConfig(c,target,{...preview,workerName:'unrelated-preview',databaseName:'unrelated-preview'},'/tmp/fixture',source)).toThrow()});
-it('rejects unknown fields recursively instead of forwarding configuration or commands',()=>{const mutations=[(c:any)=>c.vars={SECRET:'synthetic-only'},(c:any)=>c.routes=['https://other.example.test/*'],(c:any)=>c.build={command:'unexpected'},(c:any)=>c.assets.extra='unexpected',(c:any)=>c.assets.run_worker_first.push('/*'),(c:any)=>c.d1_databases[0].extra='unexpected',(c:any)=>c.d1_databases.push({...c.d1_databases[0]}),(c:any)=>c.observability.extra='unexpected'];for(const mutation of mutations){const c=clone();mutation(c);expect(()=>validateProductionConfig(c,target,preview,'/tmp/fixture',source)).toThrow()}});
-it('rejects altered source paths/bindings and open source OAuth gate',()=>{for(const mutation of [(c:any)=>c.main='tests/fixtures/editor-worker.ts',(c:any)=>c.assets.directory='../dist',(c:any)=>c.assets.binding='OTHER',(c:any)=>c.d1_databases[0].migrations_dir='../migrations',(c:any)=>c.workers_dev=true,(c:any)=>c.preview_urls=true,(c:any)=>c.d1_databases[0].database_id=target.databaseId]){const c=clone();mutation(c);expect(()=>validateProductionConfig(c,target,preview,'/tmp/fixture',source)).toThrow()}expect(()=>validateProductionConfig(clone(),target,preview,'/tmp/fixture','const OAUTH_HTTP_RELEASE_ENABLED=true;')).toThrow()});
-it('removes only its stale regular artifact before failed validation, never leaves old ready data',()=>scoped(root=>{const out=prepareProductionArtifact(root,target,preview);writeFileSync(join(root,'wrangler.jsonc'),JSON.stringify({...template,vars:{SECRET:'synthetic-private'}}));expect(()=>prepareProductionArtifact(root,target,preview)).toThrow('Production artifact preparation failed.');expect(existsSync(out)).toBe(false);expect(readFileSync(join(root,'wrangler.jsonc'),'utf8')).toContain('synthetic-private')}));
-it('refuses controlled output directory/file symlinks without following or deleting their target',()=>scoped(root=>{const outside=realpathSync(mkdtempSync(join(tmpdir(),'hub-production-outside-')));try{const sentinel=join(outside,'sentinel');writeFileSync(sentinel,'unchanged');symlinkSync(outside,join(root,'.wrangler'));expect(()=>prepareProductionArtifact(root,target,preview)).toThrow();expect(readFileSync(sentinel,'utf8')).toBe('unchanged');unlinkSync(join(root,'.wrangler'));mkdirSync(join(root,'.wrangler'));symlinkSync(sentinel,join(root,'.wrangler/production.prepare.json'));expect(()=>prepareProductionArtifact(root,target,preview)).toThrow();expect(readFileSync(sentinel,'utf8')).toBe('unchanged');expect(statSync(sentinel).isFile()).toBe(true)}finally{rmSync(outside,{recursive:true,force:true})}}));
-it('rejects symlinked template, worker source, asset or migration path without reading outside',()=>{for(const path of ['wrangler.jsonc','worker/index.ts','dist','migrations'])scoped(root=>{const outside=realpathSync(mkdtempSync(join(tmpdir(),'hub-production-input-')));try{const dest=join(root,path),isDir=path==='dist'||path==='migrations';rmSync(dest,{recursive:true,force:true});const external=join(outside,'source');if(isDir)mkdirSync(external);else writeFileSync(external,'synthetic-private-path');symlinkSync(external,dest);expect(()=>prepareProductionArtifact(root,target,preview)).toThrow('Production artifact preparation failed.');expect(existsSync(join(root,'.wrangler/production.prepare.json'))).toBe(false)}finally{rmSync(outside,{recursive:true,force:true})}})});
-it('rejects CLI overrides and ambient settings without spawning or networking, clearing stale output',()=>scoped(root=>{mkdirSync(join(root,'.wrangler'));const artifact=join(root,'.wrangler/production.prepare.json');writeFileSync(artifact,'existing untouched artifact');writeFileSync(join(root,'wrangler.jsonc'),'malformed private template');const marker=join(root,'forbidden-call'),preload=join(root,'tripwire.cjs');writeFileSync(preload,`const fs=require('node:fs');const blocked=()=>{fs.writeFileSync(${JSON.stringify(marker)},'called');throw Error('blocked')};for(const m of ['node:child_process'])for(const k of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork'])require(m)[k]=blocked;for(const m of ['node:http','node:https'])for(const k of ['request','get'])require(m)[k]=blocked;for(const k of ['connect','createConnection'])require('node:net')[k]=blocked;global.fetch=blocked;`);const r=spawnSync(process.execPath,['--require',preload,resolve('scripts/prepare-production.mjs'),'--enable','--for-deploy','--target=synthetic-private'],{cwd:root,env:{...process.env,CLOUDFLARE_ACCOUNT_ID:target.accountId,CLOUDFLARE_EXPECTED_ACCOUNT_ID:target.accountId,CLOUDFLARE_D1_DATABASE_ID:target.databaseId,CLOUDFLARE_EXPECTED_D1_DATABASE_ID:target.databaseId,PRODUCTION_ENABLED:'true',AUTH_ORIGIN:target.origin,CLOUDFLARE_API_TOKEN:'synthetic-private'},encoding:'utf8'});expect(r.status).toBe(1);expect(r.stderr.trim()).toBe('Production preparation failed. Check the private selection and local source guards.');expect(r.stdout).toBe('');expect(existsSync(marker)).toBe(false);expect(existsSync(artifact)).toBe(false);for(const secret of [target.accountId,target.databaseId,target.origin,'synthetic-private'])expect(r.stdout+r.stderr).not.toContain(secret)}));
-it('blocks the misleading legacy command without spawning and preserves canonical preview command/workflow',()=>scoped(root=>{const r=spawnSync(process.execPath,[resolve('scripts/deploy-production-disabled.mjs')],{cwd:root,encoding:'utf8'});expect(r.status).toBe(1);expect(r.stderr).toContain('deploy:production is disabled.');expect(existsSync(join(root,'.wrangler'))).toBe(false);const pkg=JSON.parse(readFileSync('package.json','utf8'));expect(pkg.scripts['deploy:preview']).toBe('node scripts/prepare-deploy.mjs --for-deploy && npm run build && wrangler deploy --config .wrangler/preview.deploy.json');expect(pkg.scripts['deploy:production']).toBe('node scripts/deploy-production-disabled.mjs');expect(pkg.scripts['production:prepare']).toBe('node scripts/prepare-production.mjs');const workflow=readFileSync('.github/workflows/deploy.yml','utf8');expect(workflow).toContain('npm run deploy:preview');expect(workflow).not.toContain('npm run deploy:production')}));
+import {
+  validateProductionConfig,
+  prepareProductionArtifact,
+} from '../scripts/production-config.mjs';
+const template = JSON.parse(readFileSync('wrangler.jsonc', 'utf8')),
+  source = 'const OAUTH_HTTP_RELEASE_ENABLED=false;\n';
+const preview = {
+  workerName: 'kobe-student-hub-preview',
+  accountId: 'a'.repeat(32),
+  databaseId: '11111111-2222-3333-4444-555555555555',
+  databaseName: 'kobe-student-hub-preview',
+};
+const target = {
+  workerName: 'kobe-student-hub-production',
+  accountId: preview.accountId,
+  databaseId: '99999999-2222-3333-4444-555555555555',
+  databaseName: 'kobe-student-hub-production',
+  origin: 'https://kobe-student-hub-production.fixture-only.workers.dev',
+};
+const clone = () => structuredClone(template);
+function workspace() {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'hub-production-config-')));
+  mkdirSync(join(root, 'worker'));
+  mkdirSync(join(root, 'dist'));
+  mkdirSync(join(root, 'migrations'));
+  writeFileSync(join(root, 'worker/index.ts'), source);
+  writeFileSync(join(root, 'wrangler.jsonc'), JSON.stringify(template));
+  return root;
+}
+function scoped(fn: (root: string) => void) {
+  const root = workspace();
+  try {
+    fn(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+it('constructs only bounded reviewed fields for a fictional same-account distinct target', () =>
+  scoped((root) => {
+    const out = prepareProductionArtifact(root, target, preview),
+      config = JSON.parse(readFileSync(out, 'utf8'));
+    expect(config).toMatchObject({
+      name: target.workerName,
+      account_id: target.accountId,
+      workers_dev: true,
+      preview_urls: false,
+      main: join(root, 'worker/index.ts'),
+      assets: { directory: join(root, 'dist'), binding: 'ASSETS' },
+      d1_databases: [
+        {
+          binding: 'DB',
+          database_name: target.databaseName,
+          database_id: target.databaseId,
+          migrations_dir: join(root, 'migrations'),
+        },
+      ],
+    });
+    expect(statSync(out).mode & 0o777).toBe(0o600);
+    for (const key of ['vars', 'secrets', 'routes', 'build', 'triggers', 'queues', 'services'])
+      expect(config).not.toHaveProperty(key);
+    expect(JSON.stringify(config)).not.toContain(target.origin);
+  }));
+it('rejects account mixups and preview Worker/database reuse without treating agreement as authorization', () => {
+  for (const patch of [
+    { accountId: 'b'.repeat(32) },
+    { workerName: preview.workerName },
+    { databaseName: preview.databaseName },
+    { databaseId: preview.databaseId },
+    { databaseId: '00000000-0000-0000-0000-000000000000' },
+    { origin: 'http://student-app.example.test' },
+    { origin: target.origin + '/' },
+    { workerName: 'trailing-' },
+    { origin: 'https://other.fixture-only.workers.dev' },
+    { extra: 'unknown' },
+  ])
+    expect(() =>
+      validateProductionConfig(clone(), { ...target, ...patch }, preview, '/tmp/fixture', source),
+    ).toThrow();
+});
+it('pins the existing preview template even when caller mutates expected labels too', () => {
+  const c = clone();
+  c.name = 'unrelated-preview';
+  c.d1_databases[0].database_name = 'unrelated-preview';
+  expect(() =>
+    validateProductionConfig(
+      c,
+      target,
+      { ...preview, workerName: 'unrelated-preview', databaseName: 'unrelated-preview' },
+      '/tmp/fixture',
+      source,
+    ),
+  ).toThrow();
+});
+it('rejects unknown fields recursively instead of forwarding configuration or commands', () => {
+  const mutations = [
+    (c: any) => (c.vars = { SECRET: 'synthetic-only' }),
+    (c: any) => (c.routes = ['https://other.example.test/*']),
+    (c: any) => (c.build = { command: 'unexpected' }),
+    (c: any) => (c.assets.extra = 'unexpected'),
+    (c: any) => c.assets.run_worker_first.push('/*'),
+    (c: any) => (c.d1_databases[0].extra = 'unexpected'),
+    (c: any) => c.d1_databases.push({ ...c.d1_databases[0] }),
+    (c: any) => (c.observability.extra = 'unexpected'),
+  ];
+  for (const mutation of mutations) {
+    const c = clone();
+    mutation(c);
+    expect(() => validateProductionConfig(c, target, preview, '/tmp/fixture', source)).toThrow();
+  }
+});
+it('rejects altered source paths/bindings and open source OAuth gate', () => {
+  for (const mutation of [
+    (c: any) => (c.main = 'tests/fixtures/editor-worker.ts'),
+    (c: any) => (c.assets.directory = '../dist'),
+    (c: any) => (c.assets.binding = 'OTHER'),
+    (c: any) => (c.d1_databases[0].migrations_dir = '../migrations'),
+    (c: any) => (c.workers_dev = true),
+    (c: any) => (c.preview_urls = true),
+    (c: any) => (c.d1_databases[0].database_id = target.databaseId),
+  ]) {
+    const c = clone();
+    mutation(c);
+    expect(() => validateProductionConfig(c, target, preview, '/tmp/fixture', source)).toThrow();
+  }
+  expect(() =>
+    validateProductionConfig(
+      clone(),
+      target,
+      preview,
+      '/tmp/fixture',
+      'const OAUTH_HTTP_RELEASE_ENABLED=true;',
+    ),
+  ).toThrow();
+});
+it('removes only its stale regular artifact before failed validation, never leaves old ready data', () =>
+  scoped((root) => {
+    const out = prepareProductionArtifact(root, target, preview);
+    writeFileSync(
+      join(root, 'wrangler.jsonc'),
+      JSON.stringify({ ...template, vars: { SECRET: 'synthetic-private' } }),
+    );
+    expect(() => prepareProductionArtifact(root, target, preview)).toThrow(
+      'Production artifact preparation failed.',
+    );
+    expect(existsSync(out)).toBe(false);
+    expect(readFileSync(join(root, 'wrangler.jsonc'), 'utf8')).toContain('synthetic-private');
+  }));
+it('refuses controlled output directory/file symlinks without following or deleting their target', () =>
+  scoped((root) => {
+    const outside = realpathSync(mkdtempSync(join(tmpdir(), 'hub-production-outside-')));
+    try {
+      const sentinel = join(outside, 'sentinel');
+      writeFileSync(sentinel, 'unchanged');
+      symlinkSync(outside, join(root, '.wrangler'));
+      expect(() => prepareProductionArtifact(root, target, preview)).toThrow();
+      expect(readFileSync(sentinel, 'utf8')).toBe('unchanged');
+      unlinkSync(join(root, '.wrangler'));
+      mkdirSync(join(root, '.wrangler'));
+      symlinkSync(sentinel, join(root, '.wrangler/production.prepare.json'));
+      expect(() => prepareProductionArtifact(root, target, preview)).toThrow();
+      expect(readFileSync(sentinel, 'utf8')).toBe('unchanged');
+      expect(statSync(sentinel).isFile()).toBe(true);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  }));
+it('rejects symlinked template, worker source, asset or migration path without reading outside', () => {
+  for (const path of ['wrangler.jsonc', 'worker/index.ts', 'dist', 'migrations'])
+    scoped((root) => {
+      const outside = realpathSync(mkdtempSync(join(tmpdir(), 'hub-production-input-')));
+      try {
+        const dest = join(root, path),
+          isDir = path === 'dist' || path === 'migrations';
+        rmSync(dest, { recursive: true, force: true });
+        const external = join(outside, 'source');
+        if (isDir) mkdirSync(external);
+        else writeFileSync(external, 'synthetic-private-path');
+        symlinkSync(external, dest);
+        expect(() => prepareProductionArtifact(root, target, preview)).toThrow(
+          'Production artifact preparation failed.',
+        );
+        expect(existsSync(join(root, '.wrangler/production.prepare.json'))).toBe(false);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+});
+it('rejects CLI overrides and ambient settings without spawning or networking, clearing stale output', () =>
+  scoped((root) => {
+    mkdirSync(join(root, '.wrangler'));
+    const artifact = join(root, '.wrangler/production.prepare.json');
+    writeFileSync(artifact, 'existing untouched artifact');
+    writeFileSync(join(root, 'wrangler.jsonc'), 'malformed private template');
+    const marker = join(root, 'forbidden-call'),
+      preload = join(root, 'tripwire.cjs');
+    writeFileSync(
+      preload,
+      `const fs=require('node:fs');const blocked=()=>{fs.writeFileSync(${JSON.stringify(marker)},'called');throw Error('blocked')};for(const m of ['node:child_process'])for(const k of ['spawn','spawnSync','exec','execSync','execFile','execFileSync','fork'])require(m)[k]=blocked;for(const m of ['node:http','node:https'])for(const k of ['request','get'])require(m)[k]=blocked;for(const k of ['connect','createConnection'])require('node:net')[k]=blocked;global.fetch=blocked;`,
+    );
+    const r = spawnSync(
+      process.execPath,
+      [
+        '--require',
+        preload,
+        resolve('scripts/prepare-production.mjs'),
+        '--enable',
+        '--for-deploy',
+        '--target=synthetic-private',
+      ],
+      {
+        cwd: root,
+        env: {
+          ...process.env,
+          CLOUDFLARE_ACCOUNT_ID: target.accountId,
+          CLOUDFLARE_EXPECTED_ACCOUNT_ID: target.accountId,
+          CLOUDFLARE_D1_DATABASE_ID: target.databaseId,
+          CLOUDFLARE_EXPECTED_D1_DATABASE_ID: target.databaseId,
+          PRODUCTION_ENABLED: 'true',
+          AUTH_ORIGIN: target.origin,
+          CLOUDFLARE_API_TOKEN: 'synthetic-private',
+        },
+        encoding: 'utf8',
+      },
+    );
+    expect(r.status).toBe(1);
+    expect(r.stderr.trim()).toBe(
+      'Production preparation failed. Check the private selection and local source guards.',
+    );
+    expect(r.stdout).toBe('');
+    expect(existsSync(marker)).toBe(false);
+    expect(existsSync(artifact)).toBe(false);
+    for (const secret of [target.accountId, target.databaseId, target.origin, 'synthetic-private'])
+      expect(r.stdout + r.stderr).not.toContain(secret);
+  }));
+it('blocks the misleading legacy command without spawning and preserves canonical preview command/workflow', () =>
+  scoped((root) => {
+    const r = spawnSync(process.execPath, [resolve('scripts/deploy-production-disabled.mjs')], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('deploy:production is disabled.');
+    expect(existsSync(join(root, '.wrangler'))).toBe(false);
+    const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+    expect(pkg.scripts['deploy:preview']).toBe(
+      'node scripts/prepare-deploy.mjs --for-deploy && npm run build && wrangler deploy --config .wrangler/preview.deploy.json',
+    );
+    expect(pkg.scripts['deploy:production']).toBe('node scripts/deploy-production-disabled.mjs');
+    expect(pkg.scripts['production:prepare']).toBe('node scripts/prepare-production.mjs');
+    const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
+    expect(workflow).toContain('npm run deploy:preview');
+    expect(workflow).not.toContain('npm run deploy:production');
+  }));

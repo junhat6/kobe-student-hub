@@ -1,15 +1,182 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
-import {Button} from '@base-ui/react/button';
-import type {ProjectReportCase,ProjectReportCaseSummary} from '../project-report-types';
-import {createProjectModerationClient} from './project-moderation-client';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button } from '@base-ui/react/button';
+import type { ProjectReportCase, ProjectReportCaseSummary } from '../project-report-types';
+import { createProjectModerationClient } from './project-moderation-client';
 import ProjectSessionScope from './ProjectSessionScope';
-import {ProjectText} from './ProjectRegistration';
+import { ProjectText } from './ProjectRegistration';
 import './project-report.css';
-const status=(value:string)=>value==='hidden'?'一時非公開':value==='deleted'?'削除状態':'公開中';
-const time=(value:number)=>new Intl.DateTimeFormat('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(value);
-function ProjectCases({fetcher}:{fetcher:typeof fetch}){const client=useMemo(()=>createProjectModerationClient(fetcher),[fetcher]),mounted=useRef(true),generation=useRef(0),lock=useRef(false),request=useRef<AbortController|null>(null);const [rows,setRows]=useState<ProjectReportCaseSummary[]|null>(null),[selected,setSelected]=useState<string|null>(null),[detail,setDetail]=useState<ProjectReportCase|null>(null),[busy,setBusy]=useState(false),[failed,setFailed]=useState(false),[message,setMessage]=useState('');
- async function load(id?:string){if(lock.current)return;lock.current=true;setBusy(true);const run=++generation.current,controller=new AbortController();request.current=controller;setDetail(null);setSelected(id??null);setFailed(false);if(!id)setRows(null);setMessage(id?'選択した作品の通報を取得しています…':'作品の受付記録を取得しています…');try{if(id){const value=await client.read(id,controller.signal);if(mounted.current&&run===generation.current){setDetail(value);setMessage('通報内容を読み取り専用で表示しました。対応状況や判断・通知・非公開化の完了を示しません。')}}else{const value=await client.queue(controller.signal);if(mounted.current&&run===generation.current){setRows(value);setMessage(value.length?'対象を選んで内容を確認できます。':'作品通報の受付記録はありません。')}}}catch{if(mounted.current&&run===generation.current){setFailed(true);setRows(null);setMessage('通報を確認できませんでした。運営用の権限・セッション・接続状態を確認してください。古い対象の内容は表示しません。')}}finally{if(mounted.current&&run===generation.current){lock.current=false;setBusy(false)}}}
- useEffect(()=>{mounted.current=true;void load();return()=>{mounted.current=false;generation.current++;request.current?.abort();lock.current=false}},[client]);
- return <div><p role="status" aria-live="polite">{message}</p><Button disabled={busy} onClick={()=>void load()}>作品通報の一覧を再確認</Button><div className="project-review-layout"><section aria-label="作品通報の対象一覧"><h2>受付対象</h2><ul>{rows?.map(row=><li key={row.projectId}><Button disabled={busy} aria-current={selected===row.projectId?'true':undefined} onClick={()=>void load(row.projectId)}><strong>{row.title||'無題の作品'}</strong><span>{status(row.status)} · {time(row.latestReportAt)} 受付</span></Button></li>)}</ul><p>新しい受付記録から最大20対象です。全対象を表示するものではありません。</p></section><section aria-label="選択した作品通報">{detail?<><h2>{detail.project.title}</h2><p>{status(detail.status)} · 読み取り専用</p><p className="project-local">通報の受付内容です。運営判断・通知・自動非公開は行っていません。</p>{detail.reportsTruncated&&<p className="project-review-partial" role="note">最新20件のみを表示しています。他にも受付記録があります。すべての通報を確認したことにはなりません。</p>}<ol>{detail.reports.map((report,index)=><li key={index}><h3>理由</h3><p className="project-report-plain">{report.reason}</p><h3>詳細</h3><p className="project-report-plain">{report.detail||'詳細の入力はありません。'}</p><small>{time(report.receivedAt)} 受付</small></li>)}</ol><details><summary>対象の作品情報を確認</summary><ProjectText value={detail.project}/><p>投稿者：{detail.author.name}</p></details></>:<p>{busy?'取得中です。前の対象の内容は表示しません。':'一覧から対象を選んでください。'}</p>}{failed&&selected&&!busy&&<Button onClick={()=>void load(selected)}>選択した作品通報を再確認</Button>}</section></div></div>
+const status = (value: string) =>
+  value === 'hidden' ? '一時非公開' : value === 'deleted' ? '削除状態' : '公開中';
+const time = (value: number) =>
+  new Intl.DateTimeFormat('ja-JP', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value);
+function ProjectCases({ fetcher }: { fetcher: typeof fetch }) {
+  const client = useMemo(() => createProjectModerationClient(fetcher), [fetcher]),
+    mounted = useRef(true),
+    generation = useRef(0),
+    lock = useRef(false),
+    request = useRef<AbortController | null>(null);
+  const [rows, setRows] = useState<ProjectReportCaseSummary[] | null>(null),
+    [selected, setSelected] = useState<string | null>(null),
+    [detail, setDetail] = useState<ProjectReportCase | null>(null),
+    [busy, setBusy] = useState(false),
+    [failed, setFailed] = useState(false),
+    [message, setMessage] = useState('');
+  async function load(id?: string) {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    const run = ++generation.current,
+      controller = new AbortController();
+    request.current = controller;
+    setDetail(null);
+    setSelected(id ?? null);
+    setFailed(false);
+    if (!id) setRows(null);
+    setMessage(id ? '選択した作品の通報を取得しています…' : '作品の受付記録を取得しています…');
+    try {
+      if (id) {
+        const value = await client.read(id, controller.signal);
+        if (mounted.current && run === generation.current) {
+          setDetail(value);
+          setMessage(
+            '通報内容を読み取り専用で表示しました。対応状況や判断・通知・非公開化の完了を示しません。',
+          );
+        }
+      } else {
+        const value = await client.queue(controller.signal);
+        if (mounted.current && run === generation.current) {
+          setRows(value);
+          setMessage(
+            value.length ? '対象を選んで内容を確認できます。' : '作品通報の受付記録はありません。',
+          );
+        }
+      }
+    } catch {
+      if (mounted.current && run === generation.current) {
+        setFailed(true);
+        setRows(null);
+        setMessage(
+          '通報を確認できませんでした。運営用の権限・セッション・接続状態を確認してください。古い対象の内容は表示しません。',
+        );
+      }
+    } finally {
+      if (mounted.current && run === generation.current) {
+        lock.current = false;
+        setBusy(false);
+      }
+    }
+  }
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    return () => {
+      mounted.current = false;
+      generation.current++;
+      request.current?.abort();
+      lock.current = false;
+    };
+  }, [client]);
+  return (
+    <div>
+      <p role="status" aria-live="polite">
+        {message}
+      </p>
+      <Button disabled={busy} onClick={() => void load()}>
+        作品通報の一覧を再確認
+      </Button>
+      <div className="project-review-layout">
+        <section aria-label="作品通報の対象一覧">
+          <h2>受付対象</h2>
+          <ul>
+            {rows?.map((row) => (
+              <li key={row.projectId}>
+                <Button
+                  disabled={busy}
+                  aria-current={selected === row.projectId ? 'true' : undefined}
+                  onClick={() => void load(row.projectId)}
+                >
+                  <strong>{row.title || '無題の作品'}</strong>
+                  <span>
+                    {status(row.status)} · {time(row.latestReportAt)} 受付
+                  </span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <p>新しい受付記録から最大20対象です。全対象を表示するものではありません。</p>
+        </section>
+        <section aria-label="選択した作品通報">
+          {detail ? (
+            <>
+              <h2>{detail.project.title}</h2>
+              <p>{status(detail.status)} · 読み取り専用</p>
+              <p className="project-local">
+                通報の受付内容です。運営判断・通知・自動非公開は行っていません。
+              </p>
+              {detail.reportsTruncated && (
+                <p className="project-review-partial" role="note">
+                  最新20件のみを表示しています。他にも受付記録があります。すべての通報を確認したことにはなりません。
+                </p>
+              )}
+              <ol>
+                {detail.reports.map((report, index) => (
+                  <li key={index}>
+                    <h3>理由</h3>
+                    <p className="project-report-plain">{report.reason}</p>
+                    <h3>詳細</h3>
+                    <p className="project-report-plain">
+                      {report.detail || '詳細の入力はありません。'}
+                    </p>
+                    <small>{time(report.receivedAt)} 受付</small>
+                  </li>
+                ))}
+              </ol>
+              <details>
+                <summary>対象の作品情報を確認</summary>
+                <ProjectText value={detail.project} />
+                <p>投稿者：{detail.author.name}</p>
+              </details>
+            </>
+          ) : (
+            <p>
+              {busy
+                ? '取得中です。前の対象の内容は表示しません。'
+                : '一覧から対象を選んでください。'}
+            </p>
+          )}
+          {failed && selected && !busy && (
+            <Button onClick={() => void load(selected)}>選択した作品通報を再確認</Button>
+          )}
+        </section>
+      </div>
+    </div>
+  );
 }
-export default function ProjectModerationLab(){return <div className="project-public"><header>Kobe Student Hub · ローカル作品通報の確認</header><main><h1>作品通報の受付記録</h1><p className="project-local">架空データによるローカル試作です。サーバーで限定された既存運営セッションだけが利用できます。この画面からログイン・権限付与は行いません。</p><ProjectSessionScope initial label="作品通報の既存セッションを再確認">{session=><ProjectCases fetcher={session.fetcher}/>}</ProjectSessionScope><section><h2>受付と運営対応は別です</h2><p>この試作は通報内容の確認までです。自動非公開・通知メール・判断・復元・削除・本人説明・異議の操作はありません。作品への通報を何件でどう扱うか、実際の責任者や連絡先は未決定です。</p></section></main><footer>ローカル専用 · 実運用・学生による価値検証は未実施です。</footer></div>}
+export default function ProjectModerationLab() {
+  return (
+    <div className="project-public">
+      <header>Kobe Student Hub · ローカル作品通報の確認</header>
+      <main>
+        <h1>作品通報の受付記録</h1>
+        <p className="project-local">
+          架空データによるローカル試作です。サーバーで限定された既存運営セッションだけが利用できます。この画面からログイン・権限付与は行いません。
+        </p>
+        <ProjectSessionScope initial label="作品通報の既存セッションを再確認">
+          {(session) => <ProjectCases fetcher={session.fetcher} />}
+        </ProjectSessionScope>
+        <section>
+          <h2>受付と運営対応は別です</h2>
+          <p>
+            この試作は通報内容の確認までです。自動非公開・通知メール・判断・復元・削除・本人説明・異議の操作はありません。作品への通報を何件でどう扱うか、実際の責任者や連絡先は未決定です。
+          </p>
+        </section>
+      </main>
+      <footer>ローカル専用 · 実運用・学生による価値検証は未実施です。</footer>
+    </div>
+  );
+}

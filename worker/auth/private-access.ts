@@ -9,8 +9,10 @@ export function mayReadPrivateRecord(
   actor: ServerSessionActor | null | undefined,
   ownerAccountId: string,
 ): boolean {
-  return actor?.accountStatus === 'active'
-    && actor.accountId.length > 0
-    && ownerAccountId.length > 0
-    && actor.accountId === ownerAccountId;
+  return (
+    actor?.accountStatus === 'active' &&
+    actor.accountId.length > 0 &&
+    ownerAccountId.length > 0 &&
+    actor.accountId === ownerAccountId
+  );
 }

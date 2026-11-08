@@ -1,1 +1,116 @@
-.session-account-lab{background:#f1f5f9;color:#253544;min-height:100vh;font-family:-apple-system,system-ui,'Hiragino Kaku Gothic ProN','Hiragino Sans',Meiryo,sans-serif;line-height:1.8}.session-control{max-width:1192px;padding:28px;margin:24px auto;background:white;border:1px solid #b8cbd9;border-radius:12px;box-sizing:border-box}.session-control h1{font-size:26px;margin:4px 0 18px}.session-eyebrow{font-size:12px;letter-spacing:.08em;color:#596e7d;margin:0}.session-local-notice{font-size:13px;background:#eaf6ff;border-radius:8px;padding:13px 16px;line-height:1.8;color:#344e60}.session-message{font-size:14px;line-height:1.9;overflow-wrap:anywhere;color:#344e60;margin:18px 0}.session-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.session-actions button{font:inherit;min-height:44px;padding:9px 15px;border:1px solid #b8cbd9;border-radius:8px;color:#175f91;background:white;font-size:14px;font-weight:650;cursor:pointer}.session-actions button:hover:not(:disabled){background:#eaf6ff}.session-actions button:disabled{opacity:.55;cursor:default}.session-actions button:focus-visible{outline:3px solid #0676bb;outline-offset:3px}.session-hidden-note{font-size:13px;color:#755310;background:#fff7df;border:1px solid #e0ca8f;border-radius:8px;padding:12px;margin-top:18px}.session-scope-note{font-size:12px;color:#596e7d;border-top:1px solid #d6e3ed;padding-top:16px;margin-top:24px;line-height:1.8}.session-private[hidden]{display:none!important}.session-private[inert]{pointer-events:none}@media(max-width:650px){.session-control{margin:16px;padding:20px 16px}.session-control h1{font-size:22px}.session-local-notice{font-size:12px}.session-actions{align-items:stretch;flex-direction:column}.session-actions button{width:100%}.session-message{font-size:13px}}
+.session-account-lab {
+  background: #f1f5f9;
+  color: #253544;
+  min-height: 100vh;
+  font-family:
+    -apple-system, system-ui, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+  line-height: 1.8;
+}
+.session-control {
+  max-width: 1192px;
+  padding: 28px;
+  margin: 24px auto;
+  background: white;
+  border: 1px solid #b8cbd9;
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+.session-control h1 {
+  font-size: 26px;
+  margin: 4px 0 18px;
+}
+.session-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #596e7d;
+  margin: 0;
+}
+.session-local-notice {
+  font-size: 13px;
+  background: #eaf6ff;
+  border-radius: 8px;
+  padding: 13px 16px;
+  line-height: 1.8;
+  color: #344e60;
+}
+.session-message {
+  font-size: 14px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+  color: #344e60;
+  margin: 18px 0;
+}
+.session-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.session-actions button {
+  font: inherit;
+  min-height: 44px;
+  padding: 9px 15px;
+  border: 1px solid #b8cbd9;
+  border-radius: 8px;
+  color: #175f91;
+  background: white;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.session-actions button:hover:not(:disabled) {
+  background: #eaf6ff;
+}
+.session-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.session-actions button:focus-visible {
+  outline: 3px solid #0676bb;
+  outline-offset: 3px;
+}
+.session-hidden-note {
+  font-size: 13px;
+  color: #755310;
+  background: #fff7df;
+  border: 1px solid #e0ca8f;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 18px;
+}
+.session-scope-note {
+  font-size: 12px;
+  color: #596e7d;
+  border-top: 1px solid #d6e3ed;
+  padding-top: 16px;
+  margin-top: 24px;
+  line-height: 1.8;
+}
+.session-private[hidden] {
+  display: none !important;
+}
+.session-private[inert] {
+  pointer-events: none;
+}
+@media (max-width: 650px) {
+  .session-control {
+    margin: 16px;
+    padding: 20px 16px;
+  }
+  .session-control h1 {
+    font-size: 22px;
+  }
+  .session-local-notice {
+    font-size: 12px;
+  }
+  .session-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .session-actions button {
+    width: 100%;
+  }
+  .session-message {
+    font-size: 13px;
+  }
+}

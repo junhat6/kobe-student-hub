@@ -1,12 +1,262 @@
-.account-entry,.account-page{max-width:640px;margin:48px auto 64px;padding:32px;background:#fff;border:1px solid #d6e3ed;border-radius:12px;color:#263b4a}
-.account-entry h1,.session-account h1{margin:0 0 16px;font-size:28px;line-height:1.5;letter-spacing:0;text-wrap:balance}
-.account-intro,.account-privacy,.account-message,.session-account p{font-size:16px;line-height:1.8;overflow-wrap:anywhere}
-.account-intro{margin:0 0 16px}.account-privacy{margin:0 0 24px;color:#596e7d}.account-message{margin:24px 0;color:#344e60;min-height:1.8em}
-.account-entry fieldset{padding:0;margin:24px 0;border:0;min-width:0}.account-entry legend{padding:0;font-weight:650;margin-bottom:16px;font-size:18px}.account-field{margin:0 0 20px}.account-field label{display:block;font-weight:650;margin-bottom:8px}.account-field label span{color:#596e7d;font-size:13px;font-weight:400;margin-left:8px}.account-field input{display:block;width:100%;min-height:48px;border:1px solid #98adbb;border-radius:8px;padding:10px 12px;background:#fff;color:#263b4a;font:inherit;font-size:16px;caret-color:#076db3}.account-field input[aria-invalid=true]{border-color:#a22c25}.account-field input[readonly]{background:#f1f5f9}.account-field input:disabled{opacity:.8}.account-help{color:#596e7d;font-size:14px;line-height:1.8;margin:8px 0}.account-error{color:#a22c25;font-size:14px;line-height:1.7;margin:8px 0}
-.account-google{width:100%;min-height:48px;font:inherit;font-weight:650;border-radius:8px;white-space:normal}.account-entry button:disabled,.session-account button:disabled{cursor:default;opacity:.6}.account-secondary,.session-account button{min-height:44px;padding:9px 16px;border:1px solid #98adbb;background:#fff;color:#076db3;border-radius:8px;font:inherit;white-space:normal}.account-secondary{margin-top:16px}.account-secondary:not(:disabled):hover,.session-account button:not(:disabled):hover{background:#e8f4fd}.account-recovery{display:flex;gap:12px;flex-wrap:wrap}.account-switch{margin:32px 0 16px;font-size:15px;line-height:1.8}.account-switch a,.account-read-link,.account-signed-out a{color:#076db3;text-underline-offset:3px}.account-read-link{font-size:15px;margin:24px 0 0}.account-entry>a.account-read-link{display:inline-flex;align-items:center;min-height:44px}.account-entry :focus-visible,.account-page :focus-visible{outline:3px solid #076db3;outline-offset:3px}.account-entry ::selection,.account-page ::selection{background:#cceaff;color:#10283f}
-.session-account .session-actions{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}.session-account .session-hidden-note,.session-account .session-scope-note{font-size:14px;color:#596e7d}.session-account .session-scope-note{margin:24px 0}.session-account .session-private{margin-top:32px}.account-signed-out{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:24px}.account-signed-out .primary{color:#10283f;text-decoration:none;min-height:44px;display:inline-flex;align-items:center}.account-signed-out .primary:hover{color:#fff}.account-page .account-enrollment{padding:0;border:0;margin:0;max-width:none}
-@media(max-width:720px){.account-entry,.account-page{margin:24px 16px 40px;padding:24px 20px}.account-entry h1,.session-account h1{font-size:25px}.account-recovery,.account-signed-out{align-items:stretch;flex-direction:column}.account-recovery button{width:100%}.account-page .account-enrollment h2{font-size:21px}}
+.account-entry,
+.account-page {
+  max-width: 640px;
+  margin: 48px auto 64px;
+  padding: 32px;
+  background: #fff;
+  border: 1px solid #d6e3ed;
+  border-radius: 12px;
+  color: #263b4a;
+}
+.account-entry h1,
+.session-account h1 {
+  margin: 0 0 16px;
+  font-size: 28px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+.account-intro,
+.account-privacy,
+.account-message,
+.session-account p {
+  font-size: 16px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.account-intro {
+  margin: 0 0 16px;
+}
+.account-privacy {
+  margin: 0 0 24px;
+  color: #596e7d;
+}
+.account-message {
+  margin: 24px 0;
+  color: #344e60;
+  min-height: 1.8em;
+}
+.account-entry fieldset {
+  padding: 0;
+  margin: 24px 0;
+  border: 0;
+  min-width: 0;
+}
+.account-entry legend {
+  padding: 0;
+  font-weight: 650;
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+.account-field {
+  margin: 0 0 20px;
+}
+.account-field label {
+  display: block;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+.account-field label span {
+  color: #596e7d;
+  font-size: 13px;
+  font-weight: 400;
+  margin-left: 8px;
+}
+.account-field input {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #98adbb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #263b4a;
+  font: inherit;
+  font-size: 16px;
+  caret-color: #076db3;
+}
+.account-field input[aria-invalid='true'] {
+  border-color: #a22c25;
+}
+.account-field input[readonly] {
+  background: #f1f5f9;
+}
+.account-field input:disabled {
+  opacity: 0.8;
+}
+.account-help {
+  color: #596e7d;
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 8px 0;
+}
+.account-error {
+  color: #a22c25;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 8px 0;
+}
+.account-google {
+  width: 100%;
+  min-height: 48px;
+  font: inherit;
+  font-weight: 650;
+  border-radius: 8px;
+  white-space: normal;
+}
+.account-entry button:disabled,
+.session-account button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.account-secondary,
+.session-account button {
+  min-height: 44px;
+  padding: 9px 16px;
+  border: 1px solid #98adbb;
+  background: #fff;
+  color: #076db3;
+  border-radius: 8px;
+  font: inherit;
+  white-space: normal;
+}
+.account-secondary {
+  margin-top: 16px;
+}
+.account-secondary:not(:disabled):hover,
+.session-account button:not(:disabled):hover {
+  background: #e8f4fd;
+}
+.account-recovery {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.account-switch {
+  margin: 32px 0 16px;
+  font-size: 15px;
+  line-height: 1.8;
+}
+.account-switch a,
+.account-read-link,
+.account-signed-out a {
+  color: #076db3;
+  text-underline-offset: 3px;
+}
+.account-read-link {
+  font-size: 15px;
+  margin: 24px 0 0;
+}
+.account-entry > a.account-read-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.account-entry :focus-visible,
+.account-page :focus-visible {
+  outline: 3px solid #076db3;
+  outline-offset: 3px;
+}
+.account-entry ::selection,
+.account-page ::selection {
+  background: #cceaff;
+  color: #10283f;
+}
+.session-account .session-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.session-account .session-hidden-note,
+.session-account .session-scope-note {
+  font-size: 14px;
+  color: #596e7d;
+}
+.session-account .session-scope-note {
+  margin: 24px 0;
+}
+.session-account .session-private {
+  margin-top: 32px;
+}
+.account-signed-out {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.account-signed-out .primary {
+  color: #10283f;
+  text-decoration: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.account-signed-out .primary:hover {
+  color: #fff;
+}
+.account-page .account-enrollment {
+  padding: 0;
+  border: 0;
+  margin: 0;
+  max-width: none;
+}
+@media (max-width: 720px) {
+  .account-entry,
+  .account-page {
+    margin: 24px 16px 40px;
+    padding: 24px 20px;
+  }
+  .account-entry h1,
+  .session-account h1 {
+    font-size: 25px;
+  }
+  .account-recovery,
+  .account-signed-out {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .account-recovery button {
+    width: 100%;
+  }
+  .account-page .account-enrollment h2 {
+    font-size: 21px;
+  }
+}
 
-.account-entry .account-legend{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}.account-message:empty{margin:0;min-height:0}.session-account .session-scope-note summary{min-height:44px;cursor:pointer;color:#076db3}.session-account .session-scope-note p{font-size:14px;line-height:1.8;margin:12px 0}
+.account-entry .account-legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.account-message:empty {
+  margin: 0;
+  min-height: 0;
+}
+.session-account .session-scope-note summary {
+  min-height: 44px;
+  cursor: pointer;
+  color: #076db3;
+}
+.session-account .session-scope-note p {
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 12px 0;
+}
 
-.account-drafts-link{margin:0 0 32px}.account-drafts-link a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}
+.account-drafts-link {
+  margin: 0 0 32px;
+}
+.account-drafts-link a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+}
