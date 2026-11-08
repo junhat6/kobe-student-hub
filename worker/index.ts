@@ -34,4 +34,30 @@ app.all('/api/*', c => c.json({error:'この開発プレビューではログイ
 app.onError((_err,c) => c.json({error:'読み込みに失敗しました。時間をおいて再度お試しください。'},503));
 interface ContentRow {id:string;kind:'article'|'project';title:string;summary:string;body:string;tags_json:string;author_id:string;audience:string;prerequisite:string;outcome:string;updated_at:string;minutes:number;related_ids_json:string;}
 interface ProfileRow {id:string;display_name:string;department:string;year_label:string;bio:string;initials:string;}
-export default app;
+// Hono's onError handles Error instances; bindings can reject with any JavaScript value.
+// Keep that value opaque, including cross-realm Errors, and never hand it to a logger.
+export default {
+ async fetch(request:Request,env:Env,ctx?:ExecutionContext){
+  try{return await app.fetch(request,env,ctx)}
+  catch{
+   return new Response(JSON.stringify({error:'読み込みに失敗しました。時間をおいて再度お試しください。'}),{status:503,headers:{
+    'Content-Type':'application/json; charset=UTF-8',
+    'Cache-Control':'private, no-store',
+    'Vary':'Cookie',
+    'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    'Cross-Origin-Resource-Policy':'same-origin',
+    'Cross-Origin-Opener-Policy':'same-origin',
+    'Origin-Agent-Cluster':'?1',
+    'Referrer-Policy':'no-referrer',
+    'Strict-Transport-Security':'max-age=15552000; includeSubDomains',
+    'X-Content-Type-Options':'nosniff',
+    'X-DNS-Prefetch-Control':'off',
+    'X-Download-Options':'noopen',
+    'X-Frame-Options':'SAMEORIGIN',
+    'X-Permitted-Cross-Domain-Policies':'none',
+    'X-XSS-Protection':'0',
+    'X-Robots-Tag':'noindex, nofollow',
+   }});
+  }
+ }
+} satisfies ExportedHandler<Env>;

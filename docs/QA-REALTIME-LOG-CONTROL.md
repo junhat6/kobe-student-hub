@@ -46,3 +46,5 @@ v3もAPI論理呼出し8、所有Tailの作成／削除ACKとremote不存在、�
 Cloudflareの[real-time logs資料](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/#limits)は保存ログとの違いと、高traffic時のsamplingを説明している。Tailが見えたことをstored logの保存・非保存や全要求の捕捉保証に置き換えない。
 
 合成URL／UUIDの相関ledgerは作成から固定24時間のprivate0600保持とする。自動cleanupは未導入。rootが期限時に所有ledger／claimだけを削除し、不存在・parent fsyncを確認してからhashだけのREMOVED記録を残す。これはremote logの消去ではない。先の二ledgerの期限・削除責務も別に維持する。
+
+その後のquery／body／Cookie／Authorizationを載せた別POST一件は、[入力位置照合](QA-SENSITIVE-LOG-INPUTS.md)へ記録した。対応frame0で4位置は未確認であり、本ページのqueryless陽性をその代用にしない。

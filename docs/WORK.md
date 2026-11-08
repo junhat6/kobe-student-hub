@@ -1,6 +1,22 @@
 # Current work and replanning
 
+## Worker外側の例外値を固定503へ収める
+
+**前回判定／現在地:** 前turnは[PR #109の完了記録](https://github.com/junhat6/kobe-student-hub/pull/109#issuecomment-6723965185)でリアルタイム対照1件の相関と独立QA・両CI・main `371ab10`統合を完了したprogress。文書のみで、本番runtime `172b5c1`の再配備は行っていない。今turnもGitHubのmain／成功CIと3件のDraftを確認し、PRDを再読した。公開home→記事は独立PC/mobile4群・4画像で確認し、架空sample4件／2人と閉じた実認証を維持している。
+
+**Planner / 仮説:** 通常の例外handlerを通らないthrow値も、production entryの外側で内容を触らず固定応答へ収めれば、予期しない依存先の失敗を未処理例外へ渡す経路を減らせるのではないか。source監査で見つかったHonoの非Error経路を対象にする。既存gate・provider・schemaを変更せず、callback URLの掃除や私的保持運用を解決したとは扱わない。[範囲・受入条件](WORKER-ERROR-BOUNDARY.md)。
+
+**Developer / 独立QA:** source `aa2f219`で外側のtyped fetch／bindingなしcatch／固定503と安全なfallback headerを実装。build・typecheck・78files／708unit・公開E2E62・localDB・dry-runが成功した。独立QAは別worktreeで実export・Worker/D1・追加の不正throw値を含む31件、typecheck・diffcheckが成功。初回のtypecheck失敗と独立QAの2期待不備は履歴を保持し、製品の保護を弱めず訂正した。Honoの先行prototype判定が起こり得ることと、外側catchが値を読まないことは区別する。
+
+**実ログの別検証:** 一意fallbackへquery／body／Cookie／Authorizationの8合成値を載せたPOST1件は405で閉じたが、frame0のため4位置とも未確認。独立事前47／事後38確認と所有cleanupを記録し、公称deadline＋4msの停止を厳密な時間保証とはしない。追加要求・query・再送は0で終了した。[方法と未確認範囲](QA-SENSITIVE-LOG-INPUTS.md)。
+
+**Replanning:** 本修正のCI・配備・独立本番QAを対応PRへ記録してから次へ進む。実認証／投稿は開かず、stored・各入力位置・実callback／provider branch、意図したcredential sinkと私的DB保持の実証は引き続き必要。新旧5ledgerの固定24hとroot手動cleanupを維持する。新しい本人限定試用や未決定事項を埋めるだけの機能は作らない。
+
+**CIでの試験同期修正:** 初期head `321b420`の[CI 42503028603](https://github.com/junhat6/kobe-student-hub/actions/runs/42503028603)は、auth browser65成功／mobile削除case1失敗。types・build・708unit・公開62・pilot1・retired8は成功、editor／dry-runはSKIPPEDだった。失敗は削除ACK表示後のfresh GETを待たずにcounterを同期判定した箇所。fixtureのprivate routeは新しいproduction outer wrapperを経由しないことを確認した。製品codeを変えず、testだけでpost-DELETE GET200と一覧DTO・残す版・削除ID不在を待つ。PC/mobile対象2件成功、ACK後／GET前のproof遅延2件成功、503／GETなしの4注入は予定どおり失敗。別contextも原case2件成功と、200応答のIDだけ削除済みIDにした2注入の拒否を確認した。timeout／retry／元の保護条件は緩めず、旧失敗を保持し、新head CI成功までmerge／配備を停止する。
+
 ## 設定不変のリアルタイム対照を一回だけ確認する
+
+**最終結果:** 文書の独立QAとPR／main CIは成功し、[PR #109](https://github.com/junhat6/kobe-student-hub/pull/109#issuecomment-6723965185)でmain `371ab10`へ統合済み。以下のCI確認待ちは当時の経過である。Worker配備・gate変更は0。
 
 **現在地:** source main `172b5c1`と最新main CI成功、PR #96／#84／#85のOPEN・Draftを再確認した。通常下書き削除は[PR #108の完了記録](https://github.com/junhat6/kobe-student-hub/pull/108#issuecomment-6723273526)で独立QA・両CI・一回配備・独立本番QAまで完了している。PRD原文は変更せず、公開サンプル4件／2人と閉じた実認証を維持する。
 
