@@ -7,12 +7,13 @@ export interface ReportInput {
 export interface ModerationSummary {
   contentId: string;
   title: string;
-  status: 'published' | 'hidden';
+  status: 'published' | 'hidden' | 'deleted';
   reportCount: number;
   latestReportAt: number;
 }
 export interface ModerationCase extends ModerationSummary {
   body: string;
+  reportsTruncated?: boolean;
   reports: { reason: string; detail: string; createdAt: number }[];
 }
 export interface ModerationDecisionState {
@@ -26,15 +27,15 @@ export interface ModerationDecisionInput {
   decisionId: string;
   expectedRound: number;
   expectedVersion: number;
-  action: 'restore' | 'delete';
+  action: 'hide' | 'restore' | 'delete';
   reason: string;
 }
 export interface ModerationDecisionReceipt {
   decisionId: string;
   contentId: string;
-  action: 'restore' | 'delete';
+  action: 'hide' | 'restore' | 'delete';
   reason: string;
-  resultStatus: 'published' | 'deleted';
+  resultStatus: 'published' | 'hidden' | 'deleted';
   resultRound: number;
   resultVersion: number;
   notification: 'pending';
@@ -67,14 +68,14 @@ const text = (v: unknown, max: number): v is string =>
 const time = (v: unknown): v is number =>
   typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 && v <= 8640000000000000;
 const summaryFields = ['contentId', 'title', 'status', 'reportCount', 'latestReportAt'];
-function summary(v: Record<string, unknown>) {
+function summary(v: Record<string, unknown>, project = false) {
   return (
     id(v.contentId) &&
     text(v.title, 200) &&
-    (v.status === 'published' || v.status === 'hidden') &&
+    (v.status === 'published' || v.status === 'hidden' || (project && v.status === 'deleted')) &&
     Number.isInteger(v.reportCount) &&
     Number(v.reportCount) >= 1 &&
-    Number(v.reportCount) <= 3 &&
+    Number(v.reportCount) <= (project ? 9007199254740989 : 3) &&
     time(v.latestReportAt)
   );
 }
@@ -88,10 +89,10 @@ function report(v: unknown): v is ModerationCase['reports'][number] {
     time(v.createdAt)
   );
 }
-function caseDto(v: unknown): v is ModerationCase {
+function caseDto(v: unknown, project = false): v is ModerationCase {
   return (
-    keys(v, [...summaryFields, 'body', 'reports']) &&
-    summary(v) &&
+    keys(v, [...summaryFields, 'body', 'reports', ...(project ? ['reportsTruncated'] : [])]) &&
+    summary(v, project) &&
     typeof v.body === 'string' &&
     v.body.length <= 262144 &&
     !v.body.includes('\0') &&
@@ -99,9 +100,12 @@ function caseDto(v: unknown): v is ModerationCase {
     new TextDecoder('utf-8', { fatal: true }).decode(new TextEncoder().encode(v.body)) === v.body &&
     Array.isArray(v.reports) &&
     v.reports.length >= 1 &&
-    v.reports.length <= 3 &&
+    v.reports.length <= (project ? 20 : 3) &&
     v.reports.every(report) &&
-    v.reportCount === v.reports.length &&
+    (project
+      ? v.reportsTruncated === Number(v.reportCount) > 20 &&
+        v.reports.length === Math.min(20, Number(v.reportCount))
+      : v.reportCount === v.reports.length) &&
     v.latestReportAt === Math.max(...v.reports.map((r) => r.createdAt))
   );
 }
@@ -113,13 +117,18 @@ export const validReportInput = (value: unknown): value is ReportInput =>
   new TextEncoder().encode(value.detail).byteLength <= 8000;
 const version = (v: unknown): v is number =>
   typeof v === 'number' && Number.isSafeInteger(v) && v > 0 && v < 9007199254740990;
-export const validDecisionInput = (value: unknown): value is ModerationDecisionInput =>
+export const validDecisionInput = (
+  value: unknown,
+  project = false,
+): value is ModerationDecisionInput =>
   keys(value, ['decisionId', 'expectedRound', 'expectedVersion', 'action', 'reason']) &&
   typeof value.decisionId === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.decisionId) &&
   version(value.expectedRound) &&
   version(value.expectedVersion) &&
-  (value.action === 'restore' || value.action === 'delete') &&
+  (value.action === 'restore' ||
+    value.action === 'delete' ||
+    (project && value.action === 'hide')) &&
   text(value.reason, 1000) &&
   !!value.reason.trim() &&
   new TextEncoder().encode(value.reason).byteLength <= 4000;
@@ -127,6 +136,7 @@ function decisionReceipt(
   value: unknown,
   targetId: string,
   input: ModerationDecisionInput,
+  project = false,
 ): value is ModerationDecisionReceipt {
   return (
     keys(value, [
@@ -143,13 +153,18 @@ function decisionReceipt(
     value.contentId === targetId &&
     value.action === input.action &&
     value.reason === input.reason &&
-    value.resultStatus === (input.action === 'restore' ? 'published' : 'deleted') &&
-    value.resultRound === input.expectedRound + (input.action === 'restore' ? 1 : 0) &&
+    value.resultStatus ===
+      (input.action === 'restore' ? 'published' : input.action === 'hide' ? 'hidden' : 'deleted') &&
+    value.resultRound === input.expectedRound + (!project && input.action === 'restore' ? 1 : 0) &&
     value.resultVersion === input.expectedVersion + 1 &&
     value.notification === 'pending'
   );
 }
-function decisionState(value: unknown, targetId: string): value is ModerationDecisionState {
+function decisionState(
+  value: unknown,
+  targetId: string,
+  project = false,
+): value is ModerationDecisionState {
   return (
     keys(value, ['contentId', 'round', 'version', 'status', 'reportCount']) &&
     value.contentId === targetId &&
@@ -158,7 +173,7 @@ function decisionState(value: unknown, targetId: string): value is ModerationDec
     (value.status === 'published' || value.status === 'hidden' || value.status === 'deleted') &&
     Number.isInteger(value.reportCount) &&
     Number(value.reportCount) >= 0 &&
-    Number(value.reportCount) <= 3
+    Number(value.reportCount) <= (project ? 9007199254740989 : 3)
   );
 }
 /** Existing-cookie transport only. Never creates an identity or retries a report automatically. */
@@ -200,7 +215,7 @@ function ownNotice(v: unknown): v is OwnModerationNotice {
   return (
     keys(v, ['id', 'contentId', 'title', 'kind', 'reason', 'createdAt']) &&
     typeof v.id === 'string' &&
-    /^(?:report|decision)\.[0-9a-f-]{36}$/.test(v.id) &&
+    /^(?:report|decision|project)\.[0-9a-f-]{36}$/.test(v.id) &&
     id(v.contentId) &&
     text(v.title, 200) &&
     typeof v.kind === 'string' &&
@@ -209,7 +224,14 @@ function ownNotice(v: unknown): v is OwnModerationNotice {
     time(v.createdAt)
   );
 }
-export function createModerationClient(fetcher: typeof fetch = fetch) {
+export function createModerationClient(
+  fetcher: typeof fetch = fetch,
+  kind: 'article' | 'project' = 'article',
+) {
+  const project = kind === 'project';
+  const casesPath = project
+    ? '/api/private/project-moderation/review'
+    : '/api/private/moderation/cases';
   async function request(
     path: string,
     body?: ReportInput | ModerationDecisionInput | EmailRetryInput,
@@ -330,11 +352,11 @@ export function createModerationClient(fetcher: typeof fetch = fetch) {
         throw new ModerationClientError();
     },
     async queue(): Promise<ModerationSummary[]> {
-      const result = await request('/api/private/moderation/cases');
+      const result = await request(casesPath);
       if (
         !Array.isArray(result) ||
         result.length > 20 ||
-        !result.every((v) => keys(v, summaryFields) && summary(v)) ||
+        !result.every((v) => keys(v, summaryFields) && summary(v, project)) ||
         new Set(result.map((v) => v.contentId)).size !== result.length
       )
         throw new ModerationClientError();
@@ -395,14 +417,15 @@ export function createModerationClient(fetcher: typeof fetch = fetch) {
     },
     async readCase(targetId: string): Promise<ModerationCase> {
       if (!id(targetId)) throw new ModerationClientError();
-      const result = await request('/api/private/moderation/cases/' + targetId);
-      if (!caseDto(result) || result.contentId !== targetId) throw new ModerationClientError();
+      const result = await request(casesPath + '/' + targetId);
+      if (!caseDto(result, project) || result.contentId !== targetId)
+        throw new ModerationClientError();
       return result;
     },
     async decisionState(targetId: string): Promise<ModerationDecisionState> {
       if (!id(targetId)) throw new ModerationClientError();
-      const result = await request('/api/private/moderation/cases/' + targetId + '/decision');
-      if (!decisionState(result, targetId)) throw new ModerationClientError();
+      const result = await request(casesPath + '/' + targetId + '/decision');
+      if (!decisionState(result, targetId, project)) throw new ModerationClientError();
       return result;
     },
     async decide(
@@ -414,27 +437,21 @@ export function createModerationClient(fetcher: typeof fetch = fetch) {
       if (
         !id(targetId) ||
         !confirmed ||
-        !validDecisionInput(input) ||
+        !validDecisionInput(input, project) ||
         !/^[A-Za-z0-9_-]{43}$/.test(csrfToken)
       )
         throw new ModerationClientError();
-      const result = await request(
-        '/api/private/moderation/cases/' + targetId + '/decision',
-        input,
-        csrfToken,
-      );
-      if (!decisionReceipt(result, targetId, input)) throw new ModerationClientError();
+      const result = await request(casesPath + '/' + targetId + '/decision', input, csrfToken);
+      if (!decisionReceipt(result, targetId, input, project)) throw new ModerationClientError();
       return result;
     },
     async readDecision(
       targetId: string,
       input: ModerationDecisionInput,
     ): Promise<ModerationDecisionReceipt> {
-      if (!id(targetId) || !validDecisionInput(input)) throw new ModerationClientError();
-      const result = await request(
-        '/api/private/moderation/cases/' + targetId + '/decisions/' + input.decisionId,
-      );
-      if (!decisionReceipt(result, targetId, input)) throw new ModerationClientError();
+      if (!id(targetId) || !validDecisionInput(input, project)) throw new ModerationClientError();
+      const result = await request(casesPath + '/' + targetId + '/decisions/' + input.decisionId);
+      if (!decisionReceipt(result, targetId, input, project)) throw new ModerationClientError();
       return result;
     },
   };

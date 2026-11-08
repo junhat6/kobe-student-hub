@@ -476,13 +476,14 @@ export class ArticleModerationStore {
           `WITH notices AS (
         SELECT 'report.'||o.id id,o.content_id contentId,CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END title,'temporarily_hidden' kind,'異なる3人からの通報により、一時非公開になりました。運営が内容を確認します。' reason,o.created_at_ms createdAt FROM article_report_outbox o JOIN article_publications a ON a.content_id=o.content_id JOIN content c ON c.id=o.content_id WHERE a.owner_account_id=? AND o.event='temporarily_hidden'
         UNION ALL SELECT 'decision.'||o.decision_id,o.content_id,CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END,o.event,CASE WHEN length(d.reason)<=1000 AND length(CAST(d.reason AS BLOB))<=4000 THEN d.reason ELSE NULL END,o.created_at_ms FROM article_moderation_outbox o JOIN article_moderation_decisions d ON d.id=o.decision_id JOIN article_publications a ON a.content_id=o.content_id JOIN content c ON c.id=o.content_id WHERE a.owner_account_id=?
+        UNION ALL SELECT 'project.'||o.decision_id,o.project_id,CASE WHEN length(a.title)<=200 AND length(CAST(a.title AS BLOB))<=800 THEN a.title ELSE NULL END,o.event,CASE WHEN length(d.reason)<=1000 AND length(CAST(d.reason AS BLOB))<=4000 THEN d.reason ELSE NULL END,o.created_at_ms FROM project_moderation_outbox o JOIN project_moderation_decisions d ON d.id=o.decision_id JOIN project_publications a ON a.id=o.project_id WHERE a.owner_account_id=?
         ) SELECT id,contentId,title,kind,reason,createdAt FROM notices WHERE ${live} ORDER BY createdAt DESC,id DESC LIMIT 20`,
         )
-        .bind(p.accountId, p.accountId, ...bindings(p))
+        .bind(p.accountId, p.accountId, p.accountId, ...bindings(p))
         .all<OwnModerationNotice>();
       const valid = result.results.every(
         (row) =>
-          /^(?:report|decision)\.[0-9a-f-]{36}$/.test(row.id) &&
+          /^(?:report|decision|project)\.[0-9a-f-]{36}$/.test(row.id) &&
           idValid(row.contentId) &&
           text(row.title, 200) &&
           ['temporarily_hidden', 'restored', 'deleted'].includes(row.kind) &&

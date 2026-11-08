@@ -17,6 +17,7 @@ export default function ModerationDecision({
   onRiskChange,
   onBusyChange,
   notifications = false,
+  project = false,
 }: {
   client: ReturnType<typeof createModerationClient>;
   detail: ModerationCase;
@@ -25,6 +26,7 @@ export default function ModerationDecision({
   onRiskChange: (risk: boolean) => void;
   onBusyChange: (busy: boolean) => void;
   notifications?: boolean;
+  project?: boolean;
 }) {
   const [reason, setReason] = useState('');
   const [phase, setPhase] = useState<'editing' | 'confirming' | 'sending' | 'unknown'>('editing');
@@ -51,7 +53,7 @@ export default function ModerationDecision({
   useEffect(() => {
     if (phase === 'confirming') confirmationHeading.current?.focus();
   }, [phase]);
-  function prepare(action: 'restore' | 'delete') {
+  function prepare(action: 'hide' | 'restore' | 'delete') {
     const input = {
       decisionId: crypto.randomUUID(),
       expectedRound: state.round,
@@ -59,7 +61,7 @@ export default function ModerationDecision({
       action,
       reason,
     };
-    if (!validDecisionInput(input)) {
+    if (!validDecisionInput(input, project)) {
       setMessage('理由を1〜1000文字、4000バイト以内で入力してください。');
       return;
     }
@@ -145,22 +147,35 @@ export default function ModerationDecision({
               : '1000文字以内。理由は運営の判断記録に保存されます。'}
           </p>
           <div className="moderation-actions">
+            {project && (
+              <Button disabled={state.status !== 'published'} onClick={() => prepare('hide')}>
+                一時非公開を確認
+              </Button>
+            )}
             <Button disabled={state.status !== 'hidden'} onClick={() => prepare('restore')}>
               復元を確認
             </Button>
-            <Button onClick={() => prepare('delete')}>削除を確認</Button>
+            <Button disabled={state.status === 'deleted'} onClick={() => prepare('delete')}>
+              削除を確認
+            </Button>
           </div>
         </>
       ) : (
         command && (
           <>
             <h4 ref={confirmationHeading} tabIndex={-1}>
-              対象：{detail.title || '無題の記事'}
+              対象：{detail.title || (project ? '無題の作品' : '無題の記事')}
             </h4>
             <p>
-              {command.action === 'restore'
-                ? '一時非公開の記事を公開に戻します。過去の通報を残し、新しい通報受付を始めます。本人が公開停止した記事は復元できません。'
-                : '記事を公開表示から削除します。本文・下書き・通報記録は消去しません。'}
+              {command.action === 'hide'
+                ? '作品を一時非公開にします。保存版・画像・通報記録は保持します。'
+                : project && command.action === 'restore'
+                  ? '作品の保存済み公開版を公開に戻します。通報記録は残します。本人が公開停止した作品は復元できません。'
+                  : project && command.action === 'delete'
+                    ? '作品を公開表示から削除します。保存版・画像・通報記録の物理消去ではありません。'
+                    : command.action === 'restore'
+                      ? '一時非公開の記事を公開に戻します。過去の通報を残し、新しい通報受付を始めます。本人が公開停止した記事は復元できません。'
+                      : '記事を公開表示から削除します。本文・下書き・通報記録は消去しません。'}
             </p>
             <h4>登録する理由</h4>
             <p className="moderation-plain-text">{command.reason}</p>
@@ -204,9 +219,11 @@ export default function ModerationDecision({
               <Button disabled={!confirmed || phase === 'sending'} onClick={() => void send()}>
                 {phase === 'unknown'
                   ? '同じ判断を再送'
-                  : command.action === 'restore'
-                    ? '確認した内容で復元'
-                    : '確認した内容で削除'}
+                  : command.action === 'hide'
+                    ? '確認した内容で一時非公開'
+                    : command.action === 'restore'
+                      ? '確認した内容で復元'
+                      : '確認した内容で削除'}
               </Button>
               {phase === 'confirming' && (
                 <Button

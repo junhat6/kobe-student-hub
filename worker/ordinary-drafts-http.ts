@@ -37,11 +37,21 @@ export function createOrdinaryDraftHandler(
     createPrivateLikeHandler(db, origin, clock),
   ];
   const reports = createModerationHandler(db, origin, options.operatorIds ?? [], clock);
-  const projectReports = createPrivateProjectReportHandler(db, origin, [], clock);
+  const projectReports = createPrivateProjectReportHandler(
+    db,
+    origin,
+    options.operatorIds ?? [],
+    clock,
+  );
   return async (request: Request): Promise<Response | null> => {
     const path = new URL(request.url).pathname;
     // ProjectStore also owns the broader /api/private/project-* namespace.
-    if (path.startsWith('/api/private/project-reports')) return projectReports(request);
+    if (
+      path.startsWith('/api/private/project-reports') ||
+      path.startsWith('/api/private/project-moderation') ||
+      path.startsWith('/api/private/moderation-media')
+    )
+      return projectReports(request);
     for (const handler of handlers) {
       const response = await handler(request);
       if (response) return response;
