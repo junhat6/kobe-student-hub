@@ -1,5 +1,7 @@
 # pending本人の期限付き下書き試用
 
+> **撤去済み機能の履歴:** 本人限定の試用機能は撤去します。この文書の試用専用URL・コマンド・接続手順は現行の利用案内ではありません。[撤去範囲と検証](RETIRED-DRAFT-TRIAL.md)を参照してください。
+
 Issue #4。既存Google署名検証・browser-bound OAuth・opaque session・CSRF・private draft storeを再利用し、限定restrictionとDB grantが一致するpending本人だけを試用対象とする。一般のSessionStoreはactiveのみを許可する。試用actorはpendingを明示し、アカウント承認やoperator付与はしない。DBのsubject照合、owner、epoch、grantのDB時計期限・取消を発行/認証/最終保存SQLで検証する。
 
 専用入口は `/api/auth/draft-trial`。専用buildは `vite build --config vite.trial.config.ts`、成果は `.trial-assets`。別bindingのアダプターを用意したが、production entryには接続せず自動配備もしない。本番接続には対象Workerへの明示的なrouting/binding、限定runtime設定、スキーマ、本人1件のgrantを個別確認する。一般ログイン・公開・在籍承認の有効化ではない。

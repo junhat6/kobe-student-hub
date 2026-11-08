@@ -33,3 +33,6 @@ test-results-pilot/
 test-results-limited/
 
 .trial-assets/
+
+# Retired-feature browser regression output
+test-results-retired-trial/

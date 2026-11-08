@@ -692,3 +692,13 @@ Final routing/recovery verification:66files566unit/Worker tests passed17.75s; fo
 **独立QA:** 別コンテキストの隔離build/typecheck、関連46 tests、PC/mobile16 cases成功。503、遅着成功中のsession変更、長い題名・private DOM境界を追加検証し、阻害所見なし。画像6枚を独立確認し、ソース指紋一致。公開60 casesとdry-runも成功。詳細は [独立QA](QA-PRIVATE-DRAFT-DELETION.md)。AI動作確認を学生価値検証として扱わない。
 
 **CIからの修正:** 初回PR CIは削除後focusのPC/mobile2ケースが失敗した。busy解除がDOMへ反映された後のlayout effectへfocusを移し、元のassertionを維持した。修正後の限定40ケースは成功。独立追試・通常CIの成功を確認するまでmain merge／本番反映を行わない。
+
+## 本人限定試用の撤去
+
+**Planner:** main dc0d007／成功CIとopen PRを再確認後、ユーザーから本人限定試用そのものの撤去指示を受けた。期限表示などの追加開発は中止し、PRDと一般サンプル閲覧を維持したまま専用機能を取り除く。PR #96のDraft解除は行わない。
+
+**Developer / acceptance:** 専用UI・client・build・起動・production adapterとruntime有効化を撤去する。旧entry/assetsは404/no-storeに固定し、Worker-first経路を残してSPA fallbackや古いファイルの配信も拒否する。古い設定・Cookieでもprivate/authを有効化しない。共有editor/sessionの既存回帰は維持し、旧試用の成功テストを撤去後の拒否テストに置換する。既存restricted-storageの安全性はtest-only fixtureで継続検証する。詳細は [撤去範囲](RETIRED-DRAFT-TRIAL.md)。
+
+**本番 / 再計画:** 独立QAとgreen CI後、対象のtrial grant/session失効・binding除去・専用assetsなしの配備を個別に検証する。共通のアカウント・schema・secretを削除せず、個人情報や試用設定値は公開しない。撤去後は試用向けの追加機能を作らず、本来の記事・作品・経験共有のjourneyを基に次の改善を選ぶ。学生価値・実端末の検証は別途必要。
+
+**独立QAとruntime閉鎖:** ソースの独立QA（関連67＋追加1unit、PC/mobile10cases、4画像）に阻害所見なし。共有editor181成功／1既存skip、auth browser5・pending pilot1・公開60・unit/Worker585も成功。本番は先に専用grant/sessionを失効し専用bindingを除去、他設定保持と旧URL拒否を確認した。ソース／専用配信物の撤去はPRとgreen mainを経て完了する。私的運用値は公開しない。

@@ -1,5 +1,7 @@
 # Limited login interruption recovery
 
+> **撤去済み機能の履歴:** 本人限定の試用機能は撤去します。この文書の試用専用URL・コマンド・接続手順は現行の利用案内ではありません。[撤去範囲と検証](RETIRED-DRAFT-TRIAL.md)を参照してください。
+
 ## Scope
 
 This is a local frontend reliability change for the existing limited draft trial. It does not grant access, change eligibility/session rules, enable general login or publishing, alter a database, or deploy anything. The existing unpublished production-routing work remains a separate prerequisite and is preserved unchanged.

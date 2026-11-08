@@ -22,8 +22,7 @@
     "production:prepare": "node scripts/prepare-production.mjs",
     "test:pending-pilot": "playwright test --config playwright.pilot.config.ts",
     "test:auth-browser": "playwright test --config playwright.generation.config.ts",
-    "limited:build": "vite build --config vite.limited.config.ts",
-    "test:limited": "playwright test --config playwright.limited.config.ts"
+    "test:retired-trial": "playwright test --config playwright.retired-trial.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
