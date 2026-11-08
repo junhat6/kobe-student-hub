@@ -573,3 +573,11 @@ base main `37b07fc`、[PR #102の統合完了](https://github.com/junhat6/kobe-s
 設定変更・配備・remote SQL・Tail接続・credential／grant変更は0。生ログ取得・保存も0件で、実ユーザーや実Googleの接続は行っていない。source gate・frontend visibility・public writesは閉じたまま、[実ログゲート](LOGGING-GATE.md)は未達。
 
 別コンテキストのQAはledger／method／adaptiveの指紋と前後pin、時刻・未確認の解釈を照合し、限定的な結論に阻害所見なし。query完了・ページ不足判定と実row scanの未実証を明記した。QA後に一時ledger／probeを削除し、不存在を確認。sanitized結果とQA記録だけをlocal mode0600で保持する。文書差分と相対リンク156参照先の確認が成功。通常CIの正確な結果はPR完了記録へ残す。
+
+## 既存controlのquery完了確認 — 2026-11-08
+
+main `19323dd`、green PR/main CIとopen Draftを確認し、本番homeの架空sample4件・認証／投稿準備中をChromiumの実画面で確認した。確認tabは終了し、serverは起動していない。物理端末・学生価値の検証ではない。
+
+前回controlに対する追加traffic0・query1回でCOMPLETED、dry/account/timeframe、inline parametersの意味上のechoと前後pin一致を確認した。row/count0、ABR1。事前条件adhoc=trueは確認できず、false／欠落の区別も失われているため、全受入条件未達で終了。相関・scan・関連取得・非保存の判定は未成立のまま。専用previewの日次usage集計の陽性も、今回controlや料金余裕の証拠にはしない。[再構成・取得条件・結果・限界](QA-CLOSED-PREVIEW-LOGS.md#既存controlのquery実行を確認する追試--2026-11-08)。
+
+独立QAはmethod／結果の指紋と限定的な結論を照合し、阻害所見なし。sanitized結果・QA・capture前提の調査をlocal mode0600で保持した。実captureの設定変更・配備・schema・Tail・credential／grant変更は0、ログゲートは未達。次は契約・使用枠と復元条件を満たしたcaptureで一件の陽性相関を確認する。文書checkと通常CIの結果はPR完了記録へ残す。
