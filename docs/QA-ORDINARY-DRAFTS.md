@@ -58,3 +58,28 @@ EOF条件は、実共有handlerの保存後にブラウザhelperがResponse stre
 この結果は合成認証とlocal D1による選択した競合条件の確認であり、実端末・実学校Google・全通信障害・全interleavingの証明ではない。reload／close警告を含む実装担当の既存16群と、この追加12群は別の実行として扱う。
 
 一般ログイン・投稿は引き続きsourceで閉鎖している。実在学生の在学確認、学生の利用価値、実ログの秘匿性、remote schemaや本公開の条件を満たしたとは判断しない。[FIRST-RELEASE](FIRST-RELEASE.md)の未解決条件は残る。
+
+## CI失敗後のtest診断と独立検証
+
+PRのCI `42477089261` は、既存の匿名作品探索caseがeditor-mobileで30秒のtimeoutとなり、cleanupにもcontext不存在のエラーを記録した。editor全体は196成功・1失敗・既存skip 1だった。失敗caseのtrace／画像は保存済みartifactに含まれず、本文・header待ち・cleanupのどの段階が先に止まったかは不明である。元の失敗をflake、product不具合、特定のheader raceのいずれとも確定していない。
+
+固定 `1acd561` のprivateな段階記録付きfocused runでは、同じcaseがPC/mobileとも成功した。各6本、計12本の`allHeaders()`がすべて解決し、Cookie／CSRF header不在、本文のprivacy検証、context終了まで完了した。この成功はCI原因の特定には使わない。
+
+最終test source `3976eea6721801dc28889a3400a0b5ebd2401b62` を独立にreview・実行した。変更は `tests/editor-project-discovery.spec.ts` の最初のcaseだけで、productのsrc／worker treeと関連config・fixture・依存lockは元の `1acd561` とbyte同一。旧assertion・`allHeaders()`・すぐ次へ進むclick順序を保持し、データ取得待ちやretryを追加していない。
+
+testは処理をnamed stepで区切り、header取得のエラーを直ちに観測したうえで、成功経路の5秒stepで必ず再throwする。待機中に追加されたcheckも同じ予算内でdrainし、listenerを同期的に外してからエラーとrequest数を判定する。観測対象はこの境界までのrequestであり、cleanup中のrequestを含む永続的な監視ではない。本文の失敗後にcleanupもrejectした場合は本文の失敗を保持する。全体の30秒timeoutは変更していない。
+
+| 最終sourceでの実行 | 実際の結果 |
+| --- | --- |
+| 同じfileの3 cases × PC/mobile、private focused config | 6成功、exit 0 |
+| `allHeaders()`が解決しない合成故障 | header stepが5,000msで失敗 |
+| actual header取得後に合成Cookie項目を追加 | header assertionが失敗 |
+| actual header取得後に合成CSRF項目を追加 | header assertionが失敗 |
+| 存在しないUI条件と、実context終了後の合成cleanupエラー | UIの失敗だけがprimary errorとして残り、値を含まないsecondary warningを1件記録 |
+| 最初のbatch取得後に実same-origin公開requestを追加し、そのheaderへ合成CSRF項目を追加 | 遅いrequestの観測・header評価を記録し、追加batchのheader assertionが失敗。header stepは85ms |
+
+故障注入はprivateなtestコピーに限り、実requestへ認証情報やCookieを付けていない。故障5件のPlaywright結果は**5失敗・exit 1**であり、通常テストの成功数へ加算していない。これは新test driverが故障を見逃さないことの確認で、元CIの再現ではない。先行した `c4296ed` の6成功・故障4失敗は履歴としてprivate証拠に分け、最終sourceの結果と混ぜていない。
+
+private helper・段階記録・結果・source指紋は0600、保存directoryは0700。所有reader contextとPlaywright runnerは終了し、editor runnerの親・子8processを停止、所有group残存0と8788待受なしを確認した。依存symlinkも削除した。QAによるtracked source／test編集、remote API・設定変更、CI再実行、merge、deployはない。
+
+5秒で制限したのはheader stepであり、SDKの`ctx.close()`が永久に解決しない条件を検証したものではない。local focused成功はfresh green CIを代替しない。このQA時点ではreleaseを停止したまま、次のCI判定を別に行う。

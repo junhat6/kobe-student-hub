@@ -607,3 +607,11 @@ source `198eb4b`でbuild、77files／691unit・Worker（16.77秒）、localDB、
 fresh visual reviewの2点だけを通常variantに限定して修正した`cf7035a`は、API／router／認証／状態遷移の変更がないことを独立QAが照合。最終18件（通常16＋capture2、43.2秒）と保存・空・復旧6画像が成功し、実装担当とfresh reviewerが全画像を開いた。verdict passは2指摘をresolved／`ship`と採点した。mechanical detectorは最初の一回のみ、8対象で指摘0。rootも修正後代表2画像と独立代表2画像を確認。画像・proof・運用値・私的回答の公開はなく、sourceのデザイン体系は継承した。
 
 一般のfrontend表示とOAuth／draftのsource gateはすべてfalse、sample-onlyの公開境界を維持する。実Google・実ログ・実運営・学生価値・物理端末は未完了で、新しい本人限定試用やlabを追加していない。実配備のread-only preflightでは既存対象・設定・sample4件／profile2件と記事0003の一致を確認したが、配備完了とは扱わない。PR/main CI・実配備・本番GET-only独立QAの正確な結果は、[PR #106](https://github.com/junhat6/kobe-student-hub/pull/106)の完了記録へ残す。Worker配備にremote SQL／schema・権限・credential・契約変更を含めない。
+
+### 既存作品探索のCI timeoutと診断改善
+
+初期`198eb4b`のCI42476053169は全成功。同じ既存mobile作品探索ケースは1.5秒で成功したが、`1acd561`のCI42477089261では30秒timeoutとなり、finallyのcontext closeがprotocol errorを報告した。actual件数は77files/691unit、公開62・pilot1・retired8・auth52成功、editor196成功／1失敗／既存skip1。merge・deploy・remote変更・CIの単純再実行を止め、job logと取得可能artifactをprivateに保存した。artifact対象は公開用test-resultsだけで、失敗editor caseの画像・traceは含まれず、未閲覧の状態を推定しない。
+
+独立diagnosticで元caseをPC/mobile各1回実行し、全privacy assertionsと各6本のallHeaders、context終了まで成功。9関連ファイルの指紋は両headで一致し、元CIの停止箇所・原因は未確定のままとする。改善はtest-onlyで、段階名、5秒のheader検証、drain中の追加要求を含む明示観測窓、primary errorを覆わないcleanupとした。クリック順序・元assertion・30秒の全体予算、製品code・CI保護・artifactの公開範囲は変更していない。
+
+最終diagnostic source`3976eea`の独立focused6件が成功。private fault5件はすべて意図どおりFAILED／runner exit1で、pending headerは5秒のheader step、Cookie／CSRFと遅い追加batchのCSRFも同stepで失敗した。primary UI失敗＋secondary cleanup失敗では元の失敗を保持した。これらは検出機能の注入試験であり、元CIの再現や原因解明とは扱わない。[独立QAの追補](QA-ORDINARY-DRAFTS.md)。所有runner・context・server子processと8788待受を終了し、製品codeの修正根拠なしを維持した。新headのCIが実際に成功するまでは統合・配備しない。

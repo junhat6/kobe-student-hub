@@ -10,6 +10,8 @@
 
 **独立QA:** 別worktree／contextで関連15tests、追加実D1/HTTP5群、PC/mobile12群が成功。実commit後のEOF停止・ACK遅着、session変更、版競合を組み合わせ、入力保持・本人境界・自動再送なしを確認した。成功12画像を独立担当が開いて確認。fresh visual reviewの2点を通常画面だけで修正した`cf7035a`では、機能差分なしを独立QAが確認し、追加18件・最終6画像が成功。reviewerのverdict passは2指摘をresolved／`ship`と採点し、別documenterも既存デザインの継承を確認した。全体の実サービス完成判定ではない。[独立QAと限界](QA-ORDINARY-DRAFTS.md)。PR/main CIと実配備は、実行後に[PR #106](https://github.com/junhat6/kobe-student-hub/pull/106)へ正確に記録する。
 
+**CIでの診断改善:** 初期`198eb4b`のCIは成功したが、`1acd561`の[CI 42477089261](https://github.com/junhat6/kobe-student-hub/actions/runs/42477089261)は既存のmobile作品探索で30秒timeout、cleanupでcontext終了のprotocol errorとなった。editor196成功／1失敗／既存skip1。他stepは成功。失敗画面・traceは既存artifact範囲になく、独立の元ケース2contextsは成功したため、原因は未確定のまま保持する。製品codeを変更せず、`3976eea`で段階名、5秒のgrowing header drainと観測終了、元の失敗を保持するcleanupを追加。元のrapid navigationとprivacy判定・全体30秒予算を維持した。独立focused6件が成功し、pending header・Cookie・CSRF・primary＋secondary cleanup・drain中の追加CSRFの5注入はすべて期待どおりFAILED／非zero終了となり、失敗を成功扱いにしないことを確認した。元CIの原因を再現したとは扱わず、新headのCI成功までmerge／配備を停止する。
+
 **Replanning:** 通常の執筆が検証用entryだけに閉じる不足を減らしたが、実ログ・学校Google・運営等は未完了。実ログの陽性相関と実認証接続の不足は、既存の許可された接続と実際の証拠から解消する。契約不明の収集率変更、新しいlabや試用で代替しない。合成環境での成功は、実サービス提供・学生価値・実端末の成功とは扱わない。
 
 ## 現在地 — 2026-11-08
