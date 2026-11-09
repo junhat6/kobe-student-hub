@@ -24,7 +24,7 @@ interface Props {
   parentBusy: boolean;
   canStart: () => boolean;
   onPending: (value: boolean, mutating?: boolean) => void;
-  onUnsavedPreparation: (value: boolean) => void;
+  onUnsavedPreparation: (value: boolean, uncertain?: boolean) => void;
 }
 class SavedPreviewBoundary extends React.Component<
   { children: React.ReactNode },
@@ -214,7 +214,10 @@ export default function PublicationComposer({
     ) ||
     (Object.values(fields).some(Boolean) &&
       (!receipt || Boolean(attempt && !matchesPublication(receipt, attempt))));
-  useEffect(() => onUnsavedPreparation(hasPreparation), [hasPreparation, onUnsavedPreparation]);
+  useEffect(
+    () => onUnsavedPreparation(hasPreparation, uncertain),
+    [hasPreparation, uncertain, onUnsavedPreparation],
+  );
   useEffect(() => {
     if (!mutationPending && !uncertain && !hasPreparation) return;
     const warn = (event: BeforeUnloadEvent) => {
