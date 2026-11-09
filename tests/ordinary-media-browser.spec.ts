@@ -1,6 +1,7 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { encode as pngEncode } from 'fast-png';
 import jpeg from 'jpeg-js';
+import { readFileSync } from 'node:fs';
 const O = 'https://127.0.0.1:8790';
 function pixels(width: number, height: number) {
   return Uint8Array.from({ length: width * height * 4 }, (_, i) =>
@@ -79,6 +80,74 @@ async function attach(page: Page, mime: 'image/png' | 'image/jpeg', buffer: Buff
   await expect(page.locator('.media-attachments img[src^="blob:"]')).toBeVisible();
   return receipt;
 }
+test('real static CSP permits guarded private Blob images and explicit nocookie frames only after consent', async ({
+  page,
+}, info) => {
+  await article(page, info);
+  const headers = (await page.request.get('/drafts')).headers();
+  const csp = readFileSync('.generation-preview/_headers', 'utf8')
+    .split('\n')
+    .find((line) => line.startsWith('  Content-Security-Policy: '))!
+    .slice('  Content-Security-Policy: '.length);
+  expect(headers['content-security-policy']).toBe(csp);
+  await page.evaluate(() => {
+    const directives: string[] = [];
+    Object.defineProperty(window, '__fixtureCspDirectives', { value: directives });
+    document.addEventListener('securitypolicyviolation', (event) => {
+      directives.push(event.effectiveDirective);
+    });
+  });
+  const externalRequests: string[] = [];
+  await page.route(/^https?:\/\/(?!127\.0\.0\.1:8790\/)/, async (route) => {
+    externalRequests.push(route.request().url());
+    expect(route.request().url()).toBe('https://www.youtube-nocookie.com/embed/AbCdEf12345');
+    expect(route.request().headers()['referer']).toBe(O + '/');
+    // Browser policy/navigation proof only. No request reaches a vendor or tests playback.
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      headers: { 'Content-Security-Policy': "default-src 'none'" },
+      body: '<!doctype html><title>Synthetic embedded frame</title><p>Synthetic embedded frame</p>',
+    });
+  });
+  await attach(page, 'image/png', screen);
+  const attachment = page.locator('.media-attachments img[src^="blob:"]');
+  await expect
+    .poll(() =>
+      attachment.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
+    )
+    .toBe(true);
+  const body = page.getByLabel('Markdown本文', { exact: true });
+  await body.fill(
+    (await body.inputValue()) + '\n\n[架空の動画](https://youtu.be/AbCdEf12345?tracking=discarded)',
+  );
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
+  const preview = page.getByLabel('Markdownプレビュー', { exact: true });
+  const image = preview.locator('img[src^="blob:"]');
+  await expect(image).toHaveCount(1);
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+    .toBe(true);
+  const consent = preview.getByRole('button', { name: 'YouTube動画を読み込む', exact: true });
+  await expect(consent).toBeVisible();
+  await expect(page.locator('iframe')).toHaveCount(0);
+  expect(externalRequests).toEqual([]);
+  await consent.click();
+  await expect(
+    preview.frameLocator('iframe').getByText('Synthetic embedded frame', { exact: true }),
+  ).toBeVisible();
+  expect(externalRequests).toEqual(['https://www.youtube-nocookie.com/embed/AbCdEf12345']);
+  await page.screenshot({
+    path: info.outputPath('static-csp-private-image-and-consented-video.png'),
+    fullPage: true,
+  });
+  await preview.getByRole('button', { name: '動画を閉じる', exact: true }).click();
+  await expect(preview.locator('iframe')).toHaveCount(0);
+  expect(await page.evaluate(() => Reflect.get(window, '__fixtureCspDirectives'))).toEqual([]);
+});
 test('article image stays private until explicit saved-version publication and fresh acquisition stops with owner stop', async ({
   page,
   browser,

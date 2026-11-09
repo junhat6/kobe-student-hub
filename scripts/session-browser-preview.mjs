@@ -36,6 +36,17 @@ await build({
 });
 const { googleFixture } = await import('../.worker/browser-google.mjs');
 const signer = await googleFixture();
+// Mirror Static Assets headers instead of silently testing a less restrictive document.
+// This repository currently has one wildcard rule; fail if the fixture parser needs an update.
+const headerLines = readFileSync('.generation-preview/_headers', 'utf8').trimEnd().split(/\r?\n/);
+if (headerLines.shift() !== '/*' || headerLines.some((line) => !/^  [^:\s]+: .+$/.test(line)))
+  throw Error('Unsupported fixture asset header rules');
+const assetHeaders = Object.fromEntries(
+  headerLines.map((line) => {
+    const colon = line.indexOf(':');
+    return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
+  }),
+);
 const tokens = new Map(),
   gates = new Map();
 const gate = (tag) => {
@@ -132,6 +143,7 @@ mf = new Miniflare(
           throw Error('Invalid fixture asset');
         return new Response(readFileSync('.generation-preview/' + path), {
           headers: {
+            ...assetHeaders,
             'Content-Type': path.endsWith('.js')
               ? 'text/javascript'
               : path.endsWith('.css')
