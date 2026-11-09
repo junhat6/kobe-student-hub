@@ -11,6 +11,7 @@ import { createPublicStudentHandler } from './public-students-http';
 import { createPrivateProjectHandler } from './projects-http';
 import { createPrivateProjectReportHandler } from './project-reports-http';
 import { createMediaHandler } from './media-http';
+import { createOrdinaryDiscoveryHandler } from './ordinary-discovery-http';
 
 /** Ordinary authoring and publication composition. Runtime bindings alone never enable it.
  * The entry also requires the independently reviewed OAuth release gate.
@@ -25,6 +26,7 @@ export function createOrdinaryDraftHandler(
   if (options.enabled !== true) return async (_request: Request): Promise<Response | null> => null;
   const handlers = [
     createMediaHandler(db, origin, clock),
+    createOrdinaryDiscoveryHandler(db, origin, clock),
     createPublicStudentHandler(db, origin, clock),
     createPublicArticleHandler(db, origin, clock),
     createPublicProjectHandler(db, origin, clock),

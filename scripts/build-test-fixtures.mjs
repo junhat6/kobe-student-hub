@@ -28,6 +28,7 @@ await build({
     'moderation-http-test': 'tests/fixtures/moderation-http-worker.ts',
     'session-http-test': 'tests/fixtures/session-http-worker.ts',
     'publication-author-test': 'tests/fixtures/publication-author-worker.ts',
+    'ordinary-discovery-test': 'tests/fixtures/ordinary-discovery-worker.ts',
     'publication-discovery-test': 'tests/fixtures/publication-discovery-worker.ts',
     'likes-test': 'tests/fixtures/likes-worker.ts',
   },
