@@ -11,7 +11,7 @@ import {
 const titleBounds = (alias: string) =>
   `length(${alias}.title) BETWEEN 1 AND 200 AND length(CAST(${alias}.title AS BLOB))<=800 AND instr(${alias}.title,char(0))=0`;
 const visible = `
- SELECT c.kind,c.id content_id,c.title FROM requested q JOIN content c ON c.id=q.content_id AND c.kind=q.kind JOIN public_profiles p ON p.id=c.author_id
+ SELECT c.kind,c.id content_id,c.title,c.is_sample FROM requested q JOIN content c ON c.id=q.content_id AND c.kind=q.kind JOIN public_profiles p ON p.id=c.author_id
  WHERE c.status='published' AND ${titleBounds('c')} AND (
  (c.is_sample=1 AND p.is_sample=1) OR
  (c.is_sample=0 AND c.kind='article' AND p.is_sample=0 AND EXISTS(
@@ -19,7 +19,7 @@ const visible = `
  JOIN account_public_profiles m ON m.owner_account_id=a.id AND m.public_profile_id=r.public_profile_id
  WHERE r.content_id=c.id AND r.public_profile_id=c.author_id)))
  UNION ALL
- SELECT 'project',r.id,r.title FROM requested q JOIN project_publications r ON r.id=q.content_id AND q.kind='project'
+ SELECT 'project',r.id,r.title,0 FROM requested q JOIN project_publications r ON r.id=q.content_id AND q.kind='project'
  JOIN private_accounts a ON a.id=r.owner_account_id AND a.status='active'
  JOIN account_public_profiles m ON m.owner_account_id=a.id AND m.public_profile_id=r.public_profile_id
  JOIN public_profiles p ON p.id=r.public_profile_id AND p.is_sample=0
@@ -84,7 +84,7 @@ export class ReadingHistoryStore {
         WHERE h.owner_account_id=? ORDER BY h.last_viewed_at_ms DESC,h.kind,h.content_id LIMIT 21 OFFSET ?),
         requested AS MATERIALIZED(SELECT kind,content_id FROM page), ${targetCTE},
         authorized AS MATERIALIZED(SELECT COALESCE((SELECT enabled FROM private_reading_history_settings WHERE owner_account_id=?),1) enabled WHERE ${live})
-        SELECT auth.enabled,page.*,v.title FROM authorized auth LEFT JOIN page ON 1=1
+        SELECT auth.enabled,page.*,v.title,v.is_sample FROM authorized auth LEFT JOIN page ON 1=1
         LEFT JOIN visible_targets v ON v.kind=page.kind AND v.content_id=page.content_id
         ORDER BY page.last_viewed_at_ms DESC,page.kind,page.content_id`,
         )
@@ -95,8 +95,13 @@ export class ReadingHistoryStore {
           content_id: string | null;
           last_viewed_at_ms: number | null;
           title: string | null;
+          is_sample: number | null;
         }>();
-      if (!rows.results.length) return null;
+      if (
+        !rows.results.length ||
+        rows.results.some((r) => r.title !== null && r.is_sample !== 0 && r.is_sample !== 1)
+      )
+        return null;
       const entries = rows.results
         .filter((r) => r.kind !== null)
         .map((r) => ({
@@ -104,6 +109,7 @@ export class ReadingHistoryStore {
           contentId: r.content_id!,
           lastViewedAt: r.last_viewed_at_ms!,
           title: r.title,
+          isSample: r.title === null ? null : r.is_sample === 1,
         }));
       if (
         entries.some(

@@ -118,7 +118,10 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
             {value.entries.map((entry) => (
               <li key={entry.kind + ':' + entry.contentId}>
                 <div>
-                  <span>{entry.kind === 'article' ? '記事' : '作品'}</span>
+                  <span>
+                    {entry.kind === 'article' ? '記事' : '作品'}
+                    {entry.isSample === true && ' · 架空サンプル'}
+                  </span>
                   <h3>
                     {entry.title ? (
                       <Link

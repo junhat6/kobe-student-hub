@@ -6,6 +6,7 @@ const page = {
       kind: 'article',
       contentId: 'learning-notes',
       title: 'Public title',
+      isSample: true,
       lastViewedAt: 1800000000000,
     },
   ],
@@ -45,6 +46,9 @@ describe('bounded explicit private history browser transport', () => {
       { ...page, entries: [...page.entries, ...page.entries] },
       { ...page, entries: [{ ...page.entries[0], title: 'x'.repeat(401) }] },
       { ...page, entries: [{ ...page.entries[0], body: 'private' }] },
+      { ...page, entries: [{ ...page.entries[0], isSample: 'true' }] },
+      { ...page, entries: [{ ...page.entries[0], isSample: null }] },
+      { ...page, entries: [{ ...page.entries[0], title: null, isSample: true }] },
       { ...page, entries: [{ ...page.entries[0], contentId: '../../private' }] },
       { ...page, nextOffset: 501 },
     ])
@@ -59,6 +63,10 @@ describe('bounded explicit private history browser transport', () => {
     await expect(createReadingHistoryClient('', async () => huge).read()).rejects.toBeInstanceOf(
       ReadingHistoryClientError,
     );
+  });
+  it('accepts a withdrawn reference only with redacted title and sample classification', async () => {
+    const value = { ...page, entries: [{ ...page.entries[0], title: null, isSample: null }] };
+    expect(await createReadingHistoryClient('', async () => reply(value)).read()).toEqual(value);
   });
   it('waits for EOF before validating or returning content and honors abort', async () => {
     let finish: () => void = () => {};

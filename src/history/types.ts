@@ -6,6 +6,7 @@ export interface ReadingReference {
 export interface ReadingHistoryEntry extends ReadingReference {
   lastViewedAt: number;
   title: string | null;
+  isSample: boolean | null;
 }
 export interface ReadingHistoryPage {
   entries: ReadingHistoryEntry[];

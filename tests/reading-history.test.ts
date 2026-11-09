@@ -121,6 +121,15 @@ describe('private reading history with native D1 final authority', () => {
     expect(await (await record('tiny-notes', 'project')).json()).toEqual({ recorded: true });
     const result = await list();
     expect(result.entries).toHaveLength(2);
+    expect(result.entries.every((entry) => entry.isSample === true)).toBe(true);
+    const db = await mf.getD1Database('DB');
+    expect(
+      (
+        await db.prepare('PRAGMA table_info(private_reading_history)').all<{ name: string }>()
+      ).results
+        .map((r) => r.name)
+        .sort(),
+    ).toEqual(['content_id', 'kind', 'last_viewed_at_ms', 'owner_account_id']);
     expect(await count()).toBe(2);
     expect((await list(1)).entries).toEqual([]);
     const response = await request();
@@ -130,6 +139,7 @@ describe('private reading history with native D1 final authority', () => {
     expect(Object.keys(result).sort()).toEqual(['capacity', 'enabled', 'entries', 'nextOffset']);
     expect(Object.keys(result.entries[0]).sort()).toEqual([
       'contentId',
+      'isSample',
       'kind',
       'lastViewedAt',
       'title',
@@ -154,7 +164,7 @@ describe('private reading history with native D1 final authority', () => {
     expect(
       (await list()).entries
         .filter((x) => [a, p].includes(x.contentId))
-        .every((x) => x.title?.startsWith('Ordinary history')),
+        .every((x) => x.title?.startsWith('Ordinary history') && x.isSample === false),
     ).toBe(true);
     await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(a).run();
     await db.prepare("UPDATE project_publications SET status='deleted' WHERE id=?").bind(p).run();
@@ -163,6 +173,9 @@ describe('private reading history with native D1 final authority', () => {
       null,
       null,
     ]);
+    expect(
+      result.entries.filter((x) => [a, p].includes(x.contentId)).map((x) => x.isSample),
+    ).toEqual([null, null]);
     expect(await (await record(a)).json()).toEqual({ recorded: false });
   });
   it('allows own idempotent single/all deletion without deleting another account, including withdrawn references', async () => {
@@ -213,7 +226,9 @@ describe('private reading history with native D1 final authority', () => {
     const db = await mf.getD1Database('DB');
     await record();
     const hidden = await request('GET', undefined, 0, { 'X-Test-Race': 'hide' });
-    expect(((await hidden.json()) as ReadingHistoryPage).entries[0].title).toBeNull();
+    const withdrawn = ((await hidden.json()) as ReadingHistoryPage).entries[0];
+    expect(withdrawn.title).toBeNull();
+    expect(withdrawn.isSample).toBeNull();
     await db.prepare("UPDATE content SET status='published' WHERE id='learning-notes'").run();
     await clear();
     for (const [n, race] of [

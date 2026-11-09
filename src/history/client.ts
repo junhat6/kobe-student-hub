@@ -26,8 +26,9 @@ function validPage(v: unknown): v is ReadingHistoryPage {
   const seen = new Set<string>();
   return v.entries.every((r) => {
     if (
-      !exact(r, ['kind', 'contentId', 'title', 'lastViewedAt']) ||
+      !exact(r, ['kind', 'contentId', 'title', 'lastViewedAt', 'isSample']) ||
       !isReadingReference({ kind: r.kind, contentId: r.contentId }) ||
+      (r.title === null ? r.isSample !== null : typeof r.isSample !== 'boolean') ||
       !Number.isSafeInteger(r.lastViewedAt) ||
       Number(r.lastViewedAt) < 0 ||
       Number(r.lastViewedAt) > 253402300799999 ||
