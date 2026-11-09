@@ -136,14 +136,6 @@ test('ordinary signup requires two blank private years and confirms persisted da
     if (new URL(response.url()).pathname === '/api/auth/callback')
       handoffRedirects.push(response.headers()['location']);
   });
-  await page.route('**/api/auth/callback/complete', async (route) => {
-    expect((await context.request.get(ORIGIN + '/api/private/session')).status()).toBe(401);
-    expect((await context.request.get(ORIGIN + '/api/private/enrollment')).status()).toBe(401);
-    expect((await context.cookies()).some((cookie) => cookie.name === '__Host-kobe-session')).toBe(
-      false,
-    );
-    await route.continue();
-  });
   const observedRequests: Promise<void>[] = [];
   page.on('request', (request) => {
     const url = new URL(request.url());
@@ -216,7 +208,6 @@ test('ordinary signup requires two blank private years and confirms persisted da
   ]);
   expect(completionGets).toEqual([{ search: '', browser: true, oauth: true }]);
   expect(handoffRedirects).toEqual([ORIGIN + '/api/auth/callback/complete#']);
-  await page.unroute('**/api/auth/callback/complete');
   expect(calls).toEqual([
     { path: '/api/auth/register', body: { admissionYear: 2026, graduationYear: 2028 } },
   ]);

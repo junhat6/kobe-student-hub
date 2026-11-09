@@ -43,19 +43,16 @@ async function complete(p: Page, state: string, hold?: string) {
   const provider = 'https://accounts.google.com/o/oauth2/v2/auth?fixture=form-post';
   const form = async (route: Route) =>
     fulfillGoogleFormPost(route, 'https://127.0.0.1:8790', { state, code: state });
-  const intercept = async (route: Route) =>
-    route.continue({
-      headers: { ...(await route.request().allHeaders()), 'X-Test-Callback-Hold': hold! },
-    });
   await p.route(provider, form);
-  if (hold) await p.route('**/api/auth/callback/complete', intercept);
+  // Page headers reach the GET after the 303 redirect; request routes do not intercept redirected requests.
+  if (hold) await p.setExtraHTTPHeaders({ 'X-Test-Callback-Hold': hold });
   try {
     await p.goto(provider);
     await expect(p).toHaveURL('https://127.0.0.1:8790/account');
   } finally {
     if (!p.isClosed()) {
       await p.unroute(provider, form);
-      if (hold) await p.unroute('**/api/auth/callback/complete', intercept);
+      if (hold) await p.setExtraHTTPHeaders({});
     }
   }
 }
