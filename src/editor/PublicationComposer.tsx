@@ -133,6 +133,21 @@ export default function PublicationComposer({
         const [existing, author] = await Promise.all([client.read(draft.id), profiles.read()]);
         if (!mounted.current) return;
         setReceipt(existing);
+        if (existing && (!known || (attempt && matchesPublication(existing, attempt)))) {
+          const e = existing.entry;
+          setFields((current) =>
+            Object.values(current).some(Boolean)
+              ? current
+              : {
+                  summary: e.summary,
+                  tags: e.tags.join(', '),
+                  minutes: String(e.minutes),
+                  audience: e.audience,
+                  prerequisite: e.prerequisite,
+                  outcome: e.outcome,
+                },
+          );
+        }
         setProfile(author);
         setKnown(true);
         setReadError(false);
@@ -143,7 +158,7 @@ export default function PublicationComposer({
               ? matchesPublication(existing, attempt)
                 ? `確認した保存済みの版 ${existing.sourceVersion} の公開を確認しました。手元の追加編集は公開していません。`
                 : '異なる内容の公開記録が見つかりました。上書きや再公開は行いません。手元の編集は残しています。'
-              : `保存済みの版 ${existing.sourceVersion} は、すでに${ordinary ? '' : 'ローカルで'}公開されています。下書きの更新は公開記事に反映しません。`,
+              : `保存済みの版 ${existing.sourceVersion} は、すでに${ordinary ? '' : 'ローカルで'}公開されています。${ordinary ? '下書きを保存してから、同じURLの記事を更新できます。' : '下書きの更新は公開記事に反映しません。'}`,
           );
         else {
           setAttempt(null);
@@ -186,6 +201,17 @@ export default function PublicationComposer({
   );
   const hasPreparation =
     uncertain ||
+    Boolean(
+      ordinary &&
+      receipt &&
+      (!metadata ||
+        metadata.summary !== receipt.entry.summary ||
+        JSON.stringify(metadata.tags) !== JSON.stringify(receipt.entry.tags) ||
+        metadata.minutes !== receipt.entry.minutes ||
+        metadata.audience !== receipt.entry.audience ||
+        metadata.prerequisite !== receipt.entry.prerequisite ||
+        metadata.outcome !== receipt.entry.outcome),
+    ) ||
     (Object.values(fields).some(Boolean) &&
       (!receipt || Boolean(attempt && !matchesPublication(receipt, attempt))));
   useEffect(() => onUnsavedPreparation(hasPreparation), [hasPreparation, onUnsavedPreparation]);
@@ -202,7 +228,7 @@ export default function PublicationComposer({
     if (
       !known ||
       readError ||
-      receipt ||
+      (receipt && (!ordinary || draft.version <= receipt.sourceVersion)) ||
       uncertain ||
       dirty ||
       parentBusy ||
@@ -230,6 +256,7 @@ export default function PublicationComposer({
           snapshot.metadata,
           true,
           referencedMediaIds(snapshot.draft.body),
+          receipt?.sourceVersion,
         );
         const existing = await client.read(snapshot.draft.id);
         if (!mounted.current) return;
@@ -258,17 +285,28 @@ export default function PublicationComposer({
     setFields((f) => ({ ...f, [key]: value }));
     setConfirmed(false);
   }
-  const showForm = !receipt || Boolean(attempt && !matchesPublication(receipt, attempt));
-  const readOnly = Boolean(receipt) || uncertain;
+  const showForm =
+    ordinary || !receipt || Boolean(attempt && !matchesPublication(receipt, attempt));
+  const readOnly =
+    Boolean(receipt && (!ordinary || draft.version <= receipt.sourceVersion)) || uncertain;
   return (
     <section
       className="publication-composer"
       aria-label={ordinary ? '保存済み版の公開' : '保存済み版のローカル公開'}
     >
       <details>
-        <summary>{ordinary ? '記事を公開する' : '公開前の確認（ローカル専用）'}</summary>
+        <summary>
+          {ordinary
+            ? receipt
+              ? '記事を公開・更新する'
+              : '記事を公開する'
+            : '公開前の確認（ローカル専用）'}
+        </summary>
         <div className="publication-content">
-          <h3>保存した版を確認して、{ordinary ? '' : 'ローカルで'}公開</h3>
+          <h3>
+            保存した版を確認して、{ordinary ? '' : 'ローカルで'}
+            {receipt && ordinary ? '更新' : '公開'}
+          </h3>
           {!ordinary && (
             <p className="publication-local-notice">
               架空のデータを使うローカル検証です。実際の学校サービスや本番への公開ではありません。
@@ -326,7 +364,13 @@ export default function PublicationComposer({
               <p>{receipt.entry.summary}</p>
               <p>
                 {ordinary ? (
-                  <a href="/account#publications">自分の公開記録・公開停止を確認</a>
+                  <>
+                    <a href="/account#publications">自分の公開記録・公開停止を確認</a>
+                    <span>
+                      {' '}
+                      同じURLで更新するには、下書きを編集・保存してから、下の公開情報を確認してください。通報への対応中・公開停止中の記事は更新できません。
+                    </span>
+                  </>
                 ) : (
                   '初回公開のみの検証です。この記事の編集・公開取消・再公開は、この画面では行えません。'
                 )}
@@ -364,7 +408,11 @@ export default function PublicationComposer({
               >
                 <fieldset disabled={busy}>
                   <legend>
-                    {receipt ? '手元に保持している公開情報（未反映）' : '読者に表示する情報'}
+                    {receipt && ordinary
+                      ? '更新後に読者へ表示する情報'
+                      : receipt
+                        ? '手元に保持している公開情報（未反映）'
+                        : '読者に表示する情報'}
                   </legend>
                   <label htmlFor="publication-summary">記事の概要（300文字以内）</label>
                   <textarea
@@ -460,7 +508,8 @@ export default function PublicationComposer({
                   />
                   <span>
                     保存済みの版と公開情報を確認し、ログインしていない読者にも見える記事として
-                    {ordinary ? '' : 'ローカルで'}公開します
+                    {ordinary ? '' : 'ローカルで'}
+                    {receipt && ordinary ? '更新します（URLは変わりません）' : '公開します'}
                   </span>
                 </label>
                 <Button
@@ -479,7 +528,9 @@ export default function PublicationComposer({
                     readOnly
                   }
                 >
-                  確認した保存済み版を{ordinary ? '' : 'ローカルで'}公開
+                  {receipt && ordinary
+                    ? '確認した保存済み版で公開記事を更新'
+                    : `確認した保存済み版を${ordinary ? '' : 'ローカルで'}公開`}
                 </Button>
               </form>
             </>

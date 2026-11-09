@@ -51,6 +51,7 @@ function metadata(value: unknown) {
   const v = value as Record<string, unknown>;
   const allowed = [
     'expectedVersion',
+    'expectedPublicationVersion',
     'confirmPublic',
     'summary',
     'tags',
@@ -79,6 +80,13 @@ function metadata(value: unknown) {
     v.minutes > 240
   )
     return null;
+  if (
+    Object.hasOwn(v, 'expectedPublicationVersion') &&
+    (typeof v.expectedPublicationVersion !== 'number' ||
+      !Number.isSafeInteger(v.expectedPublicationVersion) ||
+      v.expectedPublicationVersion < 1)
+  )
+    return null;
   if (Object.hasOwn(v, 'mediaIds') && !validMediaIds(v.mediaIds)) return null;
   const normalized = tags(v.tags);
   if (!normalized) return null;
@@ -90,6 +98,7 @@ function metadata(value: unknown) {
   return {
     mediaJson: JSON.stringify(v.mediaIds ?? []),
     expectedVersion: v.expectedVersion,
+    expectedPublicationVersion: v.expectedPublicationVersion as number | undefined,
     summary: v.summary,
     tagsJson: JSON.stringify(normalized),
     audience: optional.audience,
@@ -232,6 +241,7 @@ export class ArticlePublicationStore {
     try {
       const p = await this.sessions.storageAuthorization(request);
       if (!p || p.nowMs > 253402300799999) return null;
+      if (m.expectedPublicationVersion !== undefined) return await this.revise(id, m, p);
       // Receipt-only retry: the original saved snapshot remains immutable after later private edits.
       const existing = await this.db
         .prepare(
@@ -285,6 +295,40 @@ export class ArticlePublicationStore {
     } catch {
       return null;
     }
+  }
+  /** One guarded INSERT creates immutable evidence and updates the public projection in its trigger. */
+  private async revise(
+    id: string,
+    m: NonNullable<ReturnType<typeof metadata>>,
+    p: NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>,
+  ): Promise<{ contentId: string } | null> {
+    const result = await this.db
+      .prepare(
+        `INSERT INTO article_publication_revisions(content_id,revision,source_version,title,body,summary,tags_json,audience,prerequisite,outcome,minutes,media_ids_json,published_at_ms)
+      SELECT r.content_id,current.revision+1,d.version,d.title,d.body,?,?,?,?,?,?,?,? FROM private_article_drafts d JOIN article_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id JOIN account_public_profiles map ON map.owner_account_id=d.owner_account_id AND map.public_profile_id=r.public_profile_id JOIN public_profiles p ON p.id=r.public_profile_id JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id JOIN article_publication_revisions current ON current.content_id=r.content_id AND current.revision=(SELECT MAX(revision) FROM article_publication_revisions WHERE content_id=r.content_id)
+      WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND current.source_version=? AND current.source_version<d.version AND current.published_at_ms<=? AND current.revision<1000 AND ${publicBounds} AND ${writerLive}
+      AND NOT EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=r.content_id)
+      AND NOT EXISTS(SELECT 1 FROM article_reports report WHERE report.content_id=r.content_id AND report.round=COALESCE((SELECT round FROM article_moderation_state WHERE content_id=r.content_id),1)) RETURNING content_id`,
+      )
+      .bind(
+        m.summary,
+        m.tagsJson,
+        m.audience,
+        m.prerequisite,
+        m.outcome,
+        m.minutes,
+        m.mediaJson,
+        p.nowMs,
+        id,
+        p.accountId,
+        m.expectedVersion,
+        p.nowMs,
+        m.expectedPublicationVersion,
+        p.nowMs,
+        ...writerBindings(p),
+      )
+      .first<{ content_id: string }>();
+    return result ? { contentId: result.content_id } : null;
   }
   async readPublished(id: unknown): Promise<{ entry: Entry; author: Profile } | null> {
     if (!slug(id)) return null;
@@ -427,7 +471,7 @@ export class ArticlePublicationStore {
       if (!proof || proof.nowMs > 253402300799999) return null;
       const row = await this.db
         .prepare(
-          `SELECT r.content_id receipt_id,r.source_version,${publicColumns} FROM private_article_drafts d
+          `SELECT r.content_id receipt_id,(SELECT source_version FROM article_publication_revisions current WHERE current.content_id=r.content_id ORDER BY revision DESC LIMIT 1) source_version,${publicColumns} FROM private_article_drafts d
     LEFT JOIN article_publications r ON r.draft_id=d.id LEFT JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id
     LEFT JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id LEFT JOIN public_profiles p ON p.id=c.author_id
     WHERE d.id=? AND d.owner_account_id=? AND d.updated_at_ms<=?
