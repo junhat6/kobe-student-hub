@@ -237,7 +237,7 @@ export function createOAuthHttpHandler(
     const cleanLanding = (origin = '') =>
       new Response(null, {
         status: 303,
-        // An explicit empty fragment prevents inheritance of a provider/browser fragment.
+        // An explicit fixed fragment prevents inheritance of a provider/browser fragment.
         headers: {
           ...headers,
           Location:
