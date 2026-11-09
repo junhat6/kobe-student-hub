@@ -190,6 +190,11 @@ beforeAll(async () => {
       db.prepare(sql),
     ),
   );
+  await db.batch(
+    statements(readFileSync('migrations/0022_article_revisions.sql', 'utf8')).map((sql) =>
+      db.prepare(sql),
+    ),
+  );
   users = await Promise.all(['0', '1', '2', '3'].map(signIn));
   operator = await signIn('operator');
   expect(
