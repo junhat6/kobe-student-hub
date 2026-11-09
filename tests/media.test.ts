@@ -657,3 +657,52 @@ it('independent: one account upload does not erase another account old unattache
   expect((await upload(d)).status).toBe(201);
   expect((await ownRead(old, 1)).status).toBe(200);
 });
+
+it('article revisions grant only the current immutable media manifest and retain old report evidence bytes', async () => {
+  const d = await draft();
+  const firstImage = id();
+  expect((await upload(d, firstImage)).status).toBe(201);
+  const db = await mf.getD1Database('DB');
+  await db
+    .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+    .bind('![first](/api/media/' + firstImage + ')', d.id)
+    .run();
+  const first = (await publication({ ...d, version: 2 }, [firstImage]))!;
+  expect((await publicRead(firstImage)).status).toBe(200);
+  const secondImage = id();
+  expect((await upload({ ...d, version: 2 }, secondImage)).status).toBe(201);
+  await db
+    .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+    .bind('![second](/api/media/' + secondImage + ')', d.id)
+    .run();
+  expect(
+    await call('article-publish', {
+      id: d.id,
+      input: {
+        expectedVersion: 3,
+        expectedPublicationVersion: 2,
+        confirmPublic: true,
+        summary: 'Corrected image',
+        tags: [],
+        minutes: 1,
+        mediaIds: [secondImage],
+      },
+    }),
+  ).toEqual(first);
+  expect((await publicRead(firstImage)).status).toBe(404);
+  expect((await publicRead(secondImage)).status).toBe(200);
+  expect((await ownRead(firstImage)).status).toBe(200);
+  expect(
+    (
+      await db
+        .prepare(
+          'SELECT media_ids_json FROM article_publication_revisions WHERE content_id=? ORDER BY revision',
+        )
+        .bind(first.contentId)
+        .all()
+    ).results,
+  ).toEqual([
+    { media_ids_json: JSON.stringify([firstImage]) },
+    { media_ids_json: JSON.stringify([secondImage]) },
+  ]);
+});

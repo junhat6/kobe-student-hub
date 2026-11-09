@@ -2,6 +2,7 @@ import { createFixtureSession } from '../helpers/coordinated-fixture';
 import { SessionStore } from '../../worker/auth/sessions';
 import { ArticleModerationStore } from '../../worker/moderation';
 import { ArticlePublicationStore } from '../../worker/publication';
+import { PublicationStopStore } from '../../worker/publication-stops';
 import { PrivateDraftStore } from '../../worker/drafts';
 // Test-only fictional sessions and after-auth races. No production route imports this file.
 export default {
@@ -105,11 +106,18 @@ export default {
                 ? await drafts.update(target, i.draft, i.input)
                 : i.action === 'delete'
                   ? await drafts.delete(target, i.draft, i.input)
-                  : await new ArticleModerationStore(db, origin, [], () => i.now).report(
-                      target,
-                      i.target,
-                      i.input,
-                    ),
+                  : i.action === 'stop'
+                    ? await new PublicationStopStore(db, origin, () => i.now).stop(
+                        target,
+                        'article',
+                        i.target,
+                        i.input,
+                      )
+                    : await new ArticleModerationStore(db, origin, [], () => i.now).report(
+                        target,
+                        i.target,
+                        i.input,
+                      ),
     );
   },
 };

@@ -449,3 +449,70 @@ test('owner reads a temporary-hide explanation and another session cannot retain
     await Promise.all(reporters.map((ctx) => ctx.close()));
   }
 });
+
+test('ordinary author corrects an article at the same URL after saving and explicit confirmation', async ({
+  page,
+  browser,
+}, info) => {
+  const path = await publishArticle(page, info, '架空の訂正前の記事');
+  const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
+  await page.getByLabel('タイトル', { exact: true }).fill('架空の訂正後の記事');
+  await page
+    .getByLabel('Markdown本文', { exact: true })
+    .fill('## 比較結果の訂正\n\n扱うデータ量を再計測し、判断を訂正しました。');
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  const guest = await browser.newContext({
+    baseURL: ORIGIN,
+    ignoreHTTPSErrors: true,
+    viewport: page.viewportSize() ?? undefined,
+  });
+  try {
+    const reader = await guest.newPage();
+    await reader.goto(path);
+    await expect(
+      reader.getByRole('heading', { name: '架空の訂正前の記事', exact: true }),
+    ).toBeVisible();
+    await composer.getByLabel('記事の概要（300文字以内）').fill('再計測した条件に基づく訂正');
+    await composer.getByRole('checkbox').check();
+    await composer
+      .getByRole('button', { name: '確認した保存済み版で公開記事を更新', exact: true })
+      .click();
+    await expect(composer.locator('.publication-message')).toContainText('確認した保存済みの版 3');
+    await expect(
+      composer.getByRole('link', { name: 'ログインなしの読者画面を開く' }),
+    ).toHaveAttribute('href', path);
+    await reader.reload();
+    await expect(
+      reader.getByRole('heading', { name: '架空の訂正後の記事', exact: true }),
+    ).toBeVisible();
+    await expect(reader.locator('.prose')).toContainText(
+      '扱うデータ量を再計測し、判断を訂正しました。',
+    );
+    await expect(reader.locator('main')).not.toContainText('この文章は公開する保存版です。');
+    expect(
+      await reader.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await reader.screenshot({
+      path: info.outputPath('article-correction-reader.png'),
+      fullPage: true,
+    });
+    await page.screenshot({
+      path: info.outputPath('article-correction-author.png'),
+      fullPage: true,
+    });
+    await page.getByRole('link', { name: 'アカウントへ戻る', exact: true }).click();
+    const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
+    await records
+      .getByRole('button', { name: '公開停止を確認：架空の訂正後の記事', exact: true })
+      .click();
+    const stop = page.getByRole('region', { name: '選択した公開の停止' });
+    await stop.getByRole('checkbox').check();
+    await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
+    await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
+    await reader.reload();
+    await expect(reader.getByRole('heading', { name: '記事を表示できませんでした' })).toBeVisible();
+  } finally {
+    await guest.close();
+  }
+});

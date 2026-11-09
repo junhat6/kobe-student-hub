@@ -32,7 +32,7 @@ export class ModerationMediaStore {
       if (!p || !this.operators.includes(p.accountId)) return null;
       const relation =
         kind === 'articles'
-          ? `EXISTS(SELECT 1 FROM article_publication_media map JOIN article_publications publication ON publication.content_id=map.content_id JOIN content c ON c.id=publication.content_id AND c.author_id=publication.public_profile_id WHERE map.media_id=media_assets.id AND c.id=? AND c.kind='article' AND c.is_sample=0 AND c.status IN ('published','hidden','deleted') AND EXISTS(SELECT 1 FROM article_reports WHERE content_id=c.id))`
+          ? `EXISTS(SELECT 1 FROM article_publication_revisions revision JOIN json_each(revision.media_ids_json) map JOIN article_publications publication ON publication.content_id=revision.content_id JOIN content c ON c.id=publication.content_id AND c.author_id=publication.public_profile_id WHERE map.value=media_assets.id AND c.id=? AND c.kind='article' AND c.is_sample=0 AND c.status IN ('published','hidden','deleted') AND EXISTS(SELECT 1 FROM article_report_revisions reported WHERE reported.content_id=c.id AND reported.revision=revision.revision))`
           : `EXISTS(SELECT 1 FROM project_publication_media map JOIN project_publications publication ON publication.id=map.project_id WHERE map.media_id=media_assets.id AND publication.id=? AND publication.status IN ('published','hidden','deleted') AND EXISTS(SELECT 1 FROM project_reports WHERE project_id=publication.id))`;
       const row = await this.db
         .prepare(`SELECT mime,payload FROM media_assets WHERE id=? AND ${relation} AND ${live}`)

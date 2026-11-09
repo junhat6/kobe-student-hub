@@ -281,6 +281,7 @@ export function createPublicationClient(
       value: PublicationMetadata,
       confirmed: boolean,
       mediaIds: string[] = [],
+      expectedPublicationVersion?: number,
     ): Promise<string> {
       const metadata = checkedMetadata(value);
       if (
@@ -288,11 +289,14 @@ export function createPublicationClient(
         !Number.isSafeInteger(version) ||
         version < 1 ||
         !metadata ||
-        !validMediaIds(mediaIds)
+        !validMediaIds(mediaIds) ||
+        (expectedPublicationVersion !== undefined &&
+          (!Number.isSafeInteger(expectedPublicationVersion) || expectedPublicationVersion < 1))
       )
         throw new PublicationClientError();
       const result = await request(privatePath(id), {
         expectedVersion: version,
+        ...(expectedPublicationVersion === undefined ? {} : { expectedPublicationVersion }),
         confirmPublic: true,
         ...metadata,
         ...(mediaIds.length ? { mediaIds } : {}),

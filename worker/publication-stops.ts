@@ -17,6 +17,8 @@ const config = (kind: Kind) =>
         markerKey: 'content_id',
         join: 'JOIN content c ON c.id=r.content_id',
         status: 'c.status',
+        sourceVersion:
+          '(SELECT source_version FROM article_publication_revisions current WHERE current.content_id=r.content_id ORDER BY revision DESC LIMIT 1)',
         consistent: "c.kind='article' AND c.is_sample=0 AND c.author_id=r.public_profile_id",
       }
     : {
@@ -26,6 +28,7 @@ const config = (kind: Kind) =>
         markerKey: 'project_id',
         join: '',
         status: 'r.status',
+        sourceVersion: 'r.source_version',
         consistent: '1=1',
       };
 type Row = {
@@ -51,7 +54,7 @@ export class PublicationStopStore {
     const c = config(kind);
     const r = await this.db
       .prepare(
-        `SELECT r.source_version,${c.status} status,r.published_at_ms,m.${c.markerKey} marker_id,m.owner_account_id marker_owner,m.source_version marker_version,m.stopped_at_ms FROM ${c.records} r ${c.join} LEFT JOIN ${c.markers} m ON m.${c.markerKey}=r.${c.key} WHERE r.${c.key}=? AND r.owner_account_id=? AND ${c.consistent} AND ${live}`,
+        `SELECT ${c.sourceVersion} source_version,${c.status} status,r.published_at_ms,m.${c.markerKey} marker_id,m.owner_account_id marker_owner,m.source_version marker_version,m.stopped_at_ms FROM ${c.records} r ${c.join} LEFT JOIN ${c.markers} m ON m.${c.markerKey}=r.${c.key} WHERE r.${c.key}=? AND r.owner_account_id=? AND ${c.consistent} AND ${live}`,
       )
       .bind(id, p.accountId, ...binds(p))
       .first<Row>();
@@ -114,7 +117,7 @@ export class PublicationStopStore {
       const c = config(kind);
       await this.db
         .prepare(
-          `INSERT INTO ${c.markers}(${c.markerKey},owner_account_id,source_version,stopped_at_ms) SELECT r.${c.key},r.owner_account_id,r.source_version,? FROM ${c.records} r ${c.join} WHERE r.${c.key}=? AND r.owner_account_id=? AND r.source_version=? AND r.published_at_ms<=? AND ${c.status}='published' AND ${c.consistent} AND ${live} ON CONFLICT(${c.markerKey}) DO NOTHING`,
+          `INSERT INTO ${c.markers}(${c.markerKey},owner_account_id,source_version,stopped_at_ms) SELECT r.${c.key},r.owner_account_id,${c.sourceVersion},? FROM ${c.records} r ${c.join} WHERE r.${c.key}=? AND r.owner_account_id=? AND ${c.sourceVersion}=? AND r.published_at_ms<=? AND ${c.status}='published' AND ${c.consistent} AND ${live} ON CONFLICT(${c.markerKey}) DO NOTHING`,
         )
         .bind(p.nowMs, id, p.accountId, i.expectedSourceVersion, p.nowMs, ...binds(p))
         .run();

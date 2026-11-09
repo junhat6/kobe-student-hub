@@ -27,7 +27,7 @@ const info = 'id,mime,width,height,length(payload) bytes';
 const table = (kind: Kind) => (kind === 'articles' ? 'private_article_drafts' : 'project_drafts');
 const link = (kind: Kind) => (kind === 'articles' ? 'article_draft_id' : 'project_draft_id');
 const body = (kind: Kind) => (kind === 'articles' ? 'body' : 'description');
-const unpublished = `NOT EXISTS(SELECT 1 FROM article_publication_media WHERE media_id=media_assets.id) AND NOT EXISTS(SELECT 1 FROM project_publication_media WHERE media_id=media_assets.id)`;
+const unpublished = `NOT EXISTS(SELECT 1 FROM article_publication_revisions revision,json_each(revision.media_ids_json) ref WHERE ref.value=media_assets.id) AND NOT EXISTS(SELECT 1 FROM article_publication_media WHERE media_id=media_assets.id) AND NOT EXISTS(SELECT 1 FROM project_publication_media WHERE media_id=media_assets.id)`;
 const unreferenced = `NOT EXISTS(SELECT 1 FROM private_article_drafts d WHERE d.id=media_assets.article_draft_id AND instr(d.body,'/api/media/'||media_assets.id)>0) AND NOT EXISTS(SELECT 1 FROM project_drafts d WHERE d.id=media_assets.project_draft_id AND instr(d.description,'/api/media/'||media_assets.id)>0)`;
 /** Codec setup is shared; request bytes and identity are never cached in application state. */
 export const warmMediaCodec = () =>
@@ -180,7 +180,7 @@ export class MediaStore {
     try {
       const r = await this.db
         .prepare(
-          `SELECT ${info},payload FROM media_assets WHERE id=? AND (EXISTS(SELECT 1 FROM article_publication_media map JOIN article_publications publication ON publication.content_id=map.content_id JOIN content c ON c.id=publication.content_id AND c.author_id=publication.public_profile_id WHERE map.media_id=media_assets.id AND c.kind='article' AND c.is_sample=0 AND c.status='published' AND NOT EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=c.id)) OR EXISTS(SELECT 1 FROM project_publication_media map JOIN project_publications publication ON publication.id=map.project_id WHERE map.media_id=media_assets.id AND publication.status='published' AND NOT EXISTS(SELECT 1 FROM project_publication_stops WHERE project_id=publication.id)))`,
+          `SELECT ${info},payload FROM media_assets WHERE id=? AND (EXISTS(SELECT 1 FROM article_publication_revisions revision JOIN json_each(revision.media_ids_json) map JOIN article_publications publication ON publication.content_id=revision.content_id JOIN content c ON c.id=publication.content_id AND c.author_id=publication.public_profile_id WHERE map.value=media_assets.id AND revision.revision=(SELECT MAX(current.revision) FROM article_publication_revisions current WHERE current.content_id=publication.content_id) AND c.kind='article' AND c.is_sample=0 AND c.status='published' AND NOT EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=c.id)) OR EXISTS(SELECT 1 FROM project_publication_media map JOIN project_publications publication ON publication.id=map.project_id WHERE map.media_id=media_assets.id AND publication.status='published' AND NOT EXISTS(SELECT 1 FROM project_publication_stops WHERE project_id=publication.id)))`,
         )
         .bind(id)
         .first<Row>();
