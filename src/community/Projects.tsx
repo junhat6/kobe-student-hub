@@ -1,3 +1,4 @@
+import { RecordReadingHistory } from '../history/RecordReadingHistory';
 import { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { createPublicProjectClient } from '../editor/public-project-client';
@@ -68,6 +69,7 @@ function Project({ id }: { id: string }) {
   const { project, author } = value;
   return (
     <div className="shell detail-layout">
+      <RecordReadingHistory kind="project" contentId={project.id} />
       <article>
         <Link className="back" to="/works">
           ← 作品一覧へ

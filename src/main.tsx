@@ -14,6 +14,7 @@ import type { Catalog, Entry, Profile } from './types';
 import { isCatalog } from './validation';
 import { safeListPath, readListOrigin, listContextPath } from './navigation';
 import { usePagePosition } from './usePagePosition';
+import { RecordReadingHistory } from './history/RecordReadingHistory';
 import './style.css';
 import {
   accountUiEnabled,
@@ -24,6 +25,7 @@ import {
 } from './account/routes';
 const Registration = React.lazy(() => import('./account/Registration'));
 const AccountPage = React.lazy(() => import('./account/AccountPage'));
+const HistoryPage = React.lazy(() => import('./history/HistoryPage'));
 const OrdinaryDrafts = React.lazy(() => import('./account/OrdinaryDrafts'));
 const OrdinaryProjects = React.lazy(() => import('./account/OrdinaryProjects'));
 const ModerationPage = React.lazy(() => import('./account/ModerationPage'));
@@ -72,9 +74,14 @@ function App() {
   const draftPath = isDraftRoute(location.pathname);
   const projectWritePath = isProjectWriteRoute(location.pathname);
   const moderationPath = authoringUiEnabled && location.pathname === '/moderation';
+  const historyPath = authoringUiEnabled && location.pathname === '/history';
   const serviceInfoPath = accountUiEnabled && location.pathname === '/guide';
   const accountPath =
-    isAccountRoute(location.pathname) || draftPath || projectWritePath || moderationPath;
+    isAccountRoute(location.pathname) ||
+    draftPath ||
+    projectWritePath ||
+    moderationPath ||
+    historyPath;
   const communityPath =
     authoringUiEnabled &&
     (['/', '/search', '/works'].includes(location.pathname) ||
@@ -138,6 +145,11 @@ function App() {
                 アカウント
               </Link>
             )}
+            {authoringUiEnabled && (
+              <Link to="/history" aria-current={historyPath ? 'page' : undefined}>
+                閲覧履歴
+              </Link>
+            )}
             <Link className="nav-button" to="/about">
               {authoringUiEnabled ? 'このサイトについて ↗' : 'このプレビューについて ↗'}
             </Link>
@@ -170,7 +182,9 @@ function App() {
                 </p>
               }
             >
-              {moderationPath ? (
+              {historyPath ? (
+                <HistoryPage />
+              ) : moderationPath ? (
                 <ModerationPage />
               ) : projectWritePath ? (
                 <OrdinaryProjects />
@@ -627,6 +641,7 @@ function Detail({ catalog }: { catalog: Catalog }) {
   if (!e) return <Missing />;
   return (
     <div className="shell detail-layout">
+      <RecordReadingHistory kind={e.kind} contentId={e.id} />
       <article>
         <Link
           className="back"
@@ -701,7 +716,11 @@ function Detail({ catalog }: { catalog: Catalog }) {
           <Author profile={catalog.profiles.find((p) => p.id === e.authorId)} />
           <p>{catalog.profiles.find((p) => p.id === e.authorId)?.bio}</p>
         </section>
-        <p className="sample-note">架空サンプルの閲覧用です。いいね・履歴の記録は行いません。</p>
+        <p className="sample-note">
+          {authoringUiEnabled
+            ? '架空サンプルです。ログイン中は設定に応じて本人用の閲覧履歴に残ります。'
+            : '架空サンプルの閲覧用です。いいね・履歴の記録は行いません。'}
+        </p>
       </aside>
     </div>
   );
