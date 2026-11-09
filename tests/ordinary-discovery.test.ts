@@ -42,16 +42,16 @@ async function article(title: string, tags = ['AI'], s = a) {
     })
   ).contentId;
 }
-async function project(title: string, description: string) {
+async function project(title: string, description: string, session = a) {
   const draft = await call<{ id: string }>({
     action: 'projectdraft',
-    headers: headers(a),
+    headers: headers(session),
     input: { title, description, githubUrl: '', demoUrl: '' },
   });
   return (
     await call<{ projectId: string }>({
       action: 'projectpublish',
-      headers: headers(a),
+      headers: headers(session),
       draft: draft.id,
       input: { expectedVersion: 1, confirmPublic: true },
     })
@@ -179,8 +179,10 @@ describe('ordinary anonymous new/popular/tag discovery', () => {
       .prepare("UPDATE project_publications SET status='published' WHERE id=?")
       .bind(work)
       .run();
+    const inactiveWork = await project('AIで作った別の作品', '公開された作品の説明', b);
     await db.prepare("UPDATE private_accounts SET status='suspended' WHERE id='private-b'").run();
     expect((await related())!.articles).toEqual([]);
+    expect((await related())!.projects.some((row) => row.project.id === inactiveWork)).toBe(false);
     expect((await home())!.recent.some((row) => row.entry.id === other)).toBe(false);
     await db.prepare("UPDATE private_accounts SET status='active' WHERE id='private-b'").run();
   });
