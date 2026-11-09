@@ -299,7 +299,7 @@ describe('explicit first public profile creation with private HTTP boundary', ()
     }
     const method = await request('PUT', 9);
     expect(method.status).toBe(405);
-    expect(method.headers.get('Allow')).toBe('GET, POST');
+    expect(method.headers.get('Allow')).toBe('GET, POST, PATCH');
     expect(
       (await request('GET', 9, undefined, { 'X-Test-Origin': 'http://invalid.example' })).status,
     ).toBe(503);
@@ -358,6 +358,30 @@ describe('explicit first public profile creation with private HTTP boundary', ()
       year: value.yearLabel,
       bio: value.bio,
       initials: '明',
+    });
+    const updated = await action<{ kind: string; profile: typeof profile }>({
+      action: 'update',
+      method: 'PATCH',
+      input: {
+        ...value,
+        displayName: '更新後の書き手',
+        bio: '更新後の公開紹介',
+        expectedProfile: profile,
+      },
+    });
+    expect(updated.kind).toBe('updated');
+    expect(updated.profile.id).toBe(profile.id);
+    const after = await action<typeof result>({
+      action: 'read-public',
+      id: receipt.contentId,
+      headers: {},
+      method: 'GET',
+    });
+    expect(after.entry).toEqual(result.entry);
+    expect(after.author).toMatchObject({
+      id: profile.id,
+      name: '更新後の書き手',
+      bio: '更新後の公開紹介',
     });
   });
   it('rejects changed browser generation before private profile read releases data', async () => {

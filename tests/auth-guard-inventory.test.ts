@@ -45,7 +45,11 @@ const inventory: Record<string, Inventory> = {
   },
   'public-profile': {
     className: 'PublicProfileStore',
-    private: { current: ['profile-choice'], create: ['student', 'student', 'student'] },
+    private: {
+      current: ['profile-choice'],
+      create: ['student', 'student', 'student'],
+      update: ['student', 'student'],
+    },
   },
   publication: {
     className: 'ArticlePublicationStore',
@@ -304,6 +308,7 @@ describe('independent private SQL guard inventory', () => {
       { method: 'create', arguments: 'proof,true' },
       { method: 'create', arguments: 'retry,true' },
       { method: 'create', arguments: 'final,true' },
+      { method: 'update', arguments: 'fresh,true' },
     ]);
   });
   it('like removal alone owns the two base statements; addition owns the student INSERT', () => {
@@ -445,11 +450,11 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 60 private SQL sites (40 base, 19 student, one explicit choice) and 13 public sites', () => {
+  it('inventory is exactly 62 private SQL sites (40 base, 21 student, one explicit choice) and 13 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(60);
+    expect(guards).toHaveLength(62);
     expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(40);
-    expect(guards.filter((guard) => guard === 'student')).toHaveLength(19);
+    expect(guards.filter((guard) => guard === 'student')).toHaveLength(21);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)
