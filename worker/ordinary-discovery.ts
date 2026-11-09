@@ -3,15 +3,16 @@ import {
   publicArticleSqlBounds,
   publicProfileSqlBounds,
 } from './publication';
-import { ProjectStore } from './projects';
+import { ProjectStore, publicProjectSqlBounds } from './projects';
 import type { PublicDiscoveryCard } from '../src/types';
 import type { OrdinaryDiscovery, RelatedDiscovery } from '../src/community/discovery-types';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const activeAuthor = `EXISTS(SELECT 1 FROM account_public_profiles mapping JOIN private_accounts owner ON owner.id=mapping.owner_account_id AND owner.status='active' WHERE mapping.public_profile_id=p.id)`;
 const articleSource = `FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id`;
-const eligible = `${publicArticleSqlBounds} AND ${activeAuthor} AND EXISTS(SELECT 1 FROM account_public_profiles provenance WHERE provenance.owner_account_id=publication.owner_account_id AND provenance.public_profile_id=p.id)`;
+// Existing published snapshots remain public until content moderation/owner withdrawal.
+// Target-account participation and its current editable profile mapping are separate.
+const eligible = publicArticleSqlBounds;
 const projectSource = `FROM project_publications r JOIN public_profiles p ON p.id=r.public_profile_id`;
-const eligibleProject = `r.status='published' AND ${publicProfileSqlBounds} AND ${activeAuthor} AND EXISTS(SELECT 1 FROM account_public_profiles provenance WHERE provenance.owner_account_id=r.owner_account_id AND provenance.public_profile_id=p.id) AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=p.id OR private_id.google_subject=p.id) AND length(CAST(r.title AS BLOB))<=800 AND length(CAST(r.description AS BLOB))<=16384 AND length(CAST(r.github_url AS BLOB))<=2048 AND length(CAST(r.demo_url AS BLOB))<=2048`;
+const eligibleProject = publicProjectSqlBounds;
 const confirmedLiker = publicProfileSqlBounds.replaceAll('p.', 'confirmed.');
 // Aggregate actual likes once rather than scanning the likes table for every article.
 const articleSelection = `c.id,publication.source_version sourceVersion,publication.published_at_ms publishedAt,c.tags_json tagsJson`;

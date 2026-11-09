@@ -352,7 +352,16 @@ test('ordinary report cancels a pending initial session proof on hide and ignore
   page,
 }, info) => {
   const articlePath = await publishArticle(page, info, '架空の通報境界ノート');
+  // Finish the unrelated best-effort history attempt before holding the report's
+  // initial proof. A history transport failure must not weaken report isolation.
+  await page.route('**/api/private/reading-history', (route) => route.abort('blockedbyclient'));
+  const historyFailed = page.waitForEvent('requestfailed', {
+    predicate: (request) =>
+      new URL(request.url()).pathname === '/api/private/reading-history' &&
+      request.method() === 'PUT',
+  });
   await page.goto(articlePath);
+  await historyFailed;
   await expect(page.locator('.prose')).toContainText('この文章は公開する保存版です。');
   const latch = () => {
     let release!: () => void;

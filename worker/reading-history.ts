@@ -1,4 +1,6 @@
 import { SessionStore } from './auth/sessions';
+import { publicArticleSqlBounds } from './publication';
+import { publicProjectSqlBounds } from './projects';
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import {
   isReadingReference,
@@ -14,16 +16,13 @@ const visible = `
  SELECT c.kind,c.id content_id,c.title,c.is_sample FROM requested q JOIN content c ON c.id=q.content_id AND c.kind=q.kind JOIN public_profiles p ON p.id=c.author_id
  WHERE c.status='published' AND ${titleBounds('c')} AND (
  (c.is_sample=1 AND p.is_sample=1) OR
- (c.is_sample=0 AND c.kind='article' AND p.is_sample=0 AND EXISTS(
- SELECT 1 FROM article_publications r JOIN private_accounts a ON a.id=r.owner_account_id AND a.status='active'
- JOIN account_public_profiles m ON m.owner_account_id=a.id AND m.public_profile_id=r.public_profile_id
+ (${publicArticleSqlBounds} AND EXISTS(
+ SELECT 1 FROM article_publications r
  WHERE r.content_id=c.id AND r.public_profile_id=c.author_id)))
  UNION ALL
  SELECT 'project',r.id,r.title,0 FROM requested q JOIN project_publications r ON r.id=q.content_id AND q.kind='project'
- JOIN private_accounts a ON a.id=r.owner_account_id AND a.status='active'
- JOIN account_public_profiles m ON m.owner_account_id=a.id AND m.public_profile_id=r.public_profile_id
  JOIN public_profiles p ON p.id=r.public_profile_id AND p.is_sample=0
- WHERE r.status='published' AND ${titleBounds('r')}`;
+ WHERE ${publicProjectSqlBounds} AND ${titleBounds('r')}`;
 const targetCTE = `visible_targets AS MATERIALIZED(${visible})`;
 export class ReadingHistoryStore {
   private readonly sessions: SessionStore;

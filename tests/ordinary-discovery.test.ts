@@ -161,7 +161,7 @@ describe('ordinary anonymous new/popular/tag discovery', () => {
     expect(value.projects[0].matchingTag).toBe('AI');
     expect(JSON.stringify(value)).not.toContain('Public fictional body');
   });
-  it('does not recommend unpublished, hidden, deleted or inactive-owner articles and projects', async () => {
+  it('excludes hidden/deleted content while keeping existing published snapshots independent of target-account participation', async () => {
     const db = await mf.getD1Database('DB');
     for (const status of ['hidden', 'deleted']) {
       await db.prepare('UPDATE content SET status=? WHERE id=?').bind(status, other).run();
@@ -180,11 +180,36 @@ describe('ordinary anonymous new/popular/tag discovery', () => {
       .bind(work)
       .run();
     const inactiveWork = await project('AIで作った別の作品', '公開された作品の説明', b);
-    await db.prepare("UPDATE private_accounts SET status='suspended' WHERE id='private-b'").run();
-    expect((await related())!.articles).toEqual([]);
-    expect((await related())!.projects.some((row) => row.project.id === inactiveWork)).toBe(false);
-    expect((await home())!.recent.some((row) => row.entry.id === other)).toBe(false);
-    await db.prepare("UPDATE private_accounts SET status='active' WHERE id='private-b'").run();
+    const mapping = await db
+      .prepare('SELECT public_profile_id FROM account_public_profiles WHERE owner_account_id=?')
+      .bind('private-b')
+      .first<{ public_profile_id: string }>();
+    try {
+      await db.prepare("UPDATE private_accounts SET status='suspended' WHERE id='private-b'").run();
+      const check = async () => {
+        expect(await call({ action: 'read', target: other })).not.toBeNull();
+        expect((await related())!.articles.some((row) => row.entry.id === other)).toBe(true);
+        expect((await related())!.projects.some((row) => row.project.id === inactiveWork)).toBe(
+          true,
+        );
+        expect((await home())!.recent.some((row) => row.entry.id === other)).toBe(true);
+        expect((await related(other))!.articles.some((row) => row.entry.id === source)).toBe(true);
+      };
+      await check();
+      await db
+        .prepare('DELETE FROM account_public_profiles WHERE owner_account_id=?')
+        .bind('private-b')
+        .run();
+      await check();
+    } finally {
+      await db.prepare("UPDATE private_accounts SET status='active' WHERE id='private-b'").run();
+      await db
+        .prepare(
+          'INSERT OR IGNORE INTO account_public_profiles(owner_account_id,public_profile_id) VALUES(?,?)',
+        )
+        .bind('private-b', mapping!.public_profile_id)
+        .run();
+    }
   });
   it('rejects a nonpublic source and returns honest empty for no matching tags', async () => {
     const empty = await article('タグなし', []);

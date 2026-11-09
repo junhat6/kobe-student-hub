@@ -178,6 +178,153 @@ describe('private reading history with native D1 final authority', () => {
     ).toEqual([null, null]);
     expect(await (await record(a)).json()).toEqual({ recorded: false });
   });
+  it('keeps target graduation/suspension/profile-mapping changes separate from public snapshot visibility and history-owner authority', async () => {
+    const db = await mf.getD1Database('DB');
+    const publish = async (kind: string) =>
+      (await (
+        await mf.dispatchFetch(ORIGIN + '/fixture/publish', {
+          method: 'POST',
+          body: JSON.stringify({ headers: headers(0), kind }),
+        })
+      ).json()) as { contentId?: string; projectId?: string };
+    const a = (await publish('article')).contentId!,
+      p = (await publish('project')).projectId!;
+    const mapping = await db
+      .prepare('SELECT public_profile_id FROM account_public_profiles WHERE owner_account_id=?')
+      .bind('history-account-0')
+      .first<{ public_profile_id: string }>();
+    const period = await db
+      .prepare(
+        'SELECT admission_year,graduation_year,starts_at_ms,ends_at_ms FROM private_enrollment_periods WHERE owner_account_id=?',
+      )
+      .bind('history-account-0')
+      .first<{
+        admission_year: number;
+        graduation_year: number;
+        starts_at_ms: number;
+        ends_at_ms: number;
+      }>();
+    const restoreMapping = async () => {
+      await db
+        .prepare(
+          'INSERT OR IGNORE INTO account_public_profiles(owner_account_id,public_profile_id) VALUES(?,?)',
+        )
+        .bind('history-account-0', mapping!.public_profile_id)
+        .run();
+    };
+    const check = async () => {
+      expect((await mf.dispatchFetch(ORIGIN + '/api/articles/' + a)).status).toBe(200);
+      expect((await mf.dispatchFetch(ORIGIN + '/api/projects/' + p)).status).toBe(200);
+      expect(await (await record(a, 'article', 1)).json()).toEqual({ recorded: true });
+      expect(await (await record(p, 'project', 1)).json()).toEqual({ recorded: true });
+      const rows = (await list(1)).entries.filter((row) => [a, p].includes(row.contentId));
+      expect(rows).toHaveLength(2);
+      expect(
+        rows.every((row) => row.title?.startsWith('Ordinary history') && row.isSample === false),
+      ).toBe(true);
+    };
+    try {
+      await check();
+      await db
+        .prepare('UPDATE public_profiles SET bio=? WHERE id=?')
+        .bind('x'.repeat(801), mapping!.public_profile_id)
+        .run();
+      expect((await mf.dispatchFetch(ORIGIN + '/api/articles/' + a)).status).toBe(404);
+      expect((await mf.dispatchFetch(ORIGIN + '/api/projects/' + p)).status).toBe(404);
+      expect(
+        (await list(1)).entries
+          .filter((row) => [a, p].includes(row.contentId))
+          .every((row) => row.title === null && row.isSample === null),
+      ).toBe(true);
+      await db
+        .prepare('UPDATE public_profiles SET bio=? WHERE id=?')
+        .bind('', mapping!.public_profile_id)
+        .run();
+      await check();
+      await db
+        .prepare(
+          'UPDATE private_enrollment_periods SET admission_year=2000,graduation_year=2001,starts_at_ms=?,ends_at_ms=? WHERE owner_account_id=?',
+        )
+        .bind(
+          Date.UTC(2000, 3, 1) - 9 * 3600000,
+          Date.UTC(2002, 3, 1) - 9 * 3600000,
+          'history-account-0',
+        )
+        .run();
+      expect((await request('GET', undefined, 0)).status).toBe(200);
+      await check();
+      await db
+        .prepare("UPDATE private_accounts SET status='suspended' WHERE id='history-account-0'")
+        .run();
+      expect((await request('GET', undefined, 0)).status).toBe(401);
+      await check();
+      await db
+        .prepare('DELETE FROM account_public_profiles WHERE owner_account_id=?')
+        .bind('history-account-0')
+        .run();
+      await check();
+      await db
+        .prepare("UPDATE private_accounts SET status='active' WHERE id='history-account-0'")
+        .run();
+      users[0] = (await (
+        await mf.dispatchFetch(ORIGIN + '/fixture/session', { headers: { 'X-Test-Who': '0' } })
+      ).json()) as (typeof users)[number];
+      await restoreMapping();
+      for (const [kind, id] of [
+        ['article', a],
+        ['project', p],
+      ]) {
+        const stopped = await mf.dispatchFetch(
+          ORIGIN + '/api/private/publication-stops/' + kind + '/' + id,
+          {
+            method: 'POST',
+            headers: headers(0),
+            body: JSON.stringify({ expectedSourceVersion: 1, confirmStop: true }),
+          },
+        );
+        expect(stopped.status).toBe(200);
+        expect(
+          (
+            await mf.dispatchFetch(
+              ORIGIN + '/api/' + (kind === 'article' ? 'articles' : 'projects') + '/' + id,
+            )
+          ).status,
+        ).toBe(404);
+      }
+      const rows = (await list(1)).entries.filter((row) => [a, p].includes(row.contentId));
+      expect(rows).toHaveLength(2);
+      expect(rows.every((row) => row.title === null && row.isSample === null)).toBe(true);
+    } finally {
+      await db
+        .prepare('UPDATE public_profiles SET bio=? WHERE id=?')
+        .bind('', mapping!.public_profile_id)
+        .run();
+      await db
+        .prepare("UPDATE private_accounts SET status='active' WHERE id='history-account-0'")
+        .run();
+      await restoreMapping();
+      await db
+        .prepare(
+          'UPDATE private_enrollment_periods SET admission_year=?,graduation_year=?,starts_at_ms=?,ends_at_ms=? WHERE owner_account_id=?',
+        )
+        .bind(
+          period!.admission_year,
+          period!.graduation_year,
+          period!.starts_at_ms,
+          period!.ends_at_ms,
+          'history-account-0',
+        )
+        .run();
+      users[0] = (await (
+        await mf.dispatchFetch(ORIGIN + '/fixture/session', { headers: { 'X-Test-Who': '0' } })
+      ).json()) as (typeof users)[number];
+      for (const [kind, id] of [
+        ['article', a],
+        ['project', p],
+      ])
+        expect((await request('DELETE', { kind, contentId: id }, 1)).status).toBe(200);
+    }
+  });
   it('allows own idempotent single/all deletion without deleting another account, including withdrawn references', async () => {
     await record('learning-notes', 'article', 1);
     await clear();

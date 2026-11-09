@@ -1,5 +1,4 @@
 import { createFixtureSession } from '../helpers/coordinated-fixture';
-import { createReadingHistoryHandler } from '../../worker/reading-history-http';
 import { createOrdinaryDraftHandler } from '../../worker/ordinary-drafts-http';
 import { PublicProfileStore } from '../../worker/public-profile';
 import { PrivateDraftStore } from '../../worker/drafts';
@@ -130,7 +129,7 @@ export default {
         new Response('unmatched', { status: 418 })
       );
     return (
-      (await createReadingHistoryHandler(db, origin, () => now)(request)) ??
+      (await createOrdinaryDraftHandler(db, origin, { enabled: true }, () => now)(request)) ??
       new Response('unmatched', { status: 418 })
     );
   },
