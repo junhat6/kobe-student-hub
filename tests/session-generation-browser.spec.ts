@@ -159,12 +159,12 @@ test('browser contexts isolate devices and expired context rejects retained cook
   await c.close();
 });
 
-test('ordinary account stage opens authentication while authoring remains source closed', () => {
+test('ordinary release opens authentication and authoring at source', () => {
   expect(readFileSync('worker/index.ts', 'utf8')).toMatch(
     /^[\t ]*const[\t ]+OAUTH_HTTP_RELEASE_ENABLED[\t ]*=[\t ]*true[\t ]*;[\t ]*$/m,
   );
   expect(readFileSync('worker/index.ts', 'utf8')).toMatch(
-    /^[\t ]*const[\t ]+ORDINARY_DRAFT_HTTP_RELEASE_ENABLED[\t ]*=[\t ]*false[\t ]*;[\t ]*$/m,
+    /^[\t ]*const[\t ]+ORDINARY_DRAFT_HTTP_RELEASE_ENABLED[\t ]*=[\t ]*true[\t ]*;[\t ]*$/m,
   );
 });
 
