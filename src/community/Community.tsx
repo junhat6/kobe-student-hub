@@ -8,6 +8,7 @@ import MarkdownRenderer from '../MarkdownRenderer';
 import type { Entry, Profile, PublicLikedArticles } from '../types';
 import { createOrdinaryDiscoveryClient } from './discovery-client';
 import RelatedReading from './RelatedReading';
+import { RecordReadingHistory } from '../history/RecordReadingHistory';
 import './discovery.css';
 import { createPublicationClient } from '../editor/publication-client';
 import StudentProfile from './StudentProfile';
@@ -173,6 +174,7 @@ function StudentArticle({ id }: { id: string }) {
   const { entry, author } = value;
   return (
     <div className="shell detail-layout">
+      <RecordReadingHistory kind="article" contentId={entry.id} />
       <article>
         <Link className="back" to="/">
           ← 記事一覧へ

@@ -86,6 +86,7 @@ export default function ServiceInfo() {
         <p>
           運営判断への相談、削除や個人情報の修正についての案内です。卒業後など、学校Googleを使えなくなった場合も、この案内を確認してください。
         </p>
+        <p>機能の要望も、この窓口で受け付けています。</p>
         {failed ? (
           <div role="alert">
             <p>問い合わせ先を確認できませんでした。</p>
