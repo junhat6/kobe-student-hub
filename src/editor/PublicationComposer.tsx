@@ -135,14 +135,18 @@ export default function PublicationComposer({
         setReceipt(existing);
         if (existing && (!known || (attempt && matchesPublication(existing, attempt)))) {
           const e = existing.entry;
-          setFields({
-            summary: e.summary,
-            tags: e.tags.join(', '),
-            minutes: String(e.minutes),
-            audience: e.audience,
-            prerequisite: e.prerequisite,
-            outcome: e.outcome,
-          });
+          setFields((current) =>
+            Object.values(current).some(Boolean)
+              ? current
+              : {
+                  summary: e.summary,
+                  tags: e.tags.join(', '),
+                  minutes: String(e.minutes),
+                  audience: e.audience,
+                  prerequisite: e.prerequisite,
+                  outcome: e.outcome,
+                },
+          );
         }
         setProfile(author);
         setKnown(true);
