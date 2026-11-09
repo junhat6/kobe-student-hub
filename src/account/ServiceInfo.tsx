@@ -1,3 +1,4 @@
+import { authoringUiEnabled } from './routes';
 import { useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
@@ -64,7 +65,15 @@ export default function ServiceInfo() {
           ログイン用の一時記録は有効期限で利用を拒否し、期限から24時間の猶予後に少量ずつ整理しますが、バックアップを含む消去時刻を保証するものではありません。
         </p>
         <p>
-          アプリ内の閲覧履歴は記録していません。YouTubeは「読み込む」を押してから外部に接続します。
+          {authoringUiEnabled ? (
+            <>
+              ログイン中に読んだ記事・作品は、本人だけが見られる<Link to="/history">閲覧履歴</Link>
+              に残ります。保存するのは参照先と最後に読んだ日時だけです。記録を停止でき、1件ずつ・すべての削除ができます。自動削除は行いません。上限500件に達すると新しい対象を記録しません。公開停止された内容の題名や画像は履歴に表示しません。
+            </>
+          ) : (
+            'アプリ内の閲覧履歴は記録していません。'
+          )}
+          YouTubeは「読み込む」を押してから外部に接続します。
         </p>
         <p>
           公開停止すると新しい閲覧から外れます。停止はデータ全体の消去や、すでに読者に届いた内容の回収ではありません。

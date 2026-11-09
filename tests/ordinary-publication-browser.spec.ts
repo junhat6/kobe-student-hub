@@ -114,7 +114,11 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
     ).toBeVisible();
     await expect(reader.locator('.prose')).toContainText('この文章は公開する保存版です。');
     await expect(reader.locator('main')).not.toContainText('PRIVATE_FICTIONAL_CONTINUATION');
-    expect(forwarded.every((path) => !path.startsWith('/api/private/'))).toBe(true);
+    expect(
+      forwarded.every(
+        (path) => !path.startsWith('/api/private/') || path === '/api/private/session',
+      ),
+    ).toBe(true);
     const authorHref = await reader.locator('.detail-author .author').getAttribute('href');
     expect(authorHref).toMatch(/^\/students\/[A-Za-z0-9_-]+$/);
     await reader.locator('.detail-author .author').click();
@@ -218,7 +222,12 @@ const reportReason = (page: Page) => page.getByLabel('通報理由（必須）',
 async function openReport(page: Page, articlePath: string) {
   let privateReads = 0;
   const observe = (request: import('@playwright/test').Request) => {
-    if (new URL(request.url()).pathname.startsWith('/api/private/')) privateReads++;
+    const path = new URL(request.url()).pathname;
+    if (
+      path.startsWith('/api/private/') &&
+      !['/api/private/session', '/api/private/reading-history'].includes(path)
+    )
+      privateReads++;
   };
   page.on('request', observe);
   await page.goto(articlePath);

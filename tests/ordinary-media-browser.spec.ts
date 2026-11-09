@@ -170,7 +170,11 @@ test('article image stays private until explicit saved-version publication and f
     const reader = await guest.newPage(),
       privateRequests: string[] = [];
     reader.on('request', (r) => {
-      if (new URL(r.url()).pathname.startsWith('/api/private/')) privateRequests.push(r.url());
+      if (
+        new URL(r.url()).pathname.startsWith('/api/private/') &&
+        new URL(r.url()).pathname !== '/api/private/session'
+      )
+        privateRequests.push(r.url());
     });
     await reader.goto(path);
     const img = reader.locator('.prose img');
