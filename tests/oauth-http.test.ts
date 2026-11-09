@@ -111,7 +111,13 @@ async function callback(a: Awaited<ReturnType<typeof start>>, suffix = '') {
 function clean(r: HttpResponse, _cleared = false) {
   privacy(r);
   expect(r.status).toBe(303);
-  expect(r.headers.get('Location')).toBe(O + '/#');
+  expect(r.headers.get('Location')).toBe(
+    O +
+      '/#' +
+      (r.headers.getSetCookie().some((value) => value.startsWith('__Host-kobe-session='))
+        ? ''
+        : 'authentication-failed'),
+  );
   expect(
     cookies(r).some((c) => c.startsWith('__Host-kobe-oauth=;') && c.includes('Max-Age=0')),
   ).toBe(false);
@@ -228,7 +234,7 @@ it('ordinary production entry registers a verified fictional student, manages ye
     authorization = new URL(authorizationUrl),
     state = authorization.searchParams.get('state')!;
   expect(authorization.searchParams.get('response_type')).toBe('code');
-  expect(authorization.searchParams.get('response_mode')).toBe('fragment');
+  expect(authorization.searchParams.get('response_mode')).toBe('form_post');
   tokens.set(
     state,
     await fixture.sign({
@@ -253,7 +259,7 @@ it('ordinary production entry registers a verified fictional student, manages ye
     production,
   );
   expect(query.status).toBe(303);
-  expect(query.headers.get('Location')).toBe(O + '/account#');
+  expect(query.headers.get('Location')).toBe(O + '/account#authentication-failed');
   expect(query.headers.has('Set-Cookie')).toBe(false);
   expect(exchanges).toBe(exchangeBeforeGet);
   // The valid attempt still completes through POST: the shell/query GETs consumed nothing.
@@ -351,7 +357,7 @@ it('cleans normal GET callback credentials even when configuration or proof head
     privacy(response);
     expect(response.status).toBe(303);
     const destination = response.headers.get('Location')!;
-    expect(destination).toBe(bindings === config ? O + '/#' : '/#');
+    expect(destination).toBe((bindings === config ? O : '') + '/#authentication-failed');
     expect(await response.text()).toBe('');
     expect(cookies(response)).toHaveLength(0);
   }
@@ -364,8 +370,8 @@ it('starts distinct cryptographic purposes only through same-origin POST without
   expect(login.url.origin).toBe('https://accounts.google.com');
   expect(login.url.searchParams.get('redirect_uri')).toBe(O + '/api/auth/callback');
   expect(reg.url.searchParams.get('redirect_uri')).toBe(O + '/api/auth/callback');
-  expect(login.url.searchParams.get('response_mode')).toBe('fragment');
-  expect(reg.url.searchParams.get('response_mode')).toBe('fragment');
+  expect(login.url.searchParams.get('response_mode')).toBe('form_post');
+  expect(reg.url.searchParams.get('response_mode')).toBe('form_post');
   expect(login.cookie).not.toBe(reg.cookie);
   expect((await request('/api/auth/start')).status).toBe(405);
   expect(
@@ -563,4 +569,180 @@ it('rejects wrong origins and noncanonical routes without parsing secret config 
     { url: 'https://other.example.test/api/auth/start' },
   );
   expect(r.status).toBe(404);
+});
+
+async function stageReturn(a: Awaited<ReturnType<typeof start>>, suffix = '') {
+  const state = a.url.searchParams.get('state')!;
+  return request(
+    '/api/auth/callback',
+    'POST',
+    {
+      Origin: 'https://accounts.google.com',
+      'Sec-Fetch-Site': 'cross-site',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    {
+      forbidDb: true,
+      body:
+        new URLSearchParams({ state, code: state, iss: 'https://accounts.google.com' }).toString() +
+        suffix,
+    },
+  );
+}
+
+it('stages an untrusted Google form POST without DB/provider authority, then registers only with original Lax proofs', async () => {
+  const a = await prepare('form-post-student', true),
+    accounts = await count('private_accounts'),
+    sessions = await count('auth_sessions'),
+    before = exchanges;
+  const staged = await stageReturn(a, '&extra1=extension&scope=x&scope=y');
+  privacy(staged);
+  expect(staged.status).toBe(303);
+  expect(staged.headers.get('Location')).toBe(O + '/api/auth/callback/complete#');
+  expect(await staged.text()).toBe('');
+  expect(cookies(staged)).toHaveLength(1);
+  const carrier = cookies(staged)[0];
+  expect(carrier).toMatch(/^__Host-kobe-oauth-return=/);
+  for (const flag of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Max-Age=60'])
+    expect(carrier).toContain(flag);
+  expect(carrier.length).toBeLessThanOrEqual(3800);
+  expect(exchanges).toBe(before);
+  expect(await count('private_accounts')).toBe(accounts);
+  expect(await count('auth_sessions')).toBe(sessions);
+  const cookie = carrier.split(';')[0],
+    other = await start();
+  for (const original of [
+    '',
+    a.context,
+    a.cookie.split(';')[0],
+    a.cookie.split(';')[0] + '; ' + other.context,
+  ]) {
+    const failed = await request('/api/auth/callback/complete', 'GET', {
+      Cookie: cookie + '; ' + original,
+    });
+    expect(failed.headers.get('Location')).toBe(O + '/#authentication-failed');
+    expect(cookies(failed)).toEqual([]);
+  }
+  expect(exchanges).toBe(before);
+  expect(await count('private_accounts')).toBe(accounts);
+  const completed = await request('/api/auth/callback/complete', 'GET', {
+    Cookie: cookie + '; ' + a.cookie,
+  });
+  expect(completed.headers.get('Location')).toBe(O + '/#');
+  expect(cookies(completed)).toHaveLength(1);
+  expect(cookies(completed)[0]).toMatch(/^__Host-kobe-session=/);
+  expect(await count('private_accounts')).toBe(accounts + 1);
+  expect(await count('auth_sessions')).toBe(sessions + 1);
+  expect(exchanges).toBe(before + 1);
+  const db = await mf.getD1Database('DB');
+  expect(
+    await db
+      .prepare(
+        'SELECT admission_year,graduation_year FROM private_enrollment_periods e JOIN private_accounts a ON a.id=e.owner_account_id WHERE a.google_subject=?',
+      )
+      .bind('form-post-student')
+      .first(),
+  ).toEqual({ admission_year: 2026, graduation_year: 2027 });
+  const replay = await request('/api/auth/callback/complete', 'GET', {
+    Cookie: cookie + '; ' + a.cookie,
+  });
+  expect(replay.headers.get('Location')).toBe(O + '/#authentication-failed');
+  expect(cookies(replay)).toEqual([]);
+  expect(exchanges).toBe(before + 1);
+});
+
+it('rejects malformed, expired, tampered and ambiguous return envelopes without claims or cookie clears', async () => {
+  const a = await prepare(),
+    staged = await stageReturn(a),
+    carrier = cookies(staged)[0].split(';')[0],
+    Cookie = carrier + '; ' + a.cookie,
+    before = exchanges;
+  for (const [path, header, extra] of [
+    ['/api/auth/callback/complete?code=ignored', Cookie, {}],
+    ['/api/auth/callback/complete?', Cookie, {}],
+    ['/api/auth/callback/complete#', Cookie, {}],
+    ['/api/auth/callback/complete#ignored', Cookie, {}],
+    ['/api/auth/callback/complete', carrier + 'x; ' + a.cookie, {}],
+    ['/api/auth/callback/complete', carrier + '; ' + carrier + '; ' + a.cookie, {}],
+    ['/api/auth/callback/complete', Cookie, { now: NOW + 61000 }],
+    ['/api/auth/callback/complete', a.cookie, {}],
+  ] as const) {
+    const failed = await request(path, 'GET', { Cookie: header }, { forbidDb: true, ...extra });
+    expect(failed.status).toBe(303);
+    expect(failed.headers.get('Location')).toBe(O + '/#authentication-failed');
+    expect(cookies(failed)).toEqual([]);
+  }
+  expect(exchanges).toBe(before);
+  const completed = await request('/api/auth/callback/complete', 'GET', { Cookie });
+  expect(cookies(completed)).toHaveLength(1);
+  expect(exchanges).toBe(before + 1);
+});
+
+it('pins the provider Origin exception to callback POST and rejects critical duplicates before staging', async () => {
+  const a = await prepare(),
+    state = a.url.searchParams.get('state')!,
+    before = exchanges;
+  for (const Origin of [
+    'https://accounts.google.com.evil.test',
+    'https://accounts.google.com/',
+    'null',
+    '',
+  ]) {
+    const failed = await request(
+      '/api/auth/callback',
+      'POST',
+      { Origin, 'Content-Type': 'application/x-www-form-urlencoded' },
+      { forbidDb: true, body: new URLSearchParams({ state, code: state }).toString() },
+    );
+    expect(failed.status).toBe(400);
+    expect(cookies(failed)).toEqual([]);
+  }
+  for (const suffix of [
+    '&code=duplicate',
+    '&%73tate=' + state,
+    '&iss=https%3A%2F%2Fevil.test',
+    '&error=access_denied',
+    '&extra=' + 'x'.repeat(1025),
+  ]) {
+    const failed = await stageReturn(a, suffix);
+    expect(failed.status).toBe(400);
+    expect(cookies(failed)).toEqual([]);
+  }
+  for (const path of [
+    '/api/auth/start',
+    '/api/auth/register',
+    '/api/auth/bootstrap',
+    '/api/auth/command?action=login',
+    '/api/private/logout',
+  ]) {
+    const failed = await request(
+      path,
+      'POST',
+      { Origin: 'https://accounts.google.com' },
+      { forbidDb: true },
+    );
+    expect(failed.status).toBeGreaterThanOrEqual(400);
+    expect(cookies(failed)).toEqual([]);
+  }
+  expect(exchanges).toBe(before);
+  expect(cookies(await callback(a))).toHaveLength(1);
+});
+
+it('ignores any stale return cookie on the bare receiver and original same-origin fragment POST', async () => {
+  const old = await prepare(),
+    carrier = cookies(await stageReturn(old))[0].split(';')[0],
+    current = await prepare(),
+    state = current.url.searchParams.get('state')!,
+    Cookie = current.cookie + '; ' + carrier;
+  const shell = await request('/api/auth/callback', 'GET', { Cookie }, { forbidDb: true });
+  expect(shell.status).toBe(200);
+  expect(cookies(shell)).toEqual([]);
+  const completed = await request(
+    '/api/auth/callback',
+    'POST',
+    { Cookie, Origin: O, 'Content-Type': 'application/x-www-form-urlencoded' },
+    { body: new URLSearchParams({ state, code: state }).toString() },
+  );
+  expect(cookies(completed)).toHaveLength(1);
+  expect(cookies(completed)[0]).toMatch(/^__Host-kobe-session=/);
 });

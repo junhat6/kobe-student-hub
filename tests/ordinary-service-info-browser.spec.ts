@@ -1,3 +1,4 @@
+import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -7,7 +8,7 @@ const contact = 'https://support.example.org/student-help?topic=hub#contact';
 async function register(page: Page) {
   await page.route(provider, async (route) => {
     const authorization = new URL(route.request().url());
-    expect(authorization.searchParams.get('response_mode')).toBe('fragment');
+    expect(authorization.searchParams.get('response_mode')).toBe('form_post');
     const state = authorization.searchParams.get('state')!,
       nonce = authorization.searchParams.get('nonce')!;
     expect(
@@ -22,13 +23,7 @@ async function register(page: Page) {
         )
       ).status(),
     ).toBe(200);
-    await route.fulfill({
-      status: 302,
-      headers: {
-        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
-      },
-      body: '',
-    });
+    await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');

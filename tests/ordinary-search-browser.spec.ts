@@ -1,3 +1,4 @@
+import { completeGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Browser, type BrowserContext, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -20,7 +21,7 @@ async function actor(browser: Browser, contexts: BrowserContext[], name: string)
   });
   expect(start.status()).toBe(200);
   const authorization = new URL((await start.json()).authorizationUrl);
-  expect(authorization.searchParams.get('response_mode')).toBe('fragment');
+  expect(authorization.searchParams.get('response_mode')).toBe('form_post');
   const state = authorization.searchParams.get('state')!;
   const nonce = authorization.searchParams.get('nonce')!;
   expect(
@@ -31,11 +32,7 @@ async function actor(browser: Browser, contexts: BrowserContext[], name: string)
       )
     ).status(),
   ).toBe(200);
-  const callback = await context.request.post('/api/auth/callback', {
-    headers,
-    form: { state, code: state },
-    maxRedirects: 0,
-  });
+  const callback = await completeGoogleFormPost(context.request, ORIGIN, { state, code: state });
   expect(callback.status()).toBe(303);
   const session = await context.request.get('/api/private/session');
   expect(session.status()).toBe(200);

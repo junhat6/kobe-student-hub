@@ -13,6 +13,7 @@ import { GoogleLoginBroker, type GoogleLoginConfig } from './google-login';
 import { createPrivateSessionHandler } from '../session-http';
 import { isSameOriginPost } from './browser-flow';
 import { canonicalEnrollmentYears } from '../../src/shared/enrollment';
+import { readCallbackReturn, sealCallbackReturn } from './callback-return';
 /** Optional binding names only. This does not create secrets or alter generated Env/configuration. */
 export interface OAuthBindings {
   AUTH_ORIGIN?: string;
@@ -230,12 +231,18 @@ export function createOAuthHttpHandler(
         url.pathname.startsWith('/api/private/logout');
     if (!auth && !session) return null;
     const normalCallback =
-      !pilot && url.pathname === '/api/auth/callback' && request.method === 'GET';
+      !pilot &&
+      ['/api/auth/callback', '/api/auth/callback/complete'].includes(url.pathname) &&
+      request.method === 'GET';
     const cleanLanding = (origin = '') =>
       new Response(null, {
         status: 303,
-        // An explicit empty fragment prevents inheritance of a provider/browser fragment.
-        headers: { ...headers, Location: origin + (options.accountLanding ? '/account#' : '/#') },
+        // An explicit fixed fragment prevents inheritance of a provider/browser fragment.
+        headers: {
+          ...headers,
+          Location:
+            origin + (options.accountLanding ? '/account#' : '/#') + 'authentication-failed',
+        },
       });
     const config = parseOAuthConfig(bindings);
     if (!config) return normalCallback ? cleanLanding() : json(503, 'authentication_unavailable');
@@ -297,16 +304,19 @@ export function createOAuthHttpHandler(
         },
       });
     }
-    const callback = url.pathname === '/api/auth/callback',
+    const complete = !pilot && url.pathname === '/api/auth/callback/complete',
+      callback = url.pathname === '/api/auth/callback' || complete,
       login = url.pathname === '/api/auth/start',
       register = url.pathname === '/api/auth/register';
     if ((!callback && !login && !register) || (!callback && (url.hash || url.search)))
       return json(404, 'authentication_unavailable');
     if (options.loginOnly && register) return json(404, 'authentication_unavailable');
     if (pilot && login) return json(404, 'authentication_unavailable');
-    const method = callback ? (pilot ? 'GET' : 'GET, POST') : 'POST';
+    const method = callback ? (pilot || complete ? 'GET' : 'GET, POST') : 'POST';
     if (
-      !(callback && !pilot ? ['GET', 'POST'].includes(request.method) : request.method === method)
+      !(callback && !pilot && !complete
+        ? ['GET', 'POST'].includes(request.method)
+        : request.method === method)
     ) {
       const r = json(405, 'method_not_allowed');
       r.headers.set('Allow', method);
@@ -314,7 +324,18 @@ export function createOAuthHttpHandler(
     }
     let callbackRequest = request;
     if (callback && !pilot) {
-      if (request.method === 'GET') {
+      if (complete) {
+        if (request.url !== config.origin + '/api/auth/callback/complete')
+          return cleanLanding(config.origin);
+        const params = await readCallbackReturn(request.headers.get('Cookie'), config, clock());
+        if (!params) return cleanLanding(config.origin);
+        // Original Lax context/attempt cookies arrive only on this top-level GET. The
+        // envelope is transport, never a replacement for the unchanged broker proof.
+        callbackRequest = new Request(config.origin + '/api/auth/callback?' + params.toString(), {
+          method: 'GET',
+          headers: request.headers,
+        });
+      } else if (request.method === 'GET') {
         // Query callbacks are never processed, even for a still-valid old attempt.
         if (url.search || url.hash) return cleanLanding(config.origin);
         return new Response(callbackReceiverHtml, {
@@ -324,18 +345,39 @@ export function createOAuthHttpHandler(
             'Content-Security-Policy': callbackReceiverCsp,
           },
         });
+      } else {
+        const providerPost = request.headers.get('Origin') === 'https://accounts.google.com';
+        if (
+          url.search ||
+          url.hash ||
+          (!providerPost && !isSameOriginPost(request, config.origin))
+        ) {
+          void request.body?.cancel().catch(() => {});
+          return json(400, 'authentication_unavailable');
+        }
+        const params = await callbackBody(request);
+        if (!params) return json(400, 'authentication_unavailable');
+        if (providerPost) {
+          // The cross-site POST carries no original Lax cookies. Do no DB work, claim,
+          // provider exchange or browser-context creation before the safe-method return.
+          const setCookie = await sealCallbackReturn(params, config, clock());
+          return setCookie
+            ? new Response(null, {
+                status: 303,
+                headers: {
+                  ...headers,
+                  Location: config.origin + '/api/auth/callback/complete#',
+                  'Set-Cookie': setCookie,
+                },
+              })
+            : cleanLanding(config.origin);
+        }
+        // This URL exists only in Worker memory. No query request is sent to the platform/provider.
+        callbackRequest = new Request(config.origin + '/api/auth/callback?' + params.toString(), {
+          method: 'GET',
+          headers: request.headers,
+        });
       }
-      if (url.search || url.hash || !isSameOriginPost(request, config.origin)) {
-        void request.body?.cancel().catch(() => {});
-        return json(400, 'authentication_unavailable');
-      }
-      const params = await callbackBody(request);
-      if (!params) return json(400, 'authentication_unavailable');
-      // This URL exists only in Worker memory. No query request is sent to the platform/provider.
-      callbackRequest = new Request(config.origin + '/api/auth/callback?' + params.toString(), {
-        method: 'GET',
-        headers: request.headers,
-      });
     }
     const broker = new GoogleLoginBroker(db, config, clock, options.restriction);
     if (callback) {
@@ -370,9 +412,8 @@ export function createOAuthHttpHandler(
             (pilot
               ? '/api/auth/pilot#' +
                 (result?.kind === 'pending-receipt' ? 'received' : 'unavailable')
-              : options.accountLanding === true
-                ? '/account#'
-                : '/#'),
+              : (options.accountLanding === true ? '/account#' : '/#') +
+                (result?.kind === 'authenticated' ? '' : 'authentication-failed')),
         },
       });
       // Never mutate the shared attempt cookie: even a claimed response can arrive after a newer start.

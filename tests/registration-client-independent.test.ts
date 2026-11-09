@@ -16,7 +16,7 @@ function authorizationUrl() {
     client_id: 'fixture-client.apps.googleusercontent.com',
     redirect_uri: origin + '/api/auth/callback',
     response_type: 'code',
-    response_mode: 'fragment',
+    response_mode: 'form_post',
     scope: 'openid email',
     hd: 'st.kobedenshi.ac.jp',
     state: 's'.repeat(43),

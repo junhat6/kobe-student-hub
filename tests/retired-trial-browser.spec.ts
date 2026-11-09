@@ -71,7 +71,7 @@ test('late query callbacks remove provider parameters without issuing cookies', 
     maxRedirects: 0,
   });
   expect(r.status()).toBe(303);
-  expect(r.headers()['location']).toBe('https://127.0.0.1:8792/account#');
+  expect(r.headers()['location']).toBe('https://127.0.0.1:8792/account#authentication-failed');
   expect(r.headers()['set-cookie']).toBeUndefined();
   expect(await r.text()).toBe('');
 });

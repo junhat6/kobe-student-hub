@@ -101,7 +101,7 @@ it('late callbacks discard query credentials without database, provider or Cooki
     environment(stale),
   );
   expect(r.status).toBe(303);
-  expect(r.headers.get('Location')).toBe(origin + '/account#');
+  expect(r.headers.get('Location')).toBe(origin + '/account#authentication-failed');
   expect(r.headers.get('Set-Cookie')).toBeNull();
   expect(await r.text()).toBe('');
   expect(r.headers.get('Cache-Control')).toBe('private, no-store');
