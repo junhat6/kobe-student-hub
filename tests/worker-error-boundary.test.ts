@@ -189,7 +189,9 @@ describe('actual exported Worker fetch error boundary', () => {
       const r = await worker.fetch(new Request('https://test' + path, { method }), env);
       expect(r.status, path).toBe(status);
       expect(r.headers.has('set-cookie')).toBe(false);
-      expect(r.headers.get('location')).toBe(path === '/api/auth/callback' ? '/account#' : null);
+      expect(r.headers.get('location')).toBe(
+        path === '/api/auth/callback' ? '/account#authentication-failed' : null,
+      );
       expect(await r.text()).not.toContain(marker);
     }
     expect(prepare).not.toHaveBeenCalled();

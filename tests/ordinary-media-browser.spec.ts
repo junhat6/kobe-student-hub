@@ -1,3 +1,4 @@
+import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { encode as pngEncode } from 'fast-png';
 import jpeg from 'jpeg-js';
@@ -20,20 +21,13 @@ async function register(page: Page, info: TestInfo) {
     const u = new URL(route.request().url()),
       state = u.searchParams.get('state')!,
       nonce = u.searchParams.get('nonce')!;
-    expect(u.searchParams.get('response_mode')).toBe('fragment');
+    expect(u.searchParams.get('response_mode')).toBe('form_post');
     expect(
       (
         await page.request.get('/__control/token?' + new URLSearchParams({ state, nonce, actor }))
       ).status(),
     ).toBe(200);
-    await route.fulfill({
-      status: 302,
-      headers: {
-        Location: O + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
-        'Cache-Control': 'no-store',
-      },
-      body: '',
-    });
+    await fulfillGoogleFormPost(route, O, { state, code: state });
   });
   await page.goto('/signup');
   await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');

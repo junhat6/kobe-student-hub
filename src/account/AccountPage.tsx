@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useCallback } from 'react';
 import AccountSessionBoundary from './AccountSessionBoundary';
 import AccountEnrollment from '../editor/AccountEnrollment';
@@ -9,6 +9,7 @@ import OwnPublications from '../editor/OwnPublications';
 import OwnNotifications from './OwnNotifications';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 export default function AccountPage() {
+  const authenticationFailed = useLocation().hash === '#authentication-failed';
   const onNavigationRiskChange = useUnsavedNavigation(
     '未保存のプロフィール、または結果を確認中の操作があります。画面を離れると手元の入力は失われます。送信済みの操作は取り消せません。移動しますか？',
   );
@@ -24,12 +25,19 @@ export default function AccountPage() {
     <section className="account-page">
       <AccountSessionBoundary
         signedOutContent={
-          <div className="account-signed-out">
-            <Link className="primary" to="/login">
-              ログインする
-            </Link>
-            <Link to="/signup">初めての方は学生として登録する</Link>
-          </div>
+          <>
+            {authenticationFailed && (
+              <p className="account-message" role="alert">
+                ログイン・登録を完了できませんでした。もう一度やり直してください。
+              </p>
+            )}
+            <div className="account-signed-out">
+              <Link className="primary" to="/login">
+                ログインする
+              </Link>
+              <Link to="/signup">初めての方は学生として登録する</Link>
+            </div>
+          </>
         }
       >
         {({ csrfToken, fetcher }) => (

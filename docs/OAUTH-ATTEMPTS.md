@@ -2,7 +2,7 @@
 
 ## Scope
 
-The Cycle 04 evidence below describes the original unconnected repository. The current ordinary account candidate composes one-time claim, browser binding, S256 PKCE, server Google verification, session/CSRF and self-declared academic years. Its code-flow response arrives in a fragment, is cleaned before a bounded same-origin POST and is passed to the broker only in RAM; query GET does not consume an attempt. Authoring remains closed. This candidate has not connected real Google or granted an operator role.
+The Cycle 04 evidence below describes the original unconnected repository. The current account correction requests Google's `form_post`: a bounded Google-Origin POST seals a separate 60-second encrypted return cookie, then a fixed clean GET resumes the unchanged broker with the original Lax browser/OAuth cookies. The carrier alone grants nothing; one-time claim, S256 PKCE, server Google verification, session/CSRF and self-declared years remain required. Query GET does not consume an attempt. A fresh anonymous Google browser probe confirmed POST delivery; successful real-user registration remains unverified. Authoring stays closed. See [correction and release evidence](https://github.com/junhat6/kobe-student-hub/pull/120).
 
 Originally no production route started/consumed attempts. After explicit user authorization, migration 0003 was applied to the dedicated preview D1 and independently checked; see [remote migration evidence](QA-AUTH-MIGRATION.md). Historical migrations must not be replayed or reset; Worker deployment still does not implicitly run remote SQL.
 
@@ -26,7 +26,7 @@ The real app's public-catalog test now applies all local migrations and includes
 
 ## Callback log gate
 
-[LOGGING-GATE.md](LOGGING-GATE.md) remains mandatory before connecting a real callback. Its latest scoped actual-platform audit covers the fragment/POST transport and eight synthetic-provider branches; it also records the old query transport's synthetic exposure and the stored-status/correlation limits. No real credential or Google login was used. App log silence alone is not the evidence for this result.
+[LOGGING-GATE.md](LOGGING-GATE.md) remains mandatory before reconnecting the real callback. The earlier eight-branch synthetic audit covers the unchanged broker; the new return-cookie transport has a separate five-phase actual-platform result and independent stored-log inspection in PR #120. App log silence alone is not evidence for this gate.
 
 ## References
 

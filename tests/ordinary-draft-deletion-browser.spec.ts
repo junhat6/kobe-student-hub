@@ -1,3 +1,4 @@
+import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -29,7 +30,7 @@ async function register(page: Page, info: TestInfo) {
       state = url.searchParams.get('state')!,
       nonce = url.searchParams.get('nonce')!;
     expect(url.searchParams.get('redirect_uri')).toBe(ORIGIN + '/api/auth/callback');
-    expect(url.searchParams.get('response_mode')).toBe('fragment');
+    expect(url.searchParams.get('response_mode')).toBe('form_post');
     expect(
       (
         await page
@@ -37,14 +38,7 @@ async function register(page: Page, info: TestInfo) {
           .request.get(ORIGIN + '/__control/token?' + new URLSearchParams({ state, nonce, actor }))
       ).status(),
     ).toBe(200);
-    await route.fulfill({
-      status: 302,
-      headers: {
-        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
-        'Cache-Control': 'no-store',
-      },
-      body: '',
-    });
+    await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
   await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
@@ -110,13 +104,7 @@ async function replaceSession(context: BrowserContext) {
     ).status(),
   ).toBe(200);
   expect(
-    (
-      await context.request.post(ORIGIN + '/api/auth/callback', {
-        headers: { Origin: ORIGIN },
-        form: { state, code: state },
-        maxRedirects: 0,
-      })
-    ).status(),
+    (await completeGoogleFormPost(context.request, ORIGIN, { state, code: state })).status(),
   ).toBe(303);
   const result = await context.request.get(ORIGIN + '/api/private/drafts');
   expect(result.status()).toBe(200);

@@ -219,7 +219,7 @@ export function createRegistrationClient({
       ) ||
       url.searchParams.get('redirect_uri') !== origin + '/api/auth/callback' ||
       url.searchParams.get('response_type') !== 'code' ||
-      url.searchParams.get('response_mode') !== 'fragment' ||
+      url.searchParams.get('response_mode') !== 'form_post' ||
       url.searchParams.get('scope') !== 'openid email' ||
       url.searchParams.get('hd') !== 'st.kobedenshi.ac.jp' ||
       url.searchParams.get('code_challenge_method') !== 'S256' ||

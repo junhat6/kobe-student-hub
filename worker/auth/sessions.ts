@@ -163,27 +163,49 @@ export class SessionStore {
     const csrfToken = await csrf(raw);
     const now = this.now();
     if (now === null) return { kind: 'unavailable' };
-    const row = await this.db
-      .prepare(
-        `UPDATE auth_sessions SET last_seen_ms=? WHERE token_hash=? AND revoked_at_ms IS NULL
+    const predicate = `WHERE token_hash=? AND revoked_at_ms IS NULL
     AND context_hash=? AND EXISTS(SELECT 1 FROM auth_browser_contexts c WHERE c.context_hash=auth_sessions.context_hash AND c.generation=auth_sessions.context_generation AND c.created_at_ms<=? AND c.expires_at_ms>?)
     AND created_at_ms<=? AND last_seen_ms<=? AND last_seen_ms>? AND expires_at_ms>?
-    AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status=${this.restriction ? "'pending'" : "'active'"} AND a.session_epoch=auth_sessions.account_epoch ${this.restriction ? 'AND ' + sessionRestrictionSql('a') : 'AND ? IS NULL AND ? IS NULL AND ? IS NULL AND ?>=0 AND ? IS NULL'})
-    RETURNING account_id,context_generation`,
-      )
-      .bind(
-        now,
-        digest,
-        contextHash,
-        now,
-        now,
-        now,
-        now,
-        now - SESSION_IDLE_MS,
-        now,
-        ...sessionRestrictionBindings(this.restriction, now),
-      )
-      .first<{ account_id: string; context_generation: number }>();
+    AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status=${this.restriction ? "'pending'" : "'active'"} AND a.session_epoch=auth_sessions.account_epoch ${this.restriction ? 'AND ' + sessionRestrictionSql('a') : 'AND ? IS NULL AND ? IS NULL AND ? IS NULL AND ?>=0 AND ? IS NULL'})`;
+    const bindings = (at: number) => [
+      digest,
+      contextHash,
+      at,
+      at,
+      at,
+      at,
+      at - SESSION_IDLE_MS,
+      at,
+      ...sessionRestrictionBindings(this.restriction, at),
+    ];
+    const lookup = (at: number) =>
+      this.db
+        .prepare(
+          `UPDATE auth_sessions SET last_seen_ms=? ${predicate} RETURNING account_id,context_generation`,
+        )
+        .bind(at, ...bindings(at))
+        .first<{ account_id: string; context_generation: number }>();
+    let checkedAt = now,
+      row = await lookup(checkedAt);
+    if (!row) {
+      // Another valid request may have touched the row after this request sampled
+      // its clock. Retry the full atomic authority check once with a fresh sample.
+      const fresh = this.now();
+      if (fresh === null || fresh < checkedAt) return { kind: 'unavailable' };
+      checkedAt = fresh;
+      row = await lookup(checkedAt);
+      if (!row) {
+        // This read classifies timing uncertainty only: it returns no actor and
+        // cannot touch or authorize a row. Every other authority condition stays.
+        const ahead = await this.db
+          .prepare(
+            `SELECT 1 AS present FROM auth_sessions ${predicate.replace('last_seen_ms<=?', 'last_seen_ms>?')} LIMIT 1`,
+          )
+          .bind(...bindings(checkedAt))
+          .first<{ present: number }>();
+        return ahead ? { kind: 'unavailable' } : { kind: 'signed-out' };
+      }
+    }
     return row
       ? {
           kind: 'authenticated',
@@ -194,7 +216,7 @@ export class SessionStore {
           csrfToken,
           contextHash,
           generation: row.context_generation,
-          checkedAt: now,
+          checkedAt,
         }
       : { kind: 'signed-out' };
   }

@@ -201,7 +201,9 @@ describe('public data boundary on Workers and D1', () => {
             : 405,
       );
       expect(r.headers.get('set-cookie')).toBeNull();
-      expect(r.headers.get('location')).toBe(path === '/api/auth/callback' ? '/account#' : null);
+      expect(r.headers.get('location')).toBe(
+        path === '/api/auth/callback' ? '/account#authentication-failed' : null,
+      );
     }
     const health = await mf.dispatchFetch('http://test/api/health');
     expect(((await health.json()) as { writesEnabled: boolean }).writesEnabled).toBe(false);

@@ -17,7 +17,9 @@ it('accepts code or provider denial and drops bounded metadata before the intern
         authuser: '0',
       }).toString(),
     )?.toString(),
-  ).toBe(new URLSearchParams({ state, code: 'code/one' }).toString());
+  ).toBe(
+    new URLSearchParams({ state, code: 'code/one', iss: 'https://accounts.google.com' }).toString(),
+  );
   expect(
     callbackParameters(
       new URLSearchParams({
@@ -28,12 +30,11 @@ it('accepts code or provider denial and drops bounded metadata before the intern
     )?.toString(),
   ).toBe(new URLSearchParams({ state, error: 'access_denied' }).toString());
 });
-it('rejects duplicate protocol and metadata fields, unknown values and ambiguous encoding', () => {
+it('rejects duplicate critical fields, malformed values and ambiguous encoding', () => {
   for (const raw of [
     `state=${state}&code=a&code=b`,
     `state=${state}&%63ode=a&code=b`,
-    `state=${state}&code=a&scope=x&scope=y`,
-    `state=${state}&code=a&other=x`,
+    `state=${state}&code=a&iss=https%3A%2F%2Faccounts.google.com&iss=https%3A%2F%2Faccounts.google.com`,
     `state=${state}&code=a&error=access_denied`,
     `state=${state}`,
     `state=${state}&code=`,
@@ -59,4 +60,16 @@ it('uses a same-origin external script and cleans the URL before any POST withou
   expect(callbackReceiverScript).not.toMatch(
     /console\.|localStorage|sessionStorage|innerHTML|document\.write/,
   );
+});
+
+it('ignores bounded provider extensions and duplicate noncritical metadata', () => {
+  expect(
+    callbackParameters(`state=${state}&code=a&extra1=extension&scope=x&scope=y`)?.toString(),
+  ).toBe(`state=${state}&code=a`);
+  expect(callbackParameters(`state=${state}&code=a&extra1=${'x'.repeat(1025)}`)).toBeNull();
+  expect(
+    callbackParameters(
+      `state=${state}&code=a&` + Array.from({ length: 63 }, (_, i) => `extra${i}=x`).join('&'),
+    ),
+  ).toBeNull();
 });

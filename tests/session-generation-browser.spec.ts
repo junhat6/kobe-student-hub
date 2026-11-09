@@ -1,3 +1,4 @@
+import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { readFileSync } from 'node:fs';
 import { test, expect, type Page, type Route } from '@playwright/test';
 const A = 'fictional-browser-a',
@@ -25,7 +26,7 @@ async function start(p: Page, actor: string) {
   });
   expect(response.status).toBe(200);
   const location = new URL(JSON.parse(response.body).authorizationUrl);
-  expect(location.searchParams.get('response_mode')).toBe('fragment');
+  expect(location.searchParams.get('response_mode')).toBe('form_post');
   const state = location.searchParams.get('state')!;
   expect(
     (
@@ -39,20 +40,20 @@ async function start(p: Page, actor: string) {
   return state;
 }
 async function complete(p: Page, state: string, hold?: string) {
-  const intercept = async (route: Route) =>
-    route.request().method() === 'POST'
-      ? route.continue({
-          headers: { ...(await route.request().allHeaders()), 'X-Test-Callback-Hold': hold! },
-        })
-      : route.continue();
-  if (hold) await p.route('**/api/auth/callback', intercept);
+  const provider = 'https://accounts.google.com/o/oauth2/v2/auth?fixture=form-post';
+  const form = async (route: Route) =>
+    fulfillGoogleFormPost(route, 'https://127.0.0.1:8790', { state, code: state });
+  await p.route(provider, form);
+  // Page headers reach the GET after the 303 redirect; request routes do not intercept redirected requests.
+  if (hold) await p.setExtraHTTPHeaders({ 'X-Test-Callback-Hold': hold });
   try {
-    await p.goto('/api/auth/callback#' + new URLSearchParams({ state, code: state }));
-    // The shell stays at the bare callback until its real POST finishes. A native
-    // opaqueredirect followed by navigation may cancel Playwright's response event.
+    await p.goto(provider);
     await expect(p).toHaveURL('https://127.0.0.1:8790/account');
   } finally {
-    if (hold && !p.isClosed()) await p.unroute('**/api/auth/callback', intercept);
+    if (!p.isClosed()) {
+      await p.unroute(provider, form);
+      if (hold) await p.setExtraHTTPHeaders({});
+    }
   }
 }
 async function actor(p: Page, expected: string) {
