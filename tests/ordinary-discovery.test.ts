@@ -216,6 +216,121 @@ describe('ordinary anonymous new/popular/tag discovery', () => {
     expect(value.popular[0].entry.id).toBe(source);
     expect((await related())!.articles).toHaveLength(4);
   });
+  it('rejects a popular-only article hidden immediately before the final snapshot', async () => {
+    const before = (await home())!;
+    expect(before.recent.some((row) => row.entry.id === source)).toBe(false);
+    expect(before.popular.some((row) => row.entry.id === source)).toBe(true);
+    const db = await mf.getD1Database('DB');
+    try {
+      const result = await call<{ value: OrdinaryDiscovery | null; mutationApplied: boolean }>({
+        action: 'home',
+        finalMutation: { kind: 'hide', target: source },
+      });
+      expect(result.mutationApplied).toBe(true);
+      expect(result.value).toBeNull();
+    } finally {
+      await db.prepare("UPDATE content SET status='published' WHERE id=?").bind(source).run();
+    }
+  });
+  it('validates popular card fields, public author fields and like counts in the final snapshot', async () => {
+    const db = await mf.getD1Database('DB');
+    const before = (await home())!;
+    const selected = before.popular.find((row) => row.entry.id === source)!;
+    const originalLike = (await db
+      .prepare(
+        "SELECT owner_account_id,content_id,liked_at_ms FROM article_likes WHERE owner_account_id='private-c' AND content_id=?",
+      )
+      .bind(source)
+      .first<{ owner_account_id: string; content_id: string; liked_at_ms: number }>())!;
+    expect(originalLike).not.toBeNull();
+    for (const kind of ['title', 'profile-name', 'unlike'] as const) {
+      try {
+        const result = await call<{ value: OrdinaryDiscovery | null; mutationApplied: boolean }>({
+          action: 'home',
+          finalMutation: { kind, target: kind === 'profile-name' ? selected.author.id : source },
+        });
+        expect(result.mutationApplied, kind).toBe(true);
+        expect(result.value, kind).toBeNull();
+      } finally {
+        if (kind === 'title')
+          await db
+            .prepare('UPDATE content SET title=? WHERE id=?')
+            .bind(selected.entry.title, source)
+            .run();
+        else if (kind === 'profile-name')
+          await db
+            .prepare('UPDATE public_profiles SET display_name=? WHERE id=?')
+            .bind(selected.author.name, selected.author.id)
+            .run();
+        else
+          await db
+            .prepare(
+              'INSERT INTO article_likes(owner_account_id,content_id,liked_at_ms) VALUES(?,?,?) ON CONFLICT(owner_account_id,content_id) DO UPDATE SET liked_at_ms=excluded.liked_at_ms',
+            )
+            .bind(originalLike.owner_account_id, originalLike.content_id, originalLike.liked_at_ms)
+            .run();
+      }
+    }
+  });
+  it('checks related target tags and both source publication revisions at the final snapshot', async () => {
+    const raceSource = await article('Snapshot source', ['SnapshotTag']);
+    const raceTarget = await article('Snapshot target', ['SnapshotTag']);
+    const db = await mf.getD1Database('DB');
+    const before = (await related(raceSource))!;
+    expect(before.articles.map((row) => row.entry.id)).toEqual([raceTarget]);
+    const versions = await db
+      .prepare(
+        'SELECT content_id,source_version FROM article_publications WHERE content_id IN (?,?)',
+      )
+      .bind(raceSource, raceTarget)
+      .all<{ content_id: string; source_version: number }>();
+    for (const [kind, target] of [
+      ['tags', raceTarget],
+      ['source-version', raceTarget],
+      ['source-version', raceSource],
+    ] as const) {
+      try {
+        const result = await call<{ value: RelatedDiscovery | null; mutationApplied: boolean }>({
+          action: 'related',
+          target: raceSource,
+          finalMutation: { kind, target },
+        });
+        expect(result.mutationApplied, kind + target).toBe(true);
+        expect(result.value, kind + target).toBeNull();
+      } finally {
+        await db
+          .prepare('UPDATE content SET tags_json=? WHERE id=?')
+          .bind('["SnapshotTag"]', raceTarget)
+          .run();
+        for (const row of versions.results)
+          await db
+            .prepare('UPDATE article_publications SET source_version=? WHERE content_id=?')
+            .bind(row.source_version, row.content_id)
+            .run();
+      }
+    }
+  });
+  it('rejects related project text changed after its public projection', async () => {
+    const raceSource = await article('Project snapshot source', ['ProjectSnapshotTag']);
+    const description = 'ProjectSnapshotTagを使う公開作品の説明';
+    const raceWork = await project('Snapshot project', description);
+    const db = await mf.getD1Database('DB');
+    expect((await related(raceSource))!.projects.map((row) => row.project.id)).toEqual([raceWork]);
+    try {
+      const result = await call<{ value: RelatedDiscovery | null; mutationApplied: boolean }>({
+        action: 'related',
+        target: raceSource,
+        finalMutation: { kind: 'project-description', target: raceWork },
+      });
+      expect(result.mutationApplied).toBe(true);
+      expect(result.value).toBeNull();
+    } finally {
+      await db
+        .prepare('UPDATE project_publications SET description=? WHERE id=?')
+        .bind(description, raceWork)
+        .run();
+    }
+  });
   it('rejects uncanonical HTTP variants and methods without setting identity cookies', async () => {
     const ok = await mf.dispatchFetch(ORIGIN + '/api/discovery');
     expect(ok.status).toBe(200);
