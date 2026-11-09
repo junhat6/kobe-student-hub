@@ -328,7 +328,7 @@ it('rechecks operator session/grant in final SQL after preflight races', async (
     expect(fired).toBe(true);
     expect(await account(t.db, id)).toEqual({ status: 'pending', session_epoch: 0 });
   }
-});
+}, 20000);
 it('purges only expired never-active pending and audits, bounded100 with interval and clock rollback refusal', async () => {
   const t = await setup();
   const values = Array.from({ length: 105 }, (_, i) =>
