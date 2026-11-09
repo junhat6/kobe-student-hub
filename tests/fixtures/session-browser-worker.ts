@@ -27,7 +27,8 @@ export default {
     )(request);
     if (result) {
       const hold =
-        u.pathname === '/api/auth/callback' && request.method === 'POST'
+        (u.pathname === '/api/auth/callback' && request.method === 'POST') ||
+        (u.pathname === '/api/auth/callback/complete' && request.method === 'GET')
           ? request.headers.get('X-Test-Callback-Hold')
           : null;
       if (hold && result.headers.has('Set-Cookie'))

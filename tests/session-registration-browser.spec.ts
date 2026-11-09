@@ -1,3 +1,4 @@
+import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -13,8 +14,8 @@ test('a rejected callback removes query credentials and a browser-only fragment 
   await page.goto(
     '/api/auth/callback?error=access_denied&state=synthetic-private-state#synthetic-private-fragment',
   );
-  await expect(page).toHaveURL(ORIGIN + '/account');
-  expect(callbacks).toEqual([ORIGIN + '/account#']);
+  await expect(page).toHaveURL(ORIGIN + '/account#authentication-failed');
+  expect(callbacks).toEqual([ORIGIN + '/account#authentication-failed']);
   expect(await page.locator('body').innerText()).not.toMatch(/synthetic-private/);
   expect(
     await page.evaluate(() => [
@@ -23,7 +24,7 @@ test('a rejected callback removes query credentials and a browser-only fragment 
       localStorage.length,
       sessionStorage.length,
     ]),
-  ).toEqual(['', '', 0, 0]);
+  ).toEqual(['', '#authentication-failed', 0, 0]);
 });
 const A = 'fictional-browser-a',
   B = 'fictional-browser-b';
@@ -68,8 +69,12 @@ async function privateYears(page: Page) {
   expect(response.status()).toBe(200);
   return response.json();
 }
-async function signedOutAccount(page: Page) {
-  await expect(page).toHaveURL(ORIGIN + '/account');
+async function signedOutAccount(page: Page, failed = false) {
+  await expect(page).toHaveURL(ORIGIN + '/account' + (failed ? '#authentication-failed' : ''));
+  if (failed)
+    await expect(page.getByRole('alert')).toHaveText(
+      'ログイン・登録を完了できませんでした。もう一度やり直してください。',
+    );
   await expect(
     page.getByText('現在ログインしていません。アカウント情報を開くにはログインが必要です。', {
       exact: true,
@@ -77,12 +82,12 @@ async function signedOutAccount(page: Page) {
   ).toBeVisible();
   await expect(enrollment(page)).toHaveCount(0);
 }
-async function fakeGoogle(page: Page, actor: string, denied = false) {
+async function fakeGoogle(page: Page, actor: string, denied = false, legacyFragment = false) {
   const visits: string[] = [];
   await page.route(googleAuthorization, async (route) => {
     const url = new URL(route.request().url());
     visits.push(url.pathname);
-    expect(url.searchParams.get('response_mode')).toBe('fragment');
+    expect(url.searchParams.get('response_mode')).toBe('form_post');
     expect(url.searchParams.get('redirect_uri')).toBe(ORIGIN + '/api/auth/callback');
     const state = url.searchParams.get('state')!,
       nonce = url.searchParams.get('nonce')!;
@@ -94,21 +99,22 @@ async function fakeGoogle(page: Page, actor: string, denied = false) {
         .request.get(ORIGIN + '/__control/token?' + new URLSearchParams({ state, nonce, actor }));
       expect(token.status()).toBe(200);
     }
-    const callback =
-      ORIGIN +
-      '/api/auth/callback#' +
-      new URLSearchParams({
-        state,
-        ...(denied ? { error: 'access_denied' } : { code: state }),
-        iss: 'https://accounts.google.com',
-        provider_extra: 'discarded-provider-metadata',
+    const fields = {
+      state,
+      ...(denied ? { error: 'access_denied' } : { code: state }),
+      iss: 'https://accounts.google.com',
+      provider_extra: 'discarded-provider-metadata',
+    };
+    if (legacyFragment) {
+      await route.fulfill({
+        status: 302,
+        headers: {
+          Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams(fields),
+          'Cache-Control': 'no-store',
+        },
+        body: '',
       });
-    // Every Google navigation is intercepted locally. The browser follows this302 to the real Worker callback.
-    await route.fulfill({
-      status: 302,
-      headers: { Location: callback, 'Cache-Control': 'no-store' },
-      body: '',
-    });
+    } else await fulfillGoogleFormPost(route, ORIGIN, fields);
   });
   return visits;
 }
@@ -120,22 +126,52 @@ test('ordinary signup requires two blank private years and confirms persisted da
   const callbackPosts: {
     path: string;
     search: string;
-    pageUrl: string;
+    providerOrigin: string | undefined;
+    originalCookies: boolean;
     fields: string[];
-    unknownMetadata: boolean;
   }[] = [];
+  const completionGets: { search: string; browser: boolean; oauth: boolean }[] = [];
+  const handoffRedirects: string[] = [];
+  page.on('response', (response) => {
+    if (new URL(response.url()).pathname === '/api/auth/callback')
+      handoffRedirects.push(response.headers()['location']);
+  });
+  await page.route('**/api/auth/callback/complete', async (route) => {
+    expect((await context.request.get(ORIGIN + '/api/private/session')).status()).toBe(401);
+    expect((await context.request.get(ORIGIN + '/api/private/enrollment')).status()).toBe(401);
+    expect((await context.cookies()).some((cookie) => cookie.name === '__Host-kobe-session')).toBe(
+      false,
+    );
+    await route.continue();
+  });
+  const observedRequests: Promise<void>[] = [];
   page.on('request', (request) => {
     const url = new URL(request.url());
     if (url.pathname === '/api/auth/callback' && request.method() === 'POST') {
-      const body = request.postData() ?? '';
-      callbackPosts.push({
-        path: url.pathname,
-        search: url.search,
-        pageUrl: page.url(),
-        fields: [...new URLSearchParams(body).keys()].sort(),
-        unknownMetadata:
-          body.includes('discarded-provider-metadata') || body.includes('provider_extra'),
-      });
+      observedRequests.push(
+        (async () => {
+          const headers = await request.allHeaders();
+          callbackPosts.push({
+            path: url.pathname,
+            search: url.search,
+            providerOrigin: headers.origin,
+            originalCookies: /__Host-kobe-(?:browser|oauth)=/.test(headers.cookie ?? ''),
+            fields: [...new URLSearchParams(request.postData() ?? '').keys()].sort(),
+          });
+        })(),
+      );
+    }
+    if (url.pathname === '/api/auth/callback/complete' && request.method() === 'GET') {
+      observedRequests.push(
+        (async () => {
+          const headers = await request.allHeaders();
+          completionGets.push({
+            search: url.search,
+            browser: (headers.cookie ?? '').includes('__Host-kobe-browser='),
+            oauth: (headers.cookie ?? '').includes('__Host-kobe-oauth='),
+          });
+        })(),
+      );
     }
   });
   const calls = starts(page),
@@ -168,15 +204,19 @@ test('ordinary signup requires two blank private years and confirms persisted da
   await expect(admission(page)).toHaveValue('2026');
   await expect(graduation(page)).toHaveValue('2028');
   expect(visits).toHaveLength(1);
+  await Promise.all(observedRequests);
   expect(callbackPosts).toEqual([
     {
       path: '/api/auth/callback',
       search: '',
-      pageUrl: ORIGIN + '/api/auth/callback',
-      fields: ['code', 'iss', 'state'],
-      unknownMetadata: false,
+      providerOrigin: 'https://accounts.google.com',
+      originalCookies: false,
+      fields: ['code', 'iss', 'provider_extra', 'state'],
     },
   ]);
+  expect(completionGets).toEqual([{ search: '', browser: true, oauth: true }]);
+  expect(handoffRedirects).toEqual([ORIGIN + '/api/auth/callback/complete#']);
+  await page.unroute('**/api/auth/callback/complete');
   expect(calls).toEqual([
     { path: '/api/auth/register', body: { admissionYear: 2026, graduationYear: 2028 } },
   ]);
@@ -199,13 +239,27 @@ test('ordinary signup requires two blank private years and confirms persisted da
     expect(publicBody).not.toContain(field);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(await page.evaluate(() => document.cookie)).not.toContain('__Host-kobe-');
-  for (const name of ['__Host-kobe-browser', '__Host-kobe-session'])
-    expect((await context.cookies()).find((cookie) => cookie.name === name)).toMatchObject({
+  for (const name of [
+    '__Host-kobe-browser',
+    '__Host-kobe-oauth',
+    '__Host-kobe-oauth-return',
+    '__Host-kobe-session',
+  ]) {
+    const cookie = (await context.cookies()).find((candidate) => candidate.name === name);
+    expect(
+      cookie && {
+        httpOnly: cookie.httpOnly,
+        secure: cookie.secure,
+        sameSite: cookie.sameSite,
+        path: cookie.path,
+      },
+    ).toEqual({
       httpOnly: true,
       secure: true,
       sameSite: 'Lax',
       path: '/',
     });
+  }
   await page.reload();
   await expect(admission(page)).toHaveValue('2026');
   await expect(graduation(page)).toHaveValue('2028');
@@ -230,7 +284,9 @@ test('ordinary A/B login sends no years or registration call and an unknown logi
     await expect(google(page, true)).toBeEnabled();
     await expect(page.locator('.account-entry input')).toHaveCount(0);
     await google(page, true).click();
-    await expect(page).toHaveURL(ORIGIN + '/account');
+    await expect(page).toHaveURL(
+      ORIGIN + '/account' + (actor === A || actor === B ? '' : '#authentication-failed'),
+    );
     expect(visits).toHaveLength(1);
     const response = await context.request.get(ORIGIN + '/fixture/private');
     if (actor === A || actor === B) {
@@ -239,7 +295,7 @@ test('ordinary A/B login sends no years or registration call and an unknown logi
       await expect(enrollment(page)).toBeVisible();
     } else {
       expect(response.status()).toBe(401);
-      await signedOutAccount(page);
+      await signedOutAccount(page, true);
     }
     await page.unroute(googleAuthorization);
   }
@@ -257,11 +313,11 @@ test('provider denial lands on a clean signed-out account page without success o
   await signup(page);
   await fillYears(page);
   await google(page).click();
-  await signedOutAccount(page);
+  await signedOutAccount(page, true);
   expect(visits).toHaveLength(1);
   expect(calls).toHaveLength(1);
   expect(new URL(page.url()).search).toBe('');
-  expect(new URL(page.url()).hash).toBe('');
+  expect(new URL(page.url()).hash).toBe('#authentication-failed');
   expect((await context.cookies()).some((cookie) => cookie.name === '__Host-kobe-session')).toBe(
     false,
   );
@@ -296,7 +352,7 @@ test('fragment receiver clears its URL before POST and never automatically retri
       finish();
     }
   });
-  await fakeGoogle(page, fictional(info, 'receiver-hidden'));
+  await fakeGoogle(page, fictional(info, 'receiver-hidden'), false, true);
   await signup(page);
   await fillYears(page);
   try {

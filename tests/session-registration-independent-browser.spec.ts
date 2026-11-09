@@ -1,3 +1,4 @@
+import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import {
   test,
   expect,
@@ -52,7 +53,7 @@ async function fakeGoogle(page: Page, actor: string) {
     const authorization = new URL(route.request().url()),
       state = authorization.searchParams.get('state')!,
       nonce = authorization.searchParams.get('nonce')!;
-    expect(authorization.searchParams.get('response_mode')).toBe('fragment');
+    expect(authorization.searchParams.get('response_mode')).toBe('form_post');
     expect(authorization.searchParams.get('redirect_uri')).toBe(ORIGIN + '/api/auth/callback');
     expect(
       (
@@ -61,14 +62,7 @@ async function fakeGoogle(page: Page, actor: string) {
           .request.get(ORIGIN + '/__control/token?' + new URLSearchParams({ state, nonce, actor }))
       ).status(),
     ).toBe(200);
-    await route.fulfill({
-      status: 302,
-      headers: {
-        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
-        'Cache-Control': 'no-store',
-      },
-      body: '',
-    });
+    await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
 }
 async function signIn(page: Page, actor: string, info?: TestInfo) {
@@ -107,13 +101,7 @@ async function replaceSession(context: BrowserContext, actor: string) {
     ).status(),
   ).toBe(200);
   expect(
-    (
-      await context.request.post(ORIGIN + '/api/auth/callback', {
-        headers: { Origin: ORIGIN },
-        form: { state, code: state },
-        maxRedirects: 0,
-      })
-    ).status(),
+    (await completeGoogleFormPost(context.request, ORIGIN, { state, code: state })).status(),
   ).toBe(303);
   const confirmed = await context.request.get(ORIGIN + '/fixture/private');
   expect(confirmed.status()).toBe(200);

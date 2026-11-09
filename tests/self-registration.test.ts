@@ -96,7 +96,9 @@ async function finish(attempt: Start, extra: Record<string, unknown> = {}) {
     extra,
   );
   expect(response.status).toBe(303);
-  expect(response.headers.get('Location')).toBe(O + '/#');
+  expect(response.headers.get('Location')).toBe(
+    O + '/#' + (sessionCookie(response) ? '' : 'authentication-failed'),
+  );
   expect(response.headers.get('Cache-Control')).toBe('private, no-store');
   return response;
 }
@@ -639,7 +641,7 @@ it('normal callback rejects cross-origin, legacy proof, body ambiguity and limit
     { headers: { ...base, 'Content-Length': '8193' } },
     { headers: { ...base, 'Content-Length': String(body.length + 1) } },
     { body: body + '&code=duplicate' },
-    { body: body + '&unknown=not-forwarded' },
+    { body: body + '&unknown=' + 'x'.repeat(1025) },
     { body: body + '&iss=https%3A%2F%2Fevil.invalid' },
     { body: 'state=' + state + '&code=%ZZ' },
     { body: body + '&error_description=' + 'x'.repeat(8192) },

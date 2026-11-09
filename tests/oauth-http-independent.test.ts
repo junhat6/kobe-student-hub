@@ -195,7 +195,7 @@ it('independent partial absent null or wrongly typed optional configuration stay
       expect(r.status).toBe(callback ? 303 : 503);
       expect(r.headers.get('Cache-Control')).toBe('private, no-store');
       expect(r.headers.has('Set-Cookie')).toBe(false);
-      expect(r.headers.get('Location')).toBe(callback ? '/#' : null);
+      expect(r.headers.get('Location')).toBe(callback ? '/#authentication-failed' : null);
       expect(await r.text()).toBe(callback ? '' : '{"error":"authentication_unavailable"}');
     }
   expect(await count('oauth_attempts')).toBe(attempts);
@@ -229,7 +229,9 @@ it('independent ordinary login stage rejects unproved identity and runtime flags
     );
     expect(r.status).toBe(status);
     expect(r.headers.has('Set-Cookie')).toBe(false);
-    expect(r.headers.get('Location')).toBe(path.includes('callback?') ? O + '/account#' : null);
+    expect(r.headers.get('Location')).toBe(
+      path.includes('callback?') ? O + '/account#authentication-failed' : null,
+    );
   }
   expect(
     await (await req('/api/health', 'GET', {}, { production: true, forbidDb: true })).json(),

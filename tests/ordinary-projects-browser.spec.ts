@@ -1,3 +1,4 @@
+import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -6,7 +7,7 @@ async function register(page: Page, info: TestInfo) {
   const actor = `fictional-project-${info.project.name}-${Date.now().toString(36)}`;
   await page.route(provider, async (route) => {
     const url = new URL(route.request().url());
-    expect(url.searchParams.get('response_mode')).toBe('fragment');
+    expect(url.searchParams.get('response_mode')).toBe('form_post');
     const state = url.searchParams.get('state')!,
       nonce = url.searchParams.get('nonce')!;
     expect(
@@ -14,14 +15,7 @@ async function register(page: Page, info: TestInfo) {
         await page.request.get('/__control/token?' + new URLSearchParams({ state, nonce, actor }))
       ).status(),
     ).toBe(200);
-    await route.fulfill({
-      status: 302,
-      headers: {
-        Location: ORIGIN + '/api/auth/callback#' + new URLSearchParams({ state, code: state }),
-        'Cache-Control': 'no-store',
-      },
-      body: '',
-    });
+    await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
   await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');

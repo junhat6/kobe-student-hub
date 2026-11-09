@@ -146,7 +146,7 @@ export class BrowserOAuthFlow {
         client_id: this.config.clientId,
         redirect_uri: ctx.redirect,
         response_type: 'code',
-        ...(intent === 'pending-registration' ? {} : { response_mode: 'fragment' }),
+        ...(intent === 'pending-registration' ? {} : { response_mode: 'form_post' }),
         scope: 'openid email',
         hd: 'st.kobedenshi.ac.jp',
         state: attempt.state,
