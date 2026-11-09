@@ -15,6 +15,12 @@ export class ProfileClientError extends Error {
     this.name = 'ProfileClientError';
   }
 }
+export class ProfileConflictError extends ProfileClientError {
+  constructor() {
+    super();
+    this.name = 'ProfileConflictError';
+  }
+}
 const fields = ['displayName', 'department', 'yearLabel', 'bio'] as const;
 function keys(v: unknown, expected: readonly string[]): v is Record<string, unknown> {
   return (
@@ -53,7 +59,10 @@ export const sameProfileInput = (a: ProfileInput, b: ProfileInput) =>
   fields.every((key) => a[key] === b[key]);
 /** Local editor client. No identity defaults, persistence or automatic mutation retry. */
 export function createProfileClient(csrfToken: string, fetcher: typeof fetch = fetch) {
-  async function request(value?: ProfileInput): Promise<PublicProfile | null> {
+  async function request(
+    value?: ProfileInput,
+    expected?: PublicProfile,
+  ): Promise<PublicProfile | null> {
     const controller = new AbortController();
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -64,7 +73,7 @@ export function createProfileClient(csrfToken: string, fetcher: typeof fetch = f
     };
     const operation = (async () => {
       const response = await fetcher('/api/private/profile', {
-        method: value ? 'POST' : 'GET',
+        method: expected ? 'PATCH' : value ? 'POST' : 'GET',
         credentials: 'same-origin',
         cache: 'no-store',
         redirect: 'error',
@@ -76,11 +85,23 @@ export function createProfileClient(csrfToken: string, fetcher: typeof fetch = f
               Authorization: proofAuthorization('csrf', csrfToken),
             }
           : { Accept: 'application/json' },
-        ...(value ? { body: JSON.stringify({ ...value, confirmPublic: true }) } : {}),
+        ...(value
+          ? {
+              body: JSON.stringify({
+                ...value,
+                confirmPublic: true,
+                ...(expected ? { expectedProfile: expected } : {}),
+              }),
+            }
+          : {}),
       });
+      if (expected && response.status === 409) {
+        void response.body?.cancel().catch(() => {});
+        throw new ProfileConflictError();
+      }
       if (
         expired ||
-        response.status !== (value ? 201 : 200) ||
+        response.status !== (value && !expected ? 201 : 200) ||
         !response.body ||
         !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
       ) {
@@ -118,9 +139,11 @@ export function createProfileClient(csrfToken: string, fetcher: typeof fetch = f
           (value &&
             (result.profile === null ||
               !sameProfileInput(result.profile as PublicProfile, value) ||
-              !/^profile-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
-                (result.profile as PublicProfile).id,
-              ) ||
+              (expected
+                ? (result.profile as PublicProfile).id !== expected.id
+                : !/^profile-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+                    (result.profile as PublicProfile).id,
+                  )) ||
               (result.profile as PublicProfile).initials !==
                 Array.from(value.displayName.trim())[0]))
         )
@@ -141,7 +164,8 @@ export function createProfileClient(csrfToken: string, fetcher: typeof fetch = f
     });
     try {
       return await Promise.race([operation, deadline]);
-    } catch {
+    } catch (error) {
+      if (error instanceof ProfileConflictError) throw error;
       throw new ProfileClientError();
     } finally {
       clearTimeout(timer);
@@ -153,6 +177,11 @@ export function createProfileClient(csrfToken: string, fetcher: typeof fetch = f
     create: async (value: ProfileInput, confirmed: boolean) => {
       if (!confirmed || !keys(value, fields) || !input(value)) throw new ProfileClientError();
       return (await request(value)) as PublicProfile;
+    },
+    update: async (value: ProfileInput, expected: PublicProfile, confirmed: boolean) => {
+      if (!confirmed || !keys(value, fields) || !input(value) || !profile(expected))
+        throw new ProfileClientError();
+      return (await request(value, expected)) as PublicProfile;
     },
   };
 }

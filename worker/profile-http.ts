@@ -92,7 +92,7 @@ async function input(request: Request): Promise<Body> {
     clearTimeout(timer);
   }
 }
-/** Unconnected HTTP boundary. Production must not mount this before the logging/auth gates. */
+/** Private profile boundary, mounted only through the ordinary-authoring release gate. */
 export function createPrivateProfileHandler(
   db: D1Database,
   origin: string,
@@ -105,7 +105,7 @@ export function createPrivateProfileHandler(
     if (!url.pathname.startsWith(PREFIX)) return null;
     if (!canonicalOrigin(origin)) return error(503, 'profile_unavailable');
     if (url.pathname !== PREFIX || url.search || url.hash) return unavailable();
-    const allowed = ['GET', 'POST'];
+    const allowed = ['GET', 'POST', 'PATCH'];
     if (!allowed.includes(request.method)) {
       const response = error(405, 'method_not_allowed');
       response.headers.set('Allow', allowed.join(', '));
@@ -123,6 +123,13 @@ export function createPrivateProfileHandler(
       }
       const body = await input(request);
       if (!body.ok) return error(body.status, 'invalid_request');
+      if (request.method === 'PATCH') {
+        const result = await profiles.update(request, body.value);
+        if (!result) return unavailable();
+        return result.kind === 'conflict'
+          ? error(409, 'profile_changed')
+          : json({ profile: result.profile });
+      }
       const result = await profiles.create(request, body.value);
       return result === null ? unavailable() : json(result, 201);
     } catch {

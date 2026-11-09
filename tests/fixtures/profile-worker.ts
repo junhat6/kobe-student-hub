@@ -52,6 +52,12 @@ export default {
                             await env.DB.prepare(
                               'UPDATE private_accounts SET session_epoch=session_epoch+1',
                             ).run();
+                          else if (race === 'enrollment')
+                            await env.DB.prepare(
+                              'DELETE FROM private_enrollment_periods WHERE owner_account_id=?',
+                            )
+                              .bind((result as { account_id?: string } | null)?.account_id ?? '')
+                              .run();
                           else
                             await env.DB.prepare('UPDATE auth_sessions SET revoked_at_ms=?')
                               .bind(now)
@@ -77,7 +83,8 @@ export default {
         headers?: Record<string, string>;
       };
       const target = new Request(origin + '/api/private/profile', {
-        method: i.method ?? (i.action === 'create' ? 'POST' : 'GET'),
+        method:
+          i.method ?? (i.action === 'create' ? 'POST' : i.action === 'update' ? 'PATCH' : 'GET'),
         headers: i.headers,
       });
       if (i.action === 'draft')
@@ -94,7 +101,11 @@ export default {
         );
       const store = new PublicProfileStore(db, origin, () => now);
       return Response.json(
-        i.action === 'create' ? await store.create(target, i.input) : await store.getOwn(target),
+        i.action === 'create'
+          ? await store.create(target, i.input)
+          : i.action === 'update'
+            ? await store.update(target, i.input)
+            : await store.getOwn(target),
       );
     }
     let target = request;

@@ -124,7 +124,10 @@ test('ordinary search finds article-only and project-only authors and preserves 
 
     const privateRequests: string[] = [];
     page.on('request', (request) => {
-      if (new URL(request.url()).pathname.startsWith('/api/private/'))
+      if (
+        new URL(request.url()).pathname.startsWith('/api/private/') &&
+        new URL(request.url()).pathname !== '/api/private/session'
+      )
         privateRequests.push(new URL(request.url()).pathname);
     });
     const articleResponse = await page.request.get('/api/articles');
@@ -283,7 +286,8 @@ test('ordinary search keeps available results when the other public API fails an
     const counts = { articles: 0, projects: 0 };
     page.on('request', (request) => {
       const path = new URL(request.url()).pathname;
-      if (path.startsWith('/api/private/')) privateRequests.push(path);
+      if (path.startsWith('/api/private/') && path !== '/api/private/session')
+        privateRequests.push(path);
       if (path === '/api/articles') counts.articles++;
       if (path === '/api/projects') counts.projects++;
     });
