@@ -55,6 +55,7 @@ export default function DraftEditor({
   const [text, setText] = useState({ title: '', body: '' });
   const [mutationPending, setMutationPending] = useState(false);
   const [preparationDirty, setPreparationDirty] = useState(false);
+  const [publicationUncertain, setPublicationUncertain] = useState(false);
   const [publicationBusy, setPublicationBusy] = useState(false);
   const [publicationMutationPending, setPublicationMutationPending] = useState(false);
   const publicationLock = useRef(false);
@@ -68,6 +69,20 @@ export default function DraftEditor({
   const mounted = useRef(true);
   const [status, setStatus] = useState('下書きを読み込んでいます…');
   const [problem, setProblem] = useState(false);
+  const [autosavePaused, setAutosavePaused] = useState(false);
+  const autosaveTimer = useRef<number | undefined>(undefined);
+  function cancelAutosave() {
+    window.clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = undefined;
+  }
+  const onMediaBusy = useCallback((value: boolean) => {
+    if (value) cancelAutosave();
+    setMediaBusy(value);
+  }, []);
+  const onMediaUncertain = useCallback((value: boolean) => {
+    if (value) cancelAutosave();
+    setMediaUncertain(value);
+  }, []);
   const [latest, setLatest] = useState<EditorDraft | null>(null);
   const [preview, setPreview] = useState(false);
   const [deletion, setDeletion] = useState<'idle' | 'confirm' | 'pending' | 'unknown'>('idle');
@@ -103,6 +118,7 @@ export default function DraftEditor({
         : '';
   async function run(operation: () => Promise<void>, mutating = false) {
     if (lock.current || publicationLock.current) return;
+    cancelAutosave();
     lock.current = true;
     setBusy(true);
     if (mutating) {
@@ -120,13 +136,16 @@ export default function DraftEditor({
     }
   }
   const onPublicationPending = useCallback((value: boolean, mutating = false) => {
+    if (value) cancelAutosave();
     publicationLock.current = value;
     setPublicationBusy(value);
     setPublicationMutationPending(value && mutating);
   }, []);
-  const onUnsavedPreparation = useCallback((value: boolean) => {
+  const onUnsavedPreparation = useCallback((value: boolean, uncertain = false) => {
+    if (uncertain) cancelAutosave();
     preparationUnsaved.current = value;
     setPreparationDirty(value);
+    setPublicationUncertain(uncertain);
   }, []);
   const canPublishStart = useCallback(
     () => !lock.current && !publicationLock.current && (!ordinary || (!problem && !deletionOpen)),
@@ -215,6 +234,7 @@ export default function DraftEditor({
     setText({ title: value.title, body: value.body });
     setLatest(null);
     setProblem(false);
+    setAutosavePaused(false);
     setDeletion('idle');
     setPreview(false);
     setStatus(
@@ -263,7 +283,14 @@ export default function DraftEditor({
     }, true);
   }
   async function save() {
-    if (!draft || !dirty || invalid || deletionOpen) return;
+    if (
+      !draft ||
+      !dirty ||
+      invalid ||
+      deletionOpen ||
+      (ordinary && (problem || compositionRef.current))
+    )
+      return;
     const snapshot = { ...draft, ...text };
     await run(async () => {
       setStatus('送信した内容を保存しています…');
@@ -274,6 +301,7 @@ export default function DraftEditor({
         remember(value);
         setLatest(null);
         setProblem(false);
+        setAutosavePaused(false);
         setStatus(
           same(currentText.current, snapshot)
             ? '下書きを保存しました。'
@@ -282,12 +310,53 @@ export default function DraftEditor({
       } catch {
         if (mounted.current) {
           setProblem(true);
+          setAutosavePaused(true);
           setLatest(null);
           setStatus('保存結果を確認できませんでした。手元の編集はこの画面に残っています。');
         }
       }
     }, true);
   }
+  useEffect(() => {
+    if (
+      !ordinary ||
+      !draft ||
+      !dirty ||
+      invalid ||
+      composing ||
+      opening ||
+      busy ||
+      publicationBusy ||
+      publicationUncertain ||
+      mediaUncertain ||
+      deletion !== 'idle' ||
+      problem ||
+      autosavePaused
+    )
+      return;
+    autosaveTimer.current = window.setTimeout(() => {
+      autosaveTimer.current = undefined;
+      if (!mounted.current || lock.current || publicationLock.current || compositionRef.current)
+        return;
+      void save();
+    }, 2000);
+    return cancelAutosave;
+  }, [
+    ordinary,
+    draft,
+    text,
+    dirty,
+    invalid,
+    composing,
+    opening,
+    busy,
+    publicationBusy,
+    publicationUncertain,
+    mediaUncertain,
+    deletion,
+    problem,
+    autosavePaused,
+  ]);
   async function inspect() {
     if (!draft) return;
     const id = draft.id;
@@ -315,6 +384,9 @@ export default function DraftEditor({
     remember(latest);
     setLatest(null);
     setProblem(false);
+    // Acknowledgement loss/conflicts require a deliberate save after readback.
+    // Rebasing must not silently overwrite the version the user just inspected.
+    setAutosavePaused(true);
     setDeletion('idle');
     setStatus(
       deletion === 'unknown'
@@ -335,6 +407,7 @@ export default function DraftEditor({
       deletion !== 'idle'
     )
       return;
+    cancelAutosave();
     setLatest(null);
     setDeletion('confirm');
   }
@@ -384,6 +457,7 @@ export default function DraftEditor({
     }, true);
   }
   function startComposition() {
+    cancelAutosave();
     pendingFormat.current = null;
     compositionRef.current = true;
     setComposing(true);
@@ -402,6 +476,7 @@ export default function DraftEditor({
       setStatus('文字の選択位置を確認して、もう一度操作してください。');
       return;
     }
+    cancelAutosave();
     pendingFormat.current = result;
     setText((t) => ({ ...t, body: result.body }));
   }
@@ -536,6 +611,7 @@ export default function DraftEditor({
                   onCompositionStart={startComposition}
                   onCompositionEnd={endComposition}
                   onChange={(event) => {
+                    cancelAutosave();
                     pendingFormat.current = null;
                     setText((t) => ({ ...t, title: event.target.value }));
                   }}
@@ -628,6 +704,7 @@ export default function DraftEditor({
                       onCompositionStart={startComposition}
                       onCompositionEnd={endComposition}
                       onChange={(event) => {
+                        cancelAutosave();
                         pendingFormat.current = null;
                         setText((t) => ({ ...t, body: event.target.value }));
                       }}
@@ -650,9 +727,12 @@ export default function DraftEditor({
                   csrfToken={csrfToken}
                   fetcher={fetcher}
                   disabled={workBusy || publicationBusy || editingLocked}
-                  onBusy={setMediaBusy}
-                  onUncertain={setMediaUncertain}
-                  onInsert={(value) => setText((t) => ({ ...t, body: t.body + value }))}
+                  onBusy={onMediaBusy}
+                  onUncertain={onMediaUncertain}
+                  onInsert={(value) => {
+                    cancelAutosave();
+                    setText((t) => ({ ...t, body: t.body + value }));
+                  }}
                 />
               )}
               {invalid && (
@@ -662,13 +742,28 @@ export default function DraftEditor({
               )}
               <div className="editor-save-bar">
                 <p>
-                  自動保存はありません。変更後は保存してください。
+                  {ordinary
+                    ? autosavePaused
+                      ? '自動保存を停止しています。保存済みの版を確認してから、手動で保存してください。'
+                      : '入力を止めると、タイトルと本文を自動保存します。'
+                    : '自動保存はありません。変更後は保存してください。'}
                   <br />
-                  <small>未保存の文章は、タブを閉じると失われる場合があります。</small>
+                  <small>
+                    {ordinary
+                      ? '「保存済み」を確認してから閉じてください。保存できない場合は、手元の文章を残してお知らせします。'
+                      : '未保存の文章は、タブを閉じると失われる場合があります。'}
+                  </small>
                 </p>
                 <Button
                   className="editor-primary"
-                  disabled={busy || publicationBusy || deletionOpen || !dirty || Boolean(invalid)}
+                  disabled={
+                    busy ||
+                    publicationBusy ||
+                    deletionOpen ||
+                    !dirty ||
+                    Boolean(invalid) ||
+                    (ordinary && (problem || composing))
+                  }
                   onClick={() => void save()}
                 >
                   下書きを保存

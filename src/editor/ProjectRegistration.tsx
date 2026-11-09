@@ -1,5 +1,5 @@
 import { mergeConfirmedProject } from './project-list';
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { Button } from '@base-ui/react/button';
 import type {
@@ -63,6 +63,7 @@ export default function ProjectRegistration({
   surface?: PublicSurface;
   onNavigationRiskChange?: (risk: boolean) => void;
 }) {
+  const ordinary = surface === 'ordinary';
   const formId = useId();
   const client = useMemo(() => createProjectClient(csrfToken, fetcher), [csrfToken, fetcher]),
     profiles = useMemo(() => createProfileClient(csrfToken, fetcher), [csrfToken, fetcher]);
@@ -79,6 +80,22 @@ export default function ProjectRegistration({
     [message, setMessage] = useState('');
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaUncertain, setMediaUncertain] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const composition = useRef(false);
+  const [autosavePaused, setAutosavePaused] = useState(false);
+  const autosaveTimer = useRef<number | undefined>(undefined);
+  function cancelAutosave() {
+    window.clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = undefined;
+  }
+  const onMediaBusy = useCallback((value: boolean) => {
+    if (value) cancelAutosave();
+    setMediaBusy(value);
+  }, []);
+  const onMediaUncertain = useCallback((value: boolean) => {
+    if (value) cancelAutosave();
+    setMediaUncertain(value);
+  }, []);
   const busy = workBusy || mediaBusy;
   const [createUnknown, setCreateUnknown] = useState(false),
     [saveUnknown, setSaveUnknown] = useState(false),
@@ -113,6 +130,7 @@ export default function ProjectRegistration({
   }, [hasUnsaved, busy]);
   async function run(action: (signal: AbortSignal, generation: number) => Promise<void>) {
     if (lock.current) return;
+    cancelAutosave();
     lock.current = true;
     setBusy(true);
     const controller = new AbortController();
@@ -148,6 +166,7 @@ export default function ProjectRegistration({
     mounted.current = true;
     void refresh();
     return () => {
+      cancelAutosave();
       mounted.current = false;
       revision.current++;
       request.current?.abort();
@@ -160,6 +179,7 @@ export default function ProjectRegistration({
       !window.confirm('未保存・未確定の作品情報をこの画面から破棄して、新しい入力を始めますか？')
     )
       return;
+    cancelAutosave();
     setInput({ ...empty });
     setSaved(null);
     setCandidate(null);
@@ -169,14 +189,36 @@ export default function ProjectRegistration({
     setReady(false);
     setReceipt(null);
     setPublished(null);
+    setAutosavePaused(false);
+    composition.current = false;
+    setComposing(false);
     attempt.current = null;
     setMessage('新しい作品の入力です。まだ保存していません。');
   }
-  async function save() {
-    if (!normalized || createUnknown || saveUnknown || pubUnknown || !dirty) return;
+  async function save(automatic = false) {
+    if (
+      !mounted.current ||
+      !normalized ||
+      createUnknown ||
+      saveUnknown ||
+      pubUnknown ||
+      !dirty ||
+      (ordinary && composition.current) ||
+      (automatic &&
+        (!ordinary ||
+          autosavePaused ||
+          busy ||
+          mediaUncertain ||
+          ready ||
+          candidate ||
+          receipt ||
+          published))
+    )
+      return;
     const snapshot = normalized;
     const source = saved;
     await run(async (signal, g) => {
+      setMessage('作品を保存しています…');
       try {
         const result = await client.save(source?.id ?? null, snapshot, source?.version, signal);
         if (current(g)) {
@@ -185,6 +227,7 @@ export default function ProjectRegistration({
           setCandidate(null);
           setReady(false);
           setReceipt(null);
+          setAutosavePaused(false);
           setMessage(
             '確認した入力を保存しました。後から入力した変更は保存結果と別に保持しています。',
           );
@@ -193,6 +236,7 @@ export default function ProjectRegistration({
         if (current(g)) {
           if (source) setSaveUnknown(true);
           else setCreateUnknown(true);
+          setAutosavePaused(true);
           setReady(false);
           setMessage(
             source
@@ -203,6 +247,50 @@ export default function ProjectRegistration({
       }
     });
   }
+  useEffect(() => {
+    if (
+      !ordinary ||
+      !dirty ||
+      !normalized ||
+      composing ||
+      busy ||
+      mediaUncertain ||
+      createUnknown ||
+      saveUnknown ||
+      pubUnknown ||
+      autosavePaused ||
+      ready ||
+      candidate ||
+      receipt ||
+      published
+    )
+      return;
+    const timer = window.setTimeout(() => {
+      if (autosaveTimer.current !== timer) return;
+      autosaveTimer.current = undefined;
+      if (!mounted.current || lock.current || composition.current) return;
+      void save(true);
+    }, 2000);
+    autosaveTimer.current = timer;
+    return cancelAutosave;
+  }, [
+    ordinary,
+    input,
+    saved,
+    dirty,
+    composing,
+    busy,
+    mediaUncertain,
+    createUnknown,
+    saveUnknown,
+    pubUnknown,
+    autosavePaused,
+    ready,
+    candidate,
+    receipt,
+    published,
+    client,
+  ]);
   async function inspect(id: string) {
     await run(async (signal, g) => {
       try {
@@ -220,6 +308,7 @@ export default function ProjectRegistration({
   function openCandidate() {
     if (!candidate) return;
     if (hasUnsaved && !window.confirm('手元の作品情報を、表示した保存版で置き換えますか？')) return;
+    cancelAutosave();
     setInput({
       title: candidate.title,
       description: candidate.description,
@@ -234,15 +323,21 @@ export default function ProjectRegistration({
     setReady(false);
     setReceipt(null);
     setPublished(null);
+    setAutosavePaused(false);
+    composition.current = false;
+    setComposing(false);
     attempt.current = null;
     setMessage('確認した保存版を開きました。');
   }
   function rebase() {
     if (!candidate || !saved || candidate.id !== saved.id) return;
+    cancelAutosave();
     setSaved(candidate);
     setSaveUnknown(false);
     setCandidate(null);
     setReady(false);
+    // Readback alone must not overwrite the inspected version automatically.
+    setAutosavePaused(true);
     setMessage(
       normalized && sameProjectFields(candidate, normalized)
         ? '保存版との一致を確認しました。'
@@ -338,8 +433,11 @@ export default function ProjectRegistration({
     });
   }
   return (
-    <section className="project-registration" aria-label="画像なし作品の登録">
-      <h2>画像なしの作品を登録する</h2>
+    <section
+      className="project-registration"
+      aria-label={ordinary ? '作品の登録' : '画像なし作品の登録'}
+    >
+      <h2>{ordinary ? '作品を登録する' : '画像なしの作品を登録する'}</h2>
       {surface === 'lab' && (
         <p className="project-local">
           架空データによるローカル限定の試作です。実際の投稿利用ではありません。作品通報の受付・内容の読取確認はローカルで試せますが、実際の運営判断・連絡は未提供です。実サービスでの公開はできません。
@@ -374,6 +472,16 @@ export default function ProjectRegistration({
         ))}
       </ul>
       <form
+        onCompositionStartCapture={() => {
+          cancelAutosave();
+          composition.current = true;
+          setComposing(true);
+        }}
+        onCompositionEndCapture={() => {
+          cancelAutosave();
+          composition.current = false;
+          setComposing(false);
+        }}
         onSubmit={(e) => {
           e.preventDefault();
           void save();
@@ -396,6 +504,7 @@ export default function ProjectRegistration({
                 value={input[key]}
                 maxLength={8000}
                 onChange={(e) => {
+                  cancelAutosave();
                   setInput((v) => ({ ...v, [key]: e.target.value }));
                   setReady(false);
                 }}
@@ -406,6 +515,7 @@ export default function ProjectRegistration({
                 value={input[key]}
                 maxLength={key === 'title' ? 400 : 4096}
                 onChange={(e) => {
+                  cancelAutosave();
                   setInput((v) => ({ ...v, [key]: e.target.value }));
                   setReady(false);
                 }}
@@ -433,7 +543,13 @@ export default function ProjectRegistration({
             : saved
               ? '手元の入力と保存版は一致しています。'
               : '保存版はまだ選んでいません。'}{' '}
-          自動保存はありません。
+          {ordinary
+            ? autosavePaused || createUnknown || saveUnknown || pubUnknown
+              ? '自動保存を停止しています。保存版を確認し、必要な変更を手動で保存してください。'
+              : candidate || ready || receipt || published
+                ? '保存版の比較・公開確認中は自動保存しません。'
+                : '入力を止めると自動保存します。保存版との一致を確認してから閉じてください。'
+            : '自動保存はありません。'}
         </p>
       </form>
       {candidate && (
@@ -470,8 +586,8 @@ export default function ProjectRegistration({
               csrfToken={csrfToken}
               fetcher={fetcher}
               disabled={workBusy}
-              onBusy={setMediaBusy}
-              onUncertain={setMediaUncertain}
+              onBusy={onMediaBusy}
+              onUncertain={onMediaUncertain}
               onInsert={(text) =>
                 setInput((old) => ({ ...old, description: old.description + text }))
               }
