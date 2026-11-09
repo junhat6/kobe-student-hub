@@ -166,7 +166,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await mf?.dispose();
 });
-it('mounts ordinary account routes, rejects unproved requests and keeps posting disabled', async () => {
+it('mounts ordinary account and authoring routes while rejecting unproved requests', async () => {
   const before = await count('oauth_attempts'),
     calls = exchanges;
   for (const [path, status] of [
@@ -179,8 +179,8 @@ it('mounts ordinary account routes, rejects unproved requests and keeps posting 
     ['/api/auth/callback?code=synthetic&state=synthetic', 303],
     ['/api/private/session', 401],
     ['/api/private/logout', 401],
-    ['/api/private/drafts', 405],
-    ['/api/private/profile', 405],
+    ['/api/private/drafts', 401],
+    ['/api/private/profile', 401],
   ] as const)
     expect(
       (
@@ -194,11 +194,11 @@ it('mounts ordinary account routes, rejects unproved requests and keeps posting 
     ).toBe(status);
   expect(
     await (await request('/api/health', 'GET', {}, { production: true })).json(),
-  ).toMatchObject({ writesEnabled: false });
+  ).toMatchObject({ writesEnabled: true });
   expect(await count('oauth_attempts')).toBe(before);
   expect(exchanges).toBe(calls);
 });
-it('ordinary production entry registers a verified fictional student, manages private years and logs out without authoring', async () => {
+it('ordinary production entry registers a verified fictional student, manages years and enforces authoring input checks before logout', async () => {
   await applySelfRegistrationSchema(await mf.getD1Database('DB'));
   const production = { production: true },
     bootstrap = await request('/api/auth/bootstrap', 'POST', { Origin: O }, production);
@@ -302,7 +302,7 @@ it('ordinary production entry registers a verified fictional student, manages pr
     '/api/private/reports/test',
   ]) {
     const r = await request(path, 'POST', headers, production);
-    expect(r.status).toBe(405);
+    expect(r.status).toBe(path === '/api/private/article-likes/test' ? 404 : 415);
     expect(r.headers.has('Set-Cookie')).toBe(false);
   }
   const loggedOut = await request('/api/private/logout', 'POST', headers, production);

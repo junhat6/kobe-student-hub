@@ -70,7 +70,7 @@ beforeEach(async () => {
 });
 afterEach(async () => mf?.dispose());
 describe('optional moderation email spool with real D1 and fake SendEmail', () => {
-  it('does nothing with absent/invalid binding and keeps the production scheduled source gate closed', async () => {
+  it('does nothing with absent/invalid binding and keeps scheduled email disabled without trusted operators', async () => {
     const forbidden = new Proxy(db, {
       get() {
         throw Error('Storage must remain untouched');
@@ -108,11 +108,7 @@ describe('optional moderation email spool with real D1 and fake SendEmail', () =
     const waitUntil = vi.fn();
     await production.scheduled(
       {} as ScheduledController,
-      new Proxy({} as Env, {
-        get() {
-          throw Error('Closed source gate');
-        },
-      }),
+      { DB: forbidden } as Env,
       new Proxy({} as ExecutionContext, {
         get(_target, key) {
           if (key === 'waitUntil') return waitUntil;

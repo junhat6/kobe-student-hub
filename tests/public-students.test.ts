@@ -226,14 +226,14 @@ describe('ordinary shared public student with actual Workers/D1', () => {
     expect(new Set(value.entries.map((v) => v.id)).size).toBe(20);
     expect(new Set(value.projects.map((v) => v.id)).size).toBe(20);
   });
-  it('keeps the source gate and malformed/method/origin paths closed without storage access', async () => {
+  it('keeps disabled, unconfigured and malformed/method/origin paths closed without storage access', async () => {
     const good = '/api/students/' + authors[0];
     for (const extra of [{ 'X-Test-Ordinary': 'disabled' }, { 'X-Test-Production': '1' }]) {
       const r = await request(good, 'GET', undefined, undefined, {
         ...extra,
         'X-Test-Forbid-Db': '1',
       });
-      expect(r.status).toBe('X-Test-Production' in extra ? 405 : 418);
+      expect(r.status).toBe('X-Test-Production' in extra ? 503 : 418);
       expect(r.headers.get('X-Fixture-Db-Calls')).toBe('0');
     }
     for (const path of [

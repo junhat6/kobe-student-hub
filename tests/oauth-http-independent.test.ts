@@ -201,7 +201,7 @@ it('independent partial absent null or wrongly typed optional configuration stay
   expect(await count('oauth_attempts')).toBe(attempts);
   expect(exchanges).toBe(before);
 });
-it('independent ordinary login stage rejects unproved identity and runtime flags cannot open authoring', async () => {
+it('independent ordinary authoring stage rejects unproved identity despite runtime flags', async () => {
   const before = exchanges;
   for (const [path, status] of [
     ['/api/auth/bootstrap', 503],
@@ -213,7 +213,7 @@ it('independent ordinary login stage rejects unproved identity and runtime flags
     ['/api/auth/callback?state=PRIVATE&code=PRIVATE', 303],
     ['/api/private/session', 401],
     ['/api/private/logout', 401],
-    ['/api/private/drafts', 405],
+    ['/api/private/drafts', 401],
     ['/api/private/moderation/cases', 405],
   ] as const) {
     const r = await req(
@@ -233,6 +233,6 @@ it('independent ordinary login stage rejects unproved identity and runtime flags
   }
   expect(
     await (await req('/api/health', 'GET', {}, { production: true, forbidDb: true })).json(),
-  ).toMatchObject({ writesEnabled: false });
+  ).toMatchObject({ writesEnabled: true });
   expect(exchanges).toBe(before);
 });

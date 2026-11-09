@@ -165,7 +165,7 @@ describe('actual exported Worker fetch error boundary', () => {
     expect(next.headers.has('X-Untrusted-Response')).toBe(false);
     for (const log of logs) expect(log).not.toHaveBeenCalled();
   });
-  it('fails account routes closed without config and preserves closed authoring, health and retired paths without storage', async () => {
+  it('fails account and authoring routes closed without config while preserving health and retired paths without storage', async () => {
     const logs = captureLogs();
     const { env, prepare } = environment(marker, 'throw');
     const health = await worker.fetch(new Request('https://test/api/health'), env);
@@ -173,14 +173,14 @@ describe('actual exported Worker fetch error boundary', () => {
     expect(await health.json()).toEqual({
       status: 'ok',
       stage: 'development-preview',
-      writesEnabled: false,
+      writesEnabled: true,
     });
     for (const [path, method, status] of [
       ['/api/auth/start', 'POST', 503],
       ['/api/auth/callback', 'GET', 303],
       ['/api/auth/register', 'POST', 503],
       ['/api/private/enrollment', 'PUT', 503],
-      ['/api/private/drafts', 'POST', 405],
+      ['/api/private/drafts', 'POST', 503],
       ['/api/private/session', 'GET', 503],
       ['/api/auth/pilot', 'GET', 404],
       ['/api/auth/draft-trial/start', 'POST', 404],

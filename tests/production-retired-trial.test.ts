@@ -48,7 +48,7 @@ it('retired trial entry and stale assets are denied even with a formerly valid r
         expect(await r.text()).not.toContain('private');
       }
 });
-it('stale trial configuration and old cookies cannot authenticate or enable private authoring in the account stage', async () => {
+it('stale trial configuration and old cookies cannot authenticate for ordinary private authoring', async () => {
   for (const path of [
     '/api/private/session',
     '/api/private/drafts',
@@ -72,7 +72,9 @@ it('stale trial configuration and old cookies cannot authenticate or enable priv
         environment(stale),
       );
       const expected = path.includes('/drafts')
-        ? 405
+        ? (path === '/api/private/drafts' ? ['GET', 'POST'] : ['GET', 'DELETE']).includes(method)
+          ? 401
+          : 405
         : path === '/api/private/logout-command'
           ? method === 'POST'
             ? 503
@@ -90,9 +92,7 @@ it('stale trial configuration and old cookies cannot authenticate or enable priv
                   : 503;
       expect(r.status, path + ' ' + method).toBe(expected);
       expect(r.headers.get('Set-Cookie')).toBeNull();
-      expect(r.headers.get('Cache-Control')).toBe(
-        path.includes('/drafts') ? 'no-store' : 'private, no-store',
-      );
+      expect(r.headers.get('Cache-Control')).toBe('private, no-store');
     }
 });
 it('late callbacks discard query credentials without database, provider or Cookie operations', async () => {
@@ -106,12 +106,12 @@ it('late callbacks discard query credentials without database, provider or Cooki
   expect(await r.text()).toBe('');
   expect(r.headers.get('Cache-Control')).toBe('private, no-store');
 });
-it('public health keeps the write gate closed and never exposes a retired policy', async () => {
+it('public health reflects enabled ordinary authoring and never exposes a retired policy', async () => {
   const r = await app.fetch(new Request(origin + '/api/health'), environment(stale));
   expect(r.status).toBe(200);
   expect(await r.json()).toEqual({
     status: 'ok',
     stage: 'development-preview',
-    writesEnabled: false,
+    writesEnabled: true,
   });
 });

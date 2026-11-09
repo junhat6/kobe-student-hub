@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-test('account stage keeps signup HTTPS-only and exposes account navigation and guide while authoring stays unavailable', async ({
+test('explicit sample-reader fixture keeps signup HTTPS-only and authoring UI disabled', async ({
   page,
 }) => {
   const privateRequests: string[] = [];

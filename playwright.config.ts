@@ -18,7 +18,9 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
   ],
   webServer: {
-    command: 'npm run preview',
+    // Preserve the sample-reader regressions; ordinary release journeys use the HTTPS fixture.
+    command:
+      'node scripts/build-sample-browser.mjs && npm run preview -- --assets .wrangler/sample-browser-assets',
     url: 'http://127.0.0.1:8787/api/health',
     reuseExistingServer: !process.env.CI,
   },

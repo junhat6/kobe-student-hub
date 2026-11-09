@@ -126,7 +126,7 @@ beforeAll(async () => {
 afterAll(async () => mf?.dispose());
 
 describe('ordinary publication composition with actual local Workers/D1', () => {
-  it('does not open routes or query storage while disabled or behind the production source gates', async () => {
+  it('does not query storage while disabled or when production configuration is missing', async () => {
     const paths = [
       '/api/articles',
       '/api/articles/' + articleId,
@@ -154,7 +154,9 @@ describe('ordinary publication composition with actual local Workers/D1', () => 
           'X-Test-Production': '1',
           'X-Test-Forbid-Db': '1',
         });
-        expect(production.status, path).toBe(405);
+        expect(production.status, path).toBe(
+          path.startsWith('/api/private/moderation/cases') ? 405 : 503,
+        );
         expect(production.headers.get('X-Fixture-Db-Calls')).toBe('0');
         expect(production.headers.has('Set-Cookie')).toBe(false);
       }

@@ -17,7 +17,7 @@ import type { Catalog, Entry, Profile } from '../src/types';
 import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
 // Ordinary account access and authoring have separate source release stages.
 const OAUTH_HTTP_RELEASE_ENABLED = true;
-const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = false;
+const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = true;
 // Pure module/codec setup belongs to isolate startup, not the first image request.
 if (OAUTH_HTTP_RELEASE_ENABLED && ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) await warmMediaCodec();
 const app = new Hono<{ Bindings: Env }>();
