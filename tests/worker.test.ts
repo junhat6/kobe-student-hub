@@ -135,7 +135,7 @@ describe('public data boundary on Workers and D1', () => {
     expect(json.profiles).toHaveLength(2);
     expect(res.headers.get('cache-control')).toBe('no-store');
   });
-  it('rejects every write and never accepts user data', async () => {
+  it('rejects arbitrary writes and fails private authoring closed without configuration', async () => {
     for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
       const res = await mf.dispatchFetch('http://test/api/content', {
         method,
@@ -149,7 +149,7 @@ describe('public data boundary on Workers and D1', () => {
           'http://test' + prefix + '/11111111-1111-4111-8111-111111111111',
           { method },
         );
-        expect(r.status).toBe(405);
+        expect(r.status).toBe(prefix === '/api/private/drafts' ? 503 : 405);
         expect(await r.text()).not.toMatch(/SECRET_DRAFT|PRIVATE_ARTICLE|owner_account_id/);
       }
   });
@@ -189,16 +189,12 @@ describe('public data boundary on Workers and D1', () => {
       ['POST', '/api/private/reports/11111111-1111-4111-8111-111111111111'],
     ]) {
       const r = await mf.dispatchFetch('http://test' + path, { method, redirect: 'manual' });
-      const authPath =
-        path.startsWith('/api/auth/') ||
-        path === '/api/private/session' ||
-        path === '/api/private/logout';
       expect(r.status).toBe(
         path === '/api/auth/callback'
           ? 303
-          : authPath || path === '/api/private/enrollment'
-            ? 503
-            : 405,
+          : path.startsWith('/api/private/moderation/cases')
+            ? 405
+            : 503,
       );
       expect(r.headers.get('set-cookie')).toBeNull();
       expect(r.headers.get('location')).toBe(
@@ -206,7 +202,7 @@ describe('public data boundary on Workers and D1', () => {
       );
     }
     const health = await mf.dispatchFetch('http://test/api/health');
-    expect(((await health.json()) as { writesEnabled: boolean }).writesEnabled).toBe(false);
+    expect(((await health.json()) as { writesEnabled: boolean }).writesEnabled).toBe(true);
   });
   it('returns a safe error when storage is unavailable', async () => {
     const broken = new Miniflare(

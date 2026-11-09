@@ -5,6 +5,7 @@ import { readFileSync, mkdtempSync, cpSync, mkdirSync, writeFileSync, rmSync } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { workerModules } from '../tests/helpers/worker-modules.ts';
+import './build-sample-browser.mjs';
 await build({
   entryPoints: ['tests/fixtures/retired-trial-worker.ts'],
   outfile: '.worker/retired-trial-browser.js',
@@ -15,7 +16,7 @@ await build({
 });
 const scratch = mkdtempSync(join(tmpdir(), 'kobe-retired-assets-')),
   directory = join(scratch, 'assets');
-cpSync('dist', directory, { recursive: true });
+cpSync('.wrangler/sample-browser-assets', directory, { recursive: true });
 mkdirSync(join(directory, 'trial-assets/assets'), { recursive: true });
 writeFileSync(
   join(directory, 'trial-assets/assets/retired-fixture.js'),

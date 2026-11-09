@@ -36,6 +36,17 @@ await build({
 });
 const { googleFixture } = await import('../.worker/browser-google.mjs');
 const signer = await googleFixture();
+// Mirror Static Assets headers instead of silently testing a less restrictive document.
+// This repository currently has one wildcard rule; fail if the fixture parser needs an update.
+const headerLines = readFileSync('.generation-preview/_headers', 'utf8').trimEnd().split(/\r?\n/);
+if (headerLines.shift() !== '/*' || headerLines.some((line) => !/^  [^:\s]+: .+$/.test(line)))
+  throw Error('Unsupported fixture asset header rules');
+const assetHeaders = Object.fromEntries(
+  headerLines.map((line) => {
+    const colon = line.indexOf(':');
+    return [line.slice(0, colon).trim(), line.slice(colon + 1).trim()];
+  }),
+);
 const tokens = new Map(),
   gates = new Map();
 const gate = (tag) => {
@@ -112,6 +123,7 @@ mf = new Miniflare(
                   '/signup',
                   '/login',
                   '/account',
+                  '/history',
                   '/drafts',
                   '/works',
                   '/works/new',
@@ -119,7 +131,7 @@ mf = new Miniflare(
                   '/guide',
                   '/about',
                 ].includes(u.pathname) ||
-                /^\/(?:(?:articles|projects)\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
+                /^\/(?:(?:articles|projects)\/[A-Za-z0-9_-]{1,128}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
                   u.pathname,
                 )
               ? 'index.html'
@@ -132,6 +144,7 @@ mf = new Miniflare(
           throw Error('Invalid fixture asset');
         return new Response(readFileSync('.generation-preview/' + path), {
           headers: {
+            ...assetHeaders,
             'Content-Type': path.endsWith('.js')
               ? 'text/javascript'
               : path.endsWith('.css')
@@ -153,6 +166,7 @@ mf = new Miniflare(
 const db = await mf.getD1Database('DB');
 for (const f of [
   '0001_discovery.sql',
+  '0002_sample_content.sql',
   '0003_oauth_attempts.sql',
   '0004_private_sessions.sql',
   '0005_private_article_drafts.sql',
@@ -169,6 +183,8 @@ for (const f of [
   '0019_moderation_notifications.sql',
   '0020_private_images.sql',
   '0021_project_moderation.sql',
+  '0022_article_revisions.sql',
+  '0023_private_reading_history.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

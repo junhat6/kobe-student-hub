@@ -1,8 +1,9 @@
 # Current work
 
 - 12時間の目標：2026-11-09 16:25 JST。実装・統合・本番反映を優先し、検証詳細はPRへ集約する。
-- 現在地：実Googleがfragment指定でもqueryへ返すため登録未完了。本番OAuthを閉じ、[form_post修正 #120](https://github.com/junhat6/kobe-student-hub/pull/120)を準備。投稿も未開放。
+- 現在地：本人の学校Google登録を確認。運営者・通知・問い合わせを設定し、通知メールの到着も確認済み。通常投稿のリリース結果は[#119](https://github.com/junhat6/kobe-student-hub/pull/119)に集約する。
 - 価値仮説：学校Google登録・年度管理を成立させ、余計な手続きなく制作物を投稿できるようにする。本人限定の旧試用機能は撤去済み。
-- 検証・次の実行：#120の独立QA・実platform確認と統合831 unitを完了。最終green CI後にaccount-onlyを反映し、実Google登録を確認。同時session確認の誤sign-outも修正。詳細はPRへ集約する。
-- 投稿候補[#119](https://github.com/junhat6/kobe-student-hub/pull/119)は認証修正を統合し、PC/mobile104・別context8を確認。session修正を統合中。実operator設定、通知・問い合わせ設定後に開放する。認証整理cronは設置済みで、開始を観測。完了件数や物理消去は未確認。
+- 実装：記事・作品の投稿と公開停止、記事改稿、公開プロフィール編集、検索・人気・関連記事、本人専用の閲覧履歴を統合。旧試用機能の撤去とformatter・commit hookは維持する。
+- 検証記録：個別機能・組み合わせの独立QA、green CI、本番確認はリリースPRへ集約。AIの動作確認は、学生による価値検証や実機確認とは分ける。
+- 次の確認：本人の記事・作品で投稿から公開・閲覧までを使い、利用上の不具合を優先して直す。記録を増やすためだけの文書は作らない。
 - PRD原文・恒久的なsecurity条件は変更しない。過去の作業履歴はGitと各PRを参照する。

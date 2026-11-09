@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   createProfileClient,
   ProfileClientError,
+  ProfileConflictError,
   sameProfileInput,
   type ProfileInput,
 } from '../src/editor/profile-client';
@@ -15,6 +16,77 @@ const value = { ...input, id: 'profile-11111111-1111-4111-8111-111111111111', in
 const csrf = 'c'.repeat(43);
 afterEach(() => vi.useRealTimers());
 describe('explicit public profile browser client', () => {
+  it('updates the exact prior public snapshot with PATCH and keeps its stable public ID', async () => {
+    const changed = { ...input, bio: '更新した自己紹介' };
+    const fetcher = vi.fn(async (_p: unknown, init?: RequestInit) => {
+      expect(init?.method).toBe('PATCH');
+      expect(init?.credentials).toBe('same-origin');
+      expect(init?.cache).toBe('no-store');
+      expect(init?.redirect).toBe('error');
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer csrf.' + csrf);
+      expect(JSON.parse(init?.body as string)).toEqual({
+        ...changed,
+        confirmPublic: true,
+        expectedProfile: value,
+      });
+      return Response.json({ profile: { ...value, ...changed } });
+    });
+    expect(
+      await createProfileClient(csrf, fetcher as typeof fetch).update(changed, value, true),
+    ).toEqual({ ...value, ...changed });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it('requires confirmation and a public-only expected DTO before sending an update', async () => {
+    const fetcher = vi.fn(),
+      client = createProfileClient(csrf, fetcher as typeof fetch);
+    await expect(client.update(input, value, false)).rejects.toBeInstanceOf(ProfileClientError);
+    const privateExtra = { ...value, email: 'PRIVATE' };
+    await expect(client.update(input, privateExtra, true)).rejects.toBeInstanceOf(
+      ProfileClientError,
+    );
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('distinguishes stale updates and rejects changed ID, private extras or partial acknowledgements', async () => {
+    await expect(
+      createProfileClient(csrf, (async () =>
+        Response.json({ error: 'profile_changed' }, { status: 409 })) as typeof fetch).update(
+        input,
+        value,
+        true,
+      ),
+    ).rejects.toBeInstanceOf(ProfileConflictError);
+    for (const profile of [
+      { ...value, id: 'another-profile' },
+      { ...value, email: 'PRIVATE' },
+      { ...value, bio: 'different' },
+      { ...value, initials: 'X' },
+      null,
+    ])
+      await expect(
+        createProfileClient(csrf, (async () => Response.json({ profile })) as typeof fetch).update(
+          input,
+          value,
+          true,
+        ),
+      ).rejects.toBeInstanceOf(ProfileClientError);
+  });
+  it('never retries an uncertain update or accepts its late receipt', async () => {
+    vi.useFakeTimers();
+    let release: (value: Response) => void = () => {};
+    const fetcher = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const result = createProfileClient(csrf, fetcher as typeof fetch).update(input, value, true);
+    const rejected = expect(result).rejects.toBeInstanceOf(ProfileClientError);
+    await vi.advanceTimersByTimeAsync(10000);
+    await rejected;
+    release(Response.json({ profile: value }));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it('sends only explicit input and confirmation with CSRF/no-store, preserving spaces', async () => {
     let init: RequestInit | undefined;
     let path: unknown;

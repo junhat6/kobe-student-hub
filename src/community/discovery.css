@@ -1,0 +1,67 @@
+.discovery-views,
+.discovery-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 16px;
+}
+.discovery-views button,
+.discovery-tags button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid #d6e3ed;
+  border-radius: 8px;
+  background: #fff;
+  color: #253544;
+  cursor: pointer;
+}
+.discovery-views button[aria-pressed='true'],
+.discovery-tags button[aria-pressed='true'] {
+  background: #076db3;
+  color: #fff;
+  border-color: #076db3;
+}
+.discovery-views button:focus-visible,
+.discovery-tags button:focus-visible {
+  outline: 3px solid #076db3;
+  outline-offset: 3px;
+}
+.discovery-like-count {
+  color: #596e7d;
+  margin: 0 0 8px;
+}
+.related-reading {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid #d6e3ed;
+}
+.related-reading ul {
+  list-style: none;
+  padding: 0;
+}
+.related-reading li {
+  padding: 20px 0;
+  border-bottom: 1px solid #d6e3ed;
+  overflow-wrap: anywhere;
+}
+.related-reading h3 {
+  margin: 4px 0 8px;
+  font-size: 1.125rem;
+}
+.related-reading p {
+  margin: 8px 0;
+}
+.related-reading .related-reading-reason,
+.related-reading-limit {
+  color: #596e7d;
+  font-size: 0.875rem;
+}
+
+.related-reading a {
+  color: #076db3;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.related-reading a:hover {
+  color: #054c7b;
+}

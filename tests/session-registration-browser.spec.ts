@@ -484,7 +484,7 @@ test('signup and account confirmation work after an initial catalog failure in t
   page,
 }, info) => {
   const visits = await fakeGoogle(page, fictional(info, 'catalog-failure'));
-  await page.route('**/api/articles', (route) =>
+  await page.route('**/api/discovery', (route) =>
     route.fulfill({
       status: 503,
       contentType: 'application/json',

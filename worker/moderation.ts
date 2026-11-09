@@ -93,7 +93,7 @@ function decisionInput(v: unknown): v is DecisionInput {
     new TextEncoder().encode(x.reason).byteLength <= 4000
   );
 }
-const emailColumns = `o.id outboxId,o.content_id contentId,(SELECT CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END FROM content c WHERE c.id=o.content_id) title,o.event,o.report_count reportCount,o.created_at_ms createdAt,CASE WHEN d.state='leased' AND d.lease_until_ms<=? THEN 'unknown' ELSE COALESCE(d.state,'pending') END state,COALESCE(d.attempts,0) attempts,d.retry_command_id retryCommandId`;
+const emailColumns = `o.id outboxId,o.content_id contentId,COALESCE((SELECT revision.title FROM article_report_revisions ref JOIN article_publication_revisions revision ON revision.content_id=ref.content_id AND revision.revision=ref.revision WHERE ref.report_id=o.report_id),(SELECT CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END FROM content c WHERE c.id=o.content_id)) title,o.event,o.report_count reportCount,o.created_at_ms createdAt,CASE WHEN d.state='leased' AND d.lease_until_ms<=? THEN 'unknown' ELSE COALESCE(d.state,'pending') END state,COALESCE(d.attempts,0) attempts,d.retry_command_id retryCommandId`;
 function emailSummary(row: EmailDeliverySummary): boolean {
   return (
     idValid(row.outboxId) &&

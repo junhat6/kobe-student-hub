@@ -74,6 +74,7 @@ export default {
         '/signup',
         '/login',
         '/account',
+        '/history',
         '/drafts',
         '/works',
         '/works/new',
@@ -82,7 +83,7 @@ export default {
         '/about',
         '/lab/account',
       ].includes(u.pathname) ||
-      /^\/(?:(?:articles|projects)\/[0-9a-f-]{36}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
+      /^\/(?:(?:articles|projects)\/[A-Za-z0-9_-]{1,128}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
         u.pathname,
       ) ||
       u.pathname.startsWith('/assets/')

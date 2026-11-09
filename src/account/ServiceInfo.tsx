@@ -1,3 +1,4 @@
+import { authoringUiEnabled } from './routes';
 import { useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
@@ -39,6 +40,9 @@ export default function ServiceInfo() {
         <p>
           投稿には学校Googleでのログインが必要です。卒業予定年度を過ぎると、新規投稿はできません。
         </p>
+        <p>
+          卒業後も公開済みの内容は自動で削除しません。ログインできる間は、本人による年度訂正・下書きの整理・公開停止を続けられます。学校Googleを使えなくなった場合は窓口へ相談してください。本人確認なしに権限を復旧したり、非公開情報を開示したりすることはありません。
+        </p>
       </section>
       <section>
         <h2 id="privacy" tabIndex={-1}>
@@ -61,7 +65,15 @@ export default function ServiceInfo() {
           ログイン用の一時記録は有効期限で利用を拒否し、期限から24時間の猶予後に少量ずつ整理しますが、バックアップを含む消去時刻を保証するものではありません。
         </p>
         <p>
-          アプリ内の閲覧履歴は記録していません。YouTubeは「読み込む」を押してから外部に接続します。
+          {authoringUiEnabled ? (
+            <>
+              ログイン中に読んだ記事・作品は、本人だけが見られる<Link to="/history">閲覧履歴</Link>
+              に残ります。保存するのは参照先と最後に読んだ日時だけです。記録を停止でき、1件ずつ・すべての削除ができます。自動削除は行いません。上限500件に達すると新しい対象を記録しません。公開停止された内容の題名や画像は履歴に表示しません。
+            </>
+          ) : (
+            'アプリ内の閲覧履歴は記録していません。'
+          )}
+          YouTubeは「読み込む」を押してから外部に接続します。
         </p>
         <p>
           公開停止すると新しい閲覧から外れます。停止はデータ全体の消去や、すでに読者に届いた内容の回収ではありません。
@@ -74,6 +86,7 @@ export default function ServiceInfo() {
         <p>
           運営判断への相談、削除や個人情報の修正についての案内です。卒業後など、学校Googleを使えなくなった場合も、この案内を確認してください。
         </p>
+        <p>機能の要望も、この窓口で受け付けています。</p>
         {failed ? (
           <div role="alert">
             <p>問い合わせ先を確認できませんでした。</p>

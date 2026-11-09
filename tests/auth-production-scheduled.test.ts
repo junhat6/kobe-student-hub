@@ -20,11 +20,18 @@ afterEach(async () => {
 });
 
 describe('actual Worker scheduled auth maintenance', () => {
-  it.each([false, true])('OAuth source gate %s, ordinary authoring stays closed', async (oauth) => {
+  it.each([
+    { oauth: false, authoring: false },
+    { oauth: true, authoring: false },
+    { oauth: true, authoring: true },
+  ])('OAuth $oauth, authoring $authoring', async ({ oauth, authoring }) => {
     const gate = /^const OAUTH_HTTP_RELEASE_ENABLED = true;$/gm;
     expect(source.match(gate)).toHaveLength(1);
-    const variant = source.replace(gate, `const OAUTH_HTTP_RELEASE_ENABLED = ${oauth};`);
-    expect(variant).toContain('const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = false;');
+    const authoringGate = /^const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = true;$/gm;
+    expect(source.match(authoringGate)).toHaveLength(1);
+    const variant = source
+      .replace(gate, `const OAUTH_HTTP_RELEASE_ENABLED = ${oauth};`)
+      .replace(authoringGate, `const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = ${authoring};`);
     output = mkdtempSync(join(tmpdir(), 'ksh-auth-scheduled-'));
     const path = join(output, 'index.mjs');
     await build({

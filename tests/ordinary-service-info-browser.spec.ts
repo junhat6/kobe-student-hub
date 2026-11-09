@@ -97,9 +97,20 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
   await expect(guide.getByText('問い合わせ窓口は現在未設定です。', { exact: false })).toBeVisible();
   await guide.getByRole('link', { name: '情報の扱い', exact: true }).click();
   await expect(guide).toHaveURL(ORIGIN + '/guide#privacy');
+  const historyLink = guide
+    .locator('.service-info')
+    .getByRole('link', { name: '閲覧履歴', exact: true });
+  await expect(historyLink).toHaveAttribute('href', '/history');
+  const historyPolicy = historyLink.locator('..');
+  await expect(historyPolicy).toContainText('ログイン中に読んだ記事・作品は、本人だけが見られる');
+  await expect(historyPolicy).toContainText('保存するのは参照先と最後に読んだ日時だけです。');
+  await expect(historyPolicy).toContainText('記録を停止でき、1件ずつ・すべての削除ができます。');
+  await expect(historyPolicy).toContainText('自動削除は行いません。');
+  await expect(historyPolicy).toContainText('上限500件に達すると新しい対象を記録しません。');
+  await expect(historyPolicy).toContainText('公開停止された内容の題名や画像は履歴に表示しません。');
   await expect(
     guide.getByText('アプリ内の閲覧履歴は記録していません。', { exact: false }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(guide.getByText('AIを使った執筆もできます。', { exact: false })).toBeVisible();
   await expect(
     guide.getByText('解答の丸写しは掲載しないでください。', { exact: false }),

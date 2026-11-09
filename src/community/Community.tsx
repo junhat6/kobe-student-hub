@@ -5,8 +5,11 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MarkdownRenderer from '../MarkdownRenderer';
-import type { Entry, Profile, PublicDiscovery, PublicLikedArticles } from '../types';
-import { createPublicDiscoveryClient } from '../editor/public-discovery-client';
+import type { Entry, Profile, PublicLikedArticles } from '../types';
+import { createOrdinaryDiscoveryClient } from './discovery-client';
+import RelatedReading from './RelatedReading';
+import { RecordReadingHistory } from '../history/RecordReadingHistory';
+import './discovery.css';
 import { createPublicationClient } from '../editor/publication-client';
 import StudentProfile from './StudentProfile';
 import PublicArticleCard from '../editor/PublicArticleCard';
@@ -18,15 +21,25 @@ import '../editor/public-author.css';
 
 function ArticleFeed() {
   const navigate = useNavigate();
-  const client = useMemo(() => createPublicDiscoveryClient(fetch, 'ordinary'), []);
-  const read = useMemo(() => (signal: AbortSignal) => client.read(signal), [client]);
-  const { value, failed, retry } = usePublicRead<PublicDiscovery>('feed', read);
+  const client = useMemo(() => createOrdinaryDiscoveryClient(fetch), []);
+  const read = useMemo(() => (signal: AbortSignal) => client.home(signal), [client]);
+  const { value, failed, retry } = usePublicRead('feed', read);
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
   const [input, setInput] = useState(query);
   useEffect(() => setInput(query), [query]);
   const normalized = query.trim().normalize('NFKC').toLocaleLowerCase('ja');
-  const cards = value?.cards.filter(
+  const [view, setView] = useState<'recent' | 'popular' | 'recommended'>('recent');
+  const [selectedTag, setSelectedTag] = useState('');
+  const tags = [...new Set(value?.recent.flatMap(({ entry }) => entry.tags) ?? [])];
+  const tag = tags.includes(selectedTag) ? selectedTag : (tags[0] ?? '');
+  const sourceCards =
+    view === 'popular'
+      ? value?.popular
+      : view === 'recommended'
+        ? value?.recent.filter(({ entry }) => entry.tags.includes(tag))
+        : value?.recent;
+  const cards = sourceCards?.filter(
     ({ entry, author }) =>
       !normalized ||
       [entry.title, entry.summary, ...entry.tags, author.name].some((text) =>
@@ -69,11 +82,40 @@ function ArticleFeed() {
         />
         <Button type="submit">検索</Button>
       </form>
+      <div className="discovery-views" aria-label="記事の並び方">
+        {(
+          [
+            ['recent', '新着'],
+            ['popular', '人気'],
+            ['recommended', 'タグからおすすめ'],
+          ] as const
+        ).map(([key, label]) => (
+          <Button key={key} aria-pressed={view === key} onClick={() => setView(key)}>
+            {label}
+          </Button>
+        ))}
+      </div>
+      {view === 'recommended' && (
+        <>
+          <p>新着20件のタグから選べます。同じタグの記事を新しい公開順に表示します。</p>
+          <div className="discovery-tags" aria-label="おすすめのタグ">
+            {tags.map((value) => (
+              <Button
+                key={value}
+                aria-pressed={tag === value}
+                onClick={() => setSelectedTag(value)}
+              >
+                # {value}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
       {failed ? (
         <ReadFailure subject="記事一覧" retry={retry} />
       ) : !value ? (
         <p role="status">記事を読み込んでいます…</p>
-      ) : !value.cards.length ? (
+      ) : !value.recent.length ? (
         <div className="empty">
           <h2>まだ記事がありません</h2>
           <p>公開した記事がここに並びます。</p>
@@ -81,22 +123,32 @@ function ArticleFeed() {
         </div>
       ) : !cards?.length ? (
         <div className="empty">
-          <h2>一致する記事がありません</h2>
-          <Button onClick={() => setParams({})}>検索を解除</Button>
+          <h2>
+            {view === 'popular'
+              ? '公開いいねのある記事はまだありません'
+              : view === 'recommended' && !tag
+                ? 'タグの付いた記事はまだありません'
+                : '一致する記事がありません'}
+          </h2>
+          {query && <Button onClick={() => setParams({})}>検索を解除</Button>}
         </div>
       ) : (
         <>
           <p className="author-lab-limit">
-            新しい公開記事を最大20件表示しています。検索はこの一覧が対象です。
+            {view === 'popular'
+              ? '有効なアカウントの公開いいね数が多い順に最大6件表示します。同数なら新しい公開順です。'
+              : view === 'recommended'
+                ? `「${tag}」の新着記事です。閲覧履歴はおすすめに使いません。`
+                : '新しい公開記事を最大20件表示しています。'}
           </p>
           <div className="author-lab-cards">
             {cards.map((card) => (
-              <PublicArticleCard
-                key={card.entry.id}
-                entry={card.entry}
-                author={card.author}
-                surface="ordinary"
-              />
+              <div key={card.entry.id}>
+                {view === 'popular' && 'likeCount' in card && (
+                  <p className="discovery-like-count">公開いいね {String(card.likeCount)}件</p>
+                )}
+                <PublicArticleCard entry={card.entry} author={card.author} surface="ordinary" />
+              </div>
             ))}
           </div>
         </>
@@ -122,6 +174,7 @@ function StudentArticle({ id }: { id: string }) {
   const { entry, author } = value;
   return (
     <div className="shell detail-layout">
+      <RecordReadingHistory kind="article" contentId={entry.id} />
       <article>
         <Link className="back" to="/">
           ← 記事一覧へ
@@ -179,6 +232,7 @@ function StudentArticle({ id }: { id: string }) {
           contentId={entry.id}
           onNavigationRiskChange={reportRisk}
         />
+        <RelatedReading key={`related-${entry.id}`} id={entry.id} />
       </article>
       <aside>
         <section className="side-box">

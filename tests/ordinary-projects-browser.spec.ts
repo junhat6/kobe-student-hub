@@ -79,7 +79,10 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     const reader = await guest.newPage();
     const privateRequests: string[] = [];
     reader.on('request', (request) => {
-      if (new URL(request.url()).pathname.startsWith('/api/private/'))
+      if (
+        new URL(request.url()).pathname.startsWith('/api/private/') &&
+        new URL(request.url()).pathname !== '/api/private/session'
+      )
         privateRequests.push(request.url());
     });
     await reader.goto(path!);

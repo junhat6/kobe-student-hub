@@ -15,6 +15,8 @@ export interface OwnPublicProfile {
 export interface OwnProfileResult {
   profile: OwnPublicProfile | null;
 }
+export type ProfileUpdateResult =
+  { kind: 'updated'; profile: OwnPublicProfile } | { kind: 'conflict' };
 type Input = {
   displayName: string;
   department: string;
@@ -93,7 +95,39 @@ function dto(r: Row): OwnPublicProfile | null {
       }
     : null;
 }
-/** First explicit creation only. No enrollment inference, Google defaults, edits, or account-deletion policy. */
+function updateInput(input: unknown): { value: Input; expected: OwnPublicProfile } | null {
+  if (
+    !input ||
+    typeof input !== 'object' ||
+    Array.isArray(input) ||
+    Object.getPrototypeOf(input) !== Object.prototype
+  )
+    return null;
+  const { expectedProfile, ...value } = input as Record<string, unknown>;
+  const next = canonical(value);
+  if (
+    !next ||
+    !expectedProfile ||
+    typeof expectedProfile !== 'object' ||
+    Array.isArray(expectedProfile) ||
+    Object.getPrototypeOf(expectedProfile) !== Object.prototype
+  )
+    return null;
+  const e = expectedProfile as Record<string, unknown>;
+  const fields = ['id', 'displayName', 'department', 'yearLabel', 'bio', 'initials'];
+  if (Reflect.ownKeys(e).length !== fields.length || !fields.every((key) => Object.hasOwn(e, key)))
+    return null;
+  const expected = dto({
+    id: e.id,
+    display_name: e.displayName,
+    department: e.department,
+    year_label: e.yearLabel,
+    bio: e.bio,
+    initials: e.initials,
+  } as Row);
+  return expected ? { value: next, expected } : null;
+}
+/** Explicit public fields only; Google identity and account/deletion policy stay separate. */
 export class PublicProfileStore {
   private readonly sessions: SessionStore;
   constructor(
@@ -194,6 +228,71 @@ export class PublicProfileStore {
       if (!final) return null;
       const result = await this.current(final, true);
       return result?.profile && same(result.profile) ? result : null;
+    } catch {
+      return null;
+    }
+  }
+  async update(request: Request, input: unknown): Promise<ProfileUpdateResult | null> {
+    const data = updateInput(input);
+    if (request.method !== 'PATCH' || !data) return null;
+    const { value, expected } = data;
+    const same = (profile: OwnPublicProfile, other: Input | OwnPublicProfile) =>
+      profile.displayName === other.displayName &&
+      profile.department === other.department &&
+      profile.yearLabel === other.yearLabel &&
+      profile.bio === other.bio &&
+      profile.initials === other.initials;
+    try {
+      const proof = await this.sessions.storageAuthorization(request);
+      if (!proof) return null;
+      try {
+        // Compare public content, never client-supplied authority. Both statements
+        // recheck ownership and current participation inside one D1 transaction.
+        await this.db.batch([
+          this.db
+            .prepare(
+              `UPDATE public_profiles AS p SET display_name=?,department=?,year_label=?,bio=?,initials=? WHERE p.id=? AND p.display_name=? AND p.department=? AND p.year_label=? AND p.bio=? AND p.initials=? AND ${validProfile} AND EXISTS(SELECT 1 FROM account_public_profiles m WHERE m.public_profile_id=p.id AND m.owner_account_id=?) AND ${writerLive}`,
+            )
+            .bind(
+              value.displayName,
+              value.department,
+              value.yearLabel,
+              value.bio,
+              value.initials,
+              expected.id,
+              expected.displayName,
+              expected.department,
+              expected.yearLabel,
+              expected.bio,
+              expected.initials,
+              proof.accountId,
+              ...writerBindings(proof),
+            ),
+          this.db
+            .prepare(
+              `SELECT CASE WHEN changes()=1 AND EXISTS(SELECT 1 FROM account_public_profiles m JOIN public_profiles p ON p.id=m.public_profile_id WHERE m.owner_account_id=? AND p.id=? AND p.display_name=? AND p.department=? AND p.year_label=? AND p.bio=? AND p.initials=? AND ${validProfile} AND ${writerLive}) THEN 1 ELSE json('') END AS guarded`,
+            )
+            .bind(
+              proof.accountId,
+              expected.id,
+              value.displayName,
+              value.department,
+              value.yearLabel,
+              value.bio,
+              value.initials,
+              ...writerBindings(proof),
+            ),
+        ]);
+      } catch {
+        // A lost acknowledgement is never blindly retried. A fresh final read can
+        // acknowledge the requested state or identify a stale public-content edit.
+      }
+      const fresh = await this.sessions.storageAuthorization(request);
+      if (!fresh) return null;
+      const current = (await this.current(fresh, true))?.profile;
+      if (!current || current.id !== expected.id) return null;
+      if (same(current, value)) return { kind: 'updated', profile: current };
+      return same(current, expected) ? null : { kind: 'conflict' };
     } catch {
       return null;
     }

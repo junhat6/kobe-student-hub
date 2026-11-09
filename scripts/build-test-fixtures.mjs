@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
 await build({
   entryPoints: {
+    'reading-history-test': 'tests/fixtures/reading-history-worker.ts',
     'project-moderation-test': 'tests/fixtures/project-moderation-worker.ts',
     'media-test': 'tests/fixtures/media-worker.ts',
     'enrollment-writer-independent-test': 'tests/fixtures/enrollment-writer-independent-worker.ts',
@@ -28,6 +29,7 @@ await build({
     'moderation-http-test': 'tests/fixtures/moderation-http-worker.ts',
     'session-http-test': 'tests/fixtures/session-http-worker.ts',
     'publication-author-test': 'tests/fixtures/publication-author-worker.ts',
+    'ordinary-discovery-test': 'tests/fixtures/ordinary-discovery-worker.ts',
     'publication-discovery-test': 'tests/fixtures/publication-discovery-worker.ts',
     'likes-test': 'tests/fixtures/likes-worker.ts',
   },

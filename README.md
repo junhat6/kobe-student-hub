@@ -4,7 +4,7 @@
 
 [本番](https://hub.junhat6.com/) · [別プレビュー](https://kobe-student-hub-preview.ideaboost-whiteboard.workers.dev/)
 
-本番の公開範囲はサンプル閲覧と、学校Googleによる登録・年度管理の導線です。投稿利用は運営設定後に有効化します。実際のGoogle往復の確認状況とリリース結果は[現在の作業](docs/WORK.md)と各PRに記録します。
+公開閲覧、学校Googleによる登録・年度管理、記事・作品の下書きと投稿、公開プロフィール、いいね、本人専用の閲覧履歴を備えます。本番への反映・検証結果は[現在の作業](docs/WORK.md)と各PRに集約します。
 
 ## 開発
 

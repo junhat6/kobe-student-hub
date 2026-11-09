@@ -36,10 +36,7 @@ describe('actual Worker health source release state', () => {
       ['OAUTH_HTTP_RELEASE_ENABLED', oauth],
       ['ORDINARY_DRAFT_HTTP_RELEASE_ENABLED', authoring],
     ] as const) {
-      const stageGate = new RegExp(
-        `^const ${name} = ${name === 'OAUTH_HTTP_RELEASE_ENABLED'};$`,
-        'gm',
-      );
+      const stageGate = new RegExp(`^const ${name} = true;$`, 'gm');
       expect(source.match(stageGate)).toHaveLength(1);
       variant = variant.replace(stageGate, `const ${name} = ${enabled};`);
     }

@@ -50,6 +50,8 @@ const columns = 'p.id author_id,p.display_name,p.department,p.year_label,p.bio,p
 const profile = `${publicProfileSqlBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=p.id OR a.google_subject=p.id)`;
 const draftBounds = `length(CAST(title AS BLOB))<=800 AND length(CAST(description AS BLOB))<=16384 AND length(CAST(github_url AS BLOB))<=2048 AND length(CAST(demo_url AS BLOB))<=2048`;
 const bounded = `length(CAST(r.title AS BLOB))<=800 AND length(CAST(r.description AS BLOB))<=16384 AND length(CAST(r.github_url AS BLOB))<=2048 AND length(CAST(r.demo_url AS BLOB))<=2048`;
+/** Shared public snapshot predicate; aliases r (publication) and p (profile). */
+export const publicProjectSqlBounds = `r.status='published' AND ${bounded} AND ${profile}`;
 const fields = (r: Pick<Row, 'title' | 'description' | 'github_url' | 'demo_url'>) =>
   normalizeProjectFields({
     title: r.title,
