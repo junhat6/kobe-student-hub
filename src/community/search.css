@@ -156,3 +156,35 @@
   font-size: 12px;
   color: var(--ink-muted, #6a7581);
 }
+
+.search-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+.search-empty-actions button {
+  max-width: 100%;
+  height: auto;
+  padding-block: 8px;
+  overflow-wrap: anywhere;
+}
+.search-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 20px;
+  font-size: 14px;
+}
+.search-suggestions span {
+  font-weight: 600;
+}
+.search-suggestions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-strong, #1659c7);
+}

@@ -242,6 +242,15 @@ test('ordinary search finds article-only and project-only authors and preserves 
     await expect(
       page.getByRole('heading', { name: 'AI制作ノート-' + key, exact: true }),
     ).toBeVisible();
+    const resultUrl =
+      ORIGIN + '/search?' + new URLSearchParams({ q: 'ＡＩ制作', type: 'article', tag: 'AI' });
+    await page.goBack();
+    await expect(page).toHaveURL(resultUrl);
+    await expect(page.getByRole('searchbox')).toHaveValue('ＡＩ制作');
+    await page.getByRole('link', { name: 'AI制作ノート-' + key, exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'AI制作ノート-' + key, exact: true }),
+    ).toBeVisible();
     await page
       .locator('.detail-header .tags')
       .getByRole('link', { name: '# AI', exact: true })
@@ -263,6 +272,32 @@ test('ordinary search finds article-only and project-only authors and preserves 
     await expect(
       page.getByRole('heading', { name: '一致する記事・作品はありません', exact: true }),
     ).toBeVisible();
+    const emptyUrl = page.url();
+    await expect(
+      page.getByRole('button', { name: '種類を「すべて」にする', exact: true }),
+    ).toBeVisible();
+    const suggestions = page
+      .getByRole('navigation', { name: 'ほかの言葉で探す' })
+      .getByRole('link');
+    expect(await suggestions.count()).toBeGreaterThan(0);
+    await page.screenshot({
+      path: info.outputPath('search-empty-next-steps.png'),
+      fullPage: true,
+      scale: 'css',
+    });
+    await page
+      .getByRole('button', { name: `キーワード「架空の該当なし-${key}」を外す`, exact: true })
+      .click();
+    await expect(page).toHaveURL(ORIGIN + '/search?type=project');
+    await expect(page.getByRole('searchbox')).toHaveValue('');
+    await page.goBack();
+    await expect(page).toHaveURL(emptyUrl);
+    const suggested = (await suggestions.first().textContent())!.replace(/^#\s*/, '');
+    await suggestions.first().click();
+    await expect(page).toHaveURL(ORIGIN + '/search?' + new URLSearchParams({ tag: suggested }));
+    await expect(page.locator('.search-result-count')).not.toHaveText('記事 0件');
+    await page.goBack();
+    await expect(page).toHaveURL(emptyUrl);
     await page.getByRole('button', { name: '検索条件を解除', exact: true }).click();
     await expect(page).toHaveURL(ORIGIN + '/search');
     expect(privateRequests).toEqual([]);

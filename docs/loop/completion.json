@@ -36,9 +36,9 @@
       ],
       "journey": "J1",
       "risk": "R1",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": null
+      "evidence": "tests/ordinary-search-browser.spec.ts（PC1280/モバイル390、匿名、実D1投稿）：キーワード（NFKC・投稿者名含む）・記事タグ・種別で絞り込み、条件はURL（q/type/tag）に残り reload・戻る/進む・詳細から戻るで同じ結果に戻る。0件時は条件ごとの「外す」ボタン・全解除・ほかの言葉（記事タグ）を表示し、外した後に戻ると0件の条件へ戻る。#146"
     },
     {
       "id": "C03",

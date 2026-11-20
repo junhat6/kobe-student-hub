@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { createPublicDiscoveryClient } from '../editor/public-discovery-client';
 import { createPublicWorksClient } from '../editor/public-works-client';
 import PublicArticleCard from '../editor/PublicArticleCard';
@@ -59,6 +59,17 @@ export default function Search() {
       ...(tag ? [tag] : []),
     ]),
   ].sort((a, b) => a.localeCompare(b, 'ja'));
+  const hasCondition = Boolean(query || tag || type !== 'all');
+  // Offer frequent article tags as other words to try; the current tag is the one that failed.
+  const tagCounts = new Map<string, number>();
+  for (const { entry } of articleRead.value?.cards ?? [])
+    for (const value of new Set(entry.tags))
+      if (normalized(value) !== normalized(tag))
+        tagCounts.set(value, (tagCounts.get(value) ?? 0) + 1);
+  const suggestions = [...tagCounts]
+    .sort(([a, x], [b, y]) => y - x || a.localeCompare(b, 'ja'))
+    .slice(0, 5)
+    .map(([value]) => value);
   const showArticles = type !== 'project';
   const showProjects = type !== 'article' && !tag;
   const status = [
@@ -162,10 +173,38 @@ export default function Search() {
         {status.join(' · ') || 'タグを解除すると作品を検索できます。'}
       </p>
       {empty ? (
-        <div className="empty">
-          <h2>一致する記事・作品はありません</h2>
-          <p>キーワードや絞り込みを変えて探してみてください。</p>
-          <Button onClick={() => setParams({}, { flushSync: true })}>検索条件を解除</Button>
+        <div className="empty search-empty">
+          {hasCondition ? (
+            <>
+              <h2>一致する記事・作品はありません</h2>
+              <p>条件を1つ外すか、別の言葉で探してみてください。</p>
+              <div className="search-empty-actions">
+                {query && (
+                  <Button onClick={() => update('q', '')}>キーワード「{query}」を外す</Button>
+                )}
+                {tag && <Button onClick={() => update('tag', '')}>タグ「# {tag}」を外す</Button>}
+                {type !== 'all' && (
+                  <Button onClick={() => update('type', '')}>種類を「すべて」にする</Button>
+                )}
+                <Button onClick={() => setParams({}, { flushSync: true })}>検索条件を解除</Button>
+              </div>
+              {suggestions.length > 0 && (
+                <nav className="search-suggestions" aria-label="ほかの言葉で探す">
+                  <span>ほかの言葉で探す</span>
+                  {suggestions.map((value) => (
+                    <Link key={value} to={`/search?tag=${encodeURIComponent(value)}`}>
+                      # {value}
+                    </Link>
+                  ))}
+                </nav>
+              )}
+            </>
+          ) : (
+            <>
+              <h2>公開中の記事・作品はまだありません</h2>
+              <p>記事や作品が公開されると、ここから探せるようになります。</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="search-result-groups">
