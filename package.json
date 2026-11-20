@@ -44,25 +44,25 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261103.1",
-    "@playwright/test": "^1.64.1",
+    "@cloudflare/workers-types": "^5.20261113.1",
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/vite": "^4.3.5",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.2.1",
+    "@vitejs/plugin-react": "^6.3.0",
     "esbuild": "^0.28.2",
     "fast-png": "8.0.0",
     "husky": "9.1.7",
     "jpeg-js": "0.4.4",
     "lint-staged": "17.6.1",
     "miniflare": "^5.20261103.0-beta",
-    "prettier": "3.9.10",
+    "prettier": "3.10.1",
     "tailwindcss": "^4.3.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.0",
-    "wrangler": "^4.157.0"
+    "wrangler": "^4.161.0"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs,ts,tsx,css,html,json,jsonc,yml,yaml}": "prettier --write --ignore-unknown"
