@@ -23,7 +23,7 @@ export const projectUUID = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v);
 const version = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) > 0;
-const fields = ['title', 'description', 'githubUrl', 'demoUrl'];
+const fields = ['title', 'description', 'githubUrl', 'demoUrl', 'technologies'];
 export const sameProjectFields = (a: ProjectFields, b: ProjectFields) =>
   fields.every((key) => a[key as keyof ProjectFields] === b[key as keyof ProjectFields]);
 function validFields(value: Record<string, unknown>) {
@@ -32,6 +32,7 @@ function validFields(value: Record<string, unknown>) {
     description: value.description,
     githubUrl: value.githubUrl,
     demoUrl: value.demoUrl,
+    technologies: value.technologies,
   };
   const normalized = normalizeProjectFields(input);
   return normalized !== null && sameProjectFields(normalized, input as ProjectFields);
@@ -130,6 +131,7 @@ export function validProjectAuthor(v: unknown, id: string): v is PublicAuthorPro
           description: p.descriptionPreview,
           githubUrl: p.githubUrl,
           demoUrl: p.demoUrl,
+          technologies: '',
         }),
     )
   );

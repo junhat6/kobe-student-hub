@@ -126,6 +126,15 @@ it('normalizes optional HTTPS links without fetching and rejects unsafe/oversize
   ])
     expect(normalizeProjectFields(v)).toBeNull();
 });
+it('accepts an optional one-line technologies text and always returns it', () => {
+  expect(normalizeProjectFields(f)?.technologies).toBe('');
+  expect(normalizeProjectFields({ ...f, technologies: 'React、Hono' })?.technologies).toBe(
+    'React、Hono',
+  );
+  for (const technologies of ['a\nb', 'tab\there', 'x'.repeat(101), 1, null, '\ud800'])
+    expect(normalizeProjectFields({ ...f, technologies })).toBeNull();
+  expect(normalizeProjectFields({ ...f, technologies: '', owner: 'x' })).toBeNull();
+});
 it('saves standalone drafts, enforces owner/CAS and lists metadata only', async () => {
   const d = await create();
   expect(d).toMatchObject({ ...f, githubUrl: 'https://github.com/', version: 1 });
@@ -515,4 +524,35 @@ it('bounds author list newest20, rejects corrupt snapshots and fails storage err
   expect(
     await (await req(url, 'GET', undefined, 0, { 'X-Test-Discovery-Fault': '1' })).json(),
   ).toBeNull();
+});
+it('stores technologies in the draft and the immutable published snapshot', async () => {
+  const d = await create({ ...f, technologies: 'React、Cloudflare Workers' });
+  expect(d.technologies).toBe('React、Cloudflare Workers');
+  const r = await publish(d);
+  expect(r.status).toBe(201);
+  const { projectId } = (await r.json()) as { projectId: string };
+  expect((await publicRead(projectId))?.project.technologies).toBe('React、Cloudflare Workers');
+  const saved = (await (
+    await req('/api/private/project-drafts/' + d.id, 'PUT', {
+      ...f,
+      technologies: 'Private newer',
+      expectedVersion: 1,
+    })
+  ).json()) as ProjectDraft;
+  expect(saved.technologies).toBe('Private newer');
+  expect((await publicRead(projectId))?.project.technologies).toBe('React、Cloudflare Workers');
+  const db = await mf.getD1Database('DB');
+  await expect(
+    db
+      .prepare("UPDATE project_publications SET technologies='changed' WHERE id=?")
+      .bind(projectId)
+      .run(),
+  ).rejects.toThrow();
+  // A page loaded before the field existed may still save; the omitted field becomes empty.
+  const legacy = await req('/api/private/project-drafts/' + d.id, 'PUT', {
+    ...f,
+    expectedVersion: saved.version,
+  });
+  expect(legacy.status).toBe(200);
+  expect(((await legacy.json()) as ProjectDraft).technologies).toBe('');
 });

@@ -13,6 +13,7 @@ const project = {
   description: '説明',
   githubUrl: 'https://example.invalid/',
   demoUrl: '',
+  technologies: '',
   publishedOn: '2026-11-04',
 };
 const author = {

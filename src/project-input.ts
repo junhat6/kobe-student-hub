@@ -8,8 +8,10 @@ export function normalizeProjectFields(value: unknown): ProjectFields | null {
   )
     return null;
   const x = value as Record<string, unknown>;
+  // `technologies` is optional on input so pages loaded before it existed can still save; it is always returned.
+  const hasTechnologies = Object.hasOwn(x, 'technologies');
   if (
-    Reflect.ownKeys(x).length !== 4 ||
+    Reflect.ownKeys(x).length !== (hasTechnologies ? 5 : 4) ||
     !['title', 'description', 'githubUrl', 'demoUrl'].every((k) => Object.hasOwn(x, k))
   )
     return null;
@@ -21,6 +23,8 @@ export function normalizeProjectFields(value: unknown): ProjectFields | null {
     Array.from(s).length <= n &&
     new TextEncoder().encode(s).length <= bytes;
   if (!text(x.title, 200, 800) || !text(x.description, 4000, 16384)) return null;
+  const technologies = hasTechnologies ? x.technologies : '';
+  if (!text(technologies, 100, 400) || /\p{Cc}/u.test(technologies)) return null;
   function url(v: unknown): string | null {
     if (v === '') return '';
     if (!text(v, 2048, 2048) || /[\s\p{Cc}\p{Cf}\\]/u.test(v)) return null;
@@ -40,5 +44,5 @@ export function normalizeProjectFields(value: unknown): ProjectFields | null {
     demoUrl = url(x.demoUrl);
   return githubUrl === null || demoUrl === null
     ? null
-    : { title: x.title, description: x.description, githubUrl, demoUrl };
+    : { title: x.title, description: x.description, githubUrl, demoUrl, technologies };
 }

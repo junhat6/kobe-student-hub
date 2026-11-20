@@ -5,6 +5,8 @@ export interface ProjectFields {
   description: string;
   githubUrl: string;
   demoUrl: string;
+  /** Optional one-line list of technologies used (comma separated, 100 characters). */
+  technologies: string;
 }
 export interface ProjectDraft extends ProjectFields {
   id: string;

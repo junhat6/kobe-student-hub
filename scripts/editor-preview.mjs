@@ -21,7 +21,15 @@ for (const file of [
   'migrations/0020_private_images.sql',
   'migrations/0021_project_moderation.sql',
   'migrations/0022_article_revisions.sql',
+  'migrations/0024_project_article_links.sql',
+  'migrations/0025_project_technologies.sql',
 ]) {
+  // Column-only migrations are detected by their added column instead of a table.
+  const column = file.includes('0024')
+    ? 'article_ids_json'
+    : file.includes('0025')
+      ? 'technologies'
+      : null;
   // Initialization is idempotent: check the specific local table before applying its schema.
   const table = file.includes('0022')
     ? 'article_publication_revisions'
@@ -65,7 +73,9 @@ for (const file of [
       '--persist-to',
       '.wrangler/editor-state',
       '--command',
-      `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`,
+      column
+        ? `SELECT name FROM pragma_table_info('project_publications') WHERE name='${column}'`
+        : `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`,
       '--json',
     ],
     { encoding: 'utf8' },
@@ -74,7 +84,8 @@ for (const file of [
     process.stderr.write(check.stderr);
     process.exit(check.status ?? 1);
   }
-  if (!JSON.parse(check.stdout).some((x) => x.results?.some((row) => row.name === table)))
+  const expected = column ?? table;
+  if (!JSON.parse(check.stdout).some((x) => x.results?.some((row) => row.name === expected)))
     run([
       'd1',
       'execute',

@@ -17,7 +17,19 @@ import MarkdownRenderer from '../MarkdownRenderer';
 import MediaAttachments from './MediaAttachments';
 import MediaPublicationPreview from './MediaPublicationPreview';
 import { referencedMediaIds } from '../shared/media';
-const empty: ProjectFields = { title: '', description: '', githubUrl: '', demoUrl: '' };
+const empty: ProjectFields = {
+  title: '',
+  description: '',
+  githubUrl: '',
+  demoUrl: '',
+  technologies: '',
+};
+/** Display-only split of the one-line technologies text; the stored snapshot stays the exact text. */
+export const technologyNames = (value: string) =>
+  value
+    .split(/[,、，]/)
+    .map((name) => name.trim())
+    .filter(Boolean);
 export function ProjectText({
   value,
   showTitle = true,
@@ -32,6 +44,16 @@ export function ProjectText({
   return (
     <div className="project-text">
       {showTitle && <h3>{value.title}</h3>}
+      {technologyNames(value.technologies).length > 0 && (
+        <div className="project-technologies">
+          <strong>使った技術</strong>
+          <ul aria-label="使った技術">
+            {technologyNames(value.technologies).map((name, index) => (
+              <li key={index + name}>{name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {surface === 'ordinary' ? (
         <div className="project-description">
           <MarkdownRenderer body={value.description} privateMedia={privateMedia} />
@@ -317,6 +339,7 @@ export default function ProjectRegistration({
       description: value.description,
       githubUrl: value.githubUrl,
       demoUrl: value.demoUrl,
+      technologies: value.technologies,
     });
     setSaved(value);
     setCandidate(null);
@@ -535,16 +558,18 @@ export default function ProjectRegistration({
           void save();
         }}
       >
-        {(['title', 'description', 'githubUrl', 'demoUrl'] as const).map((key) => (
+        {(['title', 'description', 'technologies', 'githubUrl', 'demoUrl'] as const).map((key) => (
           <div key={key}>
             <label htmlFor={formId + key}>
               {key === 'title'
                 ? '作品タイトル'
                 : key === 'description'
                   ? '作品説明（プレーンテキスト）'
-                  : key === 'githubUrl'
-                    ? 'GitHub URL（任意）'
-                    : 'デモ URL（任意）'}
+                  : key === 'technologies'
+                    ? '使った技術（任意・読点かカンマ区切り・100文字まで）'
+                    : key === 'githubUrl'
+                      ? 'GitHub URL（任意）'
+                      : 'デモ URL（任意）'}
             </label>
             {key === 'description' ? (
               <textarea
@@ -561,7 +586,10 @@ export default function ProjectRegistration({
               <input
                 id={formId + key}
                 value={input[key]}
-                maxLength={key === 'title' ? 400 : 4096}
+                maxLength={key === 'title' ? 400 : key === 'technologies' ? 200 : 4096}
+                placeholder={
+                  key === 'technologies' ? '例：React、TypeScript、Cloudflare Workers' : undefined
+                }
                 onChange={(e) => {
                   cancelAutosave();
                   setInput((v) => ({ ...v, [key]: e.target.value }));
@@ -576,7 +604,7 @@ export default function ProjectRegistration({
         </p>
         {!normalized && dirty && (
           <p role="alert">
-            タイトルの文字数、説明の容量、URLの形式を確認してください。入力は切り捨てず保持しています。
+            タイトルの文字数、説明の容量、使った技術の文字数、URLの形式を確認してください。入力は切り捨てず保持しています。
           </p>
         )}
         <Button

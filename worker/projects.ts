@@ -54,6 +54,7 @@ type Row = {
   description: string;
   github_url: string;
   demo_url: string;
+  technologies: string;
   version: number;
   updated_at_ms: number;
   source_version: number;
@@ -69,16 +70,19 @@ type Row = {
 };
 const columns = 'p.id author_id,p.display_name,p.department,p.year_label,p.bio,p.initials';
 const profile = `${publicProfileSqlBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=p.id OR a.google_subject=p.id)`;
-const draftBounds = `length(CAST(title AS BLOB))<=800 AND length(CAST(description AS BLOB))<=16384 AND length(CAST(github_url AS BLOB))<=2048 AND length(CAST(demo_url AS BLOB))<=2048`;
-const bounded = `length(CAST(r.title AS BLOB))<=800 AND length(CAST(r.description AS BLOB))<=16384 AND length(CAST(r.github_url AS BLOB))<=2048 AND length(CAST(r.demo_url AS BLOB))<=2048`;
+const draftBounds = `length(CAST(title AS BLOB))<=800 AND length(CAST(description AS BLOB))<=16384 AND length(CAST(github_url AS BLOB))<=2048 AND length(CAST(demo_url AS BLOB))<=2048 AND length(CAST(technologies AS BLOB))<=400`;
+const bounded = `length(CAST(r.title AS BLOB))<=800 AND length(CAST(r.description AS BLOB))<=16384 AND length(CAST(r.github_url AS BLOB))<=2048 AND length(CAST(r.demo_url AS BLOB))<=2048 AND length(CAST(r.technologies AS BLOB))<=400`;
 /** Shared public snapshot predicate; aliases r (publication) and p (profile). */
 export const publicProjectSqlBounds = `r.status='published' AND ${bounded} AND ${profile}`;
-const fields = (r: Pick<Row, 'title' | 'description' | 'github_url' | 'demo_url'>) =>
+const fields = (
+  r: Pick<Row, 'title' | 'description' | 'github_url' | 'demo_url' | 'technologies'>,
+) =>
   normalizeProjectFields({
     title: r.title,
     description: r.description,
     githubUrl: r.github_url,
     demoUrl: r.demo_url,
+    technologies: r.technologies,
   });
 const draft = (r: Row): ProjectDraft | null => {
   const f = fields(r);
@@ -97,6 +101,7 @@ export type ProjectSnapshotRow = Pick<
   | 'description'
   | 'github_url'
   | 'demo_url'
+  | 'technologies'
   | 'published_at_ms'
   | 'author_id'
   | 'display_name'
@@ -111,6 +116,7 @@ export function decodeProjectSnapshot(r: ProjectSnapshotRow): PublicProjectReade
   return f &&
     f.githubUrl === r.github_url &&
     f.demoUrl === r.demo_url &&
+    f.technologies === r.technologies &&
     f.title.trim() &&
     f.description.trim() &&
     uuid(r.id) &&
@@ -146,7 +152,7 @@ export class ProjectStore {
       if (!p) return null;
       const r = await this.db
         .prepare(
-          `INSERT INTO project_drafts SELECT ?,?,?,?,?,?,1,? WHERE ${writerLive} RETURNING *`,
+          `INSERT INTO project_drafts(id,owner_account_id,title,description,github_url,demo_url,version,updated_at_ms,technologies) SELECT ?,?,?,?,?,?,1,?,? WHERE ${writerLive} RETURNING *`,
         )
         .bind(
           crypto.randomUUID(),
@@ -156,6 +162,7 @@ export class ProjectStore {
           f.githubUrl,
           f.demoUrl,
           p.nowMs,
+          f.technologies,
           ...writerBindings(p),
         )
         .first<Row>();
@@ -215,7 +222,17 @@ export class ProjectStore {
     if (
       req.method !== 'PUT' ||
       !uuid(id) ||
-      !exact(input, ['title', 'description', 'githubUrl', 'demoUrl', 'expectedVersion']) ||
+      !(
+        exact(input, ['title', 'description', 'githubUrl', 'demoUrl', 'expectedVersion']) ||
+        exact(input, [
+          'title',
+          'description',
+          'githubUrl',
+          'demoUrl',
+          'technologies',
+          'expectedVersion',
+        ])
+      ) ||
       !version(input.expectedVersion) ||
       input.expectedVersion >= Number.MAX_SAFE_INTEGER
     )
@@ -228,13 +245,14 @@ export class ProjectStore {
       if (!p) return null;
       const r = await this.db
         .prepare(
-          `UPDATE project_drafts SET title=?,description=?,github_url=?,demo_url=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${writerLive} RETURNING *`,
+          `UPDATE project_drafts SET title=?,description=?,github_url=?,demo_url=?,technologies=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${writerLive} RETURNING *`,
         )
         .bind(
           f.title,
           f.description,
           f.githubUrl,
           f.demoUrl,
+          f.technologies,
           p.nowMs,
           id,
           p.accountId,
@@ -294,7 +312,7 @@ export class ProjectStore {
         return null;
       const r = await this.db
         .prepare(
-          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status,media_ids_json,article_ids_json) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,?,'published',?,? FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
+          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,technologies,published_at_ms,status,media_ids_json,article_ids_json) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,d.technologies,?,'published',?,? FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND d.technologies=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
         )
         .bind(
           crypto.randomUUID(),
@@ -309,6 +327,7 @@ export class ProjectStore {
           valid.description,
           valid.githubUrl,
           valid.demoUrl,
+          valid.technologies,
           ...writerBindings(p),
         )
         .first<{ id: string }>();

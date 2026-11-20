@@ -142,6 +142,7 @@ export class ProjectModerationStore {
       latestReportAt: Math.max(...row.reports.map((r) => r.receivedAt)),
       body:
         row.project.description +
+        (row.project.technologies ? '\n\n使った技術: ' + row.project.technologies : '') +
         (row.project.githubUrl ? '\n\nGitHub: ' + row.project.githubUrl : '') +
         (row.project.demoUrl ? '\n\nデモ: ' + row.project.demoUrl : ''),
       reports: row.reports.map((r) => ({

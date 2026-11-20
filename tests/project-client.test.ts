@@ -8,6 +8,7 @@ const fields = {
   description: '<script>plain</script>',
   githubUrl: 'https://example.invalid/',
   demoUrl: '',
+  technologies: 'React、TypeScript',
 };
 const draft = { ...fields, id, version: 1, updatedAt: 1 };
 const author = {

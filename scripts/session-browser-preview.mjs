@@ -186,6 +186,7 @@ for (const f of [
   '0022_article_revisions.sql',
   '0023_private_reading_history.sql',
   '0024_project_article_links.sql',
+  '0025_project_technologies.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

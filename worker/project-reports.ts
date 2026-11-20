@@ -36,7 +36,7 @@ function input(v: unknown): v is { reason: string; detail?: string } {
 }
 type Proof = NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
 const profile = `${publicProfileSqlBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts identity WHERE identity.id=p.id OR identity.google_subject=p.id)`;
-const bounded = `length(CAST(r.title AS BLOB))<=800 AND length(CAST(r.description AS BLOB))<=16384 AND length(CAST(r.github_url AS BLOB))<=2048 AND length(CAST(r.demo_url AS BLOB))<=2048`;
+const bounded = `length(CAST(r.title AS BLOB))<=800 AND length(CAST(r.description AS BLOB))<=16384 AND length(CAST(r.github_url AS BLOB))<=2048 AND length(CAST(r.demo_url AS BLOB))<=2048 AND length(CAST(r.technologies AS BLOB))<=400`;
 const cols = 'p.id author_id,p.display_name,p.department,p.year_label,p.bio,p.initials';
 type Row = {
   id: string;
@@ -44,6 +44,7 @@ type Row = {
   description: string;
   github_url: string;
   demo_url: string;
+  technologies: string;
   published_at_ms: number;
   status: ProjectCaseSummary['status'];
   author_id: string;
@@ -85,7 +86,7 @@ export class ProjectReportStore {
       const f = target.project;
       const row = await this.db
         .prepare(
-          `INSERT INTO project_reports(id,project_id,reporter_account_id,reason,detail,created_at_ms) SELECT ?,r.id,?,?,?,? FROM project_publications r JOIN public_profiles p ON p.id=r.public_profile_id WHERE r.id=? AND r.status='published' AND r.title=? AND r.description=? AND r.github_url=? AND r.demo_url=? AND r.public_profile_id=? AND ${bounded} AND ${profile} AND ${writerLive} AND NOT EXISTS(SELECT 1 FROM project_reports future WHERE future.project_id=r.id AND future.created_at_ms>?) ON CONFLICT(project_id,reporter_account_id) DO UPDATE SET id=project_reports.id RETURNING id`,
+          `INSERT INTO project_reports(id,project_id,reporter_account_id,reason,detail,created_at_ms) SELECT ?,r.id,?,?,?,? FROM project_publications r JOIN public_profiles p ON p.id=r.public_profile_id WHERE r.id=? AND r.status='published' AND r.title=? AND r.description=? AND r.github_url=? AND r.demo_url=? AND r.technologies=? AND r.public_profile_id=? AND ${bounded} AND ${profile} AND ${writerLive} AND NOT EXISTS(SELECT 1 FROM project_reports future WHERE future.project_id=r.id AND future.created_at_ms>?) ON CONFLICT(project_id,reporter_account_id) DO UPDATE SET id=project_reports.id RETURNING id`,
         )
         .bind(
           crypto.randomUUID(),
@@ -98,6 +99,7 @@ export class ProjectReportStore {
           f.description,
           f.githubUrl,
           f.demoUrl,
+          f.technologies,
           target.author.id,
           ...writerBindings(p),
           p.nowMs,
@@ -126,7 +128,7 @@ export class ProjectReportStore {
       if (!fresh) return null;
       const r = await this.db
         .prepare(
-          `SELECT q.id receipt FROM project_publications r LEFT JOIN project_reports q ON q.project_id=r.id AND q.reporter_account_id=? JOIN public_profiles p ON p.id=r.public_profile_id WHERE r.id=? AND r.status='published' AND r.title=? AND r.description=? AND r.github_url=? AND r.demo_url=? AND ${bounded} AND ${profile} AND (q.id IS NULL OR q.created_at_ms<=?) AND ${live}`,
+          `SELECT q.id receipt FROM project_publications r LEFT JOIN project_reports q ON q.project_id=r.id AND q.reporter_account_id=? JOIN public_profiles p ON p.id=r.public_profile_id WHERE r.id=? AND r.status='published' AND r.title=? AND r.description=? AND r.github_url=? AND r.demo_url=? AND r.technologies=? AND ${bounded} AND ${profile} AND (q.id IS NULL OR q.created_at_ms<=?) AND ${live}`,
         )
         .bind(
           fresh.accountId,
@@ -135,6 +137,7 @@ export class ProjectReportStore {
           target.project.description,
           target.project.githubUrl,
           target.project.demoUrl,
+          target.project.technologies,
           fresh.nowMs,
           ...binds(fresh),
         )
