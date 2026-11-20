@@ -44,9 +44,6 @@ export default function OrdinaryDrafts() {
           />
         )}
       </AccountSessionBoundary>
-      <p className="account-read-link">
-        <Link to="/account">アカウントへ戻る</Link>
-      </p>
     </section>
   );
 }

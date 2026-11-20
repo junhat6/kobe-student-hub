@@ -1,5 +1,6 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { accountMenu } from './helpers/header';
 import { encode as pngEncode } from 'fast-png';
 import jpeg from 'jpeg-js';
 import { readFileSync } from 'node:fs';
@@ -49,7 +50,7 @@ async function register(page: Page, info: TestInfo) {
 }
 async function article(page: Page, info: TestInfo) {
   await register(page, info);
-  await page.getByRole('link', { name: '下書きを書く・再開する' }).click();
+  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill('架空の画像付き記事');
   await page
@@ -190,7 +191,7 @@ test('article image stays private until explicit saved-version publication and f
       true,
     );
     await reader.screenshot({ path: info.outputPath('public-article-image.png'), fullPage: true });
-    await page.getByRole('link', { name: 'アカウントへ戻る', exact: true }).click();
+    await accountMenu(page, 'マイページ');
     await page
       .getByRole('button', { name: '公開停止を確認：架空の画像付き記事', exact: true })
       .click();

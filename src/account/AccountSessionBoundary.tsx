@@ -26,12 +26,14 @@ export interface AccountSessionBoundaryProps {
   variant?: 'lab' | 'account' | 'authoring';
   children: (session: { csrfToken: string; fetcher: typeof fetch }) => ReactNode;
   signedOutContent?: ReactNode;
+  title?: string;
 }
 /** Reuses the existing UI consumption guard; server authentication remains authoritative. */
 export default function AccountSessionBoundary({
   variant = 'account',
   children,
   signedOutContent,
+  title,
 }: AccountSessionBoundaryProps) {
   const lab = variant === 'lab',
     authoring = variant === 'authoring';
@@ -386,10 +388,13 @@ export default function AccountSessionBoundary({
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);
+  // Outside the lab, a confirmed session needs no visible session chrome: the header owns
+  // identity and logout. The live region stays for assistive technology.
+  const quiet = !lab && phase === 'active' && !concealed && !checking && !candidate;
   return (
     <div className={lab ? 'session-account-lab' : 'session-account'}>
       <section
-        className="session-control"
+        className={'session-control' + (quiet ? ' session-control-quiet' : '')}
         aria-label={
           lab
             ? '既存セッションの確認'
@@ -399,16 +404,20 @@ export default function AccountSessionBoundary({
         }
       >
         {lab && <p className="session-eyebrow">LOCAL AUTHOR SESSION</p>}
-        <h1>{lab ? 'セッションと編集画面' : authoring ? '下書き' : 'アカウント'}</h1>
+        <h1>{title ?? (lab ? 'セッションと編集画面' : authoring ? '下書き' : 'アカウント')}</h1>
         {lab && (
           <p className="session-local-notice">
             架空のアカウントを使うローカル専用の検証です。このページからログイン・アカウント作成・権限付与は行いません。
           </p>
         )}
-        <p className="session-message" aria-live="polite" aria-atomic="true">
+        <p
+          className={'session-message' + (quiet ? ' sr-only' : '')}
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {message}
         </p>
-        <div className="session-actions">
+        <div className="session-actions" hidden={quiet}>
           <Button disabled={checking || loggingOut} onClick={() => void inspect(false)}>
             {lab ? 'セッションを再確認' : 'ログイン状態を確認'}
           </Button>
@@ -421,7 +430,7 @@ export default function AccountSessionBoundary({
                   : '確認したアカウントを開く'}
             </Button>
           )}
-          {sessionToken && phase === 'active' && !concealed && (
+          {lab && sessionToken && phase === 'active' && !concealed && (
             <Button disabled={checking || loggingOut} onClick={() => void logout()}>
               このブラウザをログアウト
             </Button>
@@ -438,7 +447,7 @@ export default function AccountSessionBoundary({
           <p className="session-scope-note">
             別タブの変更を常時検知するものではありません。ログアウトは同じブラウザ文脈のセッションと保留中の認証試行が対象です。別端末の終了は確認していません。通信の中止で、すでに保存・公開された操作を取り消すことはできません。ページを閉じると未保存の入力は失われます。
           </p>
-        ) : (
+        ) : quiet ? null : (
           <details className="session-scope-note">
             <summary>ログアウトと入力の保持について</summary>
             <p>

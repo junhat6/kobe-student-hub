@@ -46,7 +46,7 @@ async function register(page: Page, info: TestInfo) {
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
-  await page.getByRole('link', { name: '下書きを書く・再開する', exact: true }).click();
+  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await expect(newDraft(page)).toBeEnabled();
 }
 async function createSaved(page: Page, name: string) {
@@ -208,7 +208,8 @@ test('pending deletion locks editing, blocks route and Back, and survives same-s
     await assertPrivate(page, 'ACKまでは残す文章');
     await cancelNavigation(page, () => home(page).click());
     await cancelNavigation(page, () => page.evaluate(() => history.back()));
-    await page.getByRole('button', { name: 'ログイン状態を確認', exact: true }).click();
+    // The confirmed session has no visible session panel; a window focus rechecks it.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(
       page.getByText('同じセッションを確認しました。手元の編集を保持して再開しています。', {
         exact: true,

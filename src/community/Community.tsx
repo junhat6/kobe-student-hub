@@ -1,6 +1,7 @@
 import { usePublicRead, ReadFailure } from './public-read';
 import Projects from './Projects';
 import Search from './Search';
+import Home from './Home';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -13,149 +14,11 @@ import './discovery.css';
 import { createPublicationClient } from '../editor/publication-client';
 import StudentProfile from './StudentProfile';
 import PublicArticleCard from '../editor/PublicArticleCard';
-import LikePanel from '../editor/LikePanel';
+import ArticleLikeButton from './ArticleLikeButton';
 import OrdinaryArticleReport from './OrdinaryArticleReport';
 import { createPublicLikesClient } from '../editor/public-likes-client';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
-
-function ArticleFeed() {
-  const navigate = useNavigate();
-  const client = useMemo(() => createOrdinaryDiscoveryClient(fetch), []);
-  const read = useMemo(() => (signal: AbortSignal) => client.home(signal), [client]);
-  const { value, failed, retry } = usePublicRead('feed', read);
-  const [params, setParams] = useSearchParams();
-  const query = params.get('q') ?? '';
-  const [input, setInput] = useState(query);
-  useEffect(() => setInput(query), [query]);
-  const normalized = query.trim().normalize('NFKC').toLocaleLowerCase('ja');
-  const [view, setView] = useState<'recent' | 'popular' | 'recommended'>('recent');
-  const [selectedTag, setSelectedTag] = useState('');
-  const tags = [...new Set(value?.recent.flatMap(({ entry }) => entry.tags) ?? [])];
-  const tag = tags.includes(selectedTag) ? selectedTag : (tags[0] ?? '');
-  const sourceCards =
-    view === 'popular'
-      ? value?.popular
-      : view === 'recommended'
-        ? value?.recent.filter(({ entry }) => entry.tags.includes(tag))
-        : value?.recent;
-  const cards = sourceCards?.filter(
-    ({ entry, author }) =>
-      !normalized ||
-      [entry.title, entry.summary, ...entry.tags, author.name].some((text) =>
-        text.normalize('NFKC').toLocaleLowerCase('ja').includes(normalized),
-      ),
-  );
-  return (
-    <section className="shell community-feed">
-      <p>
-        <Link to="/works">学生の作品を探す</Link>
-      </p>
-      <div className="section-top">
-        <div>
-          <h1>学生の知識と経験</h1>
-          <p>制作で試したこと、学んだこと、つくったもの。</p>
-        </div>
-        <Link className="primary" to="/drafts">
-          記事を書く
-        </Link>
-      </div>
-      <form
-        className="searchbox"
-        role="search"
-        onSubmit={(event) => {
-          event.preventDefault();
-          navigate(
-            '/search' + (input.trim() ? '?' + new URLSearchParams({ q: input.trim() }) : ''),
-          );
-        }}
-      >
-        <label className="sr-only" htmlFor="community-search">
-          記事・タグ・投稿者を検索
-        </label>
-        <input
-          id="community-search"
-          type="search"
-          value={input}
-          placeholder="記事、タグ、投稿者で探す"
-          onChange={(event) => setInput(event.target.value)}
-        />
-        <Button type="submit">検索</Button>
-      </form>
-      <div className="discovery-views" aria-label="記事の並び方">
-        {(
-          [
-            ['recent', '新着'],
-            ['popular', '人気'],
-            ['recommended', 'タグからおすすめ'],
-          ] as const
-        ).map(([key, label]) => (
-          <Button key={key} aria-pressed={view === key} onClick={() => setView(key)}>
-            {label}
-          </Button>
-        ))}
-      </div>
-      {view === 'recommended' && (
-        <>
-          <p>新着20件のタグから選べます。同じタグの記事を新しい公開順に表示します。</p>
-          <div className="discovery-tags" aria-label="おすすめのタグ">
-            {tags.map((value) => (
-              <Button
-                key={value}
-                aria-pressed={tag === value}
-                onClick={() => setSelectedTag(value)}
-              >
-                # {value}
-              </Button>
-            ))}
-          </div>
-        </>
-      )}
-      {failed ? (
-        <ReadFailure subject="記事一覧" retry={retry} />
-      ) : !value ? (
-        <p role="status">記事を読み込んでいます…</p>
-      ) : !value.recent.length ? (
-        <div className="empty">
-          <h2>まだ記事がありません</h2>
-          <p>公開した記事がここに並びます。</p>
-          <Link to="/drafts">最初の記事を書く</Link>
-        </div>
-      ) : !cards?.length ? (
-        <div className="empty">
-          <h2>
-            {view === 'popular'
-              ? '公開いいねのある記事はまだありません'
-              : view === 'recommended' && !tag
-                ? 'タグの付いた記事はまだありません'
-                : '一致する記事がありません'}
-          </h2>
-          {query && <Button onClick={() => setParams({})}>検索を解除</Button>}
-        </div>
-      ) : (
-        <>
-          <p className="author-lab-limit">
-            {view === 'popular'
-              ? '有効なアカウントの公開いいね数が多い順に最大6件表示します。同数なら新しい公開順です。'
-              : view === 'recommended'
-                ? `「${tag}」の新着記事です。閲覧履歴はおすすめに使いません。`
-                : '新しい公開記事を最大20件表示しています。'}
-          </p>
-          <div className="author-lab-cards">
-            {cards.map((card) => (
-              <div key={card.entry.id}>
-                {view === 'popular' && 'likeCount' in card && (
-                  <p className="discovery-like-count">公開いいね {String(card.likeCount)}件</p>
-                )}
-                <PublicArticleCard entry={card.entry} author={card.author} surface="ordinary" />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
 
 function StudentArticle({ id }: { id: string }) {
   const reportRisk = useUnsavedNavigation(
@@ -226,7 +89,19 @@ function StudentArticle({ id }: { id: string }) {
         <div className="prose">
           <MarkdownRenderer body={entry.body} />
         </div>
-        <LikePanel key={`like-${entry.id}`} contentId={entry.id} surface="ordinary" />
+        <div className="article-end">
+          <ArticleLikeButton key={`like-${entry.id}`} contentId={entry.id} />
+          <Link className="article-end-author" to={`/students/${author.id}`}>
+            <span className="mini-avatar" aria-hidden="true">
+              {author.initials}
+            </span>
+            <span>
+              <small>この記事を書いた人</small>
+              {author.name}
+            </span>
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
         <OrdinaryArticleReport
           key={`report-${entry.id}`}
           contentId={entry.id}
@@ -292,6 +167,6 @@ export default function Community() {
       view={section === 'works' ? 'projects' : 'articles'}
     />
   ) : (
-    <ArticleFeed />
+    <Home />
   );
 }

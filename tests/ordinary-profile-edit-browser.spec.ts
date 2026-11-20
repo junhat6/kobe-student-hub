@@ -64,7 +64,7 @@ test('explicit profile edit keeps its public author URL and exposes only confirm
   ).toBeDisabled();
   await save(page);
   await expect(region.getByRole('status')).toHaveText('公開プロフィールを更新しました。');
-  await page.getByRole('link', { name: '下書きを書く・再開する' }).click();
+  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill('架空プロフィール更新の制作ノート');
   await page.getByLabel('Markdown本文', { exact: true }).fill('自分で確認した架空の制作本文です。');

@@ -8,6 +8,40 @@ import PublicProfileSetup from '../editor/PublicProfileSetup';
 import OwnPublications from '../editor/OwnPublications';
 import OwnNotifications from './OwnNotifications';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
+import { useViewer } from '../shell/viewer';
+
+function AccountSummary() {
+  const { viewer } = useViewer();
+  const profile = viewer.status === 'signed-in' ? viewer.profile : null;
+  return (
+    <div className="account-summary">
+      <div className="account-summary-who">
+        <span className="account-summary-avatar" aria-hidden="true">
+          {profile?.initials ?? '?'}
+        </span>
+        <div>
+          <p className="account-summary-name">{profile?.name ?? 'プロフィール未作成'}</p>
+          {profile ? (
+            <Link to={`/students/${profile.id}`}>公開プロフィールを見る →</Link>
+          ) : (
+            <a href="#profile">公開プロフィールを作ると、記事を公開できます</a>
+          )}
+        </div>
+      </div>
+      <div className="account-summary-actions">
+        <Link className="primary" to="/drafts">
+          記事を書く
+        </Link>
+        <Link className="secondary" to="/works/new">
+          作品を登録する
+        </Link>
+        <Link className="secondary" to="/history">
+          閲覧履歴
+        </Link>
+      </div>
+    </div>
+  );
+}
 export default function AccountPage() {
   const authenticationFailed = useLocation().hash === '#authentication-failed';
   const onNavigationRiskChange = useUnsavedNavigation(
@@ -22,8 +56,9 @@ export default function AccountPage() {
     [onNavigationRiskChange],
   );
   return (
-    <section className="account-page">
+    <section className="account-page account-home">
       <AccountSessionBoundary
+        title={authoringUiEnabled ? 'マイページ' : undefined}
         signedOutContent={
           <>
             {authenticationFailed && (
@@ -42,50 +77,44 @@ export default function AccountPage() {
       >
         {({ csrfToken, fetcher }) => (
           <>
+            {authoringUiEnabled && <AccountSummary />}
             {authoringUiEnabled && (
-              <p className="account-drafts-link">
-                <Link className="primary" to="/drafts">
-                  下書きを書く・再開する
-                </Link>{' '}
-                <Link className="primary" to="/works/new">
-                  作品を登録する
-                </Link>
-              </p>
+              <div id="publications" className="account-block">
+                <OwnPublications
+                  csrfToken={csrfToken}
+                  fetcher={fetcher}
+                  surface="ordinary"
+                  onNavigationRiskChange={publicationRisk}
+                />
+              </div>
             )}
-            <AccountEnrollment csrfToken={csrfToken} fetcher={fetcher} />
             {authoringUiEnabled && (
-              <>
-                <div id="profile">
-                  <PublicProfileSetup
-                    csrfToken={csrfToken}
-                    fetcher={fetcher}
-                    surface="ordinary"
-                    onNavigationRiskChange={profileRisk}
-                  />
-                </div>
+              <div id="profile" className="account-block">
+                <h2 className="account-block-title">公開プロフィール</h2>
+                <PublicProfileSetup
+                  csrfToken={csrfToken}
+                  fetcher={fetcher}
+                  surface="ordinary"
+                  onNavigationRiskChange={profileRisk}
+                />
+              </div>
+            )}
+            {authoringUiEnabled && (
+              <div className="account-block">
                 <OwnNotifications fetcher={fetcher} />
-                <div id="publications">
-                  <OwnPublications
-                    csrfToken={csrfToken}
-                    fetcher={fetcher}
-                    surface="ordinary"
-                    onNavigationRiskChange={publicationRisk}
-                  />
-                </div>
-              </>
+              </div>
             )}
+            <div className="account-block account-settings">
+              <AccountEnrollment csrfToken={csrfToken} fetcher={fetcher} />
+            </div>
           </>
         )}
       </AccountSessionBoundary>
-      <p className="account-read-link">
-        <Link to="/">記事・作品を読む</Link>
-        {authoringUiEnabled && (
-          <>
-            {' '}
-            · <Link to="/moderation">運営者用画面</Link>
-          </>
-        )}
-      </p>
+      {authoringUiEnabled && (
+        <p className="account-read-link account-operator-link">
+          <Link to="/moderation">運営者用画面</Link>
+        </p>
+      )}
     </section>
   );
 }

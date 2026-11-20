@@ -183,18 +183,20 @@ test('a changed account destroys the old buffer and rechecks a changed continuat
   const other = await context.newPage();
   try {
     await other.goto('/account');
-    await expect(
-      other.getByRole('button', { name: 'このブラウザをログアウト', exact: true }),
-    ).toBeEnabled();
+    await expect(other.locator('.session-private')).toBeVisible();
     other.once('dialog', (dialog) => dialog.accept());
-    await other.getByRole('button', { name: 'このブラウザをログアウト', exact: true }).click();
+    await other.getByRole('button', { name: 'アカウントメニュー', exact: true }).click();
+    await other.getByRole('menuitem', { name: 'ログアウト', exact: true }).click();
+    await expect(other).toHaveURL(/\/$/);
+    await other.goto('/account');
     await expect(other.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible();
     await signIn(other, B);
   } finally {
     await other.close();
   }
   await page.bringToFront();
-  await accountCheck(page).click();
+  // A confirmed session shows no session panel; returning focus rechecks it.
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(continueAccount(page)).toBeVisible();
   await expect(privatePanel(page)).toBeHidden();
   await expect(admission(page)).toHaveCount(0);
@@ -276,10 +278,7 @@ for (const returnKind of ['cancel', 'pageshow'] as const)
       expect(calls).toHaveLength(1);
       expect(visits).toBe(1);
       if (returnKind === 'cancel') {
-        await page
-          .getByRole('navigation', { name: 'メイン' })
-          .getByRole('link', { name: 'アカウント', exact: true })
-          .click();
+        await page.goto('/account');
         await expect(
           page.getByText('現在ログインしていません。アカウント情報を開くにはログインが必要です。', {
             exact: true,

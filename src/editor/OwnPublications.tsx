@@ -97,21 +97,40 @@ export default function OwnPublications({
       lock.current = false;
     };
   }, [client]);
+  const ordinary = surface === 'ordinary';
   return (
     <section className="own-publications" aria-label="自分の公開記録">
-      <h2>自分の公開記録</h2>
-      <p className="own-publications-local">
-        {surface === 'lab' ? '架空データによるローカル限定の確認です。' : ''}
-        記事・画像なし作品の公開記録を合わせて、新しい初回公開時刻から最大20件表示します。
-      </p>
-      <p role="status" aria-live="polite">
+      <div className="own-publications-head">
+        <h2>{ordinary ? '公開した記事・作品' : '自分の公開記録'}</h2>
+        <Button
+          className="text-button"
+          disabled={busy || stopBusy}
+          onClick={() => void refresh()}
+          aria-label="自分の公開記録を更新"
+        >
+          {ordinary ? '再読み込み' : '自分の公開記録を更新'}
+        </Button>
+      </div>
+      {!ordinary && (
+        <p className="own-publications-local">
+          架空データによるローカル限定の確認です。記事・画像なし作品の公開記録を合わせて、新しい初回公開時刻から最大20件表示します。
+        </p>
+      )}
+      <p role="status" aria-live="polite" className={ordinary ? 'sr-only' : undefined}>
         {message}
       </p>
-      <Button disabled={busy || stopBusy} onClick={() => void refresh()}>
-        自分の公開記録を更新
-      </Button>
       {failed && (
-        <p role="alert">接続・セッション・記録の状態を確認し、もう一度更新してください。</p>
+        <p role="alert">
+          読み込めませんでした。接続を確認して、もう一度「再読み込み」を押してください。
+        </p>
+      )}
+      {value && ordinary && value.publications.length === 0 && (
+        <div className="own-publications-empty">
+          <p>まだ公開した記事・作品はありません。</p>
+          <a className="primary" href="/drafts">
+            最初の記事を書く
+          </a>
+        </div>
       )}
       {value && (
         <>
@@ -122,61 +141,92 @@ export default function OwnPublications({
           )}
           {value.publications.length > 0 && (
             <ul>
-              {value.publications.map((row) => (
-                <li key={row.kind + ':' + row.publicId}>
-                  <div className="own-publications-row">
-                    <span>{row.kind === 'article' ? '記事' : '作品'}</span>
-                    <strong>{row.title}</strong>
-                    <span className="own-publications-state">
-                      {row.status === 'hidden'
-                        ? '一時非公開（記録上）'
-                        : row.status === 'deleted'
-                          ? '削除状態（記録上）'
-                          : '公開中（記録上）'}
-                    </span>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>初回公開時刻</dt>
-                      <dd>
+              {value.publications.map((row) => {
+                const href =
+                  row.kind === 'article'
+                    ? publicPaths(surface).article(row.publicId)
+                    : (ordinary ? '/projects/' : '/lab/projects/') + row.publicId;
+                return (
+                  <li key={row.kind + ':' + row.publicId}>
+                    <div className="own-publications-row">
+                      <span className="own-publications-kind">
+                        {row.kind === 'article' ? '記事' : '作品'}
+                      </span>
+                      <strong>
+                        {ordinary && row.status === 'published' ? (
+                          <a href={href}>{row.title}</a>
+                        ) : (
+                          row.title
+                        )}
+                      </strong>
+                      <span
+                        className={'own-publications-state own-publications-state-' + row.status}
+                      >
+                        {ordinary
+                          ? row.status === 'hidden'
+                            ? '一時非公開'
+                            : row.status === 'deleted'
+                              ? '公開停止済み'
+                              : '公開中'
+                          : row.status === 'hidden'
+                            ? '一時非公開（記録上）'
+                            : row.status === 'deleted'
+                              ? '削除状態（記録上）'
+                              : '公開中（記録上）'}
+                      </span>
+                    </div>
+                    {ordinary ? (
+                      <p className="own-publications-meta">
                         <time dateTime={new Date(row.publishedAt).toISOString()}>
                           {stamp(row.publishedAt)}
-                        </time>
-                      </dd>
+                        </time>{' '}
+                        に公開
+                      </p>
+                    ) : (
+                      <dl>
+                        <div>
+                          <dt>初回公開時刻</dt>
+                          <dd>
+                            <time dateTime={new Date(row.publishedAt).toISOString()}>
+                              {stamp(row.publishedAt)}
+                            </time>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>公開時の保存版</dt>
+                          <dd>{row.sourceVersion}</dd>
+                        </div>
+                      </dl>
+                    )}
+                    <div className="own-publications-actions">
+                      {row.status === 'published' && !ordinary && (
+                        <a href={href} target="_blank" rel="noopener noreferrer">
+                          読者表示を確認 ↗
+                        </a>
+                      )}
+                      <Button
+                        className={ordinary ? 'text-button' : undefined}
+                        disabled={busy || stopBusy || stopUncertain}
+                        aria-label={
+                          (row.status === 'published' ? '公開停止を確認：' : '停止記録を確認：') +
+                          row.title
+                        }
+                        onClick={() => {
+                          setStopUncertain(false);
+                          setSelected({ ...row });
+                        }}
+                      >
+                        {ordinary
+                          ? row.status === 'published'
+                            ? '公開を停止する…'
+                            : '停止の記録を見る'
+                          : (row.status === 'published' ? '公開停止を確認：' : '停止記録を確認：') +
+                            row.title}
+                      </Button>
                     </div>
-                    <div>
-                      <dt>公開時の保存版</dt>
-                      <dd>{row.sourceVersion}</dd>
-                    </div>
-                  </dl>
-                  {row.status === 'published' && (
-                    <a
-                      href={
-                        row.kind === 'article'
-                          ? publicPaths(surface).article(row.publicId)
-                          : (surface === 'ordinary' ? '/projects/' : '/lab/projects/') +
-                            row.publicId
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      読者表示を確認 ↗
-                    </a>
-                  )}
-                  {
-                    <Button
-                      disabled={busy || stopBusy || stopUncertain}
-                      onClick={() => {
-                        setStopUncertain(false);
-                        setSelected({ ...row });
-                      }}
-                    >
-                      {row.status === 'published' ? '公開停止を確認：' : '停止記録を確認：'}
-                      {row.title}
-                    </Button>
-                  }
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>
@@ -194,9 +244,15 @@ export default function OwnPublications({
           onStopped={stopped}
         />
       )}
-      <p className="own-publications-scope">
-        表示は保存された記録の状態です。理由・運営判断・通知・実際の配信結果を示しません。読者表示は別タブで確認でき、手元の編集はこのページに残ります。公開停止は選択した保存版の本人操作として確認します。編集・再公開・復元・削除・異議申立ての操作は提供していません。
-      </p>
+      {ordinary ? (
+        <p className="own-publications-scope">
+          内容を直すときは<a href="/drafts">下書き</a>で編集して、もう一度公開してください。
+        </p>
+      ) : (
+        <p className="own-publications-scope">
+          表示は保存された記録の状態です。理由・運営判断・通知・実際の配信結果を示しません。読者表示は別タブで確認でき、手元の編集はこのページに残ります。公開停止は選択した保存版の本人操作として確認します。編集・再公開・復元・削除・異議申立ての操作は提供していません。
+        </p>
+      )}
     </section>
   );
 }

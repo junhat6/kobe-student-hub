@@ -1,7 +1,7 @@
 .ordinary-drafts {
-  max-width: 1288px;
-  margin: 40px auto 64px;
-  padding: 0 24px;
+  max-width: 1200px;
+  margin: 32px auto 64px;
+  padding: 0 36px;
   color: #263b4a;
 }
 .ordinary-drafts .session-control {
@@ -123,4 +123,8 @@
   .draft-editor--ordinary .editor-delete-actions > * {
     width: 100%;
   }
+}
+.account-page .project-registration,
+.account-page-wide > .account-read-link {
+  margin-top: 16px;
 }

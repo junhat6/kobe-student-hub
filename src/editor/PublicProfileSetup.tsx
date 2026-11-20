@@ -26,6 +26,8 @@ export default function PublicProfileSetup({
   const mounted = useRef(true);
   const lock = useRef(false);
   const [loaded, setLoaded] = useState(false);
+  // Ordinary readers who already have a profile only need the edit panel.
+  const [existedAtLoad, setExistedAtLoad] = useState(false);
   const [busy, setBusy] = useState(false);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [text, setText] = useState<ProfileInput>(empty);
@@ -76,6 +78,7 @@ export default function PublicProfileSetup({
         setUncertain(false);
         if (existing) {
           setProfile(existing);
+          if (initial) setExistedAtLoad(true);
           if (
             attempt &&
             (!sameProfileInput(existing, attempt) ||
@@ -170,7 +173,11 @@ export default function PublicProfileSetup({
   const readOnly = uncertain || conflict;
   return (
     <>
-      <section className="profile-setup-shell" aria-label="公開プロフィールの初回作成">
+      <section
+        className="profile-setup-shell"
+        aria-label="公開プロフィールの初回作成"
+        hidden={surface === 'ordinary' && existedAtLoad && Boolean(profile)}
+      >
         <details className="profile-setup">
           <summary>
             <span>公開プロフィールを準備する</span>

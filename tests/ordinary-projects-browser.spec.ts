@@ -1,5 +1,6 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { accountMenu } from './helpers/header';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 async function register(page: Page, info: TestInfo) {
@@ -149,7 +150,7 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
       'このアカウントの受付記録を確認しました',
     );
     await page.bringToFront();
-    await page.getByRole('link', { name: 'アカウントへ戻る', exact: true }).click();
+    await accountMenu(page, 'マイページ');
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
     await records.getByRole('button', { name: '公開停止を確認：' + title, exact: true }).click();
     const stop = page.getByRole('region', { name: '選択した公開の停止' });

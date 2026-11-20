@@ -42,13 +42,11 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
   await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
-  await expect(
-    page.getByRole('link', { name: '下書きを書く・再開する', exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
   await page.unroute(provider);
 }
 async function enterDrafts(page: Page) {
-  await page.getByRole('link', { name: '下書きを書く・再開する', exact: true }).click();
+  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/drafts');
   await expect(newDraft(page)).toBeEnabled();
 }
@@ -347,7 +345,8 @@ test('pending save and later typing remain guarded through a same-session rechec
     await expect(
       page.getByText('送信した版を保存しました。新しい変更はまだ未保存です。', { exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'ログイン状態を確認', exact: true }).click();
+    // The confirmed session has no visible session panel; a window focus rechecks it.
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(
       page.getByText('同じセッションを確認しました。手元の編集を保持して再開しています。', {
         exact: true,

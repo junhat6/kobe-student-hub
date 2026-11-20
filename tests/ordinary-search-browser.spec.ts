@@ -248,7 +248,7 @@ test('ordinary search finds article-only and project-only authors and preserves 
       .click();
     await expect(page).toHaveURL(ORIGIN + '/search?type=article&tag=AI');
     await page
-      .locator('.author-lab-tags')
+      .locator('.content-card-tags')
       .first()
       .getByRole('link', { name: '# AI', exact: true })
       .click();

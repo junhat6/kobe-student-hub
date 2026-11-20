@@ -1,0 +1,165 @@
+/*
+ * Kobe Student Hub theme. Loaded after the legacy stylesheets so shared surfaces
+ * (page background, buttons, inputs, cards, headings) speak one visual language.
+ */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --tint: #f0f3f7;
+  --line: #e2e7ee;
+  --line-soft: #eef1f5;
+  --ink: #141a22;
+  --ink-soft: #46525f;
+  --ink-muted: #6a7581;
+  --accent: #2f7bf5;
+  --accent-strong: #1659c7;
+  --accent-deep: #0f469f;
+  --accent-soft: #e8f0fe;
+  --focus: #1d6fd8;
+  --warm: #ff7a45;
+  color: var(--ink);
+  background: var(--bg);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP',
+    Meiryo, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+}
+body {
+  background: var(--bg);
+}
+::selection {
+  background: #cfe0fd;
+}
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* Primary action: one confident blue, white text, generous target. */
+.primary,
+a.primary,
+button.primary,
+.searchbox button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 120ms ease;
+}
+.primary:hover,
+a.primary:hover,
+button.primary:hover,
+.searchbox button:hover {
+  background: var(--accent-deep);
+  color: #fff;
+}
+.primary:disabled,
+button.primary:disabled {
+  background: #a9bfdf;
+  color: #fff;
+}
+
+.searchbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgb(15 27 42 / 4%);
+}
+.searchbox:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.searchbox input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+  padding: 8px 0;
+}
+.searchbox input:focus-visible {
+  outline: none;
+}
+
+.author-lab-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 16px;
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  margin-top: 64px;
+  padding-top: 28px;
+  padding-bottom: 40px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.site-footer p {
+  margin: 0;
+}
+.site-footer nav {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.site-footer nav a:hover {
+  color: var(--ink);
+}
+.site-footer > span {
+  flex-basis: 100%;
+  font-size: 12px;
+}
+.footer-brand {
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.secondary,
+a.secondary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+.secondary:hover {
+  border-color: #c4ceda;
+  background: var(--tint);
+}

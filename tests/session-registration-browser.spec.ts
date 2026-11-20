@@ -495,10 +495,7 @@ test('signup and account confirmation work after an initial catalog failure in t
   await expect(
     page.getByRole('heading', { name: '記事一覧を表示できませんでした', exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole('navigation', { name: 'メイン' })
-    .getByRole('link', { name: 'アカウント', exact: true })
-    .click();
+  await page.goto('/account');
   await signedOutAccount(page);
   await page.getByRole('link', { name: '初めての方は学生として登録する', exact: true }).click();
   await expect(admission(page)).toBeEditable();

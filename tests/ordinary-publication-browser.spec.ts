@@ -1,5 +1,6 @@
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
+import { accountMenu } from './helpers/header';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
@@ -43,7 +44,7 @@ async function register(page: Page, info: TestInfo) {
   await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
-  await expect(page.getByRole('link', { name: '下書きを書く・再開する' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
   await page.unroute(provider);
 }
 
@@ -60,7 +61,7 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   await expect(profile.locator('.profile-setup-status')).toHaveText(
     '公開プロフィールを作成しました。',
   );
-  await page.getByRole('link', { name: '下書きを書く・再開する' }).click();
+  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill(title);
   await page
@@ -149,7 +150,7 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
       fullPage: true,
     });
 
-    await page.getByRole('link', { name: 'アカウントへ戻る', exact: true }).click();
+    await accountMenu(page, 'マイページ');
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
     await records
       .getByRole('button', { name: '公開停止を確認：架空のAI技術選定ノート', exact: true })
@@ -225,7 +226,11 @@ async function openReport(page: Page, articlePath: string) {
     const path = new URL(request.url()).pathname;
     if (
       path.startsWith('/api/private/') &&
-      !['/api/private/session', '/api/private/reading-history'].includes(path)
+      // The header reads the signed-in reader's own profile, and the like button its own state.
+      !['/api/private/session', '/api/private/reading-history', '/api/private/profile'].includes(
+        path,
+      ) &&
+      !path.startsWith('/api/private/article-likes/')
     )
       privateReads++;
   };
@@ -519,7 +524,7 @@ test('ordinary author corrects an article at the same URL after saving and expli
       path: info.outputPath('article-correction-author.png'),
       fullPage: true,
     });
-    await page.getByRole('link', { name: 'アカウントへ戻る', exact: true }).click();
+    await accountMenu(page, 'マイページ');
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
     await records
       .getByRole('button', { name: '公開停止を確認：架空の訂正後の記事', exact: true })

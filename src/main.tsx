@@ -16,6 +16,9 @@ import { safeListPath, readListOrigin, listContextPath } from './navigation';
 import { usePagePosition } from './usePagePosition';
 import { RecordReadingHistory } from './history/RecordReadingHistory';
 import './style.css';
+import './theme.css';
+import SiteHeader from './shell/SiteHeader';
+import { ViewerProvider } from './shell/viewer';
 import {
   accountUiEnabled,
   authoringUiEnabled,
@@ -123,49 +126,17 @@ function App() {
       <a className="skip" href="#main">
         本文へ移動
       </a>
-      <header>
-        <div className={'nav shell' + (accountUiEnabled ? ' nav-with-account' : '')}>
-          <Link to="/" className="brand">
-            <span className="brand-icon" aria-hidden="true">
-              k.
-            </span>
-            <span>
-              Kobe Student Hub<small>知る。つくる。分かち合う。</small>
-            </span>
-          </Link>
-          <nav aria-label="メイン">
-            <Link to="/" aria-current={location.pathname === '/' ? 'page' : undefined}>
-              ホーム
-            </Link>
-            <Link to="/search" aria-current={location.pathname === '/search' ? 'page' : undefined}>
-              <Icon kind="search" /> 探す
-            </Link>
-            {accountUiEnabled && (
-              <Link to="/account" aria-current={accountPath ? 'page' : undefined}>
-                アカウント
-              </Link>
-            )}
-            {authoringUiEnabled && (
-              <Link to="/history" aria-current={historyPath ? 'page' : undefined}>
-                閲覧履歴
-              </Link>
-            )}
-            <Link className="nav-button" to="/about">
-              {authoringUiEnabled ? 'このサイトについて ↗' : 'このプレビューについて ↗'}
-            </Link>
-          </nav>
-        </div>
-      </header>
-      <div className="notice">
-        <div className="shell">
-          <span className="dot" />{' '}
-          {authoringUiEnabled
-            ? '神戸電子の学生による知識・経験の共有。学校公式サービスではありません。'
-            : accountUiEnabled
+      <SiteHeader />
+      {!authoringUiEnabled && (
+        <div className="notice">
+          <div className="shell">
+            <span className="dot" />{' '}
+            {accountUiEnabled
               ? '掲載内容・投稿者は架空のサンプルです。学校Googleでの登録・年度管理を先行提供しています。投稿は準備中。'
               : '開発プレビュー · 掲載内容・投稿者はすべて架空のサンプルです。ログイン・投稿は準備中。'}
+          </div>
         </div>
-      </div>
+      )}
       <main id="main" tabIndex={-1}>
         {accountPath ? (
           <BodyBoundary key={location.pathname} purpose={draftPath ? 'drafts' : 'account'}>
@@ -251,15 +222,18 @@ function App() {
           <Missing />
         )}
       </main>
-      <footer className="shell">
+      <footer className="shell site-footer">
         <Link to="/" className="footer-brand">
           Kobe Student Hub
         </Link>
         <p>学生の知識と経験を、次の一歩へ。</p>
-        <Link to={accountUiEnabled ? '/guide' : '/about'}>
-          {accountUiEnabled ? '利用ルール・問い合わせ' : '開発状況・利用上の注意'}
-        </Link>
-        <span>学校公式サービスではありません · 開発中</span>
+        <nav aria-label="サイトについて">
+          <Link to="/about">
+            {authoringUiEnabled ? 'このサイトについて' : 'このプレビューについて'}
+          </Link>
+          {accountUiEnabled && <Link to="/guide">利用ルール・問い合わせ</Link>}
+        </nav>
+        <span>学校公式サービスではありません</span>
       </footer>
     </>
   );
@@ -895,6 +869,8 @@ if (window.location.href.endsWith('#'))
 const router = createBrowserRouter([{ path: '*', element: <App /> }]);
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <ViewerProvider>
+      <RouterProvider router={router} />
+    </ViewerProvider>
   </React.StrictMode>,
 );

@@ -1,4 +1,5 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { accountMenu } from './helpers/header';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
@@ -20,7 +21,7 @@ async function register(page: Page, info: TestInfo) {
   await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
-  await expect(page.getByRole('link', { name: '下書きを書く・再開する' })).toBeVisible();
+  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
   await page.unroute(provider);
 }
 const recorded = (page: Page) =>
@@ -44,7 +45,7 @@ test('logged-in read → private history → single/all delete → collection di
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByRole('link', { name: '閲覧履歴', exact: true }).click();
+  await accountMenu(page, '閲覧履歴');
   const panel = page.getByRole('region', { name: '自分の閲覧履歴', exact: true });
   await expect(
     panel.getByRole('link', { name: '「動いた」で終わらせない、制作ノートの残し方', exact: true }),
@@ -62,7 +63,7 @@ test('logged-in read → private history → single/all delete → collection di
   saved = recorded(page);
   await page.goto('/projects/tiny-notes');
   expect(await (await saved).json()).toEqual({ recorded: true });
-  await page.getByRole('link', { name: '閲覧履歴', exact: true }).click();
+  await accountMenu(page, '閲覧履歴');
   await expect(panel.getByRole('link', { name: 'ひとこと制作ノート', exact: true })).toBeVisible();
   await expect(panel.getByText('作品 · 架空サンプル', { exact: true })).toBeVisible();
   await panel
@@ -73,7 +74,7 @@ test('logged-in read → private history → single/all delete → collection di
   saved = recorded(page);
   await page.goto('/articles/git-branches');
   expect(await (await saved).json()).toEqual({ recorded: false });
-  await page.getByRole('link', { name: '閲覧履歴', exact: true }).click();
+  await accountMenu(page, '閲覧履歴');
   await expect(panel.getByRole('checkbox')).not.toBeChecked();
   await expect(panel.locator('li')).toHaveCount(1);
   page.once('dialog', (d) => d.accept());
@@ -93,7 +94,7 @@ test('logged-in read → private history → single/all delete → collection di
     });
     await reader.goto('/articles/learning-notes');
     await expect(reader.locator('h1')).toContainText('制作ノート');
-    await reader.getByRole('link', { name: '閲覧履歴', exact: true }).click();
+    await reader.goto('/history');
     await expect(
       reader.getByRole('link', { name: 'ログインして履歴を見る', exact: true }),
     ).toBeVisible();

@@ -1,0 +1,108 @@
+.article-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 48px 0 24px;
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.article-like {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.like-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid #f3c2c9;
+  background: #fff;
+  color: #c2304a;
+  font-weight: 700;
+  font-size: 15px;
+  transition:
+    background 120ms ease,
+    transform 120ms ease;
+}
+.like-toggle:hover:not(:disabled) {
+  background: #fff3f5;
+}
+.like-toggle:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.like-toggle.is-liked {
+  background: #e23a57;
+  border-color: #e23a57;
+  color: #fff;
+}
+.like-toggle:disabled {
+  opacity: 0.7;
+}
+.article-like-note {
+  margin: 0;
+  max-width: 34em;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.article-like-note a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.article-end-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.article-end-author:hover {
+  background: var(--tint);
+}
+.article-end-author > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.4;
+}
+.article-end-author small {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.article-end-author .mini-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 15px;
+}
+.detail-layout .report-panel {
+  margin-top: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.detail-layout .report-panel > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .article-end {
+    padding: 16px;
+  }
+}
