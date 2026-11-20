@@ -45,4 +45,4 @@
 ## 学び（1行ずつ足す）
 
 - 「まだ実装されていない」と決めつける前に `rg` で探す。このリポジトリには似た部品（`src/editor/*Lab.tsx` と本番用コンポーネント）が並存している。
-- e2e で送信ヘッダを確かめるとき `request.allHeaders()` を待たない。CDP の ExtraInfo 到着順しだいで永久に解決せず CI だけ flaky になる（#134）。JS が付けるヘッダは `request.headers()`、cookie は `context.cookies()` が空であることで確かめる。
+- e2e で送信ヘッダを確かめるとき `request.allHeaders()` を待たない。CDP の ExtraInfo 到着順しだいで永久に解決せず CI だけ flaky になる（#134）。`tests/helpers/sent-headers.ts` の `recordSentHeaders`（route 中の `request.headers()` は Cookie/Origin を含む。route なしだと Cookie が出ず「cookie なし」検査が空振りする）を使い、route が見ないリダイレクト先は `recordRedirectHops` で読む（#135）。
