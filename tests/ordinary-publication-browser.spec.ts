@@ -115,6 +115,10 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
       reader.getByRole('heading', { name: '架空のAI技術選定ノート', exact: true }),
     ).toBeVisible();
     await expect(reader.locator('.prose')).toContainText('この文章は公開する保存版です。');
+    const readerContext = reader.getByRole('region', { name: '読む前の目安' });
+    for (const text of ['AIで制作している学生', '特別な前提知識は不要', '自分の判断を説明する'])
+      await expect(readerContext.getByText(text, { exact: true })).toBeVisible();
+    await expect(readerContext.getByText('投稿者の記載はありません')).toHaveCount(0);
     await expect(reader.locator('main')).not.toContainText('PRIVATE_FICTIONAL_CONTINUATION');
     expect(
       forwarded.every(

@@ -389,3 +389,7 @@
     font-size: 26px;
   }
 }
+.detail-layout .reader-context .reader-context-missing {
+  color: var(--ink-soft);
+  font-style: italic;
+}

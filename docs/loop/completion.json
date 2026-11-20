@@ -51,9 +51,9 @@
       ],
       "journey": "J1",
       "risk": "R1",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": null
+      "evidence": "#147: 通常記事は任意欄が空でも想定読者・前提知識・読後を本文の前に表示（空は「投稿者の記載はありません」）— tests/ordinary-discovery-browser.spec.ts（空欄・本文より前）, tests/ordinary-publication-browser.spec.ts（記入値）; GFM/コード強調/コピー/raw HTML無効/横スクロール — tests/code-copy.spec.ts, tests/discovery.spec.ts; PC(1280)/モバイル(390) を Playwright で確認"
     },
     {
       "id": "C04",
