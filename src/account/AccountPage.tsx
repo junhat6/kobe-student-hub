@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import AccountSessionBoundary from './AccountSessionBoundary';
 import AccountEnrollment from '../editor/AccountEnrollment';
 import './account.css';
@@ -10,9 +10,16 @@ import OwnNotifications from './OwnNotifications';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import { useViewer } from '../shell/viewer';
 
-function AccountSummary() {
-  const { viewer } = useViewer();
-  const profile = viewer.status === 'signed-in' ? viewer.profile : null;
+function AccountSummary({ csrfToken }: { csrfToken: string }) {
+  const { viewer, refresh } = useViewer();
+  // Show a name only when it belongs to the session this page just confirmed.
+  const matches = viewer.status === 'signed-in' && viewer.csrfToken === csrfToken;
+  const stale = viewer.status === 'signed-in' && !matches;
+  useEffect(() => {
+    if (stale) refresh();
+  }, [stale, refresh]);
+  if (!matches) return <div className="account-summary" aria-busy="true" />;
+  const profile = viewer.profile;
   return (
     <div className="account-summary">
       <div className="account-summary-who">
@@ -77,7 +84,7 @@ export default function AccountPage() {
       >
         {({ csrfToken, fetcher }) => (
           <>
-            {authoringUiEnabled && <AccountSummary />}
+            {authoringUiEnabled && <AccountSummary csrfToken={csrfToken} />}
             {authoringUiEnabled && (
               <div id="publications" className="account-block">
                 <OwnPublications

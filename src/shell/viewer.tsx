@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ReactNode } from 'react';
 import { createSessionClient, SessionClientError } from '../editor/session-client';
 import { authoringUiEnabled } from '../account/routes';
@@ -62,16 +70,35 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
   );
   const [generation, setGeneration] = useState(0);
   const refresh = useCallback(() => setGeneration((value) => value + 1), []);
+  // The token the shown name belongs to; a different token must never show the old name.
+  const shownToken = useRef<string | null>(null);
   useEffect(() => {
     if (!authoringUiEnabled) return;
     const controller = new AbortController();
     (async () => {
       try {
-        const csrfToken = await client.peek(controller.signal);
-        const profile = await readOwnProfile(controller.signal);
-        if (!controller.signal.aborted) setViewer({ status: 'signed-in', csrfToken, profile });
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const csrfToken = await client.peek(controller.signal);
+          if (controller.signal.aborted) return;
+          if (csrfToken !== shownToken.current) {
+            shownToken.current = null;
+            setViewer({ status: 'loading' });
+          }
+          const profile = await readOwnProfile(controller.signal);
+          // The profile is read by cookie; confirm the session did not change in between,
+          // so one account's token is never paired with another account's name.
+          const after = await client.peek(controller.signal);
+          if (controller.signal.aborted) return;
+          if (after !== csrfToken) continue;
+          shownToken.current = csrfToken;
+          setViewer({ status: 'signed-in', csrfToken, profile });
+          return;
+        }
+        shownToken.current = null;
+        setViewer({ status: 'unknown' });
       } catch (error) {
         if (controller.signal.aborted) return;
+        shownToken.current = null;
         setViewer(
           error instanceof SessionClientError && error.kind === 'signed-out'
             ? { status: 'signed-out' }
@@ -83,15 +110,23 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
   }, [client, generation]);
   useEffect(() => {
     if (!authoringUiEnabled) return;
-    // Another tab may have logged in or out; re-read when the reader comes back.
+    // Another tab or window may have logged in or out; re-read when the reader comes back.
+    // Side-by-side windows fire focus without visibilitychange, so listen to both.
     const onVisible = () => {
       if (document.visibilityState === 'visible') refresh();
     };
+    const onChanged = () => {
+      shownToken.current = null;
+      setViewer({ status: 'loading' });
+      refresh();
+    };
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('ksh:session-changed', refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('ksh:session-changed', onChanged);
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('ksh:session-changed', refresh);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('ksh:session-changed', onChanged);
     };
   }, [refresh]);
   const logout = useCallback(async () => {

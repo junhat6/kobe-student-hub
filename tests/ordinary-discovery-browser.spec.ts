@@ -209,3 +209,47 @@ test('ordinary popularity and related read failures have truthful empty and retr
     scale: 'css',
   });
 });
+
+test('a failed like change keeps the confirmed state and re-reads instead of resending', async ({
+  browser,
+}, info) => {
+  const contexts: BrowserContext[] = [];
+  const key = 'like-failure-' + info.project.name + '-' + Date.now().toString(36);
+  try {
+    const owner = await actor(browser, contexts, '架空制作者-' + key),
+      liker = await actor(browser, contexts, '架空読者-' + key);
+    const source = await article(owner, 'いいね失敗の記録-' + key);
+    const stored = await liker.context.request.put('/api/private/article-likes/' + source.id, {
+      headers: { Origin: ORIGIN, Authorization: 'Bearer csrf.' + liker.csrf },
+      data: { liked: true, confirmPublic: true },
+    });
+    expect(stored.status()).toBe(200);
+    const page = await liker.context.newPage();
+    const writes: string[] = [];
+    await page.route('**/api/private/article-likes/**', async (route) => {
+      if (route.request().method() === 'GET') return route.continue();
+      writes.push(route.request().method());
+      await route.fulfill({ status: 503, body: '' });
+    });
+    await page.goto('/articles/' + source.id);
+    const like = page.getByRole('button', { name: 'いいね済み', exact: true });
+    await expect(like).toHaveAttribute('aria-pressed', 'true');
+    await like.click();
+    // The unlike failed: the button must not claim "not liked" while the server still has it.
+    const check = page.getByRole('button', { name: '状態を確認', exact: true });
+    await expect(check).toBeVisible();
+    await expect(
+      page.getByText('保存できたか確認できませんでした', { exact: false }),
+    ).toBeVisible();
+    expect(writes).toHaveLength(1);
+    await check.click();
+    await expect(page.getByRole('button', { name: 'いいね済み', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // Pressing again re-read the stored state; it did not resend the failed change.
+    expect(writes).toHaveLength(1);
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});

@@ -39,7 +39,13 @@ export default function ArticleLikeButton({ contentId }: { contentId: string }) 
     );
     return () => controller.abort();
   }, [client, contentId]);
-  const liked = state.kind === 'ready' || state.kind === 'saving' ? state.liked : false;
+  // After a failed save, keep showing the last state the server confirmed.
+  const liked =
+    state.kind === 'ready' || state.kind === 'saving'
+      ? state.liked
+      : state.kind === 'error'
+        ? Boolean(state.liked)
+        : false;
   const busy = state.kind === 'loading' || state.kind === 'saving';
   async function toggle() {
     if (viewer.status !== 'signed-in') {
@@ -47,18 +53,18 @@ export default function ArticleLikeButton({ contentId }: { contentId: string }) 
       return;
     }
     if (!client || busy || state.kind === 'idle') return;
-    if (state.kind === 'error' && state.liked === null) {
-      // Unknown current state: re-read instead of guessing a direction.
+    if (state.kind === 'error') {
+      // The last change may or may not have been stored: re-read instead of resending.
       setState({ kind: 'loading' });
       try {
         setState({ kind: 'ready', liked: await client.read(contentId) });
       } catch {
-        setState({ kind: 'error', liked: null });
+        setState({ kind: 'error', liked: state.liked });
         refresh();
       }
       return;
     }
-    const current = state.kind === 'error' ? Boolean(state.liked) : liked;
+    const current = liked;
     if (!current && !hasProfile) {
       setHint('profile');
       return;
@@ -68,6 +74,7 @@ export default function ArticleLikeButton({ contentId }: { contentId: string }) 
       const value = await client.set(contentId, !current);
       setState({ kind: 'ready', liked: value });
     } catch {
+      // Unknown outcome: show the last confirmed state, not the attempted one.
       setState({ kind: 'error', liked: current });
       refresh();
     }
@@ -77,7 +84,7 @@ export default function ArticleLikeButton({ contentId }: { contentId: string }) 
       <button
         type="button"
         className={'like-toggle' + (liked ? ' is-liked' : '')}
-        aria-pressed={viewer.status === 'signed-in' ? liked : undefined}
+        aria-pressed={viewer.status === 'signed-in' && state.kind !== 'error' ? liked : undefined}
         disabled={busy}
         onClick={() => void toggle()}
       >
@@ -90,11 +97,11 @@ export default function ArticleLikeButton({ contentId }: { contentId: string }) 
             strokeLinejoin="round"
           />
         </svg>
-        {liked ? 'いいね済み' : 'いいね'}
+        {state.kind === 'error' ? '状態を確認' : liked ? 'いいね済み' : 'いいね'}
       </button>
       <p className="article-like-note" role="status" aria-live="polite">
         {state.kind === 'error'
-          ? '保存できたか確認できませんでした。もう一度押すと最新の状態を確認します。'
+          ? '保存できたか確認できませんでした。「状態を確認」を押すと、保存されている状態を読み直します。'
           : hint === 'login'
             ? null
             : hint === 'profile'
