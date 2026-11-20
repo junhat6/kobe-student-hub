@@ -442,3 +442,65 @@ describe('owner-linked project ↔ article', () => {
     ).rejects.toThrow();
   });
 });
+
+describe('ordinary recent order follows the latest public revision', () => {
+  const meta = {
+    summary: '改稿の順序',
+    tags: ['改稿'],
+    audience: '',
+    prerequisite: '',
+    outcome: '',
+    minutes: 2,
+  };
+  async function publishAt(title: string, at: number) {
+    const draft = await call<{ id: string }>({
+      action: 'draft',
+      headers: headers(a),
+      at,
+      input: { title, body: '# Fictional body' },
+    });
+    const published = await call<{ contentId: string }>({
+      action: 'publish',
+      headers: headers(a),
+      draft: draft.id,
+      at,
+      input: { expectedVersion: 1, confirmPublic: true, ...meta },
+    });
+    return { draft: draft.id, id: published.contentId };
+  }
+  it('moves a revised article above newer first publications', async () => {
+    const older = await publishAt('先に公開した記事', 1000);
+    const newer = await publishAt('後に公開した記事', 2000);
+    const ids = () => home().then((value) => value!.recent.map((card) => card.entry.id));
+    expect((await ids()).slice(0, 2)).toEqual([newer.id, older.id]);
+    expect(
+      await call({
+        action: 'draftupdate',
+        headers: headers(a),
+        draft: older.draft,
+        at: 3000,
+        input: { title: '先に公開した記事（改稿）', body: '# Revised', expectedVersion: 1 },
+      }),
+    ).not.toBeNull();
+    expect(
+      await call({
+        action: 'publish',
+        headers: headers(a),
+        draft: older.draft,
+        at: 3000,
+        input: {
+          expectedVersion: 2,
+          expectedPublicationVersion: 1,
+          confirmPublic: true,
+          ...meta,
+        },
+      }),
+    ).toEqual({ contentId: older.id });
+    const recent = (await home())!.recent;
+    expect(recent.slice(0, 2).map((card) => card.entry.id)).toEqual([older.id, newer.id]);
+    expect(recent[0].entry.title).toBe('先に公開した記事（改稿）');
+    // The visible card dates never go up while reading down the list.
+    const dates = recent.map((card) => card.entry.updatedAt);
+    expect([...dates].sort().reverse()).toEqual(dates);
+  });
+});

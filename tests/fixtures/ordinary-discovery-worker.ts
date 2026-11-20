@@ -19,6 +19,7 @@ export default {
       input?: unknown;
       target?: unknown;
       draft?: string;
+      at?: number;
       fault?: boolean;
       hideAfterSelection?: boolean;
       source?: string;
@@ -34,7 +35,9 @@ export default {
         target: string;
       };
     };
-    const now = 1800000000000;
+    // `at` moves the fictional clock forward to model a later revision.
+    const now =
+      1800000000000 + (Number.isSafeInteger(i.at) && i.at! >= 0 && i.at! <= 86400000 ? i.at! : 0);
     if (i.action === 'session')
       return Response.json(
         await createFixtureSession(env.DB, origin, () => now, {
@@ -170,12 +173,21 @@ export default {
                               target,
                               i.input,
                             )
-                          : i.action === 'draft'
-                            ? await new PrivateDraftStore(db, origin, () => now).create(
-                                target,
+                          : i.action === 'draftupdate'
+                            ? await new PrivateDraftStore(db, origin, () => now).update(
+                                new Request(origin + '/fixture', {
+                                  method: 'PUT',
+                                  headers: i.headers,
+                                }),
+                                i.draft,
                                 i.input,
                               )
-                            : await store.publish(target, i.draft, i.input);
+                            : i.action === 'draft'
+                              ? await new PrivateDraftStore(db, origin, () => now).create(
+                                  target,
+                                  i.input,
+                                )
+                              : await store.publish(target, i.draft, i.input);
     return Response.json(i.finalMutation ? { value: result, mutationApplied } : result);
   },
 };

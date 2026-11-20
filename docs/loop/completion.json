@@ -21,9 +21,9 @@
       ],
       "journey": "J1",
       "risk": "R1",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": null
+      "evidence": "tests/ordinary-home-browser.spec.ts（PC1280/モバイル390、匿名）：実投稿の記事・作品が新しい順（改稿は最新公開版の時刻で上がり、カードの日付が下に向かって増えない）、通常トップに架空サンプルが混ざらず、サンプル詳細は直接URLで常に「サンプル」と表示、カードから記事・投稿者・作品へ移動、横スクロールなし。tests/ordinary-discovery.test.ts「moves a revised article above newer first publications」。#145"
     },
     {
       "id": "C02",

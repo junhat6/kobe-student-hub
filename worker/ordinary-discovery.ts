@@ -17,6 +17,9 @@ const confirmedLiker = publicProfileSqlBounds.replaceAll('p.', 'confirmed.');
 // Aggregate actual likes once rather than scanning the likes table for every article.
 const articleSelection = `c.id,publication.source_version sourceVersion,publication.published_at_ms publishedAt,c.tags_json tagsJson`;
 const popularitySql = `WITH ranked_likes AS (SELECT likes.content_id,COUNT(*) likeCount FROM article_likes likes JOIN private_accounts liker ON liker.id=likes.owner_account_id AND liker.status='active' JOIN account_public_profiles liked_profile ON liked_profile.owner_account_id=liker.id JOIN public_profiles confirmed ON confirmed.id=liked_profile.public_profile_id WHERE ${confirmedLiker} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=confirmed.id OR private_id.google_subject=confirmed.id) GROUP BY likes.content_id) SELECT ${articleSelection},ranked_likes.likeCount ${articleSource} JOIN ranked_likes ON ranked_likes.content_id=c.id WHERE ${eligible} ORDER BY ranked_likes.likeCount DESC,publication.published_at_ms DESC,c.id ASC LIMIT 6`;
+// "新着" follows the latest public revision, the same moment the card's date shows, so a
+// revised article never appears below an article whose card date is older.
+const latestPublicationSql = `MAX(publication.published_at_ms,COALESCE((SELECT MAX(revision.published_at_ms) FROM article_publication_revisions revision WHERE revision.content_id=c.id),0))`;
 type ArticleSelection = {
   id: string;
   sourceVersion: number;
@@ -210,7 +213,7 @@ export class OrdinaryDiscoveryStore {
     try {
       const recent = await this.db
         .prepare(
-          `SELECT ${articleSelection} ${articleSource} WHERE ${eligible} ORDER BY publication.published_at_ms DESC,c.id ASC LIMIT 20`,
+          `SELECT ${articleSelection} ${articleSource} WHERE ${eligible} ORDER BY ${latestPublicationSql} DESC,c.id ASC LIMIT 20`,
         )
         .all<ArticleSelection>();
       const ranked = await this.db.prepare(popularitySql).all<RankedArticle>();
