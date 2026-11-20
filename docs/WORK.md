@@ -1,9 +1,7 @@
 # Current work
 
-- 12時間の目標：2026-11-09 16:25 JST。実装・統合・本番反映を優先し、検証詳細はPRへ集約する。
-- 現在地：本人の学校Google登録を確認。運営者・通知・問い合わせを設定し、通知メールの到着も確認済み。通常投稿のリリース結果は[#119](https://github.com/junhat6/kobe-student-hub/pull/119)に集約する。
-- 価値仮説：学校Google登録・年度管理を成立させ、余計な手続きなく制作物を投稿できるようにする。本人限定の旧試用機能は撤去済み。
-- 実装：記事・作品の投稿と公開停止、記事改稿、公開プロフィール編集、検索・人気・関連記事、本人専用の閲覧履歴を統合。旧試用機能の撤去とformatter・commit hookは維持する。
-- 検証記録：個別機能・組み合わせの独立QA、green CI、本番確認はリリースPRへ集約。AIの動作確認は、学生による価値検証や実機確認とは分ける。
-- 次の確認：本人の記事・作品で投稿から公開・閲覧までを使い、利用上の不具合を優先して直す。記録を増やすためだけの文書は作らない。
-- PRD原文・恒久的なsecurity条件は変更しない。過去の作業履歴はGitと各PRを参照する。
+- 2026-11-21：進め方を自律ループへ切り替え（[docs/loop/](loop/README.md)）。main＝直接pushの幹、本番は `npm run release` で release へ昇格（[RELEASE.md](RELEASE.md)）。
+- 完成台帳：[completion.json](loop/completion.json) 20項目、全て unverified（確かめ直し待ち）。最初の replan で `loop:finish` Issue に展開する。
+- 本番：アカウント機能まで公開。通常投稿は閉じたまま（Workers Paid の契約判断待ち、#119）。本番 wrangler 設定の再作成も未了。
+- 人の判断待ち（`needs-human`）：有料プラン、本番D1 migration の適用、CI 用 Cloudflare token。
+- 次の焦点：UX巡回の初回（#131）で旅 J0〜J5 の現状を測り、S1/S2 から直す。

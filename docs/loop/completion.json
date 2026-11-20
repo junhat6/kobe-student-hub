@@ -1,0 +1,314 @@
+{
+  "version": 1,
+  "updated": "2026-11-21",
+  "definition": "全itemのstatusがpass、UX巡回でS1/S2が2回連続0件、かつreleaseに載っていれば「開発として完成」。学生にとっての価値は別（価値検証ループ）。",
+  "rules": [
+    "builder（finishループ）が変更してよいのは status と evidence と production だけ。capability と acceptance を変えてはいけない。",
+    "item の追加・分割は replan ループか人。acceptance の弱体化・削除は人だけ。",
+    "status=pass にできるのは、acceptance の全文を main の実物で確かめたときだけ。evidence に確かめた方法（spec名、patrol log のコメントURL、Issue番号）を書く。仮実装・押しても何も起きない操作は pass にしない。",
+    "status: unverified（未確認）| pass | fail | blocked。production: open（本番で使える）| closed（本番では閉じている）| unknown。",
+    "初期値は全て unverified。既存機能の多くは実装済みだが、この台帳の acceptance で確かめ直すまで pass にしない。"
+  ],
+  "items": [
+    {
+      "id": "C01",
+      "area": "discovery",
+      "capability": "トップで記事と作品に出会える",
+      "acceptance": [
+        "ログインなしでトップに公開記事・公開作品が新しい順に並ぶ",
+        "サンプルと実投稿が区別でき、サンプルであることが常に分かる",
+        "カードから記事・作品・投稿者へ移動できる"
+      ],
+      "journey": "J1",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C02",
+      "area": "discovery",
+      "capability": "キーワード・タグ・種別で探せる",
+      "acceptance": [
+        "キーワード、タグ、記事/作品の種別で絞り込める",
+        "0件のとき、次に試せること（条件を外す・別の語）が示される",
+        "検索条件はURLに残り、戻る操作で結果に戻れる"
+      ],
+      "journey": "J1",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C03",
+      "area": "reading",
+      "capability": "記事を読んで、読むべきか判断できる",
+      "acceptance": [
+        "本文の前に想定読者・前提知識・読後にわかることが表示される",
+        "Markdown（GFM・コード強調・コードのコピー）が正しく表示され、raw HTML は無効",
+        "長いコードは横スクロールに閉じ込められ、モバイルで画面がはみ出さない"
+      ],
+      "journey": "J1",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C04",
+      "area": "reading",
+      "capability": "作品を見て、関連する記事へ進める",
+      "acceptance": [
+        "作品詳細に概要・使った技術・投稿者が表示される",
+        "作品に紐づく記事があればリンクで移動でき、記事なしの作品も成立する",
+        "画像・YouTube がある作品はそれが表示される"
+      ],
+      "journey": "J1",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C05",
+      "area": "discovery",
+      "capability": "投稿者の活動を知れる",
+      "acceptance": [
+        "記事・作品から投稿者の公開プロフィールへ移動できる",
+        "公開プロフィールに、その人の公開記事・公開作品が並ぶ",
+        "学校メール・Google識別子・申告年度・Googleの氏名/写真は表示されない"
+      ],
+      "journey": "J1",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C06",
+      "area": "discovery",
+      "capability": "次に読むものが見つかる（関連・人気）",
+      "acceptance": [
+        "記事詳細に関連する記事・作品が表示される（明示的な関連→共通タグの順）",
+        "人気順は実際のいいね数に基づき、数を捏造しない",
+        "関連が0件でも行き止まりにならない"
+      ],
+      "journey": "J1",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C07",
+      "area": "account",
+      "capability": "学校Googleで登録・ログインできる",
+      "acceptance": [
+        "学校Googleアカウントの確認はサーバー側で行い、クライアントが送るメール文字列で判定しない",
+        "入学年度・卒業予定年度の本人申告が必須で、非公開",
+        "学校外のGoogleアカウントは、理由が分かる形で断られる",
+        "ログアウトできる"
+      ],
+      "journey": "J2",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "open",
+      "evidence": null
+    },
+    {
+      "id": "C08",
+      "area": "authoring",
+      "capability": "記事を下書きし、別の端末でも続きが書ける",
+      "acceptance": [
+        "Markdown で書け、プレビューできる",
+        "自動保存され、別の端末・ブラウザで再開できる",
+        "保存に失敗したとき本文が失われず、そのことが分かる",
+        "下書きを削除できる。下書きは本人以外に見えない"
+      ],
+      "journey": "J2",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "closed",
+      "evidence": null
+    },
+    {
+      "id": "C09",
+      "area": "authoring",
+      "capability": "記事を公開・改稿・公開停止できる",
+      "acceptance": [
+        "明示的な操作で公開され、公開前に確認できる",
+        "公開後も同じURLで改稿できる",
+        "本人が公開停止でき、停止後は公開画面・検索・関連・プロフィールから消える"
+      ],
+      "journey": "J2",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "closed",
+      "evidence": null
+    },
+    {
+      "id": "C10",
+      "area": "authoring",
+      "capability": "作品を投稿し、記事とつなげられる",
+      "acceptance": [
+        "作品を下書き・公開・公開停止できる",
+        "自分の記事を作品に紐づけられる（任意）",
+        "作品だけの投稿も成立する"
+      ],
+      "journey": "J3",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "closed",
+      "evidence": null
+    },
+    {
+      "id": "C11",
+      "area": "authoring",
+      "capability": "画像とYouTubeを載せられる",
+      "acceptance": [
+        "記事・作品に画像を添付でき、公開前の画像は本人以外が取得できない",
+        "YouTube のURLを埋め込みとして表示できる",
+        "大きすぎる・形式が違う画像は理由つきで断られる"
+      ],
+      "journey": "J2",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "closed",
+      "evidence": null,
+      "note": "本番開放は有料プラン判断待ち（画像処理のCPU時間）。needs-human。"
+    },
+    {
+      "id": "C12",
+      "area": "profile",
+      "capability": "公開プロフィールを自分で作り、編集できる",
+      "acceptance": [
+        "表示名・自己紹介などを本人が入力して公開する（Googleの氏名・写真を自動公開しない）",
+        "編集がすぐ公開プロフィールに反映される"
+      ],
+      "journey": "J2",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C13",
+      "area": "community",
+      "capability": "いいねできる",
+      "acceptance": [
+        "ログインした学生が記事にいいね・取り消しできる",
+        "いいねは公開情報として扱い、その旨が分かる",
+        "ログインしていないときは、いいねするにはログインが要ると分かる"
+      ],
+      "journey": "J4",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C14",
+      "area": "community",
+      "capability": "自分の閲覧履歴を見て消せる",
+      "acceptance": [
+        "ログイン中に読んだ記事・作品が本人専用の履歴に残る",
+        "履歴を個別・全部削除でき、記録を止められる",
+        "履歴は本人以外に見えない"
+      ],
+      "journey": "J4",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C15",
+      "area": "safety",
+      "capability": "不適切な投稿を通報でき、一定数で一時非表示になる",
+      "acceptance": [
+        "ログインした学生が記事・作品を理由つきで通報できる",
+        "異なる3人の通報で一時非表示になり、削除はされない",
+        "運営者にメールで通知が届く"
+      ],
+      "journey": "J5",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C16",
+      "area": "safety",
+      "capability": "運営者が通報を判断できる",
+      "acceptance": [
+        "運営者だけが入れる画面で通報内容を確認できる",
+        "復帰・非公開化を判断でき、投稿者に結果が伝わる"
+      ],
+      "journey": "J5",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C17",
+      "area": "account",
+      "capability": "卒業・年度の扱いが一貫している",
+      "acceptance": [
+        "卒業予定年度を過ぎた学生は新規投稿できないが、既存の公開物と本人管理（停止・削除）は使える",
+        "年度を訂正しても、停止・削除済みアカウントは復帰しない"
+      ],
+      "journey": "J2",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C18",
+      "area": "service",
+      "capability": "サービスの説明・規約・問い合わせが読める",
+      "acceptance": [
+        "このサービスが何で、学校公式ではないことが分かる",
+        "利用ルール・プライバシーの扱い・問い合わせ先が読める",
+        "API障害中でもこれらのページは読める"
+      ],
+      "journey": "J1",
+      "risk": "R0",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C19",
+      "area": "quality",
+      "capability": "モバイルで全ての旅が成立する",
+      "acceptance": [
+        "幅390pxで J1〜J5 が最後まで行け、横スクロールが出ない",
+        "操作対象が44px目安、キーボードで操作でき、focus が見える",
+        "axe で重大(critical/serious)違反が0"
+      ],
+      "journey": "all",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    },
+    {
+      "id": "C20",
+      "area": "quality",
+      "capability": "壊れたときに行き止まりにならない",
+      "acceptance": [
+        "存在しないURL・不正なURLで、戻り道のある「見つからない」画面になる",
+        "API障害・通信断で、再試行の手段がある",
+        "ログイン切れのとき、書きかけを失わずに再ログインへ案内される"
+      ],
+      "journey": "all",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": null
+    }
+  ]
+}
