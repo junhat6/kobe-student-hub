@@ -20,7 +20,7 @@
 
 ## 3. 報告する
 - docs/WORK.md を5行以内で更新：完成台帳の pass 数/全体、本番の版（最新tag）、待ち行列の P0/P1 件数、needs-human の一覧、次の焦点
-- commit 本文に `Loop: replan`。main へ push
+- commit 本文の trailer 行に必ず `Loop: replan`（行頭から。precheck が `git log --grep='^Loop: replan'` で前回の周回を探す）。WORK.md に変更が無くても、Issue を整えた周回は `git commit --allow-empty` で記録する。main へ push
 - 人へのレビューが近い場合は、HTML 1枚の報告（台帳の進捗・リリースされた変更・人の判断待ち）を作り、結論を文章で1〜2行添える
 
 ## 4. 計画を捨てる判断
