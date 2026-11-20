@@ -57,7 +57,7 @@ const smoke = run('gh', [
 ]);
 if (smoke)
   lines.push(
-    `- main の健康チェック（main-health）: ${smoke}${/failure/.test(smoke) ? ' ← 赤。直すのが最優先（patrol）' : ''}`,
+    `- main の健康チェック（main-health）: ${smoke}${/failure/.test(smoke) ? ' ← 赤。直すのが最優先（mend）' : ''}`,
   );
 
 const worktrees = run('git', ['worktree', 'list', '--porcelain']);

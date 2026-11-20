@@ -9,7 +9,7 @@
 ```
  各セッション ──commit/push──▶ main ──(npm run release)──▶ rc/<sha7> で full CI ──green──▶ release ──▶ タグ r2026.11.21.1 / GitHub Release ──(--deploy)──▶ 本番 + smoke（失敗なら rollback）
                                  │
-                                 └─ push のたびに main-health（軽い確認・必須ではない）。赤なら patrol が直す
+                                 └─ push のたびに main-health（軽い確認・必須ではない）。赤なら mend が直す
 ```
 
 ## ブランチ
@@ -77,9 +77,14 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 
 ## Orca automations
 
-| 名前 | 起動 | precheck（exit 0 のときだけ agent を起こす） | 仕事 |
-| --- | --- | --- | --- |
-| `ksh release` | 3 時間ごと（9〜24 時） | `node scripts/loop/precheck.mjs release`：未リリースの commit があり、main-health が赤でなく、リリース CI が実行中でない | `npm run release -- --deploy` を実行し、結果を報告する |
-| `ksh patrol` | 毎時 | `node scripts/loop/precheck.mjs patrol`：main-health の最新が失敗 | 失敗の原因を直して main に push する |
+ループの名前と中身は [docs/loop/LOOPS.md](loop/LOOPS.md) の定義に揃える。precheck が exit 0 を返したときだけ agent を起こすので、仕事が無い時間帯には費用がかからない。
 
-finish / garden / replan の各ループは、docs/loop/LOOPS.md で定義が決まってから同じ形で登録する。GitHub のイベント（CI 失敗・Issue）で起動する Orca bot は、作成に owner の承認が必要なため未作成。
+| 名前 | 起動 | precheck（`node scripts/loop/precheck.mjs <mode>`） | 仕事 |
+| --- | --- | --- | --- |
+| `ksh release` | 3 時間ごと（9〜24 時） | `release`：未リリースの commit がある・main-health が赤でない・open な `P0` Issue が無い・rc の CI が実行中でない | `npm run release -- --deploy` を実行し、結果ごとに対応する |
+| `ksh mend` | 毎時 | `mend`：main-health の最新が失敗 | 失敗の原因を直して main に push する（アンドン） |
+| `ksh patrol` | 3 時間ごと | `patrol`：`patrol-log` Issue に記録した前回 SHA 以降に `src/`・`worker/`・`public/` の変更がある、または前回巡回の後に release が出た | 別 context で PC / モバイルの利用者の旅を歩き、UX の所見を Issue にする |
+
+ラベル：`P0`（open の間は列車を止める）、`patrol-log`（巡回記録）、`needs-human`（契約・secret・リモート D1 など、人の判断が必要なもの）。
+
+finish / garden / replan は LOOPS.md の定義に従って同じ形で登録する。GitHub のイベント（CI 失敗・Issue）で起動する Orca bot は、作成に owner の承認が必要なため未作成。
