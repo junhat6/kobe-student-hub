@@ -23,6 +23,7 @@
 - docs/loop/LOOPS.md の表どおり、リスク段階に応じた検査を自分で回す。失敗したら直してから進む
 - R1 以上は PC(1280) とモバイル(390) を実際にブラウザで操作して確かめる
 - 新しい worktree で `npm run test:e2e` がほぼ全滅し「記事・作品を読み込めませんでした」になるときは、ローカル D1 未初期化。`npm run db:local`（ローカルのみ）を1回実行してから回す
+- `test:auth-browser` 系（8790番）が「already used」で止まるのは別 worktree の検査中。相手のプロセスは止めず、空くまで待つ間に `npm test`・`npm run test:e2e` を先に回す
 - migration を足したら `scripts/session-browser-preview.mjs` の明示リストにも足す（足さないと HTTPS ブラウザー検査だけが古い schema で動く）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 
