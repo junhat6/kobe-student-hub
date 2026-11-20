@@ -57,8 +57,13 @@ test('anonymous readers discover a fresh work then its project and author withou
       deviceScaleFactor: device.deviceScaleFactor,
       userAgent: device.userAgent,
     }));
-  const checks: Promise<void>[] = [];
-  const headerErrors: unknown[] = [];
+  // Header evidence must not depend on request.allHeaders(): it waits for Chromium's
+  // requestWillBeSentExtraInfo, which can arrive after Playwright stops tracking the request,
+  // so the promise never settles under CI load (#134). Instead prove both forbidden headers
+  // deterministically: script-set headers appear in request.headers(), and a cookie header
+  // can only be attached when the anonymous context's cookie jar holds one.
+  const forbiddenHeaders: string[] = [];
+  let labRequests = 0;
   let primaryFailed = false;
   let stopObserving = () => {};
   try {
@@ -71,24 +76,17 @@ test('anonymous readers discover a fresh work then its project and author withou
       if (r.url().includes('/api/private/')) privateCalls++;
       if (!r.url().startsWith(origin)) external++;
       if (r.url().includes('/__lab/')) {
-        // Observe rejections immediately; the header step below must still fail on any error.
-        checks.push(
-          r
-            .allHeaders()
-            .then((h) => {
-              expect(Object.hasOwn(h, 'cookie')).toBe(false);
-              expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-            })
-            .catch((error) => {
-              headerErrors.push(error);
-            }),
-        );
+        labRequests++;
+        const headers = r.headers();
+        for (const name of ['cookie', 'x-csrf-token', 'authorization'])
+          if (Object.hasOwn(headers, name)) forbiddenHeaders.push(name);
       }
     };
     reader.on('request', observeRequest);
     stopObserving = () => {
       reader.off('request', observeRequest);
     };
+    expect(await ctx.cookies()).toEqual([]);
     const card = reader
       .getByRole('article')
       .filter({ has: reader.locator('a[href="/lab/projects/' + data.id + '"]') });
@@ -123,23 +121,13 @@ test('anonymous readers discover a fresh work then its project and author withou
       await reader.getByRole('link', { name: '公開作品を探す', exact: true }).click();
       await expect(card).toBeVisible();
     });
-    // allHeaders has no SDK timeout. Missing raw-header evidence is a failure, not a pass.
-    await test.step(
-      'Verify every observed public request header',
-      async () => {
-        expect(checks.length).toBeGreaterThan(0);
-        let checked = 0;
-        while (checked < checks.length) {
-          const batch = checks.slice(checked);
-          checked = checks.length;
-          await Promise.all(batch);
-        }
-        // End the observation window synchronously, including requests added during the drain.
-        stopObserving();
-        if (headerErrors.length) throw headerErrors[0];
-      },
-      { timeout: 5000 },
-    );
+    await test.step('Verify every observed public request carried no identity', async () => {
+      stopObserving();
+      expect(labRequests).toBeGreaterThan(0);
+      expect(forbiddenHeaders).toEqual([]);
+      // An empty jar at the end means no observed request could have carried a cookie header.
+      expect(await ctx.cookies()).toEqual([]);
+    });
     await test.step('Verify all observed anonymous calls and page width', async () => {
       expect(identities).toBe(0);
       expect(privateCalls).toBe(0);
