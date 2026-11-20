@@ -1,7 +1,7 @@
 import { publicReadMissing, readAnonymousJson } from './anonymous-public-read';
 import {
   projectUUID,
-  validProjectReader,
+  validProjectPage,
   validProjectAuthor,
   ProjectClientError,
 } from './project-client';
@@ -21,7 +21,7 @@ export function createPublicProjectClient(
           signal,
           65536,
         );
-        if (!validProjectReader(v, id)) throw new ProjectClientError();
+        if (!validProjectPage(v, id)) throw new ProjectClientError();
         return v;
       } catch (error) {
         throw new ProjectClientError(publicReadMissing(error));

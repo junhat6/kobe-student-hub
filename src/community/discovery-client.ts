@@ -57,7 +57,7 @@ export function validOrdinaryDiscovery(value: unknown): value is OrdinaryDiscove
 }
 export function validRelatedDiscovery(value: unknown, id: string): value is RelatedDiscovery {
   if (
-    !publicKeys(value, ['articles', 'projects']) ||
+    !publicKeys(value, ['articles', 'projects', 'linkedProjects']) ||
     !Array.isArray(value.articles) ||
     value.articles.length > 4 ||
     !Array.isArray(value.projects) ||
@@ -78,21 +78,32 @@ export function validRelatedDiscovery(value: unknown, id: string): value is Rela
     !unique(value.articles)
   )
     return false;
+  const linked = value.linkedProjects;
   return (
     value.projects.every(
       (row) =>
         publicKeys(row, ['project', 'author', 'matchingTag']) &&
-        publicKeys(row.project, ['id', 'title', 'descriptionPreview', 'publishedOn']) &&
-        uuid(row.project.id) &&
-        publicText(row.project.title, 200) &&
-        !!row.project.title.trim() &&
-        publicText(row.project.descriptionPreview, 300) &&
-        typeof row.project.publishedOn === 'string' &&
-        /^\d{4}-\d{2}-\d{2}$/.test(row.project.publishedOn) &&
-        author(row.author) &&
+        projectCard(row) &&
         publicText(row.matchingTag, 32) &&
         !!row.matchingTag.trim(),
-    ) && new Set(value.projects.map((row) => row.project.id)).size === value.projects.length
+    ) &&
+    Array.isArray(linked) &&
+    linked.length <= 3 &&
+    linked.every((row) => publicKeys(row, ['project', 'author']) && projectCard(row)) &&
+    new Set([...linked, ...value.projects].map((row) => row.project.id)).size ===
+      linked.length + value.projects.length
+  );
+}
+function projectCard(row: Record<string, unknown>): boolean {
+  return (
+    publicKeys(row.project, ['id', 'title', 'descriptionPreview', 'publishedOn']) &&
+    uuid(row.project.id) &&
+    publicText(row.project.title, 200) &&
+    !!row.project.title.trim() &&
+    publicText(row.project.descriptionPreview, 300) &&
+    typeof row.project.publishedOn === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(row.project.publishedOn) &&
+    author(row.author)
   );
 }
 export function createOrdinaryDiscoveryClient(fetcher: typeof fetch = fetch) {

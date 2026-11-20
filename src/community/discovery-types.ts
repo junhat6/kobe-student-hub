@@ -7,4 +7,6 @@ export interface OrdinaryDiscovery {
 export interface RelatedDiscovery {
   articles: (PublicDiscoveryCard & { matchingTag: string })[];
   projects: (PublicProjectDiscovery['cards'][number] & { matchingTag: string })[];
+  /** Projects whose author linked this article when publishing them. */
+  linkedProjects: PublicProjectDiscovery['cards'];
 }

@@ -11,6 +11,7 @@ import type {
 import { normalizeProjectFields } from '../project-input';
 import { createProjectClient, sameProjectFields } from './project-client';
 import { createProfileClient, type PublicProfile } from './profile-client';
+import { createOwnPublicationsClient } from './own-publications-client';
 import './project.css';
 import MarkdownRenderer from '../MarkdownRenderer';
 import MediaAttachments from './MediaAttachments';
@@ -104,6 +105,10 @@ export default function ProjectRegistration({
     [profile, setProfile] = useState<PublicProfile | null>(null),
     [receipt, setReceipt] = useState<ProjectReceipt['publication']>(null),
     [published, setPublished] = useState<{ id: string; version: number } | null>(null);
+  // Ordinary surface only: own currently published articles that may be linked (null = not loaded / failed).
+  const [ownArticles, setOwnArticles] = useState<{ id: string; title: string }[] | null>(null),
+    [linked, setLinked] = useState<string[]>([]);
+  const ownPublications = useMemo(() => createOwnPublicationsClient(fetcher), [fetcher]);
   const attempt = useRef<{ draft: ProjectDraft; profile: PublicProfile } | null>(null);
   const normalized = normalizeProjectFields(input);
   const dirty = saved
@@ -371,12 +376,21 @@ export default function ProjectRegistration({
     if (!saved) return;
     const source = saved;
     await run(async (signal, g) => {
-      const [record, author] = await Promise.allSettled([
+      const [record, author, own] = await Promise.allSettled([
         client.receipt(source.id, signal),
         profiles.read(),
+        ordinary ? ownPublications.read(signal) : Promise.resolve(null),
       ]);
       if (!current(g)) return;
       setReady(false);
+      const articles =
+        own.status === 'fulfilled' && own.value
+          ? own.value.publications
+              .filter((row) => row.kind === 'article' && row.status === 'published')
+              .map((row) => ({ id: row.publicId, title: row.title }))
+          : null;
+      setOwnArticles(articles);
+      setLinked((old) => old.filter((id) => articles?.some((a) => a.id === id)));
       setProfile(author.status === 'fulfilled' ? author.value : null);
       if (record.status !== 'fulfilled') {
         setMessage('公開記録を確認できません。未公開とは判断せず、自動で再送しません。');
@@ -435,6 +449,7 @@ export default function ProjectRegistration({
           source.version,
           signal,
           referencedMediaIds(source.description),
+          ordinary ? linked : [],
         );
         if (current(g)) {
           setPublished({ id, version: source.version });
@@ -654,6 +669,47 @@ export default function ProjectRegistration({
               )}
               してください。
             </p>
+          )}
+          {ordinary && ready && !receipt && !published && (
+            <fieldset className="project-article-links">
+              <legend>この作品の記事（任意・3件まで）</legend>
+              {ownArticles === null ? (
+                <p>
+                  自分の公開記事を確認できませんでした。記事を紐づけずに公開できます。紐づけたい場合は公開準備をもう一度確認してください。
+                </p>
+              ) : !ownArticles.length ? (
+                <p>公開中の自分の記事はまだありません。作品だけでも公開できます。</p>
+              ) : (
+                <>
+                  <p>
+                    選んだ記事へのリンクが作品ページに表示され、記事ページにもこの作品が表示されます。公開後は変更できません。
+                  </p>
+                  {ownArticles.map((article) => {
+                    const checked = linked.includes(article.id);
+                    return (
+                      <label key={article.id}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={busy || (!checked && linked.length >= 3)}
+                          onChange={(event) => {
+                            const on = event.currentTarget.checked;
+                            setLinked((old) =>
+                              on
+                                ? old.includes(article.id) || old.length >= 3
+                                  ? old
+                                  : [...old, article.id]
+                                : old.filter((id) => id !== article.id),
+                            );
+                          }}
+                        />
+                        {article.title}
+                      </label>
+                    );
+                  })}
+                </>
+              )}
+            </fieldset>
           )}
           <p>公開には空白だけではないタイトルと説明が必要です。</p>
           <p>

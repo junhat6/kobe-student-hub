@@ -92,6 +92,24 @@ const card = ({
     },
   };
 };
+const projectCard = ({
+  project,
+  author,
+}: NonNullable<Awaited<ReturnType<ProjectStore['readPublished']>>>) => ({
+  project: {
+    id: project.id,
+    title: project.title,
+    descriptionPreview: Array.from(project.description).slice(0, 300).join(''),
+    publishedOn: project.publishedOn,
+  },
+  author: {
+    id: author.id,
+    name: author.name,
+    department: author.department,
+    year: author.year,
+    initials: author.initials,
+  },
+});
 const bounded = <T>(value: T): T | null =>
   new TextEncoder().encode(JSON.stringify(value)).byteLength <= 262144 ? value : null;
 
@@ -223,9 +241,30 @@ export class OrdinaryDiscoveryStore {
         .first<ArticleSelection>();
       const source = selectedSource && (await this.articleCards([selectedSource]));
       if (!source) return null;
+      // Owner-chosen links (project → this article) come first; same author only, still public.
+      // Links are supplementary: a database without migration 0024 yields no linked projects.
+      const linkedRows = await this.db
+        .prepare(
+          `SELECT r.id,r.source_version sourceVersion,r.published_at_ms publishedAt ${projectSource} WHERE r.article_ids_json!='[]' AND json_valid(r.article_ids_json) AND EXISTS(SELECT 1 FROM json_each(r.article_ids_json) link WHERE link.value=?) AND r.public_profile_id=? AND ${eligibleProject} ORDER BY r.published_at_ms DESC,r.id ASC LIMIT 3`,
+        )
+        .bind(id, source[0].card.author.id)
+        .all<ProjectSelection>()
+        .catch(() => ({ results: [] as ProjectSelection[] }));
+      const linkedProjects: RelatedDiscovery['linkedProjects'] = [];
+      const linkedSnapshots: ProjectSnapshot[] = [];
+      for (const selected of linkedRows.results) {
+        if (!validSelection(selected)) return null;
+        const value = await this.projects.readPublished(selected.id);
+        if (!value || value.author.id !== source[0].card.author.id) return null;
+        linkedSnapshots.push({ ...selected, value });
+        linkedProjects.push(projectCard(value));
+      }
+      const linkedIds = new Set(linkedProjects.map((row) => row.project.id));
       const tags = source[0].card.entry.tags;
       if (!tags.length)
-        return (await this.finalSnapshot(source, [])) ? { articles: [], projects: [] } : null;
+        return (await this.finalSnapshot(source, linkedSnapshots))
+          ? { articles: [], projects: [], linkedProjects }
+          : null;
       const candidates = await this.db
         .prepare(
           `SELECT ${articleSelection} ${articleSource} WHERE c.id<>? AND ${eligible} AND EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(c.tags_json) THEN c.tags_json ELSE '[]' END) tag WHERE tag.value IN (${tags.map(() => '?').join(',')})) ORDER BY publication.published_at_ms DESC,c.id ASC LIMIT 4`,
@@ -250,6 +289,7 @@ export class OrdinaryDiscoveryStore {
       const projectSnapshots: ProjectSnapshot[] = [];
       for (const selected of works.results) {
         if (!validSelection(selected)) return null;
+        if (linkedIds.has(selected.id)) continue;
         const value = await this.projects.readPublished(selected.id);
         if (!value) return null;
         const matchingTag = tags.find((tag) =>
@@ -259,26 +299,16 @@ export class OrdinaryDiscoveryStore {
         );
         if (!matchingTag) return null;
         projectSnapshots.push({ ...selected, value });
-        const author = {
-          id: value.author.id,
-          name: value.author.name,
-          department: value.author.department,
-          year: value.author.year,
-          initials: value.author.initials,
-        };
-        projects.push({
-          project: {
-            id: value.project.id,
-            title: value.project.title,
-            descriptionPreview: Array.from(value.project.description).slice(0, 300).join(''),
-            publishedOn: value.project.publishedOn,
-          },
-          author,
-          matchingTag,
-        });
+        projects.push({ ...projectCard(value), matchingTag });
       }
-      if (!(await this.finalSnapshot([...source, ...values], projectSnapshots))) return null;
-      return bounded({ articles, projects });
+      if (
+        !(await this.finalSnapshot(
+          [...source, ...values],
+          [...linkedSnapshots, ...projectSnapshots],
+        ))
+      )
+        return null;
+      return bounded({ articles, projects, linkedProjects });
     } catch {
       return null;
     }

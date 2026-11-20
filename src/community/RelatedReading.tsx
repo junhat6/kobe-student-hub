@@ -17,12 +17,22 @@ export default function RelatedReading({ id }: { id: string }) {
         </>
       ) : !value ? (
         <p role="status">関連する記事・作品を読み込んでいます…</p>
-      ) : !value.articles.length && !value.projects.length ? (
+      ) : !value.articles.length && !value.projects.length && !value.linkedProjects.length ? (
         <p className="related-reading-empty">
           同じタグの記事・作品はまだありません。<Link to="/">ほかの記事を探す →</Link>
         </p>
       ) : (
         <ul>
+          {value.linkedProjects.map(({ project, author }) => (
+            <li key={project.id}>
+              <p className="related-reading-reason">この記事を紐づけた作品</p>
+              <h3>
+                <Link to={'/projects/' + project.id}>{project.title}</Link>
+              </h3>
+              <p>{project.descriptionPreview}</p>
+              <Link to={'/students/' + author.id + '/works'}>{author.name}</Link>
+            </li>
+          ))}
           {value.articles.map(({ entry, author, matchingTag }) => (
             <li key={entry.id}>
               <p className="related-reading-reason">同じタグ「{matchingTag}」の記事</p>

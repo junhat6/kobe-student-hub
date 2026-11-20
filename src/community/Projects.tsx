@@ -8,6 +8,7 @@ import { ProjectText } from '../editor/ProjectRegistration';
 import ProjectReport from '../editor/ProjectReport';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
+import './discovery.css';
 
 function Works() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
@@ -69,6 +70,7 @@ function Project({ id }: { id: string }) {
       </p>
     );
   const { project, author } = value;
+  const articles = value.articles ?? [];
   return (
     <div className="shell detail-layout">
       <RecordReadingHistory kind="project" contentId={project.id} />
@@ -90,6 +92,18 @@ function Project({ id }: { id: string }) {
           </div>
         </div>
         <ProjectText value={project} showTitle={false} surface="ordinary" />
+        {articles.length > 0 && (
+          <section className="related-reading project-articles" aria-label="この作品の記事">
+            <h2>この作品の記事</h2>
+            <ul>
+              {articles.map((article) => (
+                <li key={article.id}>
+                  <Link to={'/articles/' + article.id}>{article.title}</Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <ProjectReport
           key={project.id}
           projectId={project.id}

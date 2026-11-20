@@ -61,14 +61,52 @@ describe('ordinary discovery anonymous transport and strict public contracts', (
     ).toBe(false);
   });
   it('requires a matching article tag, excludes the source and refuses duplicate related IDs', () => {
-    const value = { articles: [{ ...card, matchingTag: 'AI' }], projects: [] };
+    const value = {
+      articles: [{ ...card, matchingTag: 'AI' }],
+      projects: [],
+      linkedProjects: [],
+    };
     expect(validRelatedDiscovery(value, id)).toBe(true);
     expect(validRelatedDiscovery(value, other)).toBe(false);
     expect(
-      validRelatedDiscovery({ articles: [{ ...card, matchingTag: 'SQL' }], projects: [] }, id),
+      validRelatedDiscovery(
+        { articles: [{ ...card, matchingTag: 'SQL' }], projects: [], linkedProjects: [] },
+        id,
+      ),
     ).toBe(false);
     expect(
-      validRelatedDiscovery({ articles: [value.articles[0], value.articles[0]], projects: [] }, id),
+      validRelatedDiscovery(
+        { articles: [value.articles[0], value.articles[0]], projects: [], linkedProjects: [] },
+        id,
+      ),
+    ).toBe(false);
+    // The pre-link response shape is refused rather than silently read as "no linked projects".
+    expect(validRelatedDiscovery({ articles: value.articles, projects: [] }, id)).toBe(false);
+  });
+  it('accepts owner-linked projects once and refuses a project listed twice', () => {
+    const work = {
+      project: {
+        id: '33333333-3333-4333-8333-333333333333',
+        title: '架空の作品',
+        descriptionPreview: '説明',
+        publishedOn: '2027-01-15',
+      },
+      author: card.author,
+    };
+    expect(validRelatedDiscovery({ articles: [], projects: [], linkedProjects: [work] }, id)).toBe(
+      true,
+    );
+    expect(
+      validRelatedDiscovery(
+        { articles: [], projects: [{ ...work, matchingTag: 'AI' }], linkedProjects: [work] },
+        id,
+      ),
+    ).toBe(false);
+    expect(
+      validRelatedDiscovery(
+        { articles: [], projects: [], linkedProjects: [{ ...work, matchingTag: 'AI' }] },
+        id,
+      ),
     ).toBe(false);
   });
   it('rejects malformed endpoint IDs before network and provides retryable read failure', async () => {

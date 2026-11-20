@@ -149,31 +149,33 @@ export default {
           ? await new OrdinaryDiscoveryStore(db, origin, () => now).related(String(i.target))
           : i.action === 'projectdraft'
             ? await new ProjectStore(db, origin, () => now).createDraft(target, i.input)
-            : i.action === 'projectpublish'
-              ? await new ProjectStore(db, origin, () => now).publish(target, i.draft, i.input)
-              : i.action === 'like'
-                ? await new ArticleLikeStore(db, origin, () => now).setOwn(
-                    new Request(origin + '/fixture', { method: 'PUT', headers: i.headers }),
-                    i.target,
-                    i.input,
-                  )
-                : i.action === 'recent'
-                  ? await store.readRecentPublished()
-                  : i.action === 'author'
-                    ? await store.readPublishedAuthor(i.target)
-                    : i.action === 'read'
-                      ? await store.readPublished(i.target)
-                      : i.action === 'profile'
-                        ? await new PublicProfileStore(db, origin, () => now).create(
-                            target,
-                            i.input,
-                          )
-                        : i.action === 'draft'
-                          ? await new PrivateDraftStore(db, origin, () => now).create(
+            : i.action === 'projectpage'
+              ? await new ProjectStore(db, origin, () => now).readPublishedPage(i.target)
+              : i.action === 'projectpublish'
+                ? await new ProjectStore(db, origin, () => now).publish(target, i.draft, i.input)
+                : i.action === 'like'
+                  ? await new ArticleLikeStore(db, origin, () => now).setOwn(
+                      new Request(origin + '/fixture', { method: 'PUT', headers: i.headers }),
+                      i.target,
+                      i.input,
+                    )
+                  : i.action === 'recent'
+                    ? await store.readRecentPublished()
+                    : i.action === 'author'
+                      ? await store.readPublishedAuthor(i.target)
+                      : i.action === 'read'
+                        ? await store.readPublished(i.target)
+                        : i.action === 'profile'
+                          ? await new PublicProfileStore(db, origin, () => now).create(
                               target,
                               i.input,
                             )
-                          : await store.publish(target, i.draft, i.input);
+                          : i.action === 'draft'
+                            ? await new PrivateDraftStore(db, origin, () => now).create(
+                                target,
+                                i.input,
+                              )
+                            : await store.publish(target, i.draft, i.input);
     return Response.json(i.finalMutation ? { value: result, mutationApplied } : result);
   },
 };

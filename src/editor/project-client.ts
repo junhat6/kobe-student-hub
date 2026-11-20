@@ -4,6 +4,7 @@ import type {
   ProjectDraftSummary,
   ProjectFields,
   ProjectReceipt,
+  PublicProjectArticleLink,
   PublicProjectReader,
   PublicAuthorProjects,
 } from '../project-types';
@@ -76,6 +77,28 @@ export function validProjectReader(v: unknown, id: string): v is PublicProjectRe
     validFields(v.project) &&
     Boolean(String(v.project.title).trim()) &&
     Boolean(String(v.project.description).trim())
+  );
+}
+/** Public project page; the lab read omits `articles`, the ordinary read always includes it (possibly empty). */
+export function validProjectPage(
+  v: unknown,
+  id: string,
+): v is PublicProjectReader & { articles?: PublicProjectArticleLink[] } {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+  const { articles, ...reader } = v as Record<string, unknown>;
+  if (!Object.hasOwn(v, 'articles')) return validProjectReader(v, id);
+  return (
+    validProjectReader(reader, id) &&
+    Array.isArray(articles) &&
+    articles.length <= 3 &&
+    articles.every(
+      (a) =>
+        publicKeys(a, ['id', 'title']) &&
+        projectUUID(a.id) &&
+        publicText(a.title, 200) &&
+        Boolean(a.title.trim()),
+    ) &&
+    new Set(articles.map((a) => (a as { id: string }).id)).size === articles.length
   );
 }
 export function validProjectAuthor(v: unknown, id: string): v is PublicAuthorProjects {
@@ -282,12 +305,24 @@ export function createProjectClient(csrfToken: string, fetcher: typeof fetch = f
       expectedVersion: number,
       signal?: AbortSignal,
       mediaIds: string[] = [],
+      articleIds: string[] = [],
     ) {
-      if (!version(expectedVersion)) throw new ProjectClientError();
+      if (
+        !version(expectedVersion) ||
+        articleIds.length > 3 ||
+        !articleIds.every(projectUUID) ||
+        new Set(articleIds).size !== articleIds.length
+      )
+        throw new ProjectClientError();
       const v = await request(
         publicationPath(id),
         'POST',
-        { expectedVersion, confirmPublic: true, ...(mediaIds.length ? { mediaIds } : {}) },
+        {
+          expectedVersion,
+          confirmPublic: true,
+          ...(mediaIds.length ? { mediaIds } : {}),
+          ...(articleIds.length ? { articleIds } : {}),
+        },
         signal,
       );
       if (!publicKeys(v, ['projectId']) || !projectUUID(v.projectId))

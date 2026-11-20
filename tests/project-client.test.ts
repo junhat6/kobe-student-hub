@@ -207,3 +207,34 @@ it('reports a 404 project as missing, distinct from a failed read', async () => 
   await expect(status(503).read(id)).rejects.toMatchObject({ missing: false });
   await expect(status(200).read('not-a-uuid')).rejects.toMatchObject({ missing: true });
 });
+it('sends owner-chosen article links only when present and validates linked article titles', async () => {
+  const article = '22222222-2222-4222-8222-222222222222';
+  const calls: RequestInit[] = [];
+  const client = createProjectClient(token, (async (_p, init) => {
+    calls.push(init!);
+    return Response.json({ projectId: id }, { status: 201 });
+  }) as typeof fetch);
+  expect(await client.publish(id, 1, undefined, [], [article])).toBe(id);
+  expect(JSON.parse(String(calls[0].body))).toEqual({
+    expectedVersion: 1,
+    confirmPublic: true,
+    articleIds: [article],
+  });
+  for (const bad of [[article, article], ['not-a-uuid'], [article, id, article, id]])
+    await expect(client.publish(id, 1, undefined, [], bad)).rejects.toBeInstanceOf(
+      ProjectClientError,
+    );
+  expect(calls).toHaveLength(1);
+  const page = { project, author, articles: [{ id: article, title: '架空の記事' }] };
+  const read = (v: unknown) =>
+    createPublicProjectClient((async () => Response.json(v)) as typeof fetch, 'ordinary').read(id);
+  expect(await read(page)).toEqual(page);
+  expect(await read({ ...page, articles: [] })).toEqual({ ...page, articles: [] });
+  for (const articles of [
+    [{ id: article, title: '' }],
+    [{ id: article, title: 'x', summary: 'PRIVATE' }],
+    [page.articles[0], page.articles[0]],
+    null,
+  ])
+    await expect(read({ ...page, articles })).rejects.toBeInstanceOf(ProjectClientError);
+});

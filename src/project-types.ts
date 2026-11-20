@@ -28,6 +28,14 @@ export interface PublicProjectReader {
   project: PublicProject;
   author: Profile;
 }
+/** Owner-linked articles that are still public; title only so the project page stays bounded. */
+export interface PublicProjectArticleLink {
+  id: string;
+  title: string;
+}
+export interface PublicProjectPage extends PublicProjectReader {
+  articles: PublicProjectArticleLink[];
+}
 export interface PublicAuthorProjects {
   author: Profile;
   projects: PublicProjectSummary[];

@@ -7,7 +7,7 @@ import { liveSessionSql as live, liveSessionBindings as binds } from './auth/ses
 import { SessionStore } from './auth/sessions';
 import type { Profile } from '../src/types';
 import { normalizeProjectFields } from '../src/project-input';
-import { decodePublicProfile, publicProfileSqlBounds } from './publication';
+import { decodePublicProfile, publicArticleSqlBounds, publicProfileSqlBounds } from './publication';
 import type {
   ProjectDraft,
   ProjectDraftSummary,
@@ -15,11 +15,19 @@ import type {
   PublicProjectReader,
   PublicAuthorProjects,
   PublicProjectDiscovery,
+  PublicProjectPage,
   PublicProjectSummary,
 } from '../src/project-types';
 const uuid = (x: unknown): x is string =>
   typeof x === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(x);
+/** Optional owner-chosen article links: 1-3 distinct UUIDs. Ownership is enforced by the insert trigger. */
+export const validArticleIds = (x: unknown): x is string[] =>
+  Array.isArray(x) &&
+  x.length >= 1 &&
+  x.length <= 3 &&
+  x.every(uuid) &&
+  new Set(x).size === x.length;
 const version = (x: unknown): x is number => Number.isSafeInteger(x) && Number(x) > 0;
 const exact = (x: unknown, keys: string[]): x is Record<string, unknown> =>
   !!x &&
@@ -27,6 +35,18 @@ const exact = (x: unknown, keys: string[]): x is Record<string, unknown> =>
   Object.getPrototypeOf(x) === Object.prototype &&
   Reflect.ownKeys(x).length === keys.length &&
   keys.every((k) => Object.hasOwn(x, k));
+const publishOptional = ['mediaIds', 'articleIds'];
+const publishKeys = (x: unknown): x is Record<string, unknown> =>
+  !!x &&
+  typeof x === 'object' &&
+  Object.getPrototypeOf(x) === Object.prototype &&
+  Object.hasOwn(x, 'expectedVersion') &&
+  Object.hasOwn(x, 'confirmPublic') &&
+  Reflect.ownKeys(x).every(
+    (k) =>
+      typeof k === 'string' &&
+      (k === 'expectedVersion' || k === 'confirmPublic' || publishOptional.includes(k)),
+  );
 type Proof = NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
 type Row = {
   id: string;
@@ -39,6 +59,7 @@ type Row = {
   source_version: number;
   published_at_ms: number;
   media_ids_json: string;
+  article_ids_json: string;
   author_id: string;
   display_name: string;
   department: string;
@@ -231,15 +252,15 @@ export class ProjectStore {
     if (
       req.method !== 'POST' ||
       !uuid(id) ||
-      !(
-        exact(input, ['expectedVersion', 'confirmPublic']) ||
-        exact(input, ['expectedVersion', 'confirmPublic', 'mediaIds'])
-      ) ||
+      !publishKeys(input) ||
       !version(input.expectedVersion) ||
       input.confirmPublic !== true ||
-      (Object.hasOwn(input, 'mediaIds') && !validMediaIds(input.mediaIds))
+      (Object.hasOwn(input, 'mediaIds') && !validMediaIds(input.mediaIds)) ||
+      (Object.hasOwn(input, 'articleIds') && !validArticleIds(input.articleIds))
     )
       return null;
+    const mediaJson = JSON.stringify(input.mediaIds ?? []),
+      articleJson = JSON.stringify(input.articleIds ?? []);
     try {
       const early = await this.sessions.storageAuthorization(req);
       if (!early) return null;
@@ -260,7 +281,8 @@ export class ProjectStore {
         return decoded &&
           version(replay.source_version) &&
           replay.source_version === input.expectedVersion &&
-          replay.media_ids_json === JSON.stringify(input.mediaIds ?? [])
+          replay.media_ids_json === mediaJson &&
+          replay.article_ids_json === articleJson
           ? { projectId: replay.id }
           : null;
       }
@@ -272,12 +294,13 @@ export class ProjectStore {
         return null;
       const r = await this.db
         .prepare(
-          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status,media_ids_json) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,?,'published',? FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
+          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status,media_ids_json,article_ids_json) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,?,'published',?,? FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
         )
         .bind(
           crypto.randomUUID(),
           p.nowMs,
-          JSON.stringify(input.mediaIds ?? []),
+          mediaJson,
+          articleJson,
           id,
           p.accountId,
           input.expectedVersion,
@@ -294,7 +317,8 @@ export class ProjectStore {
       return existing &&
         decodeProjectSnapshot(existing) &&
         existing.source_version === input.expectedVersion &&
-        existing.media_ids_json === JSON.stringify(input.mediaIds ?? [])
+        existing.media_ids_json === mediaJson &&
+        existing.article_ids_json === articleJson
         ? { projectId: existing.id }
         : null;
     } catch {
@@ -342,6 +366,26 @@ export class ProjectStore {
       return r ? decodeProjectSnapshot(r) : null;
     } catch {
       return null;
+    }
+  }
+  /** Public project page: the snapshot plus linked articles that are still public by the same author. */
+  async readPublishedPage(id: unknown): Promise<PublicProjectPage | null> {
+    const value = await this.readPublished(id);
+    if (!value) return null;
+    try {
+      const rows = await this.db
+        .prepare(
+          `SELECT c.id,c.title FROM project_publications r JOIN json_each(CASE WHEN json_valid(r.article_ids_json) THEN r.article_ids_json ELSE '[]' END) link JOIN content c ON c.id=link.value JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id WHERE r.id=? AND r.status='published' AND c.author_id=r.public_profile_id AND ${publicArticleSqlBounds} ORDER BY link.key ASC LIMIT 3`,
+        )
+        .bind(value.project.id)
+        .all<{ id: string; title: string }>();
+      const articles = rows.results.map((r) => ({ id: r.id, title: r.title }));
+      return articles.every((a) => uuid(a.id) && typeof a.title === 'string' && a.title.trim())
+        ? { ...value, articles }
+        : null;
+    } catch {
+      // Links are supplementary: before migration 0024 reaches a database, keep the project page readable.
+      return { ...value, articles: [] };
     }
   }
   async readAuthorSelection(

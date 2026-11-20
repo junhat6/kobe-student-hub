@@ -42,7 +42,7 @@ async function article(title: string, tags = ['AI'], s = a) {
     })
   ).contentId;
 }
-async function project(title: string, description: string, session = a) {
+async function project(title: string, description: string, session = a, articleIds?: string[]) {
   const draft = await call<{ id: string }>({
     action: 'projectdraft',
     headers: headers(session),
@@ -53,9 +53,9 @@ async function project(title: string, description: string, session = a) {
       action: 'projectpublish',
       headers: headers(session),
       draft: draft.id,
-      input: { expectedVersion: 1, confirmPublic: true },
+      input: { expectedVersion: 1, confirmPublic: true, ...(articleIds ? { articleIds } : {}) },
     })
-  ).projectId;
+  )?.projectId;
 }
 const home = (extra = {}) => call<OrdinaryDiscovery | null>({ action: 'home', ...extra });
 const related = (target = source) => call<RelatedDiscovery | null>({ action: 'related', target });
@@ -213,7 +213,7 @@ describe('ordinary anonymous new/popular/tag discovery', () => {
   });
   it('rejects a nonpublic source and returns honest empty for no matching tags', async () => {
     const empty = await article('タグなし', []);
-    expect(await related(empty)).toEqual({ articles: [], projects: [] });
+    expect(await related(empty)).toEqual({ articles: [], projects: [], linkedProjects: [] });
     const db = await mf.getD1Database('DB');
     await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(source).run();
     expect(await related()).toBeNull();
@@ -371,5 +371,74 @@ describe('ordinary anonymous new/popular/tag discovery', () => {
       405,
     );
     expect((await mf.dispatchFetch('https://wrong.invalid/api/discovery')).status).toBe(404);
+  });
+});
+describe('owner-linked project ↔ article', () => {
+  type Page = { project: { id: string }; articles: { id: string; title: string }[] } | null;
+  const page = (target: string) => call<Page>({ action: 'projectpage', target });
+  it('links only own published articles and shows the link in both directions', async () => {
+    const own = await article('作品の設計記録', ['リンク専用タグ']);
+    const second = await article('作品のふりかえり', []);
+    expect(own).toMatch(/^[0-9a-f-]{36}$/);
+    const db = await mf.getD1Database('DB');
+    await db
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('private-d','subject-d','d@st.kobedenshi.ac.jp','active',?)",
+      )
+      .bind(NOW)
+      .run();
+    const d = await call<Session>({ action: 'session', who: 'd' });
+    expect(
+      await call({
+        action: 'profile',
+        headers: headers(d),
+        input: { displayName: '架空投稿者D', confirmPublic: true },
+      }),
+    ).not.toBeNull();
+    const foreign = await article('別の人の記事', ['リンク専用タグ'], d);
+    // Another author's article, duplicates, more than three and malformed IDs are refused.
+    expect(await project('他人の記事を紐づけた作品', '説明', a, [foreign])).toBeUndefined();
+    expect(await project('重複', '説明', a, [own, own])).toBeUndefined();
+    expect(await project('多すぎ', '説明', a, [own, second, own, second])).toBeUndefined();
+    expect(await project('不正', '説明', a, ['not-a-uuid'])).toBeUndefined();
+    expect(await project('空配列', '説明', a, [])).toBeUndefined();
+    const linkedWork = await project('記事とつながる作品', 'タグとは無関係の説明', a, [
+      own,
+      second,
+    ]);
+    expect(linkedWork).toMatch(/^[0-9a-f-]{36}$/);
+    expect((await page(linkedWork!))!.articles).toEqual([
+      { id: own, title: '作品の設計記録' },
+      { id: second, title: '作品のふりかえり' },
+    ]);
+    const plain = await project('記事なしの作品', '説明');
+    expect((await page(plain!))!.articles).toEqual([]);
+    const fromOwn = (await related(own))!;
+    expect(fromOwn.linkedProjects.map((row) => row.project.id)).toEqual([linkedWork]);
+    expect(fromOwn.projects.some((row) => row.project.id === linkedWork)).toBe(false);
+    expect(fromOwn.linkedProjects[0]).not.toHaveProperty('matchingTag');
+    // An untagged article still shows the owner link.
+    expect((await related(second))!.linkedProjects.map((row) => row.project.id)).toEqual([
+      linkedWork,
+    ]);
+    // The other author's article never lists this project.
+    expect((await related(foreign))!.linkedProjects).toEqual([]);
+    // A stopped (hidden) article disappears from the project page; the project stays public.
+    await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(second).run();
+    expect((await page(linkedWork!))!.articles.map((row) => row.id)).toEqual([own]);
+    // A hidden project disappears from the article side.
+    await db
+      .prepare("UPDATE project_publications SET status='hidden' WHERE id=?")
+      .bind(linkedWork)
+      .run();
+    expect((await related(own))!.linkedProjects).toEqual([]);
+    expect(await page(linkedWork!)).toBeNull();
+    // The snapshot's links are immutable.
+    await expect(
+      db
+        .prepare("UPDATE project_publications SET article_ids_json='[]' WHERE id=?")
+        .bind(linkedWork)
+        .run(),
+    ).rejects.toThrow();
   });
 });

@@ -229,3 +229,29 @@
   gap: 16px;
   flex-wrap: wrap;
 }
+.project-article-links {
+  border: 1px solid #c7dbe9;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 16px 0;
+}
+.project-article-links legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+.project-article-links label {
+  display: flex;
+  gap: 10px;
+  font-weight: 400;
+  margin: 8px 0;
+  min-height: 44px;
+  align-items: center;
+}
+.project-registration .project-article-links input[type='checkbox'] {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin: 0;
+  padding: 0;
+}

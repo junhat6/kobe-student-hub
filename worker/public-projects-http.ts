@@ -49,7 +49,7 @@ export function createPublicProjectHandler(
       const value = recent
         ? await store.readRecentPublished()
         : project
-          ? await store.readPublished(project[1])
+          ? await store.readPublishedPage(project[1])
           : await store.readAuthor(author![1]);
       if (value === null) return error(recent ? 503 : 404);
       const body = JSON.stringify(value);
