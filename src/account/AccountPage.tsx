@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AccountSessionBoundary from './AccountSessionBoundary';
 import AccountEnrollment from '../editor/AccountEnrollment';
 import './account.css';
@@ -18,6 +18,9 @@ function AccountSummary({ csrfToken }: { csrfToken: string }) {
   useEffect(() => {
     if (stale) refresh();
   }, [stale, refresh]);
+  // The retry is pending until the viewer object is replaced by a new read.
+  const [retryFrom, setRetryFrom] = useState<typeof viewer | null>(null);
+  const retrying = retryFrom !== null && retryFrom === viewer;
   if (!matches) return <div className="account-summary" aria-busy="true" />;
   const profile = viewer.profile;
   return (
@@ -37,8 +40,16 @@ function AccountSummary({ csrfToken }: { csrfToken: string }) {
           {profile ? (
             <Link to={`/students/${profile.id}`}>公開プロフィールを見る →</Link>
           ) : profile === undefined ? (
-            <button type="button" className="text-button" onClick={refresh}>
-              もう一度読み込む
+            <button
+              type="button"
+              className="text-button"
+              disabled={retrying}
+              onClick={() => {
+                setRetryFrom(viewer);
+                refresh();
+              }}
+            >
+              {retrying ? '読み込み中…' : 'もう一度読み込む'}
             </button>
           ) : (
             <a href="#profile">公開プロフィールを作ると、記事を公開できます</a>

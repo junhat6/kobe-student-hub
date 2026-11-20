@@ -90,6 +90,9 @@ test('a temporary profile read failure is not shown as a missing profile', async
     'プロフィールを読み込めませんでした',
   );
   await expect(page.getByText('公開プロフィールを作ると、記事を公開できます')).toHaveCount(0);
+  // While the failure continues, a retry visibly runs and then offers the retry again.
+  await page.getByRole('button', { name: 'もう一度読み込む', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'もう一度読み込む', exact: true })).toBeEnabled();
   await page.unroute('**/api/private/profile');
   await page.getByRole('button', { name: 'もう一度読み込む', exact: true }).click();
   await expect(page.locator('.account-summary-name')).toHaveText(name);
