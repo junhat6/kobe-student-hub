@@ -117,22 +117,35 @@ export default function MediaAttachments({
   }
   return (
     <section className="media-attachments" aria-label="下書きの画像">
-      <h3>画像を添える</h3>
-      <p>
-        JPEG・PNGを縮小して保存します。1枚512
-        KiB・下書き8枚まで。保存しただけでは公開されません。位置情報などのメタデータは除去します。
-      </p>
-      <input
-        ref={file}
-        type="file"
-        accept="image/jpeg,image/png"
-        aria-label="下書きへ画像を追加"
-        disabled={disabled || busy || Boolean(pending) || images.length >= 8}
-        onChange={(e) => {
-          const selected = e.target.files?.[0];
-          if (selected) void select(selected);
-        }}
-      />
+      <div className="media-head">
+        <div>
+          <h3>画像を添える</h3>
+          <p>
+            JPEG・PNGを縮小して保存します。1枚512
+            KiB・下書き8枚まで。保存しただけでは公開されません。位置情報などのメタデータは除去します。
+          </p>
+        </div>
+        <label
+          className={
+            'media-pick' +
+            (disabled || busy || Boolean(pending) || images.length >= 8 ? ' is-disabled' : '')
+          }
+        >
+          <span aria-hidden="true">＋ 画像を選ぶ</span>
+          <input
+            className="media-file"
+            ref={file}
+            type="file"
+            accept="image/jpeg,image/png"
+            aria-label="下書きへ画像を追加"
+            disabled={disabled || busy || Boolean(pending) || images.length >= 8}
+            onChange={(e) => {
+              const selected = e.target.files?.[0];
+              if (selected) void select(selected);
+            }}
+          />
+        </label>
+      </div>
       <p aria-live="polite">{message}</p>
       {pending && (
         <div>

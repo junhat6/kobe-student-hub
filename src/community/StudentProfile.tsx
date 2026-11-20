@@ -33,26 +33,22 @@ export default function StudentProfile({
         <span className="avatar large">{author.initials}</span>
         <div>
           <h1>{author.name}</h1>
-          <p>{[author.department, author.year].filter(Boolean).join(' · ')}</p>
-          <p>{author.bio}</p>
+          <p className="profile-meta">
+            {[author.department, author.year].filter(Boolean).join(' · ')}
+          </p>
+          {author.bio && <p className="profile-bio">{author.bio}</p>}
         </div>
       </div>
-      <nav aria-label="投稿者の活動">
+      <nav aria-label="投稿者の活動" className="profile-tabs">
         <Link to={`/students/${id}`} aria-current={articles ? 'page' : undefined}>
-          記事
-        </Link>{' '}
-        ·{' '}
+          記事 <span aria-hidden="true">{entries.length}</span>
+        </Link>
         <Link to={`/students/${id}/works`} aria-current={articles ? undefined : 'page'}>
-          作品
-        </Link>{' '}
-        · <Link to={`/students/${id}/likes`}>公開いいねを見る</Link>
+          作品 <span aria-hidden="true">{projects.length}</span>
+        </Link>
+        <Link to={`/students/${id}/likes`}>公開いいねを見る</Link>
       </nav>
-      <h2>{articles ? '公開している記事' : '公開している作品'}</h2>
-      <p>
-        {articles
-          ? '新しい公開記事を最大20件表示しています。'
-          : '新しい公開作品を最大20件表示しています。'}
-      </p>
+      <h2 className="sr-only">{articles ? '公開している記事' : '公開している作品'}</h2>
       {articles ? (
         entries.length ? (
           <div className="author-lab-cards">
@@ -61,7 +57,7 @@ export default function StudentProfile({
             ))}
           </div>
         ) : (
-          <p>公開している記事はまだありません。</p>
+          <p className="profile-empty">公開している記事はまだありません。</p>
         )
       ) : projects.length ? (
         <div className="author-lab-cards">
@@ -70,7 +66,7 @@ export default function StudentProfile({
           ))}
         </div>
       ) : (
-        <p>公開している作品はまだありません。</p>
+        <p className="profile-empty">公開している作品はまだありません。</p>
       )}
     </section>
   );

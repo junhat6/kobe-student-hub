@@ -42,3 +42,78 @@
   padding: 0.75rem;
   font-size: 0.875rem;
 }
+.media-attachments {
+  margin-top: 20px;
+  padding: 20px 24px;
+  border: 1px dashed #c8d3e0;
+  border-radius: 16px;
+  background: var(--surface, #fff);
+}
+.media-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.media-head h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.media-head p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted, #6a7581);
+  line-height: 1.6;
+}
+.media-pick {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e2e7ee);
+  background: var(--tint, #f0f3f7);
+  color: var(--ink, #141a22);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.media-pick:hover {
+  border-color: #c4ceda;
+}
+.media-pick:focus-within {
+  outline: 3px solid var(--focus, #1d6fd8);
+  outline-offset: 3px;
+}
+.media-pick.is-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.media-file {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: inherit;
+}
+.media-attachments > p[aria-live]:empty {
+  display: none;
+}
+.media-attachments > button {
+  margin-top: 12px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #e2e7ee);
+  background: var(--surface, #fff);
+  color: var(--ink-soft, #46525f);
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  .media-head {
+    flex-direction: column;
+  }
+}

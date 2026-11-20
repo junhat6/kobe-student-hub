@@ -19,6 +19,7 @@ import OrdinaryArticleReport from './OrdinaryArticleReport';
 import { createPublicLikesClient } from '../editor/public-likes-client';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
+import './article.css';
 
 function StudentArticle({ id }: { id: string }) {
   const reportRisk = useUnsavedNavigation(
@@ -110,10 +111,21 @@ function StudentArticle({ id }: { id: string }) {
         <RelatedReading key={`related-${entry.id}`} id={entry.id} />
       </article>
       <aside>
-        <section className="side-box">
+        <section className="side-box author-side">
           <h2>書いた学生</h2>
-          <Link to={`/students/${author.id}`}>{author.name}</Link>
-          <p>{author.bio}</p>
+          <Link className="author-side-name" to={`/students/${author.id}`}>
+            <span className="mini-avatar" aria-hidden="true">
+              {author.initials}
+            </span>
+            <span>
+              {author.name}
+              <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
+            </span>
+          </Link>
+          {author.bio && <p>{author.bio}</p>}
+          <Link className="author-side-more" to={`/students/${author.id}`}>
+            ほかの記事・作品を見る →
+          </Link>
         </section>
       </aside>
     </div>

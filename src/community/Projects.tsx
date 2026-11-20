@@ -21,9 +21,7 @@ function Works() {
           作品を登録する
         </Link>
       </div>
-      <p>
-        <Link to="/">記事を読む</Link> · 作品を探す
-      </p>
+      <p className="works-lead">学生がつくったアプリ・ゲーム・作品を紹介しています。</p>
       {failed ? (
         <ReadFailure subject="作品一覧" retry={retry} />
       ) : !value ? (
@@ -31,11 +29,13 @@ function Works() {
       ) : !value.cards.length ? (
         <div className="empty">
           <h2>まだ作品がありません</h2>
-          <p>公開した作品がここに並びます。</p>
+          <p>つくったものを紹介してみませんか。完成していなくても大丈夫です。</p>
+          <Link className="primary" to="/works/new">
+            作品を登録する
+          </Link>
         </div>
       ) : (
         <>
-          <p>新しい公開作品を最大20件表示しています。</p>
           <div className="author-lab-cards">
             {value.cards.map(({ project, author }) => (
               <PublicProjectCard

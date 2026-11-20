@@ -18,7 +18,9 @@ export default function RelatedReading({ id }: { id: string }) {
       ) : !value ? (
         <p role="status">関連する記事・作品を読み込んでいます…</p>
       ) : !value.articles.length && !value.projects.length ? (
-        <p>同じタグに関連する公開記事・作品はまだありません。</p>
+        <p className="related-reading-empty">
+          同じタグの記事・作品はまだありません。<Link to="/">ほかの記事を探す →</Link>
+        </p>
       ) : (
         <ul>
           {value.articles.map(({ entry, author, matchingTag }) => (
@@ -43,9 +45,6 @@ export default function RelatedReading({ id }: { id: string }) {
           ))}
         </ul>
       )}
-      <p className="related-reading-limit">
-        記事は同じタグから最大4件、作品は記事のタグをタイトル・説明に含むものから最大3件、新しい公開順に表示します。
-      </p>
     </section>
   );
 }

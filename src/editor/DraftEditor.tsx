@@ -769,6 +769,51 @@ export default function DraftEditor({
                   下書きを保存
                 </Button>
               </div>
+              {
+                <PublicationComposer
+                  surface={ordinary ? 'ordinary' : 'lab'}
+                  key={draft.id}
+                  draft={draft}
+                  csrfToken={csrfToken}
+                  fetcher={fetcher}
+                  dirty={dirty}
+                  parentBusy={busy || opening || (ordinary && (deletionOpen || problem))}
+                  canStart={canPublishStart}
+                  onPending={onPublicationPending}
+                  onUnsavedPreparation={onUnsavedPreparation}
+                />
+              }
+              {problem && (
+                <section className="editor-recovery" role="alert" aria-label="保存結果の確認">
+                  <h3>手元の編集を残して、保存済みの版を確認</h3>
+                  <p>
+                    保存が完了している場合や、別の画面で更新された場合があります。確認せずに繰り返し保存しないでください。
+                  </p>
+                  <Button disabled={busy || publicationBusy} onClick={() => void inspect()}>
+                    保存済みの版を確認
+                  </Button>
+                </section>
+              )}
+              {latest && (
+                <section className="editor-comparison" aria-label="保存済みの版">
+                  <div>
+                    <h3>保存済みの版 {latest.version}</h3>
+                    <p>{stamp(latest.updatedAt)} 更新 · 手元の文章は書き換えていません。</p>
+                  </div>
+                  <label htmlFor="saved-title">保存済みタイトル</label>
+                  <input id="saved-title" readOnly value={latest.title} />
+                  <label htmlFor="saved-body">保存済み本文</label>
+                  <textarea id="saved-body" readOnly value={latest.body} />
+                  <p>
+                    {deletion === 'unknown'
+                      ? '確認した版を基準にすると、手元の編集を保ったまま保存・削除の操作を再開できます。削除にはもう一度確認が必要です。'
+                      : '確認した版を基準にすると、手元の編集を保ったまま再保存できます。次の保存で、この版を置き換えます。'}
+                  </p>
+                  <Button disabled={busy || publicationBusy} onClick={rebase}>
+                    確認した版を基準にする
+                  </Button>
+                </section>
+              )}
               {ordinary && (
                 <section className="editor-draft-management" aria-label="下書きの整理">
                   {deletion === 'idle' ? (
@@ -826,51 +871,6 @@ export default function DraftEditor({
                       </div>
                     </div>
                   )}
-                </section>
-              )}
-              {
-                <PublicationComposer
-                  surface={ordinary ? 'ordinary' : 'lab'}
-                  key={draft.id}
-                  draft={draft}
-                  csrfToken={csrfToken}
-                  fetcher={fetcher}
-                  dirty={dirty}
-                  parentBusy={busy || opening || (ordinary && (deletionOpen || problem))}
-                  canStart={canPublishStart}
-                  onPending={onPublicationPending}
-                  onUnsavedPreparation={onUnsavedPreparation}
-                />
-              }
-              {problem && (
-                <section className="editor-recovery" role="alert" aria-label="保存結果の確認">
-                  <h3>手元の編集を残して、保存済みの版を確認</h3>
-                  <p>
-                    保存が完了している場合や、別の画面で更新された場合があります。確認せずに繰り返し保存しないでください。
-                  </p>
-                  <Button disabled={busy || publicationBusy} onClick={() => void inspect()}>
-                    保存済みの版を確認
-                  </Button>
-                </section>
-              )}
-              {latest && (
-                <section className="editor-comparison" aria-label="保存済みの版">
-                  <div>
-                    <h3>保存済みの版 {latest.version}</h3>
-                    <p>{stamp(latest.updatedAt)} 更新 · 手元の文章は書き換えていません。</p>
-                  </div>
-                  <label htmlFor="saved-title">保存済みタイトル</label>
-                  <input id="saved-title" readOnly value={latest.title} />
-                  <label htmlFor="saved-body">保存済み本文</label>
-                  <textarea id="saved-body" readOnly value={latest.body} />
-                  <p>
-                    {deletion === 'unknown'
-                      ? '確認した版を基準にすると、手元の編集を保ったまま保存・削除の操作を再開できます。削除にはもう一度確認が必要です。'
-                      : '確認した版を基準にすると、手元の編集を保ったまま再保存できます。次の保存で、この版を置き換えます。'}
-                  </p>
-                  <Button disabled={busy || publicationBusy} onClick={rebase}>
-                    確認した版を基準にする
-                  </Button>
                 </section>
               )}
             </>

@@ -32,11 +32,16 @@ export default function CodeBlock({ children }: { children?: ReactNode }) {
   return (
     <div className="code-block">
       <div className="code-tools">
-        <Button type="button" disabled={pending} onClick={copy}>
-          {pending ? 'コピー中…' : 'コードをコピー'}
+        <Button
+          type="button"
+          disabled={pending}
+          onClick={copy}
+          aria-label={pending ? 'コピー中…' : 'コードをコピー'}
+        >
+          {pending ? 'コピー中…' : state === 'copied' ? 'コピー済み ✓' : 'コピー'}
         </Button>
-        <Button type="button" onClick={select}>
-          コードを選択
+        <Button type="button" onClick={select} aria-label="コードを選択">
+          選択
         </Button>
         <span role="status">
           {state === 'copied'

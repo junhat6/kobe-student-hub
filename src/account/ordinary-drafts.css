@@ -128,3 +128,88 @@
 .account-page-wide > .account-read-link {
   margin-top: 16px;
 }
+/* Publishing is the goal of writing: make it the clearest next step. */
+.draft-editor--ordinary .publication-composer {
+  margin: 24px 0 0;
+}
+.draft-editor--ordinary .publication-composer > details {
+  border: 1px solid #c9daf7;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f3f7ff 0%, #fff 100%);
+  overflow: hidden;
+}
+.draft-editor--ordinary .publication-composer > details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 0 24px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--accent-strong, #1659c7);
+}
+.draft-editor--ordinary .publication-composer > details > summary::-webkit-details-marker {
+  display: none;
+}
+.draft-editor--ordinary .publication-composer > details > summary::after {
+  content: '公開設定を開く →';
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent-strong, #1659c7);
+  color: #fff;
+}
+.draft-editor--ordinary .publication-composer > details[open] > summary::after {
+  content: '閉じる';
+  background: var(--surface, #fff);
+  color: var(--ink-soft, #46525f);
+  border: 1px solid var(--line, #e2e7ee);
+}
+.draft-editor--ordinary .publication-composer .publication-content {
+  padding: 0 24px 24px;
+}
+.draft-editor--ordinary .editor-draft-management {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line, #e2e7ee);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--ink-muted, #6a7581);
+}
+.draft-editor--ordinary .editor-draft-management > p {
+  margin: 0;
+  font-size: 13px;
+}
+.draft-editor--ordinary .editor-draft-management > .editor-delete {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: 999px;
+}
+.draft-editor--ordinary .editor-draft-management > [role] {
+  flex-basis: 100%;
+}
+.draft-editor--ordinary .editor-primary {
+  border-radius: 999px;
+  background: var(--accent-strong, #1659c7);
+  color: #fff;
+  border: 0;
+}
+.draft-editor--ordinary .editor-primary:hover:not(:disabled) {
+  background: var(--accent-deep, #0f469f);
+}
+.draft-editor--ordinary .editor-primary:disabled {
+  background: #b9cbe8;
+  color: #fff;
+}
+.draft-editor--ordinary .editor-draft-list button[aria-current='true'],
+.draft-editor--ordinary .editor-draft-list .is-active {
+  border-color: var(--accent, #2f7bf5);
+}

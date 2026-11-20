@@ -209,11 +209,20 @@
     transform: none;
   }
 }
-.content-card .content-card-author {
+.content-card .content-card-author,
+.content-card.author-lab-card .discovery-author {
   display: inline-flex;
   flex-direction: row;
+  align-items: center;
+  min-height: 0;
+  white-space: normal;
+  color: var(--ink, #141a22);
   margin: 0;
   padding: 0;
   border: 0;
   text-decoration: none;
+}
+.content-card .content-card-author > span:last-child {
+  font-size: 13px;
+  color: var(--ink, #141a22);
 }

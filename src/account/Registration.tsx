@@ -195,6 +195,7 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
               <input
                 id={id + 'admission'}
                 type="text"
+                placeholder="例：2025"
                 inputMode="numeric"
                 required
                 autoComplete="off"
@@ -219,6 +220,7 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
               <input
                 id={id + 'graduation'}
                 type="text"
+                placeholder="例：2026"
                 inputMode="numeric"
                 required
                 autoComplete="off"
