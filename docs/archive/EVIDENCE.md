@@ -550,7 +550,7 @@ PR #99をmain `5177d957d5fbd70eea1c6fa1e48dc82250bda9c5`へ反映し、PR head�
 
 ## 学校Google本人確認と自己申告年度の通常参加準備 — 2026-11-08
 
-[採用判断](adr/0001-self-declared-enrollment.md)に沿い、必須2年度を一回の学校Google認証へ結合し、account・私的年度・sessionを原子的に保存する通常登録を実装。本人の年度訂正と卒業後の整理を維持し、新規参加は最終SQLの保存値／server時刻で判断する。手動の在籍審査を必須にせず、自己申告を学校による在籍証明とは表示しない。
+[採用判断](../adr/0001-self-declared-enrollment.md)に沿い、必須2年度を一回の学校Google認証へ結合し、account・私的年度・sessionを原子的に保存する通常登録を実装。本人の年度訂正と卒業後の整理を維持し、新規参加は最終SQLの保存値／server時刻で判断する。手動の在籍審査を必須にせず、自己申告を学校による在籍証明とは表示しない。
 
 build・全74files/658tests・公開E2E60・editor197passed/既存skip1・auth browser・pending pilot1・retired8・deploy dry-runが成功。別コンテキストのwriter26件・登録27件・PC/mobileフォーム16件とSQL inventory29件に阻害所見なし。[実行結果、source指紋、限界](QA-SELF-DECLARED-ENROLLMENT.md)。一時serverと子process／待受は終了済み。
 
@@ -586,7 +586,7 @@ main `19323dd`、green PR/main CIとopen Draftを確認し、本番homeの架空
 
 base main `6812f1e`のPR/main CI成功とopen Draftを確認。架空sample一件を、AIと行う技術選定の条件・判断・確認、次の制作／作品説明への再利用へ更新した。[受入条件](LEARNING-NOTES-DECISIONS.md)。私的な回答や実学生の投稿は公開していない。
 
-運営の参考実験は生成100万行／18,139,028bytes、同じSQL、DuckDB2.0.0／SQLite3.50.4／Python3.12.12、M4／16GiBで各3回。全96組の件数・合計が生成時の期待値と一致した。CSV→結果の中央値は0.06495／0.74118秒、取込済みtable queryは別範囲で0.01099／0.28344秒。起動/import・生成は計測外、cacheは未制御、メモリピーク・同時更新は未測定。DB全般の速度順位や学生価値は示さない。[コード・条件・全結果](../experiments/learning-notes-db-choice/README.md)。初回のCSV option指定誤りは計測前に修正し、目標・データ・SQLの順位最適化はしていない。
+運営の参考実験は生成100万行／18,139,028bytes、同じSQL、DuckDB2.0.0／SQLite3.50.4／Python3.12.12、M4／16GiBで各3回。全96組の件数・合計が生成時の期待値と一致した。CSV→結果の中央値は0.06495／0.74118秒、取込済みtable queryは別範囲で0.01099／0.28344秒。起動/import・生成は計測外、cacheは未制御、メモリピーク・同時更新は未測定。DB全般の速度順位や学生価値は示さない。[コード・条件・全結果](../../experiments/learning-notes-db-choice/README.md)。初回のCSV option指定誤りは計測前に修正し、目標・データ・SQLの順位最適化はしていない。
 
 適用済みmigration／editorial0002を維持し、0003／逆操作で全15列の前提を比較する。実D1で旧0002と新0003の一件更新・再適用・各guard変更・後続編集／他row保持・逆操作を検証。local build、76files/687unit・Worker、公開62、localDB、deploy dry-run成功。一時public server（group25148・workerd25213・8787）はsuite終了時に子process／groupと待受の終了を確認した。
 
@@ -678,7 +678,7 @@ test-only `68d2757`（root取込`1d255a4`）は、確認前にlistenerを置き�
 
 base main `e88b25e`。[PR #110](https://github.com/junhat6/kobe-student-hub/pull/110)の一回配備・独立本番QA完了後の、架空sample一件の編集である。末尾の課題見出しと指示段落を削除し、3項目直後の一文を記録例の平叙文へ直した。別名のCTAは足さず、具体例・比較実測・3行・再選定／作品説明の使い道と参考リンクを維持した。本文は2533字から2403字。編集日を2026-11-09へ更新し、概算6分と他のmetadataは維持した。私的な回答や実利用者の評価は転載していない。
 
-適用済み0003／migrationは不変。[editorial0004](../content-revisions/0004_learning_notes_no_assignment.sql)と[逆操作](../content-revisions/rollback/0004_learning_notes_no_assignment.sql)は、対象の全15列を比較して本文・編集日だけを更新する。local setupと実Worker／D1 fixtureを0003→0004へ揃え、既存guard試験の対象リストへ追加した。適用一回・再適用0件・guard各fieldの変更保護・他row保持・逆操作一回／再実行0件・後続編集の保護は、同じ実D1試験で確認した。新しい模倣test fileは作っていない。
+適用済み0003／migrationは不変。[editorial0004](../../content-revisions/0004_learning_notes_no_assignment.sql)と[逆操作](../../content-revisions/rollback/0004_learning_notes_no_assignment.sql)は、対象の全15列を比較して本文・編集日だけを更新する。local setupと実Worker／D1 fixtureを0003→0004へ揃え、既存guard試験の対象リストへ追加した。適用一回・再適用0件・guard各fieldの変更保護・他row保持・逆操作一回／再実行0件・後続編集の保護は、同じ実D1試験で確認した。新しい模倣test fileは作っていない。
 
 実行したbuild、localDB初期化、78files／709unit・Worker（Vitest17.95秒）、公開Chromium PC/mobile62件（11.5秒）、deploy dry-runが全成功。PlaywrightはCI=1で既存serverの再利用を止め、8787が空いた状態から既存管理commandで起動した。所有runner／server／browser・観測子processと8787待受の終了を確認し、強制停止・未知／user processの停止は0。実装者の確認は学生価値や実端末、実Google／実投稿の検証ではない。
 

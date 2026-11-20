@@ -1,6 +1,6 @@
 # 学校Google本人確認と自己申告年度の独立QA
 
-2026-11-08、base main `c03012f013fb47fab18fb7d8ffc64d409e30ceff` からの通常参加準備。採用方針は[ADR](adr/0001-self-declared-enrollment.md)、用語は[CONTEXT.md](../CONTEXT.md)。架空の署名・本人・D1だけを使用し、本番の登録受付は有効にしていない。PRD原文、公開サンプル、production entryと配備設定は変更していない。
+2026-11-08、base main `c03012f013fb47fab18fb7d8ffc64d409e30ceff` からの通常参加準備。採用方針は[ADR](../adr/0001-self-declared-enrollment.md)、用語は[CONTEXT.md](../../CONTEXT.md)。架空の署名・本人・D1だけを使用し、本番の登録受付は有効にしていない。PRD原文、公開サンプル、production entryと配備設定は変更していない。
 
 ## 独立した検証
 
@@ -36,7 +36,7 @@
 
 ## 固定した証拠
 
-テストは[独立writer](../tests/enrollment-writer-independent.test.ts)、[独立登録](../tests/self-registration-independent.test.ts)、[独立ブラウザ](../tests/editor-enrollment-independent.spec.ts)、[SQL inventory](../tests/auth-guard-inventory.test.ts)に保存した。独立QA完了時のSHA256は次のとおり。
+テストは[独立writer](../../tests/enrollment-writer-independent.test.ts)、[独立登録](../../tests/self-registration-independent.test.ts)、[独立ブラウザ](../../tests/editor-enrollment-independent.spec.ts)、[SQL inventory](../../tests/auth-guard-inventory.test.ts)に保存した。独立QA完了時のSHA256は次のとおり。
 
 | ファイル | SHA256 |
 | --- | --- |

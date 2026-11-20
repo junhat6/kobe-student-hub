@@ -1,6 +1,6 @@
 # Private article draft persistence
 
-Current integration: the [ordinary draft route](ORDINARY-DRAFTS.md) reuses this store and HTTP boundary through the main app, with frontend and server release gates still closed. Student participation follows the adopted [private self-declared enrollment policy](adr/0001-self-declared-enrollment.md); owner reads remain separate from new writes. The sections below record the original server-only unit, not the latest release status.
+Current integration: the [ordinary draft route](ORDINARY-DRAFTS.md) reuses this store and HTTP boundary through the main app, with frontend and server release gates still closed. Student participation follows the adopted [private self-declared enrollment policy](../adr/0001-self-declared-enrollment.md); owner reads remain separate from new writes. The sections below record the original server-only unit, not the latest release status.
 
 Issue #28 addresses a necessary part of the PRD's Markdown authoring and PC/mobile draft handoff: only the owner can access a draft, and saving an older version must not overwrite a newer save. This is server-only local implementation, not an enabled editor, autosave UI or real posting service. The source PRD was read without editing or republishing it.
 

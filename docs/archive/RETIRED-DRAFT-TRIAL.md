@@ -25,4 +25,4 @@
 
 ## 証拠と次の判断
 
-[独立QA](QA-RETIRED-DRAFT-TRIAL.md)・[EVIDENCE](EVIDENCE.md)・[WORK](WORK.md)と撤去PRを参照する。学生価値の検証は未実施で、試用機能の撤去自体を学生の価値向上の証明としない。次の改善は記事・作品・経験共有の本来のjourneyに戻って選ぶ。
+[独立QA](QA-RETIRED-DRAFT-TRIAL.md)・[EVIDENCE](EVIDENCE.md)・[WORK](../WORK.md)と撤去PRを参照する。学生価値の検証は未実施で、試用機能の撤去自体を学生の価値向上の証明としない。次の改善は記事・作品・経験共有の本来のjourneyに戻って選ぶ。
