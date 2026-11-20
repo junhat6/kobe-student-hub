@@ -55,9 +55,15 @@ export default function PublicationComposer({
   onUnsavedPreparation,
 }: Props) {
   const ordinary = surface === 'ordinary';
+  const [optionalOpen, setOptionalOpen] = useState(false);
   const client = useMemo(() => createPublicationClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const profiles = useMemo(() => createProfileClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const [fields, setFields] = useState(empty);
+  // Keep the optional reader notes open whenever one of them already has text.
+  const optionalFilled = Boolean(fields.audience || fields.prerequisite || fields.outcome);
+  useEffect(() => {
+    if (optionalFilled) setOptionalOpen(true);
+  }, [optionalFilled]);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [mutationPending, setMutationPending] = useState(false);
@@ -306,10 +312,7 @@ export default function PublicationComposer({
             : '公開前の確認（ローカル専用）'}
         </summary>
         <div className="publication-content">
-          <h3>
-            保存した版を確認して、{ordinary ? '' : 'ローカルで'}
-            {receipt && ordinary ? '更新' : '公開'}
-          </h3>
+          {!ordinary && <h3>保存した版を確認して、ローカルで公開</h3>}
           {!ordinary && (
             <p className="publication-local-notice">
               架空のデータを使うローカル検証です。実際の学校サービスや本番への公開ではありません。
@@ -318,7 +321,11 @@ export default function PublicationComposer({
           <p className="publication-message" aria-live="polite" aria-atomic="true">
             {message}
           </p>
-          <Button disabled={busy || parentBusy} onClick={() => void refresh()}>
+          <Button
+            className={ordinary ? 'publication-recheck' : undefined}
+            disabled={busy || parentBusy}
+            onClick={() => void refresh()}
+          >
             公開準備・記録を確認
           </Button>
           {dirty && (
@@ -347,7 +354,16 @@ export default function PublicationComposer({
               記録が取得できない場合は、未公開として扱いません。
             </p>
           )}
-          {profile && (
+          {profile && ordinary && (
+            <p className="publication-byline">
+              <span aria-hidden="true">{profile.initials}</span>
+              投稿者：<strong>{profile.displayName}</strong>
+              {[profile.department, profile.yearLabel].filter(Boolean).join(' / ') && (
+                <> · {[profile.department, profile.yearLabel].filter(Boolean).join(' / ')}</>
+              )}
+            </p>
+          )}
+          {profile && !ordinary && (
             <div className="publication-author">
               <span aria-hidden="true">{profile.initials}</span>
               <div>
@@ -360,7 +376,28 @@ export default function PublicationComposer({
               </div>
             </div>
           )}
-          {receipt && (
+          {receipt && ordinary && (
+            <section className="publication-receipt is-compact" aria-label="公開済みの記録">
+              <p>
+                <span className="publication-live">公開中</span>版 {receipt.sourceVersion}「
+                {receipt.entry.title}」
+              </p>
+              <p className="publication-receipt-links">
+                <a
+                  href={publicPaths(surface).article(receipt.contentId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  ログインなしの読者画面を開く ↗
+                </a>
+                <a href="/account#publications">公開の停止はマイページから</a>
+              </p>
+              <p className="publication-receipt-hint">
+                下書きを直して保存すると、同じURLのまま更新できます。
+              </p>
+            </section>
+          )}
+          {receipt && !ordinary && (
             <section className="publication-receipt" aria-label="公開済みの記録">
               <h4>公開した保存済みの版 {receipt.sourceVersion}</h4>
               <p>{receipt.entry.title}</p>
@@ -435,7 +472,9 @@ export default function PublicationComposer({
                     onChange={(event) => change('tags', event.target.value)}
                   />
                   <small>
-                    タグは全角・半角を整え、前後の空白を除いて並べます。各24文字以内で、重複はできません。
+                    {ordinary
+                      ? '各24文字以内・重複なし。全角・半角は自動で整えます。'
+                      : 'タグは全角・半角を整え、前後の空白を除いて並べます。各24文字以内で、重複はできません。'}
                   </small>
                   <div className="publication-tags" aria-label="公開されるタグ">
                     {tags?.map((tag) => (
@@ -463,25 +502,56 @@ export default function PublicationComposer({
                       ? '本文から目安を計算しています。1〜240分の範囲で変更できます。'
                       : '1〜240分。自分で目安を入力してください。'}
                   </small>
-                  {(['audience', 'prerequisite', 'outcome'] as const).map((key) => (
-                    <div key={key}>
-                      <label htmlFor={'publication-' + key}>
-                        {key === 'audience'
-                          ? '想定読者（任意）'
-                          : key === 'prerequisite'
-                            ? '前提知識（任意）'
-                            : '読んだあとにできること（任意）'}
-                      </label>
-                      <textarea
-                        id={'publication-' + key}
-                        maxLength={400}
-                        readOnly={readOnly}
-                        value={fields[key]}
-                        onChange={(event) => change(key, event.target.value)}
-                      />
-                      <small>{Array.from(fields[key]).length}/200文字</small>
-                    </div>
-                  ))}
+                  {ordinary ? (
+                    <details
+                      className="publication-optional"
+                      open={optionalOpen}
+                      onToggle={(event) => setOptionalOpen(event.currentTarget.open)}
+                    >
+                      <summary>読者向けの補足（任意）</summary>
+                      {(['audience', 'prerequisite', 'outcome'] as const).map((key) => (
+                        <div key={key}>
+                          <label htmlFor={'publication-' + key}>
+                            {key === 'audience'
+                              ? '想定読者（任意）'
+                              : key === 'prerequisite'
+                                ? '前提知識（任意）'
+                                : '読んだあとにできること（任意）'}
+                          </label>
+                          <textarea
+                            id={'publication-' + key}
+                            maxLength={400}
+                            readOnly={readOnly}
+                            value={fields[key]}
+                            onChange={(event) => change(key, event.target.value)}
+                          />
+                          <small>{Array.from(fields[key]).length}/200文字</small>
+                        </div>
+                      ))}
+                    </details>
+                  ) : (
+                    <>
+                      {(['audience', 'prerequisite', 'outcome'] as const).map((key) => (
+                        <div key={key}>
+                          <label htmlFor={'publication-' + key}>
+                            {key === 'audience'
+                              ? '想定読者（任意）'
+                              : key === 'prerequisite'
+                                ? '前提知識（任意）'
+                                : '読んだあとにできること（任意）'}
+                          </label>
+                          <textarea
+                            id={'publication-' + key}
+                            maxLength={400}
+                            readOnly={readOnly}
+                            value={fields[key]}
+                            onChange={(event) => change(key, event.target.value)}
+                          />
+                          <small>{Array.from(fields[key]).length}/200文字</small>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </fieldset>
                 <p className="publication-payload-note">
                   公開するのは保存済みの版 {draft.version}{' '}

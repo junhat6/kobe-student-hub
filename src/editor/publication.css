@@ -490,3 +490,80 @@
     padding: 16px;
   }
 }
+
+/* Ordinary surface: one quiet line per fact, the form stays the focus. */
+.publication-composer .publication-recheck {
+  justify-self: start;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent-strong, #1659c7);
+  font-size: 0.82rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.publication-byline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--ink-soft, #3b4552);
+  font-size: 0.9rem;
+}
+.publication-byline > span {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft, #e6efff);
+  color: var(--accent-strong, #1659c7);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.publication-receipt.is-compact {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.publication-receipt.is-compact p {
+  margin: 0;
+}
+.publication-live {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e5f6ec;
+  color: #17663a;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.publication-receipt-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  font-size: 0.88rem;
+}
+.publication-receipt-hint {
+  color: var(--ink-muted, #6a7480);
+  font-size: 0.82rem;
+}
+.publication-optional {
+  border-top: 1px solid var(--line, #e2e7ee);
+  padding-top: 10px;
+}
+.publication-optional > summary {
+  cursor: pointer;
+  color: var(--accent-strong, #1659c7);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.publication-optional[open] > summary {
+  margin-bottom: 10px;
+}
