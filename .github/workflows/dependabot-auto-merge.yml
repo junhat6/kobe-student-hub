@@ -17,7 +17,8 @@ jobs:
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
       # 対象はnpmのパッチ更新のみ。0.xはパッチでも破壊的変更がありうるため人が確認する。
-      # マージはmainのrulesetが要求するCI（verify）の成功後にGitHubが行う。
+      # main は必須CIを持たない（CIはリリース時だけ必須）。auto-mergeの予約が不要な状態なら即mergeする。
+      # 壊れた更新は main-health が赤で知らせ、release昇格時のCI（verify）で本番には入らない。
       - name: Enable auto-merge for npm patch updates
         if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' && steps.metadata.outputs.update-type == 'version-update:semver-patch'
         env:
@@ -29,4 +30,4 @@ jobs:
             echo "0.x or unknown previous version found; leaving this PR for manual review."
             exit 0
           fi
-          gh pr merge --auto --squash "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL" || gh pr merge --squash "$PR_URL"

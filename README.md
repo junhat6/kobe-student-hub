@@ -22,7 +22,7 @@ npm run preview
 
 ## 整形
 
-`npm ci`でcommit hookを設定します。`npm run format`で整形し、`npm run format:check`で確認します。commit時はstagedのソースだけを整形し、部分stageの未stage変更を保持します。CIでも整形を確認します。文書・SQL・生成binding・lockfile・秘密や検証資料は対象外です。
+`npm ci`でcommit hookを設定します。`npm run format`で整形し、`npm run format:check`で確認します。commit時はstagedのソースだけを整形し、部分stageの未stage変更を保持します。main-healthとリリース時のCIで整形を確認します。文書・SQL・生成binding・lockfile・秘密や検証資料は対象外です。
 
 ## 検証
 
@@ -44,6 +44,6 @@ npm run deploy:check
 
 React・TypeScript・Vite・Tailwind CSS・Base UI、Hono・Cloudflare Workers Static Assets・D1を使用します。Markdownのraw HTMLは無効です。
 
-短いブランチとPRを使い、CIと別contextのQA後にmainへ反映します。PRD原文は変更せず、秘密・個人情報を公開リポジトリへ載せません。記録は短い進捗とPRに集約します。
+mainへ直接commit・pushし（PRは任意・CI不要）、本番へは`npm run release`でmainのSHAを`release`へ昇格させます。full CIは昇格時だけ必須です。詳しくは[ブランチとリリース](docs/RELEASE.md)を参照してください。PRD原文は変更せず、秘密・個人情報を公開リポジトリへ載せません。記録は短い進捗とPRに集約します。
 
 [作業ルール](AGENTS.md) · [現在の作業](docs/WORK.md) · [デプロイ](docs/DEPLOYMENT.md) · [設計判断](docs/DECISIONS.md) · [デザイン](DESIGN.md)

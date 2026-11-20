@@ -1,8 +1,13 @@
 name: CI
+# full CI はリリース時だけ必須。main / PR では走らせない（main の軽い確認は main-health.yml）。
+# release への昇格（scripts/release.mjs）が rc/<sha7> へ push してここを走らせ、
+# release の ruleset がこの verify の成功を要求する。job 名 verify は ruleset と release.mjs が参照するので変えない。
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [release, 'rc/**']
+  pull_request:
+    branches: [release]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:

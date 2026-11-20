@@ -1,0 +1,30 @@
+name: main health
+# main への push ごとの軽い確認。必須ではなく、壊れたら patrol ループが直すための合図。
+# 重い E2E はここでは走らせず、リリース時の CI（verify）に任せる。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: main-health
+  cancel-in-progress: true
+jobs:
+  health:
+    env:
+      HUSKY: '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run types
+      - run: git diff --exit-code -- worker-configuration.d.ts
+      - run: npm run build
+      - run: npm test

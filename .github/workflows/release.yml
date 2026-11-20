@@ -1,0 +1,41 @@
+name: Release tag
+# release ブランチが進んだら、その SHA にタグと GitHub Release を付ける。
+# release へ入れるのは scripts/release.mjs だけ（ruleset が CI verify の成功を要求）。ここは記録係。
+on:
+  push:
+    branches: [release]
+permissions:
+  contents: write
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Create tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if git tag --points-at "$SHA" | grep -q '^r'; then
+            echo "already tagged"; exit 0
+          fi
+          day=$(TZ=Asia/Tokyo date +%Y.%m.%d)
+          n=$(( $(git tag -l "r${day}.*" | wc -l) + 1 ))
+          tag="r${day}.${n}"
+          prev=$(git describe --tags --abbrev=0 --match 'r*' "$SHA^" 2>/dev/null || true)
+          range=${prev:+$prev..}$SHA
+          {
+            echo "release \`${SHA:0:7}\`${prev:+ (前回 $prev から)}"
+            echo
+            git log --no-merges --format='- %s (%h)' "$range" | head -200
+          } > notes.md
+          git tag "$tag" "$SHA"
+          git push origin "$tag"
+          gh release create "$tag" --target "$SHA" --title "$tag" --notes-file notes.md
