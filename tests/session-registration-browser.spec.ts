@@ -1,4 +1,5 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
+import { recordRedirectHops, recordSentHeaders } from './helpers/sent-headers';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -123,49 +124,18 @@ test('ordinary signup requires two blank private years and confirms persisted da
   page,
   context,
 }, info) => {
-  const callbackPosts: {
-    path: string;
-    search: string;
-    providerOrigin: string | undefined;
-    originalCookies: boolean;
-    fields: string[];
-  }[] = [];
-  const completionGets: { search: string; browser: boolean; oauth: boolean }[] = [];
   const handoffRedirects: string[] = [];
   page.on('response', (response) => {
     if (new URL(response.url()).pathname === '/api/auth/callback')
       handoffRedirects.push(response.headers()['location']);
   });
-  const observedRequests: Promise<void>[] = [];
-  page.on('request', (request) => {
-    const url = new URL(request.url());
-    if (url.pathname === '/api/auth/callback' && request.method() === 'POST') {
-      observedRequests.push(
-        (async () => {
-          const headers = await request.allHeaders();
-          callbackPosts.push({
-            path: url.pathname,
-            search: url.search,
-            providerOrigin: headers.origin,
-            originalCookies: /__Host-kobe-(?:browser|oauth)=/.test(headers.cookie ?? ''),
-            fields: [...new URLSearchParams(request.postData() ?? '').keys()].sort(),
-          });
-        })(),
-      );
-    }
-    if (url.pathname === '/api/auth/callback/complete' && request.method() === 'GET') {
-      observedRequests.push(
-        (async () => {
-          const headers = await request.allHeaders();
-          completionGets.push({
-            search: url.search,
-            browser: (headers.cookie ?? '').includes('__Host-kobe-browser='),
-            oauth: (headers.cookie ?? '').includes('__Host-kobe-oauth='),
-          });
-        })(),
-      );
-    }
-  });
+  // Cookie and Origin as actually sent, without allHeaders() (#135): the provider POST is routed,
+  // while the completion GET is a redirect hop that routes never see, so it is read from CDP.
+  const callbackTraffic = await recordSentHeaders(
+    context,
+    (url) => url.pathname === '/api/auth/callback',
+  );
+  const navigationHops = await recordRedirectHops(context, page);
   const calls = starts(page),
     visits = await fakeGoogle(page, fictional(info, 'signup'));
   const initial = page.waitForResponse(
@@ -196,7 +166,24 @@ test('ordinary signup requires two blank private years and confirms persisted da
   await expect(admission(page)).toHaveValue('2026');
   await expect(graduation(page)).toHaveValue('2028');
   expect(visits).toHaveLength(1);
-  await Promise.all(observedRequests);
+  callbackTraffic.stop();
+  const callbackPosts = callbackTraffic.sent
+    .filter((r) => r.url.pathname === '/api/auth/callback' && r.method === 'POST')
+    .map((r) => ({
+      path: r.url.pathname,
+      search: r.url.search,
+      providerOrigin: r.headers.origin,
+      originalCookies: /__Host-kobe-(?:browser|oauth)=/.test(r.headers.cookie ?? ''),
+      fields: [...new URLSearchParams(r.postData ?? '').keys()].sort(),
+    }));
+  const isCompletion = (url: URL, method: string) =>
+    url.pathname === '/api/auth/callback/complete' && method === 'GET';
+  await expect.poll(() => navigationHops.sent(isCompletion).missing).toBe(0);
+  const completionGets = navigationHops.sent(isCompletion).sent.map((r) => ({
+    search: r.url.search,
+    browser: (r.headers.cookie ?? '').includes('__Host-kobe-browser='),
+    oauth: (r.headers.cookie ?? '').includes('__Host-kobe-oauth='),
+  }));
   expect(callbackPosts).toEqual([
     {
       path: '/api/auth/callback',

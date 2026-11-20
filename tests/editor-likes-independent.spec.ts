@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 async function shot(locator: Locator, project: string, name: string) {
   const root = process.env.KOBE_LOCAL_EVIDENCE_DIR;
   if (!root) return;
@@ -109,19 +110,12 @@ test('independent hidden article leaves public likes but accepted own like remai
       deviceScaleFactor: device.deviceScaleFactor,
       userAgent: device.userAgent,
     });
-  const headers: Promise<void>[] = [];
   try {
+    const sent = await recordSentHeaders(anon, (u) => u.pathname.startsWith('/__lab/'));
     const list = await anon.newPage();
     let privateCalls = 0;
     list.on('request', (r) => {
       if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
-      if (r.url().includes('/__lab/'))
-        headers.push(
-          r.allHeaders().then((h) => {
-            expect(Object.hasOwn(h, 'cookie')).toBe(false);
-            expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-          }),
-        );
     });
     await list.goto('/lab/likes/' + owner.id);
     await expect(list.getByRole('link', { name: '最初の公開記事', exact: true })).toBeVisible();
@@ -228,11 +222,10 @@ test('independent hidden article leaves public likes but accepted own like remai
     expect(privateCalls).toBe(0);
     expect(await anon.cookies()).toEqual([]);
     expect(list.viewportSize()).toEqual(page.viewportSize());
+    sent.stop();
+    expect(sent.sent.length).toBeGreaterThan(0);
+    expect(identityHeadersOf(sent.sent)).toEqual([]);
   } finally {
-    try {
-      await Promise.all(headers);
-    } finally {
-      await anon.close();
-    }
+    await anon.close();
   }
 });

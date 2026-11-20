@@ -1,6 +1,7 @@
 import { test, expect, type Locator } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 const origin = 'https://127.0.0.1:8788';
 async function shot(locator: Locator, project: string, name: string) {
   const root = process.env.KOBE_LOCAL_EVIDENCE_DIR;
@@ -80,19 +81,12 @@ test('independent project-only author public DTO and delayed private project EOF
       deviceScaleFactor: device.deviceScaleFactor,
       userAgent: device.userAgent,
     });
-  const headers: Promise<void>[] = [];
   try {
+    const sent = await recordSentHeaders(anon, (u) => u.pathname.startsWith('/__lab/'));
     const reader = await anon.newPage();
     let privateCalls = 0;
     reader.on('request', (r) => {
       if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
-      if (r.url().includes('/__lab/'))
-        headers.push(
-          r.allHeaders().then((h) => {
-            expect(Object.hasOwn(h, 'cookie')).toBe(false);
-            expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-          }),
-        );
     });
     const response = await anon.request.get('/__lab/projects/' + data.projectId);
     expect(response.status()).toBe(200);
@@ -137,12 +131,11 @@ test('independent project-only author public DTO and delayed private project EOF
     await shot(reader.locator('main'), info.project.name, '02-author-with-project-no-articles.png');
     expect(privateCalls).toBe(0);
     expect(await anon.cookies()).toEqual([]);
+    sent.stop();
+    expect(sent.sent.length).toBeGreaterThan(0);
+    expect(identityHeadersOf(sent.sent)).toEqual([]);
   } finally {
-    try {
-      await Promise.all(headers);
-    } finally {
-      await anon.close();
-    }
+    await anon.close();
   }
   const region = page.getByRole('region', { name: '画像なし作品の登録' });
   await region.getByRole('button', { name: '作品の保存一覧を更新', exact: true }).click();

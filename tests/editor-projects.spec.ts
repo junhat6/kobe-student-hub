@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 const origin = 'https://127.0.0.1:8788';
 const region = (page: Page) => page.getByRole('region', { name: '画像なし作品の登録' });
 async function setup(page: Page) {
@@ -88,21 +89,14 @@ test('a project-only author saves canonical URLs and explicitly publishes an imm
     deviceScaleFactor: device.deviceScaleFactor,
     userAgent: device.userAgent,
   });
-  const checks: Promise<void>[] = [];
   try {
+    const sent = await recordSentHeaders(context, (u) => u.pathname.startsWith('/__lab/'));
     const reader = await context.newPage();
     let privateCalls = 0,
       external = 0;
     reader.on('request', (r) => {
       if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
       if (!r.url().startsWith(origin)) external++;
-      if (r.url().includes('/__lab/'))
-        checks.push(
-          r.allHeaders().then((h) => {
-            expect(Object.hasOwn(h, 'cookie')).toBe(false);
-            expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-          }),
-        );
     });
     await reader.goto(href);
     await expect(
@@ -131,12 +125,11 @@ test('a project-only author saves canonical URLs and explicitly publishes an imm
     expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    sent.stop();
+    expect(sent.sent.length).toBeGreaterThan(0);
+    expect(identityHeadersOf(sent.sent)).toEqual([]);
   } finally {
-    try {
-      await Promise.all(checks);
-    } finally {
-      await context.close();
-    }
+    await context.close();
   }
 });
 test('CAS failure preserves input and reviewed version rebasing still keeps typing made during a save', async ({

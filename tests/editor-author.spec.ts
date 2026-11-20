@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 const origin = 'https://127.0.0.1:8788';
 async function seed(page: Page) {
   await page.goto('/lab/articles/00000000-0000-4000-8000-000000000000');
@@ -62,19 +63,12 @@ test('article author leads to published activities and native article return wit
     deviceScaleFactor: device.deviceScaleFactor,
     userAgent: device.userAgent,
   });
-  const headerChecks: Promise<void>[] = [];
   try {
+    const sent = await recordSentHeaders(context, (u) => u.pathname.startsWith('/__lab/'));
     const reader = await context.newPage();
     let privateCalls = 0;
     reader.on('request', (r) => {
       if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
-      if (r.url().includes('/__lab/'))
-        headerChecks.push(
-          r.allHeaders().then((headers) => {
-            expect(Object.hasOwn(headers, 'cookie')).toBe(false);
-            expect(Object.hasOwn(headers, 'x-csrf-token')).toBe(false);
-          }),
-        );
     });
     await reader.goto('/lab/articles/' + data.ids[0]);
     await reader.getByRole('link', { name: '架空の活動投稿者', exact: true }).click();
@@ -111,12 +105,11 @@ test('article author leads to published activities and native article return wit
       true,
     );
     expect(privateCalls).toBe(0);
+    sent.stop();
+    expect(sent.sent.length).toBeGreaterThan(0);
+    expect(identityHeadersOf(sent.sent)).toEqual([]);
   } finally {
-    try {
-      await Promise.all(headerChecks);
-    } finally {
-      await context.close();
-    }
+    await context.close();
   }
 });
 test('anonymous author HTTP contract fails closed for invalid routes and methods', async ({

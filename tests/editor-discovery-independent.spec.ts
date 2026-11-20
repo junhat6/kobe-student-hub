@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 const origin = 'https://127.0.0.1:8788';
 test('independent explicit publication receipt opens anonymous recent feed without losing private edits and hides reported target', async ({
   page,
@@ -73,20 +74,10 @@ test('independent explicit publication receipt opens anonymous recent feed witho
     path: info.outputPath('01-published-receipt-feed-entry.png'),
     scale: 'css',
   });
-  const headerChecks: Promise<void>[] = [];
+  // The author's context holds a session cookie, so only the routed sent headers can prove the
+  // feed read omitted it.
   expect((await page.context().cookies()).some((c) => c.name === '__Host-kobe-session')).toBe(true);
-  let feedRequests = 0;
-  page.context().on('request', (request) => {
-    if (request.url().endsWith('/__lab/discovery')) {
-      feedRequests++;
-      headerChecks.push(
-        request.allHeaders().then((headers) => {
-          expect(Object.hasOwn(headers, 'cookie')).toBe(false);
-          expect(Object.hasOwn(headers, 'x-csrf-token')).toBe(false);
-        }),
-      );
-    }
-  });
+  const feed = await recordSentHeaders(page.context(), (u) => u.pathname === '/__lab/discovery');
   const popupReady = page.waitForEvent('popup');
   await link.click();
   const popup = await popupReady;
@@ -95,7 +86,7 @@ test('independent explicit publication receipt opens anonymous recent feed witho
   await expect(target).toBeVisible();
   const href = (await target.getAttribute('href'))!,
     contentId = href.split('/').pop()!;
-  expect(feedRequests).toBeGreaterThan(0);
+  expect(feed.sent.length).toBeGreaterThan(0);
   await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(
     '一覧タブを開いても保持する非公開の追記',
   );
@@ -179,7 +170,8 @@ test('independent explicit publication receipt opens anonymous recent feed witho
       .filter({ has: fresh.getByRole('link', { name: keepTitle, exact: true }) })
       .screenshot({ path: info.outputPath('03-other-publication-remains.png'), scale: 'css' });
     expect(await anon.cookies()).toEqual([]);
-    await Promise.all(headerChecks);
+    feed.stop();
+    expect(identityHeadersOf(feed.sent)).toEqual([]);
   } finally {
     await anon.close();
     await popup.close();

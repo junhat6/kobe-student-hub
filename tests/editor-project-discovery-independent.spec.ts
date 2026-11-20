@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 const O = 'https://127.0.0.1:8788',
   form = (p: Page) => p.getByRole('region', { name: '画像なし作品の登録' }),
   feed = (p: Page) => p.getByRole('region', { name: '新しい公開作品の一覧' });
@@ -67,29 +68,18 @@ test('independent actual UI publication receipt opens anonymous works while save
   await expect(entry).toHaveAttribute('target', '_blank');
   const input = form(page).getByLabel('作品説明（プレーンテキスト）', { exact: true });
   await input.fill('私的な保存版二の説明');
-  const checks: Promise<void>[] = [];
-  page.context().on('request', (r) => {
-    if (r.url() === O + '/__lab/project-discovery')
-      checks.push(
-        r.allHeaders().then((h) => {
-          expect(Object.hasOwn(h, 'cookie')).toBe(false);
-          expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-        }),
-      );
-  });
+  // The author's context holds a session cookie, so only the routed sent headers can prove the
+  // popup's public reads omitted it.
+  const sent = await recordSentHeaders(
+    page.context(),
+    (u) => u.origin === O && u.pathname.startsWith('/__lab/'),
+  );
   const popupPromise = page.waitForEvent('popup');
   await entry.click();
   const popup = await popupPromise;
   let privateCalls = 0;
   popup.on('request', (r) => {
     if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
-    if (r.url().includes('/__lab/'))
-      checks.push(
-        r.allHeaders().then((h) => {
-          expect(Object.hasOwn(h, 'cookie')).toBe(false);
-          expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-        }),
-      );
   });
   await expect(popup.getByRole('heading', { name: '新しい公開作品', exact: true })).toBeVisible();
   expect(popup.viewportSize()).toEqual(page.viewportSize());
@@ -108,7 +98,9 @@ test('independent actual UI publication receipt opens anonymous works while save
   await expect(popup.getByText('私的な保存版二の説明', { exact: true })).toHaveCount(0);
   await expect(input).toHaveValue('未保存の版三の説明');
   expect(privateCalls).toBe(0);
-  await Promise.all(checks);
+  sent.stop();
+  expect(sent.sent.some((r) => r.url.pathname === '/__lab/project-discovery')).toBe(true);
+  expect(identityHeadersOf(sent.sent)).toEqual([]);
   await popup.close();
 });
 test('independent actual owner stop removes only the target from fresh anonymous works and leaves another author discoverable', async ({
@@ -142,17 +134,10 @@ test('independent actual owner stop removes only the target from fresh anonymous
     const otherPage = await other.newPage(),
       keep = await seed(otherPage, true);
     const anon = await reader.newPage();
-    const checks: Promise<void>[] = [];
+    const sent = await recordSentHeaders(anon, (u) => u.pathname.startsWith('/__lab/'));
     let privateCalls = 0;
     anon.on('request', (r) => {
       if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
-      if (r.url().includes('/__lab/'))
-        checks.push(
-          r.allHeaders().then((h) => {
-            expect(Object.hasOwn(h, 'cookie')).toBe(false);
-            expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-          }),
-        );
     });
     await anon.goto('/lab/works');
     await expect(feed(anon).getByRole('link', { name: t.title, exact: true })).toBeVisible();
@@ -205,7 +190,9 @@ test('independent actual owner stop removes only the target from fresh anonymous
       await raw.dispose();
     }
     expect(privateCalls).toBe(0);
-    await Promise.all(checks);
+    sent.stop();
+    expect(sent.sent.length).toBeGreaterThan(0);
+    expect(identityHeadersOf(sent.sent)).toEqual([]);
   } finally {
     await other.close();
     await reader.close();

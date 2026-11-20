@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 const origin = 'https://127.0.0.1:8788';
 async function seed(page: Page) {
   await page.goto('/lab/articles/00000000-0000-4000-8000-000000000000');
@@ -95,19 +96,12 @@ test('explicit like appears in an anonymous public list and withdrawal removes i
     deviceScaleFactor: device.deviceScaleFactor,
     userAgent: device.userAgent,
   });
-  const checks: Promise<void>[] = [];
   try {
+    const sent = await recordSentHeaders(context, (u) => u.pathname.startsWith('/__lab/'));
     const anonymous = await context.newPage();
     let privateCalls = 0;
     anonymous.on('request', (r) => {
       if (r.url().includes('/api/private/') || r.url().includes('/__fixture/')) privateCalls++;
-      if (r.url().includes('/__lab/'))
-        checks.push(
-          r.allHeaders().then((h) => {
-            expect(Object.hasOwn(h, 'cookie')).toBe(false);
-            expect(Object.hasOwn(h, 'x-csrf-token')).toBe(false);
-          }),
-        );
     });
     await anonymous.goto('/lab/likes/' + owner.id);
     await expect(
@@ -134,12 +128,11 @@ test('explicit like appears in an anonymous public list and withdrawal removes i
     expect(await anonymous.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    sent.stop();
+    expect(sent.sent.length).toBeGreaterThan(0);
+    expect(identityHeadersOf(sent.sent)).toEqual([]);
   } finally {
-    try {
-      await Promise.all(checks);
-    } finally {
-      await context.close();
-    }
+    await context.close();
   }
 });
 test('lost like acknowledgement stays locked through focus and reconciles only by an explicit read', async ({
