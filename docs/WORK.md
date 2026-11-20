@@ -1,7 +1,7 @@
 # Current work
 
-- 2026-11-21：進め方を自律ループへ切り替え（[docs/loop/](loop/README.md)）。main＝直接pushの幹、本番は `npm run release` で release へ昇格（[RELEASE.md](RELEASE.md)）。初回の列車 `r2026.11.21.1`＝d2eef09（昇格のみ・本番 deploy なし）。Orca automation 6本（release/mend/finish/patrol/garden/replan）稼働。
-- 完成台帳：[completion.json](loop/completion.json) 20項目、全て unverified（確かめ直し待ち）。最初の replan で `loop:finish` Issue に展開する。
-- 本番：アカウント機能まで公開。通常投稿は閉じたまま（Workers Paid の契約判断待ち、#119）。本番 wrangler 設定の再作成も未了。
-- 人の判断待ち（`needs-human`）：有料プラン、本番D1 migration の適用、CI 用 Cloudflare token。
-- 次の焦点：UX巡回の初回（#131）で旅 J0〜J5 の現状を測り、S1/S2 から直す。
+- 2026-11-21 replan#1：完成台帳 [completion.json](loop/completion.json) は pass 0/20。全項目を `loop:finish` Issue #145〜#164（C01〜C20）に展開した。初回巡回で J1/J2/J4/J5 は完遂したが、acceptance 全文の確認ではないので unverified のまま。
+- 本番：最新 tag `r2026.11.21.1`（d2eef09。昇格のみで本番反映はしていない）。本番はアカウント機能まで公開、通常投稿は閉じたまま。
+- 待ち行列：P0 1件（#137 ログイン切れで書きかけ消失、claimed）。P1 24件（loop:ux #138 #139 #140、loop:finish #144 と台帳20件）。P2 3件（#141〜#143）。
+- needs-human：#165 Workers Paid、#166 本番 Worker 設定の再作成と D1 migration の承認、#11 CI 用 Cloudflare token、#12 R2 画像の課金条件、#5 学生による試用。
+- 次の焦点：#137（S1）を閉じて列車の停止を解く → #138 #140 #141 は C04/C10/C19/C20 の前提 → 巡回で完遂した旅の台帳項目（C01 C02 C06 C13 C18 など）の pass を確かめる。
