@@ -106,7 +106,13 @@ async function main() {
           `CI が通りませんでした（${s.status}/${s.conclusion ?? '-'}）。main で直してから再実行してください。${s.url ?? ''}`,
         );
     } else log(`${short} は CI ${CHECK} 成功済みです`);
-    sh('git', ['push', 'origin', `${sha}:refs/heads/release`]);
+    const pushed = spawnSync('git', ['push', 'origin', `${sha}:refs/heads/release`], {
+      encoding: 'utf8',
+    });
+    if (pushed.status !== 0)
+      die(
+        `release への push が拒否されました（CI は成功済み）。ruleset・fast-forward・同名の release/* ブランチを確認してください。\n${pushed.stderr}`,
+      );
     log(`release を ${short} へ昇格しました。タグと GitHub Release は release.yml が作ります。`);
   }
 
