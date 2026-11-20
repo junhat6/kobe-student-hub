@@ -18,6 +18,7 @@ type State =
 export default function ArticleLikeButton({ contentId }: { contentId: string }) {
   const { viewer, refresh } = useViewer();
   const csrf = viewer.status === 'signed-in' ? viewer.csrfToken : null;
+  // Only a confirmed "no profile" blocks a like; an unreadable profile lets the server decide.
   const hasProfile = viewer.status === 'signed-in' && viewer.profile !== null;
   const client = useMemo(() => (csrf ? createLikesClient(csrf, fetch) : null), [csrf]);
   const [state, setState] = useState<State>({ kind: 'idle' });

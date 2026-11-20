@@ -73,3 +73,24 @@ test('switching accounts in another window never leaves the previous name on scr
   await page.keyboard.press('Escape');
   expect(href).toBe(await page.locator('.account-summary-who a').getAttribute('href'));
 });
+
+test('a temporary profile read failure is not shown as a missing profile', async ({
+  page,
+}, info) => {
+  const name = `架空C-${info.project.name}`;
+  await register(page, info, 'c');
+  await createProfile(page, name);
+  await page.route('**/api/private/profile', (route) =>
+    route.request().method() === 'GET'
+      ? route.fulfill({ status: 503, body: '' })
+      : route.continue(),
+  );
+  await page.reload();
+  await expect(page.locator('.account-summary-name')).toHaveText(
+    'プロフィールを読み込めませんでした',
+  );
+  await expect(page.getByText('公開プロフィールを作ると、記事を公開できます')).toHaveCount(0);
+  await page.unroute('**/api/private/profile');
+  await page.getByRole('button', { name: 'もう一度読み込む', exact: true }).click();
+  await expect(page.locator('.account-summary-name')).toHaveText(name);
+});

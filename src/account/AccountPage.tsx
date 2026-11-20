@@ -27,9 +27,19 @@ function AccountSummary({ csrfToken }: { csrfToken: string }) {
           {profile?.initials ?? '?'}
         </span>
         <div>
-          <p className="account-summary-name">{profile?.name ?? 'プロフィール未作成'}</p>
+          <p className="account-summary-name">
+            {profile
+              ? profile.name
+              : profile === null
+                ? 'プロフィール未作成'
+                : 'プロフィールを読み込めませんでした'}
+          </p>
           {profile ? (
             <Link to={`/students/${profile.id}`}>公開プロフィールを見る →</Link>
+          ) : profile === undefined ? (
+            <button type="button" className="text-button" onClick={refresh}>
+              もう一度読み込む
+            </button>
           ) : (
             <a href="#profile">公開プロフィールを作ると、記事を公開できます</a>
           )}

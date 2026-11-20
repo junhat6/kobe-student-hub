@@ -22,7 +22,8 @@ export type Viewer =
   | {
       status: 'signed-in';
       csrfToken: string;
-      profile: { id: string; name: string; initials: string } | null;
+      /** null: no public profile yet. undefined: it could not be read right now. */
+      profile: { id: string; name: string; initials: string } | null | undefined;
     };
 
 interface ViewerContextValue {
@@ -46,20 +47,22 @@ async function readOwnProfile(signal: AbortSignal) {
       signal,
       headers: { Accept: 'application/json' },
     });
-    if (!response.ok) return null;
+    if (!response.ok) return undefined;
     const body: unknown = await response.json();
     const profile = (body as { profile?: unknown } | null)?.profile as
       { id?: unknown; displayName?: unknown; initials?: unknown } | null | undefined;
+    if (profile === null) return null;
     if (
       !profile ||
       typeof profile.id !== 'string' ||
       typeof profile.displayName !== 'string' ||
       typeof profile.initials !== 'string'
     )
-      return null;
+      return undefined;
     return { id: profile.id, name: profile.displayName, initials: profile.initials };
   } catch {
-    return null;
+    // A temporary failure is not "no profile": callers must not suggest creating one.
+    return undefined;
   }
 }
 

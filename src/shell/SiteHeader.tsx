@@ -71,7 +71,13 @@ function AccountMenu() {
         <Menu.Positioner sideOffset={8} align="end" className="menu-positioner">
           <Menu.Popup className="menu-popup">
             <div className="menu-identity">
-              <b>{profile?.name ?? 'プロフィール未作成'}</b>
+              <b>
+                {profile
+                  ? profile.name
+                  : profile === null
+                    ? 'プロフィール未作成'
+                    : 'プロフィールを読み込めませんでした'}
+              </b>
               <small>ログイン中</small>
             </div>
             <MenuLink to="/account">マイページ</MenuLink>
