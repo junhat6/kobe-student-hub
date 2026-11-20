@@ -1,4 +1,4 @@
-import { readAnonymousJson } from '../editor/anonymous-public-read';
+import { publicReadMissing, readAnonymousJson } from '../editor/anonymous-public-read';
 import {
   publicKeys,
   publicSlug,
@@ -9,9 +9,12 @@ import { validProjectAuthor } from '../editor/project-client';
 import type { PublicStudent } from '../public-student-types';
 
 export class PublicStudentClientError extends Error {
-  constructor() {
+  /** Absent or not public (404 / impossible id), as opposed to a failed read. */
+  readonly missing: boolean;
+  constructor(missing = false) {
     super('投稿者の公開情報を確認できませんでした。');
     this.name = 'PublicStudentClientError';
+    this.missing = missing;
   }
 }
 function valid(value: unknown, id: string): value is PublicStudent {
@@ -36,13 +39,13 @@ function valid(value: unknown, id: string): value is PublicStudent {
 export function createPublicStudentClient(fetcher: typeof fetch = fetch) {
   return {
     async read(id: string, signal?: AbortSignal): Promise<PublicStudent> {
+      if (!publicSlug(id)) throw new PublicStudentClientError(true);
       try {
-        if (!publicSlug(id)) throw new PublicStudentClientError();
         const value = await readAnonymousJson('/api/students/' + id, fetcher, signal);
         if (!valid(value, id)) throw new PublicStudentClientError();
         return value;
-      } catch {
-        throw new PublicStudentClientError();
+      } catch (error) {
+        throw new PublicStudentClientError(publicReadMissing(error));
       }
     },
   };

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { createPublicStudentClient } from './student-client';
-import { usePublicRead, ReadFailure } from './public-read';
+import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import PublicProjectCard from '../editor/PublicProjectCard';
 
@@ -14,7 +14,8 @@ export default function StudentProfile({
 }) {
   const client = useMemo(() => createPublicStudentClient(), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
-  const { value, failed, retry } = usePublicRead(id, read);
+  const { value, failed, missing, retry } = usePublicRead(id, read);
+  if (missing) return <ReadMissing subject="投稿者" />;
   if (failed) return <ReadFailure subject="投稿者" retry={retry} />;
   if (!value)
     return (

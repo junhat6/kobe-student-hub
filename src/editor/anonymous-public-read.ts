@@ -1,4 +1,13 @@
 class AnonymousReadError extends Error {}
+/** The server answered 404: the public item does not exist or is not public (reason withheld). */
+class AnonymousReadMissing extends AnonymousReadError {}
+/** True when a read failed because the item is absent or not public, not because of the network. */
+export function publicReadMissing(error: unknown): boolean {
+  return (
+    error instanceof AnonymousReadMissing ||
+    (error instanceof Error && (error as { missing?: unknown }).missing === true)
+  );
+}
 /** Bounded anonymous JSON transport: no identity bootstrap or credentials. */
 export async function readAnonymousJson(
   path: string,
@@ -43,7 +52,9 @@ export async function readAnonymousJson(
       !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
     ) {
       void response.body?.cancel().catch(() => {});
-      throw new AnonymousReadError();
+      throw response.status === 404 && !expired && !controller.signal.aborted
+        ? new AnonymousReadMissing()
+        : new AnonymousReadError();
     }
     const length = response.headers.get('Content-Length');
     if (
@@ -86,8 +97,8 @@ export async function readAnonymousJson(
   });
   try {
     return await Promise.race([work, deadline, aborted]);
-  } catch {
-    throw new AnonymousReadError();
+  } catch (error) {
+    throw error instanceof AnonymousReadMissing ? error : new AnonymousReadError();
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);

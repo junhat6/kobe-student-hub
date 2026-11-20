@@ -10,9 +10,12 @@ import type {
 import { normalizeProjectFields } from '../project-input';
 import { publicKeys, publicText, publicSlug } from './public-author-client';
 export class ProjectClientError extends Error {
-  constructor() {
+  /** Absent or not public (404 / impossible id), as opposed to a failed read. */
+  readonly missing: boolean;
+  constructor(missing = false) {
     super('作品の操作結果を確認できませんでした。');
     this.name = 'ProjectClientError';
+    this.missing = missing;
   }
 }
 export const projectUUID = (v: unknown): v is string =>

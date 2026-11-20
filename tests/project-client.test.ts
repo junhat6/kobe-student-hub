@@ -199,3 +199,11 @@ it('caps project reader at64KiB while author response keeps256KiB and rejects fa
       Response.json({ author, projects: [] })) as typeof fetch).author(profileId),
   ).rejects.toBeInstanceOf(ProjectClientError);
 });
+it('reports a 404 project as missing, distinct from a failed read', async () => {
+  const status = (s: number) =>
+    createPublicProjectClient((async () =>
+      Response.json({ error: 'x' }, { status: s })) as typeof fetch);
+  await expect(status(404).read(id)).rejects.toMatchObject({ missing: true });
+  await expect(status(503).read(id)).rejects.toMatchObject({ missing: false });
+  await expect(status(200).read('not-a-uuid')).rejects.toMatchObject({ missing: true });
+});

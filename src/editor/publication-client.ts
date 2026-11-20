@@ -24,9 +24,12 @@ export interface PublicationAttempt {
   author: PublicProfile;
 }
 export class PublicationClientError extends Error {
-  constructor() {
+  /** Absent or not public (404 / impossible id), as opposed to a failed read. */
+  readonly missing: boolean;
+  constructor(missing = false) {
     super('記事の公開状態を確認できませんでした。');
     this.name = 'PublicationClientError';
+    this.missing = missing;
   }
 }
 const uuid = (v: unknown): v is string =>
@@ -212,7 +215,10 @@ export function createPublicationClient(
         !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
       ) {
         void response.body?.cancel().catch(() => {});
-        throw new PublicationClientError();
+        // Only the anonymous reader distinguishes "absent or not public"; private reads stay opaque.
+        throw new PublicationClientError(
+          anonymous && value === undefined && !expired && response.status === 404,
+        );
       }
       const length = response.headers.get('Content-Length');
       if (
@@ -254,8 +260,10 @@ export function createPublicationClient(
     });
     try {
       return await Promise.race([work, deadline]);
-    } catch {
-      throw new PublicationClientError();
+    } catch (error) {
+      throw new PublicationClientError(
+        anonymous && error instanceof PublicationClientError && error.missing,
+      );
     } finally {
       clearTimeout(timer);
       cancel();
@@ -306,7 +314,7 @@ export function createPublicationClient(
       return result.contentId;
     },
     async readArticle(id: string): Promise<{ entry: Entry; author: Profile }> {
-      if (!uuid(id)) throw new PublicationClientError();
+      if (!uuid(id)) throw new PublicationClientError(true);
       const result = await request(publicPaths(surface).articleApi(id), undefined, true);
       if (!article(result) || result.entry.id !== id) throw new PublicationClientError();
       return result;

@@ -1,11 +1,14 @@
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { PublicLikedArticles } from '../types';
-import { readAnonymousJson } from './anonymous-public-read';
+import { publicReadMissing, readAnonymousJson } from './anonymous-public-read';
 import { publicKeys, publicSlug, publicText, validPublicSummary } from './public-author-client';
 export class PublicLikesClientError extends Error {
-  constructor() {
+  /** Absent or not public (404 / impossible id), as opposed to a failed read. */
+  readonly missing: boolean;
+  constructor(missing = false) {
     super('公開いいねを確認できませんでした。');
     this.name = 'PublicLikesClientError';
+    this.missing = missing;
   }
 }
 function valid(value: unknown, id: string): value is PublicLikedArticles {
@@ -35,13 +38,13 @@ export function createPublicLikesClient(
 ) {
   return {
     async read(id: string, signal?: AbortSignal): Promise<PublicLikedArticles> {
+      if (!publicSlug(id)) throw new PublicLikesClientError(true);
       try {
-        if (!publicSlug(id)) throw new PublicLikesClientError();
         const value = await readAnonymousJson(publicPaths(surface).likesApi(id), fetcher, signal);
         if (!valid(value, id)) throw new PublicLikesClientError();
         return value;
-      } catch {
-        throw new PublicLikesClientError();
+      } catch (error) {
+        throw new PublicLikesClientError(publicReadMissing(error));
       }
     },
   };

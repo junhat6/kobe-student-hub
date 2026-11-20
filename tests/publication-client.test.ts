@@ -173,6 +173,14 @@ describe('explicit saved-version publication client', () => {
       ),
     ).rejects.toBeInstanceOf(PublicationClientError);
   });
+  it('marks only an anonymous 404 article as missing', async () => {
+    const status = (s: number) =>
+      createPublicationClient('', (async () =>
+        Response.json({ error: 'x' }, { status: s })) as typeof fetch);
+    await expect(status(404).readArticle(contentId)).rejects.toMatchObject({ missing: true });
+    await expect(status(503).readArticle(contentId)).rejects.toMatchObject({ missing: false });
+    await expect(status(404).read(draftId)).rejects.toMatchObject({ missing: false });
+  });
   it('bounds malformed and oversized responses without reflecting server data', async () => {
     for (const make of [
       () => new Response('PRIVATE_SQL', { status: 503 }),

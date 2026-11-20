@@ -1,4 +1,4 @@
-import { usePublicRead, ReadFailure } from './public-read';
+import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import Projects from './Projects';
 import Search from './Search';
 import Home from './Home';
@@ -27,7 +27,11 @@ function StudentArticle({ id }: { id: string }) {
   );
   const client = useMemo(() => createPublicationClient('', fetch, 'ordinary'), []);
   const read = useMemo(() => (_signal: AbortSignal) => client.readArticle(id), [client, id]);
-  const { value, failed, retry } = usePublicRead<{ entry: Entry; author: Profile }>(id, read);
+  const { value, failed, missing, retry } = usePublicRead<{ entry: Entry; author: Profile }>(
+    id,
+    read,
+  );
+  if (missing) return <ReadMissing subject="記事" back={{ to: '/', label: '記事一覧へ戻る' }} />;
   if (failed) return <ReadFailure subject="記事" retry={retry} />;
   if (!value)
     return (
@@ -135,7 +139,8 @@ function StudentArticle({ id }: { id: string }) {
 function PublicLikes({ id }: { id: string }) {
   const client = useMemo(() => createPublicLikesClient(fetch, 'ordinary'), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
-  const { value, failed, retry } = usePublicRead<PublicLikedArticles>(id, read);
+  const { value, failed, missing, retry } = usePublicRead<PublicLikedArticles>(id, read);
+  if (missing) return <ReadMissing subject="公開いいね" />;
   if (failed) return <ReadFailure subject="公開いいね" retry={retry} />;
   if (!value)
     return (

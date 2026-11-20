@@ -64,3 +64,15 @@ it('never sends unsafe profile targets', async () => {
     );
   expect(f).not.toHaveBeenCalled();
 });
+it('marks a 404 as missing rather than a connection failure', async () => {
+  await expect(
+    createPublicLikesClient(
+      (async () => new Response('PRIVATE', { status: 404 })) as typeof fetch,
+    ).read(profile.id),
+  ).rejects.toMatchObject({ missing: true });
+  await expect(
+    createPublicLikesClient((async () => new Response('x', { status: 500 })) as typeof fetch).read(
+      profile.id,
+    ),
+  ).rejects.toMatchObject({ missing: false });
+});

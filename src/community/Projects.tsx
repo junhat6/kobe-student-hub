@@ -6,7 +6,7 @@ import { createPublicWorksClient } from '../editor/public-works-client';
 import PublicProjectCard from '../editor/PublicProjectCard';
 import { ProjectText } from '../editor/ProjectRegistration';
 import ProjectReport from '../editor/ProjectReport';
-import { usePublicRead, ReadFailure } from './public-read';
+import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 
 function Works() {
@@ -55,10 +55,12 @@ function Works() {
 function Project({ id }: { id: string }) {
   const client = useMemo(() => createPublicProjectClient(fetch, 'ordinary'), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
-  const { value, failed, retry } = usePublicRead(id, read);
+  const { value, failed, missing, retry } = usePublicRead(id, read);
   const reportRisk = useUnsavedNavigation(
     '未送信の通報、または結果を確認中の操作があります。画面を離れると手元の入力は失われます。移動しますか？',
   );
+  if (missing)
+    return <ReadMissing subject="作品" back={{ to: '/works', label: '作品一覧へ戻る' }} />;
   if (failed) return <ReadFailure subject="作品" retry={retry} />;
   if (!value)
     return (

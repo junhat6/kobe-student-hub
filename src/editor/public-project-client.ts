@@ -1,4 +1,4 @@
-import { readAnonymousJson } from './anonymous-public-read';
+import { publicReadMissing, readAnonymousJson } from './anonymous-public-read';
 import {
   projectUUID,
   validProjectReader,
@@ -13,8 +13,8 @@ export function createPublicProjectClient(
 ) {
   return {
     async read(id: string, signal?: AbortSignal) {
+      if (!projectUUID(id)) throw new ProjectClientError(true);
       try {
-        if (!projectUUID(id)) throw new ProjectClientError();
         const v = await readAnonymousJson(
           publicPaths(surface).projectApi(id),
           fetcher,
@@ -23,13 +23,13 @@ export function createPublicProjectClient(
         );
         if (!validProjectReader(v, id)) throw new ProjectClientError();
         return v;
-      } catch {
-        throw new ProjectClientError();
+      } catch (error) {
+        throw new ProjectClientError(publicReadMissing(error));
       }
     },
     async author(id: string, signal?: AbortSignal) {
+      if (!publicSlug(id)) throw new ProjectClientError(true);
       try {
-        if (!publicSlug(id)) throw new ProjectClientError();
         const v = await readAnonymousJson(
           publicPaths(surface).projectAuthorApi(id),
           fetcher,
@@ -37,8 +37,8 @@ export function createPublicProjectClient(
         );
         if (!validProjectAuthor(v, id)) throw new ProjectClientError();
         return v;
-      } catch {
-        throw new ProjectClientError();
+      } catch (error) {
+        throw new ProjectClientError(publicReadMissing(error));
       }
     },
   };

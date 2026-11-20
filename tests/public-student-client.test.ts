@@ -66,3 +66,24 @@ describe('ordinary combined public student transport', () => {
     expect(c.fetcher).not.toHaveBeenCalled();
   });
 });
+describe('absent or hidden public student', () => {
+  it('marks 404 and impossible ids as missing, but keeps network and malformed failures as failures', async () => {
+    const missing = createPublicStudentClient(
+      vi.fn<typeof fetch>(async () => Response.json({ error: 'x' }, { status: 404 })),
+    ).read(author.id);
+    await expect(missing).rejects.toMatchObject({ missing: true });
+    await expect(createPublicStudentClient(vi.fn()).read('../x')).rejects.toMatchObject({
+      missing: true,
+    });
+    for (const fetcher of [
+      vi.fn<typeof fetch>(async () => Response.json({ error: 'x' }, { status: 503 })),
+      vi.fn<typeof fetch>(async () => {
+        throw new TypeError('offline');
+      }),
+      vi.fn<typeof fetch>(async () => Response.json({ author, entries: [], projects: [] })),
+    ])
+      await expect(createPublicStudentClient(fetcher).read(author.id)).rejects.toMatchObject({
+        missing: false,
+      });
+  });
+});
