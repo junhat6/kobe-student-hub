@@ -181,7 +181,7 @@
   align-items: center;
   gap: 4px 12px;
   font-size: 13px;
-  color: var(--ink-muted, #6a7581);
+  color: var(--ink-muted, #636d79);
 }
 .draft-editor--ordinary .editor-draft-management > p {
   margin: 0;

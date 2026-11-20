@@ -101,7 +101,7 @@ nav {
   font-weight: 650;
 }
 nav a[aria-current='page'] {
-  color: #087bbe;
+  color: #0875b5;
 }
 .nav-button {
   border: 1px solid #dce4e9;
@@ -212,7 +212,7 @@ h1 {
 }
 .quick-tags a:hover,
 .tags a:hover {
-  color: #087bbe;
+  color: #0875b5;
 }
 .hero-visual {
   position: relative;
@@ -241,7 +241,7 @@ h1 {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: #8ba3b1;
+  color: #62737d;
 }
 .note > b {
   display: block;
@@ -333,7 +333,7 @@ h1 {
 .filters button {
   border: 0;
   background: transparent;
-  color: #6b7c89;
+  color: #62727e;
   font-size: 12px;
   font-weight: 650;
   padding: 10px 3px 12px;
@@ -370,7 +370,7 @@ h1 {
   justify-content: center;
   position: relative;
   gap: 16px;
-  color: #7b9aab;
+  color: #5a717e;
 }
 .card-art > span {
   font-size: 10px;
@@ -390,25 +390,24 @@ h1 {
   font-size: 6px;
   font-style: normal;
   letter-spacing: 0.16em;
-  opacity: 0.65;
 }
 .card-art.git {
   background: #f1f1fb;
-  color: #8a89af;
+  color: #6b6a88;
 }
 .card-art.git > b {
   color: #aaa4d2;
 }
 .card-art.project {
   background: #eaf5ef;
-  color: #6b9c86;
+  color: #507564;
 }
 .card-art.project > b {
   color: #8bbba3;
 }
 .card-art.team {
   background: #fcf3e8;
-  color: #b59670;
+  color: #816b50;
 }
 .card-art.team > b {
   color: #dab780;
@@ -437,7 +436,7 @@ h1 {
   letter-spacing: -0.025em;
 }
 .card h3 a:hover {
-  color: #087bbe;
+  color: #0875b5;
 }
 .card-content > p {
   font-size: 11px;
@@ -453,7 +452,7 @@ h1 {
 }
 .tags a {
   font-size: 10px;
-  color: #667e8c;
+  color: #5c727f;
   background: #f3f6f8;
   padding: 3px 8px;
   border-radius: 4px;
@@ -476,7 +475,7 @@ h1 {
   min-width: 0;
 }
 .author:hover {
-  color: #087bbe;
+  color: #0875b5;
 }
 .author small {
   display: block;
@@ -601,7 +600,7 @@ h1 {
   font-size: 18px;
 }
 .empty p {
-  color: #708492;
+  color: #61727e;
   font-size: 13px;
 }
 footer {
@@ -636,7 +635,7 @@ footer > span {
 }
 .back {
   font-size: 12px;
-  color: #6a8495;
+  color: #5d7382;
 }
 .detail-header {
   padding-top: 35px;
@@ -646,7 +645,7 @@ footer > span {
 }
 .detail-summary {
   font-size: 14px;
-  color: #718492;
+  color: #62727e;
 }
 .detail-author {
   display: flex;
@@ -654,7 +653,7 @@ footer > span {
   gap: 12px;
   align-items: center;
   font-size: 10px;
-  color: #8599a6;
+  color: #63727c;
   margin: 24px 0 20px;
 }
 .reader-context {
@@ -712,14 +711,14 @@ footer > span {
   list-style: decimal;
 }
 .prose a {
-  color: #087bbe;
+  color: #0875b5;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
 .prose blockquote {
   border-left: 3px solid #a9c5d6;
   padding-left: 18px;
-  color: #6b8392;
+  color: #5e7380;
   margin: 25px 0;
 }
 .prose pre {
@@ -735,6 +734,30 @@ footer > span {
   background: transparent;
   padding: 0;
 }
+/* Darken the GitHub theme colours that fall below 4.5:1 on the code block background. */
+.prose pre .hljs-keyword,
+.prose pre .hljs-doctag,
+.prose pre .hljs-template-tag,
+.prose pre .hljs-template-variable,
+.prose pre .hljs-type,
+.prose pre .hljs-variable.language_ {
+  color: #c93644;
+}
+.prose pre .hljs-built_in,
+.prose pre .hljs-symbol {
+  color: #b64e07;
+}
+.prose pre .hljs-comment,
+.prose pre .hljs-code,
+.prose pre .hljs-formula {
+  color: #666f79;
+}
+.prose pre .hljs-name,
+.prose pre .hljs-quote,
+.prose pre .hljs-selector-tag,
+.prose pre .hljs-selector-pseudo {
+  color: #207e37;
+}
 .related {
   margin-top: 40px;
 }
@@ -744,13 +767,13 @@ footer > span {
 }
 .related > p {
   font-size: 13px;
-  color: #748998;
+  color: #61727f;
 }
 .detail-layout aside {
   padding-top: 66px;
 }
 .sample-note {
-  color: #8194a1;
+  color: #63727c;
   font-size: 11px;
   line-height: 2;
   margin-top: 20px;
@@ -778,7 +801,7 @@ footer > span {
 }
 .profile-header p {
   font-size: 13px;
-  color: #748999;
+  color: #617280;
 }
 .profile-page > h2 {
   font-size: 20px;
@@ -1101,7 +1124,7 @@ footer > span {
   font-feature-settings: normal;
 }
 .brand-icon {
-  color: #3ea8ff;
+  color: #2a73af;
   background: #edf7ff;
 }
 .hero h1 span {

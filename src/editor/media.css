@@ -62,7 +62,7 @@
 .media-head p {
   margin: 0;
   font-size: 13px;
-  color: var(--ink-muted, #6a7581);
+  color: var(--ink-muted, #636d79);
   line-height: 1.6;
 }
 .media-pick {
