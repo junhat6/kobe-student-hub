@@ -227,3 +227,55 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
     ).status(),
   ).toBe(405);
 });
+
+test('service explanation, rules and privacy stay readable while every API is down', async ({
+  page,
+}) => {
+  let down = true;
+  await page.route('**/api/**', (route) =>
+    down
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+      : route.fallback(),
+  );
+  await page.goto('/');
+  const footer = page.getByRole('navigation', { name: 'サイトについて', exact: true });
+  await footer.getByRole('link', { name: '利用ルール・問い合わせ', exact: true }).click();
+  await expect(page).toHaveURL(ORIGIN + '/guide');
+  await expect(
+    page.getByRole('heading', { name: '利用ルールと情報の扱い', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('学校公式のサービスではありません。', { exact: false }),
+  ).toBeVisible();
+  for (const name of [
+    '共有するときのルール',
+    '公開する情報・自分だけの情報',
+    '問い合わせ・異議申立て',
+  ])
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  await expect(
+    page.getByText('問い合わせ先を確認できませんでした。', { exact: true }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await footer.getByRole('link', { name: 'このサイトについて', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Kobe Student Hubについて', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('学校公式のサービスではありません。', { exact: false }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Kobe Student Hubについて', exact: true }),
+  ).toBeVisible();
+  await page.goto('/guide#contact');
+  await expect(
+    page.getByRole('heading', { name: '問い合わせ・異議申立て', exact: true }),
+  ).toBeFocused();
+  down = false;
+  await page.getByRole('button', { name: '問い合わせ先を再読み込み', exact: true }).click();
+  await expect(page.getByText('問い合わせ窓口は現在未設定です。', { exact: false })).toBeVisible();
+});

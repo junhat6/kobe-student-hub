@@ -276,9 +276,9 @@
       ],
       "journey": "J1",
       "risk": "R0",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": null
+      "evidence": "/guide（利用ルール・情報の扱い・問い合わせ）と /about（学校公式ではない旨）。tests/ordinary-service-info-browser.spec.ts「service explanation, rules and privacy stay readable while every API is down」で /api/** を全て503にしてもフッターから両ページへ進み本文が読め、問い合わせ先は再読み込みで回復（account-desktop 1280 / account-mobile 390）。問い合わせ先の安全な公開は同spec既存テスト、サンプル版の /about は tests/discovery.spec.ts"
     },
     {
       "id": "C19",
