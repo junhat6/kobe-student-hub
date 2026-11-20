@@ -76,6 +76,7 @@ async function project(
   owner: Actor,
   title: string,
   description = 'DuckDBで集計した架空作品の紹介',
+  articleIds?: string[],
 ) {
   const draft = await write(owner, '/api/private/project-drafts', {
     title,
@@ -86,6 +87,7 @@ async function project(
   const published = await write(owner, '/api/private/project-publications/' + draft.id, {
     expectedVersion: draft.version,
     confirmPublic: true,
+    ...(articleIds ? { articleIds } : {}),
   });
   return { id: published.projectId as string, version: draft.version as number };
 }
@@ -103,6 +105,8 @@ test('ordinary new, real popularity, tag recommendations and related article/pro
     const source = await article(owner, '技術選定の記録-' + key, tag),
       next = await article(owner, '比較した結果-' + key, tag),
       work = await project(owner, '制作した作品-' + key, tag + 'を使った架空作品の説明');
+    // Published last so that recency alone would not put it first: the owner's explicit link must.
+    await project(owner, '紐づけた作品-' + key, 'タグを含まない架空の説明', [source.id]);
     const liked = await liker.context.request.put('/api/private/article-likes/' + source.id, {
       headers: { Origin: ORIGIN, Authorization: 'Bearer csrf.' + liker.csrf },
       data: { liked: true, confirmPublic: true },
@@ -166,6 +170,17 @@ test('ordinary new, real popularity, tag recommendations and related article/pro
     await expect(
       related.getByRole('link', { name: '技術選定の記録-' + key, exact: true }),
     ).toHaveCount(0);
+    // Explicit owner link → same tag article → tag-matching project, in that order.
+    await expect(related.locator('.related-reading-reason')).toHaveText([
+      'この記事を紐づけた作品',
+      '同じタグ「' + tag + '」の記事',
+      'タイトル・説明に「' + tag + '」を含む作品',
+    ]);
+    await expect(related.getByRole('heading', { level: 3 })).toHaveText([
+      '紐づけた作品-' + key,
+      '比較した結果-' + key,
+      '制作した作品-' + key,
+    ]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -194,8 +209,39 @@ test('ordinary new, real popularity, tag recommendations and related article/pro
   }
 });
 
+test('an article with no related reading still offers a way onward', async ({
+  page,
+  browser,
+}, info) => {
+  const contexts: BrowserContext[] = [];
+  const key = 'lonely-' + info.project.name + '-' + Date.now().toString(36);
+  try {
+    const owner = await actor(browser, contexts, '架空制作者-' + key);
+    const lonely = await article(owner, '関連のない記事-' + key, '孤立' + Date.now().toString(36));
+    await page.goto('/articles/' + lonely.id);
+    const related = page.getByRole('region', { name: '関連する記事・作品' });
+    await expect(
+      related.getByText('同じタグの記事・作品はまだありません。', { exact: false }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: info.outputPath('ordinary-related-empty.png'),
+      fullPage: true,
+      scale: 'css',
+    });
+    await related.getByRole('link', { name: 'ほかの記事を探す →', exact: true }).click();
+    await expect(page).toHaveURL(ORIGIN + '/');
+    await expect(page.getByRole('button', { name: '新着', exact: true })).toBeVisible();
+  } finally {
+    for (const context of contexts) await context.close();
+  }
+});
+
 test('ordinary popularity and related read failures have truthful empty and retry states', async ({
   page,
+  browser,
 }, info) => {
   await page.route('**/api/discovery', (route) =>
     route.fulfill({ json: { recent: [], popular: [] } }),
@@ -205,6 +251,30 @@ test('ordinary popularity and related read failures have truthful empty and retr
   await expect(
     page.getByRole('heading', { name: 'まだ記事がありません', exact: true }),
   ).toBeVisible();
+  await page.unroute('**/api/discovery');
+  // Articles exist but nobody has liked any: no invented ranking, and a way back to new posts.
+  const contexts: BrowserContext[] = [];
+  try {
+    const owner = await actor(browser, contexts, '架空制作者-unliked-' + info.project.name);
+    await article(owner, 'いいね前の記事-' + info.project.name + '-' + Date.now().toString(36));
+  } finally {
+    for (const context of contexts) await context.close();
+  }
+  await page.route('**/api/discovery', async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), popular: [] } });
+  });
+  await page.reload();
+  await page.getByRole('button', { name: '人気', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: '公開いいねのある記事はまだありません', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/^公開いいね \d+件$/)).toHaveCount(0);
+  await page.getByRole('button', { name: '新着の記事を見る', exact: true }).click();
+  await expect(page.getByRole('button', { name: '新着', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await page.unroute('**/api/discovery');
   let fail = true;
   await page.route('**/api/discovery', async (route) =>

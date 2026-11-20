@@ -196,12 +196,18 @@ export default function Home() {
         ) : !cards?.length ? (
           <div className="empty home-empty">
             <h2>
-              {view === 'popular'
+              {view === 'popular' && !value.popular.length
                 ? '公開いいねのある記事はまだありません'
                 : view === 'recommended' && !tag
                   ? 'タグの付いた記事はまだありません'
                   : '一致する記事がありません'}
             </h2>
+            {view === 'popular' && !value.popular.length && (
+              <>
+                <p>いいねが付くとここに並びます。今は新しく公開された記事から読めます。</p>
+                <Button onClick={() => setView('recent')}>新着の記事を見る</Button>
+              </>
+            )}
             {query && <Button onClick={() => setParams({})}>検索を解除</Button>}
           </div>
         ) : (
