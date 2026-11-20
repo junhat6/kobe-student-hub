@@ -83,8 +83,11 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 | --- | --- | --- | --- |
 | `ksh release` | 3 時間ごと（9〜24 時） | `release`：未リリースの commit がある・main-health が赤でない・open な `P0` Issue が無い・rc の CI が実行中でない | `npm run release -- --deploy` を実行し、結果ごとに対応する |
 | `ksh mend` | 毎時 | `mend`：main-health の最新が失敗 | 失敗の原因を直して main に push する（アンドン） |
-| `ksh patrol` | 3 時間ごと | `patrol`：`patrol-log` Issue に記録した前回 SHA 以降に `src/`・`worker/`・`public/` の変更がある、または前回巡回の後に release が出た | 別 context で PC / モバイルの利用者の旅を歩き、UX の所見を Issue にする |
+| `ksh patrol` | 3 時間ごと（`docs/loop/prompts/patrol.md`） | `patrol`：`patrol-log` Issue に記録した前回 SHA 以降に `src/`・`worker/`・`public/` の変更がある、または前回巡回の後に release が出た | 別 context で PC / モバイルの利用者の旅を歩き、UX の所見を Issue にする |
+| `ksh finish` | 30 分ごと | `finish`：未 claim の `P0`/`P1`（`loop:finish`/`loop:ux`）があり、claim 中が 3 件未満 | `docs/loop/prompts/finish.md` に従って Issue を 1 件閉じる |
+| `ksh garden` | 毎日 5:00 | `garden`：`garden-log` の前回 SHA 以降に main への commit がある | `docs/loop/prompts/garden.md` |
+| `ksh replan` | 4 時間ごと | `replan`：前回 `Loop: replan` 以降に Issue か completion.json の変化、待ち行列が空、または blocked が 3 件以上 | `docs/loop/prompts/replan.md` |
 
 ラベル：`P0`（open の間は列車を止める）、`patrol-log`（巡回記録）、`needs-human`（契約・secret・リモート D1 など、人の判断が必要なもの）。
 
-finish / garden / replan は LOOPS.md の定義に従って同じ形で登録する。GitHub のイベント（CI 失敗・Issue）で起動する Orca bot は、作成に owner の承認が必要なため未作成。
+いずれも 1 回の起動ごとに新しい worktree を作り、指示書（`docs/loop/prompts/<名前>.md`）を読んで 1 周だけ回す。指示書を書き換えれば、automation を登録し直さなくても次の周回から反映される。GitHub のイベント（CI 失敗・Issue）で起動する Orca bot は、作成に owner の承認が必要なため未作成。
