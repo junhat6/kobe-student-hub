@@ -162,7 +162,7 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
     await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
     await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
     await reader.reload();
-    await expect(reader.getByRole('heading', { name: '記事を表示できませんでした' })).toBeVisible();
+    await expect(reader.getByRole('heading', { name: '記事が見つかりません' })).toBeVisible();
     await reader.goto('/');
     await expect(
       reader.getByRole('link', { name: '架空のAI技術選定ノート', exact: true }),
@@ -535,7 +535,7 @@ test('ordinary author corrects an article at the same URL after saving and expli
     await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
     await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
     await reader.reload();
-    await expect(reader.getByRole('heading', { name: '記事を表示できませんでした' })).toBeVisible();
+    await expect(reader.getByRole('heading', { name: '記事が見つかりません' })).toBeVisible();
   } finally {
     await guest.close();
   }

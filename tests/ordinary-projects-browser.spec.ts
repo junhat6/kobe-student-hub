@@ -158,7 +158,7 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
     await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
     await reader.goto(path!);
-    await expect(reader.getByRole('heading', { name: '作品を表示できませんでした' })).toBeVisible();
+    await expect(reader.getByRole('heading', { name: '作品が見つかりません' })).toBeVisible();
     await reader.goto('/works');
     await expect(reader.getByRole('link', { name: title, exact: true })).toHaveCount(0);
   } finally {
