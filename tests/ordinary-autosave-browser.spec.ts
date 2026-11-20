@@ -339,9 +339,20 @@ test('ordinary project input autosaves, resumes after reload and never publishes
   expect(saves).toBe(1);
   await image(page, info, 'project-autosaved');
   await page.reload();
-  await page.getByRole('button', { name: '保存版を確認：架空の自動保存作品', exact: true }).click();
-  await page.getByRole('button', { name: 'この保存版を開く', exact: true }).click();
+  // One click resumes the saved project, like the article draft list (#139).
+  const resume = page.getByRole('button', { name: '続きを編集：架空の自動保存作品', exact: true });
+  await resume.click();
+  await expect(projectTitle(page)).toHaveValue('架空の自動保存作品');
   await expect(projectBody(page)).toHaveValue('作品説明を保存して、別の日に再開する。');
+  await expect(page.getByRole('region', { name: '比較用の作品保存版' })).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('続きを編集できます');
+  await expect(page.getByText('編集中 · 版 1', { exact: true })).toBeVisible();
+  await image(page, info, 'project-resumed');
+  // Unsaved edits are not replaced without confirmation.
+  await projectTitle(page).fill('架空の自動保存作品（追記中）');
+  page.once('dialog', (dialog) => void dialog.dismiss());
+  await resume.click();
+  await expect(projectTitle(page)).toHaveValue('架空の自動保存作品（追記中）');
   await privateBuffer(page);
   expect(publications).toBe(0);
 });

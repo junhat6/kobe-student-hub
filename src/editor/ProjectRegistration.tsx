@@ -305,17 +305,15 @@ export default function ProjectRegistration({
       }
     });
   }
-  function openCandidate() {
-    if (!candidate) return;
-    if (hasUnsaved && !window.confirm('手元の作品情報を、表示した保存版で置き換えますか？')) return;
+  function load(value: ProjectDraft, notice: string) {
     cancelAutosave();
     setInput({
-      title: candidate.title,
-      description: candidate.description,
-      githubUrl: candidate.githubUrl,
-      demoUrl: candidate.demoUrl,
+      title: value.title,
+      description: value.description,
+      githubUrl: value.githubUrl,
+      demoUrl: value.demoUrl,
     });
-    setSaved(candidate);
+    setSaved(value);
     setCandidate(null);
     setCreateUnknown(false);
     setSaveUnknown(false);
@@ -327,7 +325,32 @@ export default function ProjectRegistration({
     composition.current = false;
     setComposing(false);
     attempt.current = null;
-    setMessage('確認した保存版を開きました。');
+    setMessage(notice);
+  }
+  function openCandidate() {
+    if (!candidate) return;
+    if (hasUnsaved && !window.confirm('手元の作品情報を、表示した保存版で置き換えますか？')) return;
+    load(candidate, '確認した保存版を開きました。');
+  }
+  // Ordinary authors resume a saved project in one step, like the article draft list.
+  async function resume(id: string) {
+    if (
+      hasUnsaved &&
+      !window.confirm('手元の未保存の作品情報を破棄して、選んだ作品の続きを開きますか？')
+    )
+      return;
+    await run(async (signal, g) => {
+      setMessage('保存した作品を開いています…');
+      try {
+        const value = await client.read(id, signal);
+        if (current(g)) {
+          setList((rows) => mergeConfirmedProject(rows, value));
+          load(value, '保存した作品を開きました。続きを編集できます。');
+        }
+      } catch {
+        if (current(g)) setMessage('保存した作品を開けませんでした。手元の入力は残しています。');
+      }
+    });
   }
   function rebase() {
     if (!candidate || !saved || candidate.id !== saved.id) return;
@@ -457,17 +480,27 @@ export default function ProjectRegistration({
       {listFailed && (
         <p role="alert">保存一覧を確認できません。入力や現在の保存版は残しています。</p>
       )}
-      <h3>この画面で確認した保存記録</h3>
+      <h3>{ordinary ? '保存した作品' : 'この画面で確認した保存記録'}</h3>
       <p>
-        一覧で取得した記録に、その後この画面で確認した保存版を反映し、更新時刻順に最大20件表示します。他の画面で保存した変更は「作品の保存一覧を更新」で確認してください。
+        {ordinary
+          ? '選ぶと、その作品の続きをすぐ編集できます。更新が新しい順に最大20件表示します。別の端末で保存した変更は「作品の保存一覧を更新」で読み込めます。'
+          : '一覧で取得した記録に、その後この画面で確認した保存版を反映し、更新時刻順に最大20件表示します。他の画面で保存した変更は「作品の保存一覧を更新」で確認してください。'}
       </p>
       <ul className="project-draft-list" aria-label="確認済みの作品保存記録">
         {list.map((row) => (
-          <li key={row.id}>
-            <Button disabled={busy} onClick={() => void inspect(row.id)}>
-              保存版を確認：{row.title}
-            </Button>
-            <small>版 {row.version}</small>
+          <li key={row.id} aria-current={ordinary && saved?.id === row.id ? 'true' : undefined}>
+            {ordinary ? (
+              <Button disabled={busy} onClick={() => void resume(row.id)}>
+                続きを編集：{row.title}
+              </Button>
+            ) : (
+              <Button disabled={busy} onClick={() => void inspect(row.id)}>
+                保存版を確認：{row.title}
+              </Button>
+            )}
+            <small>
+              {ordinary && saved?.id === row.id ? '編集中 · ' : ''}版 {row.version}
+            </small>
           </li>
         ))}
       </ul>
