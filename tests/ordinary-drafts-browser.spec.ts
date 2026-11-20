@@ -44,6 +44,7 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
   await expect(page).toHaveURL(ORIGIN + '/account');
   await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
   await page.unroute(provider);
+  return actor;
 }
 async function enterDrafts(page: Page) {
   await page.getByRole('link', { name: '記事を書く', exact: true }).click();
@@ -66,7 +67,7 @@ async function confirmNavigation(page: Page, action: () => Promise<unknown>, lea
 }
 // Use the existing signed-provider HTTP flow to replace a cookie without changing the observed page.
 // Proofs remain local variables and are not returned or written to browser storage.
-async function replaceSession(context: BrowserContext) {
+async function replaceSession(context: BrowserContext, actor = 'fictional-browser-b') {
   const headers = { Origin: ORIGIN };
   const boot = await context.request.post(ORIGIN + '/api/auth/bootstrap', { headers });
   expect([204, 409]).toContain(boot.status());
@@ -85,9 +86,7 @@ async function replaceSession(context: BrowserContext) {
   expect(
     (
       await context.request.get(
-        ORIGIN +
-          '/__control/token?' +
-          new URLSearchParams({ state, nonce, actor: 'fictional-browser-b' }),
+        ORIGIN + '/__control/token?' + new URLSearchParams({ state, nonce, actor }),
       )
     ).status(),
   ).toBe(200);
@@ -448,4 +447,70 @@ test('an autosave under a replaced session never strands the reader before conti
   await expect(
     page.getByRole('button', { name: '前のアカウントで自動保存しかけた下書き', exact: true }),
   ).toHaveCount(0);
+});
+
+async function image(page: Page, info: TestInfo, name: string) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath(name + '.png'), fullPage: true, scale: 'css' });
+}
+const rescueBox = (page: Page) =>
+  page.getByRole('textbox', { name: '保存できなかった文章の内容', exact: true });
+async function expireWhileTyping(page: Page, context: BrowserContext) {
+  await create(page);
+  await title(page).fill('期限切れの記事');
+  await body(page).fill('一段落目');
+  await expect(page.getByText('下書きを保存しました。', { exact: true })).toBeVisible();
+  expect((await context.request.get(ORIGIN + '/__control/expire')).status()).toBe(200);
+  await body(page).fill('一段落目\n\n期限切れ後に書いた二段落目');
+  await expect(
+    page.getByRole('heading', { name: '保存できなかった文章', exact: true }),
+  ).toBeVisible();
+  await expect(rescueBox(page)).toHaveValue(
+    '期限切れの記事\n\n一段落目\n\n期限切れ後に書いた二段落目',
+  );
+  await expect(page.getByRole('link', { name: '新しいタブでログインし直す' })).toHaveAttribute(
+    'target',
+    '_blank',
+  );
+  await expect(title(page)).toHaveCount(0);
+  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
+}
+
+test('an expired session keeps unsaved text and restores it to the same draft after login', async ({
+  page,
+  context,
+}, info) => {
+  const actor = await register(page, info);
+  await enterDrafts(page);
+  await expireWhileTyping(page, context);
+  await image(page, info, 'expired-rescue');
+  await replaceSession(context, actor);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await expect(body(page)).toHaveValue('一段落目\n\n期限切れ後に書いた二段落目');
+  await expect(rescueBox(page)).toHaveCount(0);
+  await expect(page.getByText('下書きを保存しました。', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: '期限切れの記事', exact: true }).click();
+  await expect(body(page)).toHaveValue('一段落目\n\n期限切れ後に書いた二段落目');
+  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
+});
+
+test('kept text is never applied to another account and can be discarded', async ({
+  page,
+  context,
+}, info) => {
+  await register(page, info);
+  await enterDrafts(page);
+  await expireWhileTyping(page, context);
+  await replaceSession(context);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await expect(page.getByText(/このアカウントの下書きとして開けませんでした/)).toBeVisible();
+  await expect(title(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '期限切れの記事', exact: true })).toHaveCount(0);
+  await expect(rescueBox(page)).toBeVisible();
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'この文章を破棄', exact: true }).click();
+  await expect(rescueBox(page)).toHaveCount(0);
 });

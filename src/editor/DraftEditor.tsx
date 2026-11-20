@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Button } from '@base-ui/react/button';
 import MarkdownRenderer from '../MarkdownRenderer';
 import { createDraftClient, type EditorDraft, type DraftSummary } from './draft-client';
+import type { RescueChannel } from '../account/AccountSessionBoundary';
 import './editor.css';
 import PublicationComposer from './PublicationComposer';
 import MediaAttachments from './MediaAttachments';
@@ -40,11 +41,13 @@ export default function DraftEditor({
   fetcher = fetch,
   variant = 'lab',
   onNavigationRiskChange,
+  rescue,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
   variant?: 'lab' | 'ordinary';
   onNavigationRiskChange?: (value: boolean) => void;
+  rescue?: RescueChannel;
 }) {
   const ordinary = variant === 'ordinary';
   const EditorRegion = ordinary ? 'section' : 'main';
@@ -182,9 +185,58 @@ export default function DraftEditor({
       }
     });
   }
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const provideRescue = rescue?.provide;
+  // Lets the session boundary keep unsaved text in memory when the session expires.
+  useLayoutEffect(() => {
+    if (!provideRescue) return;
+    provideRescue(() => {
+      const current = draftRef.current,
+        value = currentText.current;
+      return current && !same(value, current)
+        ? { draftId: current.id, title: value.title, body: value.body }
+        : null;
+    });
+    return () => provideRescue(null);
+  }, [provideRescue]);
+  const pendingRescue = useRef(rescue?.pending ?? null);
+  const rescueRestored = rescue?.restored;
+  // The server decides whether the new session owns the draft; the text is only applied after it opens.
+  async function restoreRescue() {
+    const value = pendingRescue.current;
+    pendingRescue.current = null;
+    if (!value) return;
+    await run(async () => {
+      setOpening(true);
+      setStatus('保存できなかった文章を下書きに戻しています…');
+      try {
+        const opened = await client.read(value.draftId);
+        if (!mounted.current) return;
+        if (opened.id !== value.draftId) throw Error('Unexpected draft');
+        open(opened);
+        setText({ title: value.title, body: value.body });
+        setStatus(
+          same(value, opened)
+            ? '保存できなかった文章は、すでに保存済みの版と同じでした。'
+            : 'ログインが切れる前の文章を下書きに戻しました。まだ保存されていません。',
+        );
+        rescueRestored?.();
+      } catch {
+        if (mounted.current)
+          setStatus(
+            '保存できなかった文章を、このアカウントの下書きとして開けませんでした。上に残した文章をコピーして使ってください。',
+          );
+      } finally {
+        if (mounted.current) setOpening(false);
+      }
+    });
+  }
   useEffect(() => {
     mounted.current = true;
-    void refresh();
+    void refresh().then(() => {
+      if (mounted.current) return restoreRescue();
+    });
     return () => {
       mounted.current = false;
     };

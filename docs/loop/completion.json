@@ -308,7 +308,7 @@
       "risk": "R1",
       "status": "unverified",
       "production": "unknown",
-      "evidence": null
+      "evidence": "受け入れ3（ログイン切れ）: tests/ordinary-drafts-browser.spec.ts「an expired session keeps unsaved text and restores it to the same draft after login」「kept text is never applied to another account and can be discarded」(#137, R2 独立検証待ち)。受け入れ1・2は未確認"
     }
   ]
 }

@@ -7,11 +7,15 @@ import './ordinary-drafts.css';
 
 /** Route protection belongs to the ordinary data router, outside session visibility changes. */
 export default function OrdinaryDrafts() {
-  const risk = useRef(false);
+  const risk = useRef(false),
+    rescueRisk = useRef(false);
   const onNavigationRiskChange = useCallback((value: boolean) => {
     risk.current = value;
   }, []);
-  const blocker = useBlocker(useCallback(() => risk.current, []));
+  const onRescueChange = useCallback((value: boolean) => {
+    rescueRisk.current = value;
+  }, []);
+  const blocker = useBlocker(useCallback(() => risk.current || rescueRisk.current, []));
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
     if (
@@ -26,6 +30,7 @@ export default function OrdinaryDrafts() {
     <section className="ordinary-drafts">
       <AccountSessionBoundary
         variant="authoring"
+        onRescueChange={onRescueChange}
         signedOutContent={
           <div className="account-signed-out">
             <Link className="primary" to="/login">
@@ -35,11 +40,12 @@ export default function OrdinaryDrafts() {
           </div>
         }
       >
-        {({ csrfToken, fetcher }) => (
+        {({ csrfToken, fetcher, rescue }) => (
           <DraftEditor
             variant="ordinary"
             csrfToken={csrfToken}
             fetcher={fetcher}
+            rescue={rescue}
             onNavigationRiskChange={onNavigationRiskChange}
           />
         )}

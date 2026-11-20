@@ -22,18 +22,40 @@ type Phase =
   | 'unverified'
   | 'logout-pending'
   | 'logout-unknown';
+/** Unsaved article text kept in page memory only when the session itself expired. */
+export interface UnsavedRescue {
+  draftId: string;
+  title: string;
+  body: string;
+}
+export interface RescueChannel {
+  /** The editor registers how to read its unsaved buffer; null unregisters. */
+  provide: (read: (() => UnsavedRescue | null) | null) => void;
+  /** Text waiting to be restored after the user signs in again. */
+  pending: UnsavedRescue | null;
+  /** Called only after the server opened the same draft for the new session. */
+  restored: () => void;
+}
 export interface AccountSessionBoundaryProps {
   variant?: 'lab' | 'account' | 'authoring';
-  children: (session: { csrfToken: string; fetcher: typeof fetch }) => ReactNode;
+  children: (session: {
+    csrfToken: string;
+    fetcher: typeof fetch;
+    rescue?: RescueChannel;
+  }) => ReactNode;
   signedOutContent?: ReactNode;
   title?: string;
+  onRescueChange?: (value: boolean) => void;
 }
+const EXPIRED_WITH_RESCUE =
+  'ログインの有効期限が切れたため、最後の変更を保存できませんでした。保存できなかった文章を下に残しています。';
 /** Reuses the existing UI consumption guard; server authentication remains authoritative. */
 export default function AccountSessionBoundary({
   variant = 'account',
   children,
   signedOutContent,
   title,
+  onRescueChange,
 }: AccountSessionBoundaryProps) {
   const lab = variant === 'lab',
     authoring = variant === 'authoring';
@@ -51,6 +73,26 @@ export default function AccountSessionBoundary({
   const guard = useRef<AuthorSessionGuard | null>(null);
   const tokenRef = useRef<string | null>(null);
   const privatePanel = useRef<HTMLDivElement>(null);
+  const rescueReader = useRef<(() => UnsavedRescue | null) | null>(null);
+  const rescueRef = useRef<UnsavedRescue | null>(null);
+  const [rescue, setRescueState] = useState<UnsavedRescue | null>(null);
+  const [copyMessage, setCopyMessage] = useState('');
+  const setRescue = (value: UnsavedRescue | null) => {
+    rescueRef.current = value;
+    setRescueState(value);
+    setCopyMessage('');
+  };
+  // Only an expired session keeps the unsaved buffer. A different session still destroys it.
+  function keepUnsaved() {
+    if (!authoring) return;
+    let value: UnsavedRescue | null = null;
+    try {
+      value = rescueReader.current?.() ?? null;
+    } catch {
+      value = null;
+    }
+    if (value) setRescue(value);
+  }
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [candidate, setCandidate] = useState<string | null>(null);
   const [concealed, setConcealed] = useState(true);
@@ -124,15 +166,18 @@ export default function AccountSessionBoundary({
       origin: location.origin,
       onMismatch: (kind) => {
         if (!mounted.current || guard.current !== bound) return;
+        if (kind === 'signed-out') keepUnsaved();
         clearPrivate();
         setPhase(kind === 'signed-out' ? 'signed-out' : 'review');
         setMessage(
           kind === 'signed-out'
-            ? copy(
-                '現在のセッションは無効です。前の編集画面は閉じています。',
-                '現在のセッションは無効です。前のアカウント情報は閉じています。',
-                '現在のセッションは無効です。前の下書きは閉じています。',
-              )
+            ? rescueRef.current
+              ? EXPIRED_WITH_RESCUE
+              : copy(
+                  '現在のセッションは無効です。前の編集画面は閉じています。',
+                  '現在のセッションは無効です。前のアカウント情報は閉じています。',
+                  '現在のセッションは無効です。前の下書きは閉じています。',
+                )
             : copy(
                 '別のセッションを検出したため、前の編集画面を閉じました。セッションを再確認してから続行してください。',
                 '別のセッションを検出したため、前のアカウント情報を閉じました。セッションを再確認してから続行してください。',
@@ -215,25 +260,30 @@ export default function AccountSessionBoundary({
         setCandidate(current);
         setPhase('review');
         setMessage(
-          copy(
-            '有効なセッションを確認しました。編集画面はまだ開いていません。内容を新しく読み込むには続行してください。',
-            '有効なセッションを確認しました。アカウント情報はまだ開いていません。内容を新しく読み込むには続行してください。',
-            '有効なセッションを確認しました。下書きはまだ開いていません。内容を新しく読み込むには続行してください。',
-          ),
+          rescueRef.current
+            ? 'ログインを確認しました。「確認したセッションで下書きを開く」を押すと、保存できなかった文章を同じ下書きに戻します。'
+            : copy(
+                '有効なセッションを確認しました。編集画面はまだ開いていません。内容を新しく読み込むには続行してください。',
+                '有効なセッションを確認しました。アカウント情報はまだ開いていません。内容を新しく読み込むには続行してください。',
+                '有効なセッションを確認しました。下書きはまだ開いていません。内容を新しく読み込むには続行してください。',
+              ),
         );
       }
     } catch (error) {
       if (!canReveal() || request !== revision.current) return;
       initialInspection.current = false;
       if (error instanceof SessionClientError && error.kind === 'signed-out') {
+        if (tokenRef.current) keepUnsaved();
         clearPrivate();
         setPhase('signed-out');
         setMessage(
-          copy(
-            '現在ログインしていません。このローカル画面では学校Googleログインやアカウント作成は利用できません。',
-            '現在ログインしていません。アカウント情報を開くにはログインが必要です。',
-            '現在ログインしていません。下書きを開くにはログインが必要です。',
-          ),
+          rescueRef.current
+            ? EXPIRED_WITH_RESCUE
+            : copy(
+                '現在ログインしていません。このローカル画面では学校Googleログインやアカウント作成は利用できません。',
+                '現在ログインしていません。アカウント情報を開くにはログインが必要です。',
+                '現在ログインしていません。下書きを開くにはログインが必要です。',
+              ),
         );
       } else unknown();
     } finally {
@@ -271,11 +321,13 @@ export default function AccountSessionBoundary({
       setCandidate(null);
       setPhase('active');
       setMessage(
-        copy(
-          '確認したセッションの編集画面を新しく開きました。前のセッションの入力は引き継いでいません。',
-          '確認したセッションのアカウント情報を新しく開きました。前のセッションの入力は引き継いでいません。',
-          '確認したセッションの下書き一覧を新しく開きました。前のセッションの入力は引き継いでいません。',
-        ),
+        rescueRef.current
+          ? '確認したセッションで下書きを開きました。保存できなかった文章を同じ下書きに戻しています。'
+          : copy(
+              '確認したセッションの編集画面を新しく開きました。前のセッションの入力は引き継いでいません。',
+              '確認したセッションのアカウント情報を新しく開きました。前のセッションの入力は引き継いでいません。',
+              '確認したセッションの下書き一覧を新しく開きました。前のセッションの入力は引き継いでいません。',
+            ),
       );
       reveal();
     } catch (error) {
@@ -361,7 +413,7 @@ export default function AccountSessionBoundary({
     pageActive.current = true;
     void inspect(initialInspection.current);
     const recheck = () => {
-      if (!logoutRef.current && (tokenRef.current || resumeInspection.current))
+      if (!logoutRef.current && (tokenRef.current || resumeInspection.current || rescueRef.current))
         void inspect(initialInspection.current);
     };
     const suspend = () => {
@@ -397,6 +449,50 @@ export default function AccountSessionBoundary({
       document.removeEventListener('visibilitychange', visibility);
     };
   }, []);
+  const rescueChannel = useMemo<RescueChannel | undefined>(
+    () =>
+      authoring
+        ? {
+            provide: (read) => {
+              rescueReader.current = read;
+            },
+            pending: rescue,
+            restored: () => {
+              if (mounted.current) setRescue(null);
+            },
+          }
+        : undefined,
+    [authoring, rescue],
+  );
+  useEffect(() => {
+    onRescueChange?.(rescue !== null);
+    if (!rescue) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [rescue, onRescueChange]);
+  useEffect(() => () => onRescueChange?.(false), [onRescueChange]);
+  const rescueText = rescue ? (rescue.title ? rescue.title + '\n\n' : '') + rescue.body : '';
+  async function copyRescue() {
+    try {
+      await navigator.clipboard.writeText(rescueText);
+      if (mounted.current) setCopyMessage('文章をコピーしました。');
+    } catch {
+      if (mounted.current)
+        setCopyMessage('コピーできませんでした。文章を選択してコピーしてください。');
+    }
+  }
+  function discardRescue() {
+    if (
+      window.confirm(
+        '保存できなかった文章をこの画面から消します。消した文章は元に戻せません。消しますか？',
+      )
+    )
+      setRescue(null);
+  }
   // Outside the lab, a confirmed session needs no visible session chrome: the header owns
   // identity and logout. The live region stays for assistive technology.
   const quiet = !lab && phase === 'active' && !concealed && !checking && !candidate;
@@ -465,11 +561,40 @@ export default function AccountSessionBoundary({
           </details>
         )}
       </section>
-      {phase === 'signed-out' && !checking && !loggingOut && signedOutContent}
+      {rescue && (
+        <section className="session-rescue" aria-labelledby="session-rescue-heading">
+          <h2 id="session-rescue-heading">保存できなかった文章</h2>
+          <p>
+            この文章はこのページの中にだけ残っています。ページを閉じたり再読み込みしたりすると消えます。
+            {phase === 'active'
+              ? ''
+              : '新しいタブでログインし直してからこのタブに戻ると、同じ下書きに戻して続きを保存できます。'}
+          </p>
+          <textarea
+            readOnly
+            aria-label="保存できなかった文章の内容"
+            value={rescueText}
+            rows={Math.min(12, Math.max(4, rescueText.split('\n').length + 1))}
+          />
+          <div className="session-rescue-actions">
+            {phase !== 'active' && (
+              <a className="primary" href="/login" target="_blank" rel="noopener">
+                新しいタブでログインし直す
+              </a>
+            )}
+            <Button onClick={() => void copyRescue()}>文章をコピー</Button>
+            <Button onClick={discardRescue}>この文章を破棄</Button>
+          </div>
+          <p className="session-rescue-copy" aria-live="polite">
+            {copyMessage}
+          </p>
+        </section>
+      )}
+      {phase === 'signed-out' && !checking && !loggingOut && !rescue && signedOutContent}
       <div ref={privatePanel} className="session-private" hidden={concealed} inert={concealed}>
         {sessionToken && (
           <div key={sessionToken}>
-            {children({ csrfToken: sessionToken, fetcher: guardedFetch })}
+            {children({ csrfToken: sessionToken, fetcher: guardedFetch, rescue: rescueChannel })}
           </div>
         )}
       </div>

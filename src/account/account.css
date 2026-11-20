@@ -509,3 +509,62 @@
   border-radius: 999px;
   background: var(--accent-strong, #1659c7);
 }
+
+/* Unsaved text kept in page memory after the session expired. */
+.session-rescue {
+  max-width: 760px;
+  margin: 24px 0;
+  padding: 24px 28px;
+  background: #fff;
+  border: 1px solid #d6e3ed;
+  border-left: 4px solid #076db3;
+  border-radius: 12px;
+}
+.session-rescue h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  line-height: 1.5;
+}
+.session-rescue textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid #b8cbd9;
+  border-radius: 8px;
+  background: #f7fafc;
+  color: #263b4a;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.7;
+  resize: vertical;
+}
+.session-rescue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.session-rescue-actions .primary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.session-account .session-rescue-copy {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: #596e7d;
+}
+.session-rescue-copy:empty {
+  display: none;
+}
+@media (max-width: 720px) {
+  .session-rescue {
+    padding: 20px;
+  }
+  .session-rescue-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
