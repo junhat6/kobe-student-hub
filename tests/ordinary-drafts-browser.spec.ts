@@ -425,3 +425,27 @@ test('a changed real session destroys the old buffer before explicit continuatio
   await expect(page).toHaveURL(ORIGIN + '/');
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
 });
+
+test('an autosave under a replaced session never strands the reader before continuation', async ({
+  page,
+  context,
+}, info) => {
+  await register(page, info);
+  await enterDrafts(page);
+  await create(page);
+  await title(page).fill('前のアカウントで自動保存しかけた下書き');
+  const ownCount = await replaceSession(context);
+  // Let the 2s autosave run under the old session (the slow-runner path), then return.
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(
+    page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }),
+  ).toBeEnabled();
+  await expect(title(page)).toHaveCount(0);
+  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await expect(newDraft(page)).toBeEnabled();
+  await expect(page.locator('.editor-draft-list li')).toHaveCount(ownCount);
+  await expect(
+    page.getByRole('button', { name: '前のアカウントで自動保存しかけた下書き', exact: true }),
+  ).toHaveCount(0);
+});

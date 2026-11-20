@@ -139,6 +139,15 @@ export default function AccountSessionBoundary({
                 '別のセッションを検出したため、前の下書きを閉じました。セッションを再確認してから続行してください。',
               ),
         );
+        // Ordinary pages go straight to the explicit "open the confirmed session" step
+        // instead of leaving the reader at a dead end that needs a separate re-check.
+        // Nothing private is shown until the reader presses it.
+        if (!lab) {
+          // Let the next focus/visibility check find whoever is signed in now; a
+          // replaced session can look signed out for a moment while it is swapped.
+          resumeInspection.current = true;
+          if (kind !== 'signed-out') void inspect(false);
+        }
       },
       onUnverified: () => {
         if (mounted.current && guard.current === bound) unknown();
