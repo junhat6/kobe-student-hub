@@ -1,0 +1,39 @@
+# 依存更新はDependabotで行う（GitHub標準機能のため外部Appへの書き込み権限付与が不要）。
+# パッチ更新の自動マージは .github/workflows/dependabot-auto-merge.yml を参照。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: Asia/Tokyo
+    # 公開直後の版を取り込まない（乗っ取られた版の配布はたいてい数日以内に発覚・撤回される）。
+    # セキュリティ更新にはcooldownは掛からない。
+    cooldown:
+      default-days: 3
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      npm-patch:
+        applies-to: version-updates
+        update-types: [patch]
+      npm-minor:
+        applies-to: version-updates
+        update-types: [minor]
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      timezone: Asia/Tokyo
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ['*']
+    labels: [dependencies]

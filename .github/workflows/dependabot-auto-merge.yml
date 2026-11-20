@@ -1,0 +1,32 @@
+name: Dependabot auto-merge
+# pull_request_target はDependabot PRでも書き込み可能なトークンを持つため、
+# PRのコードはcheckoutも実行もしない（メタデータの参照とauto-merge予約だけを行う）。
+on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  enable-auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'junhat6/kobe-student-hub'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+      # 対象はnpmのパッチ更新のみ。0.xはパッチでも破壊的変更がありうるため人が確認する。
+      # マージはmainのrulesetが要求するCI（verify）の成功後にGitHubが行う。
+      - name: Enable auto-merge for npm patch updates
+        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' && steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        env:
+          DEPS_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if jq -e 'any(.[]; ((.prevVersion // "") | test("^v?0\\.")) or ((.prevVersion // "") == ""))' <<<"$DEPS_JSON" >/dev/null; then
+            echo "0.x or unknown previous version found; leaving this PR for manual review."
+            exit 0
+          fi
+          gh pr merge --auto --squash "$PR_URL"
