@@ -31,6 +31,7 @@
 - commit 本文に `Loop: finish`・`Risk: R0|R1|R2`・`Closes #N`。main へ push（rebase してから。force push しない）
 - completion.json の該当 item の status/evidence/production だけを更新（capability と acceptance は触らない）
 - push 後に main が壊れていたら、それが最優先。15分で直せなければ自分の commit を revert
+- main-health が自分の変更と無関係な vitest の timeout（oauth・media 等）だけで赤なら、まず `gh run rerun <id> --failed` で再確認する。ローカル `npm test` が green で再実行も green なら revert しない
 
 ## 5. 学びと終了
 - 同じ失敗を次の周回が繰り返しそうなら、AGENTS.md かこの prompt に1行だけ足す
