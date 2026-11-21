@@ -130,7 +130,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "closed",
-      "evidence": null
+      "evidence": "1: tests/ordinary-drafts-browser.spec.ts（Markdown で書きプレビューで見出し表示）。2: tests/ordinary-autosave-browser.spec.ts（2秒の無操作で1回だけ自動保存、ブラウザ保存なし）と tests/ordinary-draft-privacy-browser.spec.ts（cookie・storage を共有しない別ブラウザで同じアカウントにログインして再開し、そこで書いた続きが元のブラウザに戻る）。3: 同 privacy spec（保存が503で失敗→「保存結果を確認できませんでした。手元の編集はこの画面に残っています。」と保存結果の確認を出し、本文は画面に残り自動再試行しない。通信断→編集を隠して保持し、ログイン状態の再確認で本文が戻る。どちらも確認後の明示保存でサーバーに反映）、ログイン切れは #137 で独立検証済み。4: tests/ordinary-draft-deletion-browser.spec.ts（確認つき削除）と privacy spec（別アカウントの一覧は空、他人の下書きの読み・更新・削除は存在しない場合と同じ404、未ログインは401、検索・ホーム・公開APIに出ない）。PC1280/モバイル390。R2 独立検証待ち(#152)"
     },
     {
       "id": "C09",
