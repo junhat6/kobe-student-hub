@@ -102,11 +102,12 @@ export default function OwnPublications({
     <section className="own-publications" aria-label="自分の公開記録">
       <div className="own-publications-head">
         <h2>{ordinary ? '公開した記事・作品' : '自分の公開記録'}</h2>
+        {/* Accessible names start with the visible words (WCAG 2.5.3 Label in Name). */}
         <Button
           className="text-button"
           disabled={busy || stopBusy}
           onClick={() => void refresh()}
-          aria-label="自分の公開記録を更新"
+          aria-label={ordinary ? '再読み込み：公開した記事・作品' : undefined}
         >
           {ordinary ? '再読み込み' : '自分の公開記録を更新'}
         </Button>
@@ -216,12 +217,8 @@ export default function OwnPublications({
                           setSelected({ ...row });
                         }}
                       >
-                        {ordinary
-                          ? row.status === 'published'
-                            ? '公開を停止する…'
-                            : '停止の記録を見る'
-                          : (row.status === 'published' ? '公開停止を確認：' : '停止記録を確認：') +
-                            row.title}
+                        {row.status === 'published' ? '公開停止を確認' : '停止記録を確認'}
+                        {!ordinary && '：' + row.title}
                       </Button>
                     </div>
                   </li>

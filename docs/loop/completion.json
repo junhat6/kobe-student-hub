@@ -291,9 +291,9 @@
       ],
       "journey": "all",
       "risk": "R1",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": null
+      "evidence": "#163: tests/ordinary-mobile-quality-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）で J1〜J5 の画面（トップ・検索・検索0件・記事・投稿者・作品一覧・作品・ログイン・登録・利用ルール・マイページ・下書き・作品登録・閲覧履歴・通報フォーム）と、tests/editor-ordinary-moderation.spec.ts「operator queue and decision form…」で J5 の運営一覧・判断画面を検査：横スクロールなし、モバイルでは文中リンク以外の操作対象が全て44px以上（src/shared/touch-targets.css）、Tab で全操作対象に届き、各停止点で focus 表示が変わる、axe critical/serious 0。axe の label-content-name-mismatch 除外を外した（#170 を解消）— tests/ordinary-accessibility-browser.spec.ts, tests/accessibility.spec.ts。旅の完遂は既存の ordinary-*-browser spec（account-mobile）と editor-ordinary-moderation（editor-mobile）が390pxで通す。限界：Playwright の viewport 再現で実機ではない。キーボードは Tab 到達と focus 表示の確認で、全旅をキーボードだけで通したわけではない"
     },
     {
       "id": "C20",

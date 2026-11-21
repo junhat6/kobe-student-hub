@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { checkScreen } from './helpers/screen-quality';
 const ORIGIN = 'https://127.0.0.1:8788';
 async function context(browser: Browser) {
   return browser.newContext({ baseURL: ORIGIN, ignoreHTTPSErrors: true });
@@ -317,6 +318,31 @@ test('protected email link selects its case only after operator verification and
       true,
     );
     await page.screenshot({ path: info.outputPath('notifications-operator.png'), fullPage: true });
+  } finally {
+    await Promise.all(target.contexts.map((ctx) => ctx.close()));
+  }
+});
+
+// C19 / J5: the operator's queue and decision form fit 390px, have 44px targets on phones,
+// keyboard focus is visible, and axe finds no critical/serious violations.
+test('operator queue and decision form meet the mobile, keyboard and axe floor', async ({
+  page,
+  browser,
+}) => {
+  const target = await setup(browser);
+  try {
+    await operator(page);
+    await checkScreen(page, '/moderation queue', { axe: true });
+    // Tabbing out of the page and coming back conceals the cases by design (focus change);
+    // return to the page, then re-verify the operator session to continue.
+    await page.getByRole('heading', { level: 1 }).click();
+    await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+    await select(page, target.title);
+    await page.getByText('対象の記事本文を確認', { exact: true }).click();
+    await expect(page.locator('.moderation-article')).toContainText(
+      '運営が確認する架空の本文です。',
+    );
+    await checkScreen(page, '/moderation decision', { axe: true });
   } finally {
     await Promise.all(target.contexts.map((ctx) => ctx.close()));
   }

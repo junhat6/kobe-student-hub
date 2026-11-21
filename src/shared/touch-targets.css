@@ -1,0 +1,47 @@
+/* C19: on phones every control is about 44px so a thumb can hit it (WCAG 2.5.5 guideline).
+   This is a floor, not a style: per-screen sheets load later and pin smaller sizes (some with
+   !important), so the floor uses !important and `:root` to stay the last word.
+   Pill-shaped tag links keep their look: a transparent border grows the hit area while the
+   background stays in the padding box. Links inside running text are left alone. */
+@media (max-width: 720px) {
+  :root
+    :is(button, select, summary, input:not([type='checkbox'], [type='radio'], [type='hidden'])) {
+    min-height: 44px !important;
+  }
+  :root button {
+    min-width: 44px !important;
+  }
+  :root .header-avatar {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  :root
+    :is(
+      .brand,
+      .header-link,
+      .header-cta,
+      .content-card-author,
+      .home-section-head > a,
+      .account-summary-who a,
+      .account-read-link > a,
+      .account-privacy > a,
+      .moderation-page > p > a:only-child
+    ) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px !important;
+  }
+  :root :is(.content-card-tags a, .tags a, .chip-row a) {
+    display: inline-flex !important;
+    align-items: center;
+    border-block: 9px solid transparent;
+    background-clip: padding-box;
+    justify-content: center;
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+  /* The copy/select buttons sit over the code block; keep the first line below the taller pair. */
+  :root .prose .code-block pre {
+    padding-top: 60px !important;
+  }
+}

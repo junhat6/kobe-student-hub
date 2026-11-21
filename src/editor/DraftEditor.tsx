@@ -604,14 +604,16 @@ export default function DraftEditor({
           <ul className="editor-draft-list">
             {list.map((item) => (
               <li key={item.id}>
+                {/* The name is the title alone; the date and version are a description, so the
+                    visible words and the accessible name never disagree (WCAG 2.5.3). */}
                 <Button
-                  aria-label={item.title || '無題の下書き'}
                   disabled={busy || publicationBusy || deletionOpen}
                   aria-current={draft?.id === item.id ? 'true' : undefined}
+                  aria-describedby={'draft-stamp-' + item.id}
                   onClick={() => void choose(item.id)}
                 >
                   <span>{item.title || '無題の下書き'}</span>
-                  <small>
+                  <small id={'draft-stamp-' + item.id} aria-hidden="true">
                     {stamp(item.updatedAt)} · 版 {item.version}
                   </small>
                 </Button>

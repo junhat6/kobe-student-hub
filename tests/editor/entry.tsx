@@ -19,10 +19,15 @@ root.render(<p>ローカル専用の実験環境を準備しています。</p>)
 if (location.origin !== 'https://127.0.0.1:8788')
   root.render(<p>この実験環境は指定のローカルURLでのみ動きます。</p>);
 else if (location.pathname === '/moderation')
-  root.render(
-    <RouterProvider
-      router={createBrowserRouter([{ path: '/moderation', element: <ModerationPage /> }])}
-    />,
+  // The release operator page gets the app's phone touch-target floor; load that sheet only
+  // for this route so the labs keep their own styling. (The app's Tailwind sheets need the
+  // main build and are not loaded here.)
+  void Promise.all([import('../../src/shared/touch-targets.css')]).then(() =>
+    root.render(
+      <RouterProvider
+        router={createBrowserRouter([{ path: '/moderation', element: <ModerationPage /> }])}
+      />,
+    ),
   );
 else if (location.pathname === '/lab/account') root.render(<AccountSessionLab />);
 else if (location.pathname.startsWith('/lab/account'))

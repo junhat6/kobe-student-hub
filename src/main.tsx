@@ -17,6 +17,7 @@ import { usePagePosition } from './usePagePosition';
 import { RecordReadingHistory } from './history/RecordReadingHistory';
 import './style.css';
 import './theme.css';
+import './shared/touch-targets.css';
 import SiteHeader from './shell/SiteHeader';
 import { ViewerProvider } from './shell/viewer';
 import {
