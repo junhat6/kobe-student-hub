@@ -128,6 +128,12 @@ test('ordinary project operator explicitly hides, inspects private images, resto
     await expect(
       page.getByRole('heading', { name: '作品の通報と手動判断', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('.moderation-notification')).toContainText(
+      '異なる3人の通報で自動的に一時非公開になります',
+    );
+    await expect(page.locator('.moderation-notification')).not.toContainText(
+      '自動非公開にしません',
+    );
     await confirm(page, '一時非公開', '画像と説明を確認するため、一時非公開にします。');
     expect((await target.author.request.get('/api/media/' + target.image)).status()).toBe(404);
     await reopen(page, target.title);
