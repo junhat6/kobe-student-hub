@@ -218,9 +218,9 @@
       ],
       "journey": "J4",
       "risk": "R2",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": "tests/ordinary-history-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）: ログイン中に読んだ記事・作品が自分の履歴に出る、1件削除・全削除、記録停止後は recorded:false、停止は再読み込み後も保たれ明示的に再開できる。2人目のログイン中アカウントには1人目の履歴も停止設定も見えず、?owner= 等の指定は404、未ログインは履歴を見られず書き込みもしない。tests/reading-history.test.ts で他アカウントの GET・設定の分離、他アカウントの削除ができないことを確認。R2 独立検証の合格まで unverified のまま(#158)"
+      "evidence": "tests/ordinary-history-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）: ログイン中に読んだ記事・作品が自分の履歴に出る、1件削除・全削除、記録停止後は recorded:false、停止は再読み込み後も保たれ明示的に再開できる。2人目のログイン中アカウントには1人目の履歴も停止設定も見えず、?owner= 等の指定は404、未ログインは履歴を見られず書き込みもしない。tests/reading-history.test.ts で他アカウントの GET・設定の分離、他アカウントの削除ができないことを確認。R2 独立検証（別context verifier, main ddc1165）合格: owner/accountId 指定・cookie/CSRF 入れ替え・停止中の直接PUT・ログアウト/期限切れ後の取得はいずれも拒否、履歴APIの全応答に Cache-Control: private, no-store と Vary: Cookie、公開API・公開プロフィールに漏れなし #158#issuecomment-7059426385。低優先の所見（本番Hono経路のヘッダー回帰テストがない）は #158 に記載"
     },
     {
       "id": "C15",
