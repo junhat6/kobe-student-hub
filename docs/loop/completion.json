@@ -66,9 +66,9 @@
       ],
       "journey": "J1",
       "risk": "R1",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": null
+      "evidence": "#148: 概要・使った技術・投稿者・記事なし・同意後の YouTube — tests/ordinary-project-detail-browser.spec.ts; 作品と記事の双方向リンク — tests/ordinary-project-links-browser.spec.ts; 作品画像 — tests/ordinary-media-browser.spec.ts（project JPEG）; PC(1280)/モバイル(390) を Playwright で確認（6 passed）; b6a549e の独立検証（別context）合格 #148#issuecomment-7056726474、低優先の所見は #177"
     },
     {
       "id": "C05",
