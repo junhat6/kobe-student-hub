@@ -4,7 +4,34 @@ import AccountSessionBoundary from './AccountSessionBoundary';
 import DraftEditor from '../editor/DraftEditor';
 import './account.css';
 import './ordinary-drafts.css';
+import { ParticipationNotice, useOwnParticipation, writesClosed } from './participation';
 
+function OwnDrafts({
+  csrfToken,
+  fetcher,
+  rescue,
+  onNavigationRiskChange,
+}: {
+  csrfToken: string;
+  fetcher: typeof fetch;
+  rescue: Parameters<typeof DraftEditor>[0]['rescue'];
+  onNavigationRiskChange: (value: boolean) => void;
+}) {
+  const participation = useOwnParticipation(csrfToken, fetcher);
+  return (
+    <>
+      <ParticipationNotice participation={participation} place="drafts" />
+      <DraftEditor
+        variant="ordinary"
+        csrfToken={csrfToken}
+        fetcher={fetcher}
+        rescue={rescue}
+        writable={!writesClosed(participation)}
+        onNavigationRiskChange={onNavigationRiskChange}
+      />
+    </>
+  );
+}
 /** Route protection belongs to the ordinary data router, outside session visibility changes. */
 export default function OrdinaryDrafts() {
   const risk = useRef(false),
@@ -41,8 +68,7 @@ export default function OrdinaryDrafts() {
         }
       >
         {({ csrfToken, fetcher, rescue }) => (
-          <DraftEditor
-            variant="ordinary"
+          <OwnDrafts
             csrfToken={csrfToken}
             fetcher={fetcher}
             rescue={rescue}

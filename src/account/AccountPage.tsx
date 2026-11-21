@@ -9,8 +9,15 @@ import OwnPublications from '../editor/OwnPublications';
 import OwnNotifications from './OwnNotifications';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import { useViewer } from '../shell/viewer';
+import { ParticipationNotice, writesClosed, type ParticipationState } from './participation';
 
-function AccountSummary({ csrfToken }: { csrfToken: string }) {
+function AccountSummary({
+  csrfToken,
+  participation,
+}: {
+  csrfToken: string;
+  participation: ParticipationState;
+}) {
   const { viewer, refresh } = useViewer();
   // Show a name only when it belongs to the session this page just confirmed.
   const matches = viewer.status === 'signed-in' && viewer.csrfToken === csrfToken;
@@ -57,12 +64,20 @@ function AccountSummary({ csrfToken }: { csrfToken: string }) {
         </div>
       </div>
       <div className="account-summary-actions">
-        <Link className="primary" to="/drafts">
-          記事を書く
-        </Link>
-        <Link className="secondary" to="/works/new">
-          作品を登録する
-        </Link>
+        {writesClosed(participation) ? (
+          <Link className="secondary" to="/drafts">
+            下書きを確認・削除する
+          </Link>
+        ) : (
+          <>
+            <Link className="primary" to="/drafts">
+              記事を書く
+            </Link>
+            <Link className="secondary" to="/works/new">
+              作品を登録する
+            </Link>
+          </>
+        )}
         <Link className="secondary" to="/history">
           閲覧履歴
         </Link>
@@ -70,8 +85,62 @@ function AccountSummary({ csrfToken }: { csrfToken: string }) {
     </div>
   );
 }
+function AccountContent({
+  csrfToken,
+  fetcher,
+  profileRisk,
+  publicationRisk,
+}: {
+  csrfToken: string;
+  fetcher: typeof fetch;
+  profileRisk: (risk: boolean) => void;
+  publicationRisk: (risk: boolean) => void;
+}) {
+  // Follows the enrollment panel, so a correction there updates the summary at once.
+  const [participation, setParticipation] = useState<ParticipationState>('checking');
+  return (
+    <>
+      {authoringUiEnabled && <AccountSummary csrfToken={csrfToken} participation={participation} />}
+      {authoringUiEnabled && <ParticipationNotice participation={participation} place="account" />}
+      {authoringUiEnabled && (
+        <div id="publications" className="account-block">
+          <OwnPublications
+            csrfToken={csrfToken}
+            fetcher={fetcher}
+            surface="ordinary"
+            onNavigationRiskChange={publicationRisk}
+          />
+        </div>
+      )}
+      {authoringUiEnabled && (
+        <div id="profile" className="account-block">
+          <h2 className="account-block-title">公開プロフィール</h2>
+          <PublicProfileSetup
+            csrfToken={csrfToken}
+            fetcher={fetcher}
+            surface="ordinary"
+            onNavigationRiskChange={profileRisk}
+          />
+        </div>
+      )}
+      {authoringUiEnabled && (
+        <div className="account-block">
+          <OwnNotifications fetcher={fetcher} />
+        </div>
+      )}
+      <div id="enrollment" className="account-block account-settings">
+        <AccountEnrollment
+          csrfToken={csrfToken}
+          fetcher={fetcher}
+          onParticipationChange={setParticipation}
+        />
+      </div>
+    </>
+  );
+}
 export default function AccountPage() {
   const authenticationFailed = useLocation().hash === '#authentication-failed';
+  // Route protection stays outside session visibility changes.
   const onNavigationRiskChange = useUnsavedNavigation(
     '未保存のプロフィール、または結果を確認中の操作があります。画面を離れると手元の入力は失われます。送信済みの操作は取り消せません。移動しますか？',
   );
@@ -104,38 +173,12 @@ export default function AccountPage() {
         }
       >
         {({ csrfToken, fetcher }) => (
-          <>
-            {authoringUiEnabled && <AccountSummary csrfToken={csrfToken} />}
-            {authoringUiEnabled && (
-              <div id="publications" className="account-block">
-                <OwnPublications
-                  csrfToken={csrfToken}
-                  fetcher={fetcher}
-                  surface="ordinary"
-                  onNavigationRiskChange={publicationRisk}
-                />
-              </div>
-            )}
-            {authoringUiEnabled && (
-              <div id="profile" className="account-block">
-                <h2 className="account-block-title">公開プロフィール</h2>
-                <PublicProfileSetup
-                  csrfToken={csrfToken}
-                  fetcher={fetcher}
-                  surface="ordinary"
-                  onNavigationRiskChange={profileRisk}
-                />
-              </div>
-            )}
-            {authoringUiEnabled && (
-              <div className="account-block">
-                <OwnNotifications fetcher={fetcher} />
-              </div>
-            )}
-            <div className="account-block account-settings">
-              <AccountEnrollment csrfToken={csrfToken} fetcher={fetcher} />
-            </div>
-          </>
+          <AccountContent
+            csrfToken={csrfToken}
+            fetcher={fetcher}
+            profileRisk={profileRisk}
+            publicationRisk={publicationRisk}
+          />
         )}
       </AccountSessionBoundary>
       {authoringUiEnabled && (

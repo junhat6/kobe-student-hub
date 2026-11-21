@@ -5,7 +5,34 @@ import ProjectRegistration from '../editor/ProjectRegistration';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import './account.css';
 import './ordinary-drafts.css';
+import { ParticipationNotice, useOwnParticipation, writesClosed } from './participation';
 
+function OwnProjects({
+  csrfToken,
+  fetcher,
+  rescue,
+  onNavigationRiskChange,
+}: {
+  csrfToken: string;
+  fetcher: typeof fetch;
+  rescue: Parameters<typeof ProjectRegistration>[0]['rescue'];
+  onNavigationRiskChange: (risk: boolean) => void;
+}) {
+  const participation = useOwnParticipation(csrfToken, fetcher);
+  return (
+    <>
+      <ParticipationNotice participation={participation} place="works" />
+      <ProjectRegistration
+        csrfToken={csrfToken}
+        fetcher={fetcher}
+        surface="ordinary"
+        writable={!writesClosed(participation)}
+        onNavigationRiskChange={onNavigationRiskChange}
+        rescue={rescue}
+      />
+    </>
+  );
+}
 export default function OrdinaryProjects() {
   const onNavigationRiskChange = useUnsavedNavigation(
     '未保存の作品、または結果を確認中の操作があります。この画面を離れると手元の入力は失われます。送信済みの操作は取り消せません。移動しますか？',
@@ -28,12 +55,11 @@ export default function OrdinaryProjects() {
         }
       >
         {({ csrfToken, fetcher, rescue }) => (
-          <ProjectRegistration
+          <OwnProjects
             csrfToken={csrfToken}
             fetcher={fetcher}
-            surface="ordinary"
-            onNavigationRiskChange={onNavigationRiskChange}
             rescue={rescue}
+            onNavigationRiskChange={onNavigationRiskChange}
           />
         )}
       </AccountSessionBoundary>

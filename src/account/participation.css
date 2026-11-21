@@ -1,0 +1,32 @@
+.participation-notice {
+  margin: 0 0 24px;
+  padding: 16px 20px;
+  border: 1px solid #e3c98a;
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: #fff9eb;
+  color: #3d3220;
+}
+.participation-notice h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.participation-notice p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.participation-notice p + p {
+  margin-top: 8px;
+}
+.participation-notice a {
+  color: #6b4500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.participation-notice a:focus-visible {
+  outline: 3px solid #1d5f8a;
+  outline-offset: 2px;
+}

@@ -82,12 +82,15 @@ export default function ProjectRegistration({
   surface = 'lab',
   onNavigationRiskChange,
   rescue,
+  writable = true,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
   surface?: PublicSurface;
   onNavigationRiskChange?: (risk: boolean) => void;
   rescue?: RescueChannel;
+  /** False only for a server-confirmed period outside participation: saved drafts stay readable. */
+  writable?: boolean;
 }) {
   const ordinary = surface === 'ordinary';
   const formId = useId();
@@ -281,6 +284,7 @@ export default function ProjectRegistration({
   }
   async function save(automatic = false) {
     if (
+      !writable ||
       !mounted.current ||
       !normalized ||
       createUnknown ||
@@ -343,6 +347,7 @@ export default function ProjectRegistration({
       saveUnknown ||
       pubUnknown ||
       autosavePaused ||
+      !writable ||
       ready ||
       candidate ||
       receipt ||
@@ -369,6 +374,7 @@ export default function ProjectRegistration({
     saveUnknown,
     pubUnknown,
     autosavePaused,
+    writable,
     ready,
     candidate,
     receipt,
@@ -632,6 +638,7 @@ export default function ProjectRegistration({
               <textarea
                 id={formId + key}
                 value={input[key]}
+                readOnly={!writable}
                 maxLength={8000}
                 onChange={(e) => {
                   cancelAutosave();
@@ -643,6 +650,7 @@ export default function ProjectRegistration({
               <input
                 id={formId + key}
                 value={input[key]}
+                readOnly={!writable}
                 maxLength={key === 'title' ? 400 : key === 'technologies' ? 200 : 4096}
                 placeholder={
                   key === 'technologies' ? '例：React、TypeScript、Cloudflare Workers' : undefined
@@ -666,7 +674,9 @@ export default function ProjectRegistration({
         )}
         <Button
           type="submit"
-          disabled={busy || !normalized || !dirty || createUnknown || saveUnknown || pubUnknown}
+          disabled={
+            busy || !writable || !normalized || !dirty || createUnknown || saveUnknown || pubUnknown
+          }
         >
           作品を保存
         </Button>
@@ -676,13 +686,15 @@ export default function ProjectRegistration({
             : saved
               ? '手元の入力と保存版は一致しています。'
               : '保存版はまだ選んでいません。'}{' '}
-          {ordinary
-            ? autosavePaused || createUnknown || saveUnknown || pubUnknown
-              ? '自動保存を停止しています。保存版を確認し、必要な変更を手動で保存してください。'
-              : candidate || ready || receipt || published
-                ? '保存版の比較・公開確認中は自動保存しません。'
-                : '入力を止めると自動保存します。保存版との一致を確認してから閉じてください。'
-            : '自動保存はありません。'}
+          {!writable
+            ? '年度の登録により、いまは保存できません。'
+            : ordinary
+              ? autosavePaused || createUnknown || saveUnknown || pubUnknown
+                ? '自動保存を停止しています。保存版を確認し、必要な変更を手動で保存してください。'
+                : candidate || ready || receipt || published
+                  ? '保存版の比較・公開確認中は自動保存しません。'
+                  : '入力を止めると自動保存します。保存版との一致を確認してから閉じてください。'
+              : '自動保存はありません。'}
         </p>
       </form>
       {candidate && (
@@ -711,7 +723,7 @@ export default function ProjectRegistration({
             surface={surface}
             privateMedia={{ fetcher, scopeKey: csrfToken }}
           />
-          {surface === 'ordinary' && (
+          {surface === 'ordinary' && writable && (
             <MediaAttachments
               key={saved.id + csrfToken}
               kind="projects"
@@ -808,6 +820,7 @@ export default function ProjectRegistration({
           <Button
             disabled={
               busy ||
+              !writable ||
               !publishable ||
               dirty ||
               !ready ||

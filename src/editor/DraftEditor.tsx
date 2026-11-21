@@ -42,12 +42,15 @@ export default function DraftEditor({
   variant = 'lab',
   onNavigationRiskChange,
   rescue,
+  writable = true,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
   variant?: 'lab' | 'ordinary';
   onNavigationRiskChange?: (value: boolean) => void;
   rescue?: RescueChannel;
+  /** False only for a server-confirmed period outside participation: read and delete remain. */
+  writable?: boolean;
 }) {
   const ordinary = variant === 'ordinary';
   const EditorRegion = ordinary ? 'section' : 'main';
@@ -94,7 +97,8 @@ export default function DraftEditor({
   const newDraftButton = useRef<HTMLButtonElement>(null),
     focusAfterDelete = useRef(false);
   const deletionOpen = ordinary && deletion !== 'idle',
-    editingLocked = opening || (ordinary && (deletion === 'confirm' || deletion === 'pending'));
+    editingLocked =
+      opening || !writable || (ordinary && (deletion === 'confirm' || deletion === 'pending'));
   useEffect(() => {
     if (deletion === 'confirm') deleteCancel.current?.focus();
   }, [deletion]);
@@ -312,7 +316,8 @@ export default function DraftEditor({
     });
   }
   async function create() {
-    if (lock.current || publicationLock.current || deletionOpen || !maySwitch()) return;
+    if (!writable || lock.current || publicationLock.current || deletionOpen || !maySwitch())
+      return;
     await run(async () => {
       setOpening(true);
       setStatus('新しい下書きを作成しています…');
@@ -336,6 +341,7 @@ export default function DraftEditor({
   }
   async function save() {
     if (
+      !writable ||
       !draft ||
       !dirty ||
       invalid ||
@@ -383,7 +389,8 @@ export default function DraftEditor({
       mediaUncertain ||
       deletion !== 'idle' ||
       problem ||
-      autosavePaused
+      autosavePaused ||
+      !writable
     )
       return;
     autosaveTimer.current = window.setTimeout(() => {
@@ -408,6 +415,7 @@ export default function DraftEditor({
     deletion,
     problem,
     autosavePaused,
+    writable,
   ]);
   async function inspect() {
     if (!draft) return;
@@ -580,7 +588,7 @@ export default function DraftEditor({
             ref={newDraftButton}
             aria-label="新しい下書き"
             className="editor-primary editor-new"
-            disabled={busy || publicationBusy || deletionOpen}
+            disabled={busy || publicationBusy || deletionOpen || !writable}
             onClick={() => void create()}
           >
             ＋ 新しい下書き
@@ -773,7 +781,7 @@ export default function DraftEditor({
                   <span>{ordinary ? 'JPEG・PNG画像に対応' : '画像・Mermaidは未対応'}</span>
                 </div>
               </section>
-              {ordinary && draft && (
+              {ordinary && draft && writable && (
                 <MediaAttachments
                   key={draft.id + csrfToken}
                   kind="articles"
@@ -796,11 +804,13 @@ export default function DraftEditor({
               )}
               <div className="editor-save-bar">
                 <p>
-                  {ordinary
-                    ? autosavePaused
-                      ? '自動保存を停止しています。保存済みの版を確認してから、手動で保存してください。'
-                      : '入力を止めると、タイトルと本文を自動保存します。'
-                    : '自動保存はありません。変更後は保存してください。'}
+                  {!writable
+                    ? '年度の登録により、いまは保存できません。'
+                    : ordinary
+                      ? autosavePaused
+                        ? '自動保存を停止しています。保存済みの版を確認してから、手動で保存してください。'
+                        : '入力を止めると、タイトルと本文を自動保存します。'
+                      : '自動保存はありません。変更後は保存してください。'}
                   <br />
                   <small>
                     {ordinary
@@ -815,6 +825,7 @@ export default function DraftEditor({
                     publicationBusy ||
                     deletionOpen ||
                     !dirty ||
+                    !writable ||
                     Boolean(invalid) ||
                     (ordinary && (problem || composing))
                   }
@@ -823,7 +834,7 @@ export default function DraftEditor({
                   下書きを保存
                 </Button>
               </div>
-              {
+              {writable && (
                 <PublicationComposer
                   surface={ordinary ? 'ordinary' : 'lab'}
                   key={draft.id}
@@ -836,7 +847,7 @@ export default function DraftEditor({
                   onPending={onPublicationPending}
                   onUnsavedPreparation={onUnsavedPreparation}
                 />
-              }
+              )}
               {problem && (
                 <section className="editor-recovery" role="alert" aria-label="保存結果の確認">
                   <h3>手元の編集を残して、保存済みの版を確認</h3>
@@ -939,7 +950,7 @@ export default function DraftEditor({
               </p>
               <Button
                 className="editor-primary"
-                disabled={busy || publicationBusy || deletionOpen}
+                disabled={busy || publicationBusy || deletionOpen || !writable}
                 onClick={() => void create()}
               >
                 新しい下書きを作成
