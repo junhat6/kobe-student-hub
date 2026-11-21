@@ -1,6 +1,9 @@
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { accountMenu } from './helpers/header';
+import { japanDaysSince } from './helpers/japan-day';
+
+const testStartedAt = Date.now();
 
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
@@ -115,6 +118,10 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
       reader.getByRole('heading', { name: '架空のAI技術選定ノート', exact: true }),
     ).toBeVisible();
     await expect(reader.locator('.prose')).toContainText('この文章は公開する保存版です。');
+    // #142: the public date is the Japan calendar day, printed like the cards (YYYY.MM.DD).
+    const publicDate = reader.locator('.detail-author time');
+    await expect(publicDate).toHaveText(/^\d{4}\.\d{2}\.\d{2}$/);
+    expect(japanDaysSince(testStartedAt)).toContain(await publicDate.textContent());
     const readerContext = reader.getByRole('region', { name: '読む前の目安' });
     for (const text of ['AIで制作している学生', '特別な前提知識は不要', '自分の判断を説明する'])
       await expect(readerContext.getByText(text, { exact: true })).toBeVisible();

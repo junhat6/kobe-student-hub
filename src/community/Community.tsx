@@ -1,3 +1,4 @@
+import { formatDate } from '../shared/display';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import Projects from './Projects';
 import Search from './Search';
@@ -59,7 +60,8 @@ function StudentArticle({ id }: { id: string }) {
               </span>
             </Link>
             <span>
-              {entry.updatedAt} 更新 · 約{entry.minutes}分
+              <time dateTime={entry.updatedAt}>{formatDate(entry.updatedAt)}</time> 更新 · 約
+              {entry.minutes}分
             </span>
           </div>
           <div className="tags">

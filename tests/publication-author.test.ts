@@ -21,14 +21,16 @@ async function call<T>(input: Record<string, unknown>): Promise<T> {
 }
 const read = (id: unknown, extra = {}) =>
   call<PublicAuthorArticles | null>({ action: 'author', target: id, ...extra });
-async function publish(title: string, s = a) {
+async function publish(title: string, s = a, at?: number) {
   const d = await call<{ id: string }>({
     action: 'draft',
+    at,
     headers: headers(s),
     input: { title, body: '# Public saved article body' },
   });
   return await call<{ contentId: string }>({
     action: 'publish',
+    at,
     headers: headers(s),
     draft: d.id,
     input: {
@@ -237,6 +239,26 @@ describe('public author discovery derived only from eligible published snapshots
     const db = await mf.getD1Database('DB');
     await db.prepare("UPDATE content SET status='published' WHERE title='First public A'").run();
     expect((await read(authorA))!.entries[0].title).toBe('First public A');
+  });
+  it('dates a public article by the Japan calendar day of its publication (#142)', async () => {
+    // 2027-01-15 18:30 UTC is 2027-01-16 03:30 in Japan: the UTC day would show the day before.
+    const lateNight = Date.UTC(2027, 0, 15, 18, 30);
+    const session = await call<Session>({ action: 'session', who: 'a', at: lateNight });
+    const receipt = await publish('Published before dawn in Japan', session, lateNight);
+    const read = await call<{ entry: { updatedAt: string } } | null>({
+      action: 'read',
+      target: receipt.contentId,
+      at: lateNight,
+    });
+    expect(read?.entry.updatedAt).toBe('2027-01-16');
+    const db = await mf.getD1Database('DB');
+    expect(
+      await db
+        .prepare('SELECT updated_at FROM content WHERE id=?')
+        .bind(receipt.contentId)
+        .first('updated_at'),
+    ).toBe('2027-01-15');
+    await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(receipt.contentId).run();
   });
   it('returns at most20 newest articles by publication instant with deterministic same-instant ID ties', async () => {
     const db = await mf.getD1Database('DB');

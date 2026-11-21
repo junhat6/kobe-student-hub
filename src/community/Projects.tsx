@@ -1,3 +1,4 @@
+import { formatDate } from '../shared/display';
 import { RecordReadingHistory } from '../history/RecordReadingHistory';
 import { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -88,7 +89,9 @@ function Project({ id }: { id: string }) {
                 <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
               </span>
             </Link>
-            <span>{project.publishedOn} 公開</span>
+            <span>
+              <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)}</time> 公開
+            </span>
           </div>
         </div>
         <ProjectText value={project} showTitle={false} surface="ordinary" />

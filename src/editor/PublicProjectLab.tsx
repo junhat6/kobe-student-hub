@@ -1,3 +1,4 @@
+import { formatDate } from '../shared/display';
 import ProjectReport from './ProjectReport';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
@@ -49,7 +50,13 @@ export default function PublicProjectLab({ projectId }: { projectId: string }) {
           <p role="status">作品を読み込んでいます…</p>
         ) : (
           <>
-            <p>作品 · {value.project.publishedOn} 公開</p>
+            <p>
+              作品 ·{' '}
+              <time dateTime={value.project.publishedOn}>
+                {formatDate(value.project.publishedOn)}
+              </time>{' '}
+              公開
+            </p>
             <h1>{value.project.title}</h1>
             <ProjectText value={value.project} showTitle={false} />
             <section aria-label="作品の投稿者">

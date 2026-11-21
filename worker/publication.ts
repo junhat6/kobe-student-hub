@@ -8,6 +8,7 @@ import {
   liveSessionBindings as liveSessionBindings,
 } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
+import { MAX_JAPAN_DATE_MS } from './japan-date';
 import type {
   Entry,
   Profile,
@@ -119,6 +120,7 @@ type PublicRow = {
   prerequisite: string;
   outcome: string;
   updated_at: string;
+  public_date: string;
   minutes: number;
   related_ids_json: string;
   display_name: string;
@@ -127,7 +129,19 @@ type PublicRow = {
   bio: string;
   initials: string;
 };
-const publicColumns = `c.id,c.title,c.summary,c.body,c.tags_json,c.author_id,c.audience,c.prerequisite,c.outcome,c.updated_at,c.minutes,c.related_ids_json,p.display_name,p.department,p.year_label,p.bio,p.initials`;
+const calendarDay = (value: unknown) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value < '0000-01-01')
+    return false;
+  const date = new Date(value + 'T00:00:00.000Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
+/**
+ * Public article date: the Japan calendar day of the latest public revision. content.updated_at
+ * is written by migration triggers as the UTC day, so it is only the fallback; the public DTO,
+ * discovery snapshot checks and detail pages all read this one expression.
+ */
+export const publicArticleDateSql = `COALESCE((SELECT strftime('%Y-%m-%d',MAX(japan_day.published_at_ms)/1000,'unixepoch','+9 hours') FROM article_publication_revisions japan_day WHERE japan_day.content_id=c.id AND japan_day.published_at_ms<=${MAX_JAPAN_DATE_MS}),c.updated_at)`;
+const publicColumns = `c.id,c.title,c.summary,c.body,c.tags_json,c.author_id,c.audience,c.prerequisite,c.outcome,c.updated_at,${publicArticleDateSql} public_date,c.minutes,c.related_ids_json,p.display_name,p.department,p.year_label,p.bio,p.initials`;
 const publicBounds = `c.kind='article' AND c.status='published' AND c.is_sample=0 AND ${profileBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=p.id OR private_id.google_subject=p.id) AND length(trim(c.title,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 AND instr(c.body,char(0))=0 AND length(CAST(c.body AS BLOB))<=262144 AND length(c.summary)<=300 AND length(CAST(c.summary AS BLOB))<=1200 AND length(c.tags_json)<=1024 AND length(CAST(c.tags_json AS BLOB))<=1024 AND length(c.related_ids_json)<=4096 AND length(CAST(c.related_ids_json AS BLOB))<=4096 AND length(c.audience)<=200 AND length(CAST(c.audience AS BLOB))<=800 AND length(c.prerequisite)<=200 AND length(CAST(c.prerequisite AS BLOB))<=800 AND length(c.outcome)<=200 AND length(CAST(c.outcome AS BLOB))<=800 AND c.minutes BETWEEN 1 AND 240 AND length(c.updated_at)=10`;
 /** Static SQL fragments for server repositories only; aliases p (profile), c (content). Provenance JOIN remains mandatory. */
 export const publicProfileSqlBounds = profileBounds;
@@ -180,15 +194,13 @@ function publicDto(r: PublicRow): { entry: Entry; author: Profile } | null {
     related.length > 20 ||
     !related.every(slug) ||
     !slug(r.author_id) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(r.updated_at) ||
-    r.updated_at < '0000-01-01' ||
     !Number.isInteger(r.minutes) ||
     !nonblank(r.body)
   )
     return null;
-  const date = new Date(r.updated_at + 'T00:00:00.000Z');
-  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== r.updated_at)
-    return null;
+  // The stored UTC day must still be a real date (fail closed on a corrupted projection);
+  // readers see the Japan day of the latest revision, which can be one day later.
+  if (!calendarDay(r.updated_at) || !calendarDay(r.public_date)) return null;
   return {
     entry: {
       id: r.id,
@@ -201,7 +213,7 @@ function publicDto(r: PublicRow): { entry: Entry; author: Profile } | null {
       audience: r.audience,
       prerequisite: r.prerequisite,
       outcome: r.outcome,
-      updatedAt: r.updated_at,
+      updatedAt: r.public_date,
       minutes: r.minutes,
       relatedIds: related,
     },

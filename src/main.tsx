@@ -1,3 +1,4 @@
+import { formatDate } from './shared/display';
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
@@ -359,7 +360,7 @@ function Card({
         </div>
         <div className="card-bottom">
           <Author profile={profiles.find((p) => p.id === e.authorId)} entryId={e.id} />
-          <time dateTime={e.updatedAt}>{e.updatedAt.replaceAll('-', '.')}</time>
+          <time dateTime={e.updatedAt}>{formatDate(e.updatedAt)}</time>
         </div>
       </div>
     </article>
@@ -641,7 +642,7 @@ function Detail({ catalog }: { catalog: Catalog }) {
           <div className="detail-author">
             <Author profile={catalog.profiles.find((p) => p.id === e.authorId)} />
             <span>
-              {e.updatedAt} 更新 · 約{e.minutes}分
+              <time dateTime={e.updatedAt}>{formatDate(e.updatedAt)}</time> 更新 · 約{e.minutes}分
             </span>
           </div>
           <div className="tags">

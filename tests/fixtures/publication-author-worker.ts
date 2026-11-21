@@ -15,12 +15,15 @@ export default {
       draft?: string;
       fault?: boolean;
       hideAfterSelection?: boolean;
+      at?: number;
     };
     const origin = 'https://app.example.invalid';
     const now = 1800000000000;
+    // `at` moves the clock for one call; sessions issued with `at` stay valid at that time.
+    const at = typeof i.at === 'number' ? i.at : now;
     if (i.action === 'session')
       return Response.json(
-        await createFixtureSession(env.DB, origin, () => now, {
+        await createFixtureSession(env.DB, origin, () => at, {
           provider: 'google',
           subject: 'subject-' + i.who,
           email: 'fictional@st.kobedenshi.ac.jp',
@@ -66,7 +69,7 @@ export default {
           })
         : env.DB;
     const target = new Request(origin + '/fixture', { method: 'POST', headers: i.headers });
-    const store = new ArticlePublicationStore(db, origin, () => now);
+    const store = new ArticlePublicationStore(db, origin, () => at);
     return Response.json(
       i.action === 'author'
         ? await store.readPublishedAuthor(i.target)
@@ -75,7 +78,7 @@ export default {
           : i.action === 'profile'
             ? await new PublicProfileStore(db, origin, () => now).create(target, i.input)
             : i.action === 'draft'
-              ? await new PrivateDraftStore(db, origin, () => now).create(target, i.input)
+              ? await new PrivateDraftStore(db, origin, () => at).create(target, i.input)
               : await store.publish(target, i.draft, i.input),
     );
   },

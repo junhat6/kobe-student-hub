@@ -1,3 +1,4 @@
+import { formatDate } from '../shared/display';
 import LikePanel from './LikePanel';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
@@ -68,7 +69,8 @@ export default function PublishedArticleLab({ contentId }: { contentId: string }
         ) : (
           <>
             <div className="publication-reader-meta">
-              記事 · {value.entry.minutes}分の目安 · {value.entry.updatedAt}
+              記事 · {value.entry.minutes}分の目安 ·{' '}
+              <time dateTime={value.entry.updatedAt}>{formatDate(value.entry.updatedAt)}</time>
             </div>
             <h1>{value.entry.title}</h1>
             <p className="publication-reader-summary">{value.entry.summary}</p>

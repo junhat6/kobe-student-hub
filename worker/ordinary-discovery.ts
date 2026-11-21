@@ -1,5 +1,6 @@
 import {
   ArticlePublicationStore,
+  publicArticleDateSql,
   publicArticleSqlBounds,
   publicProfileSqlBounds,
 } from './publication';
@@ -46,7 +47,7 @@ const articleCardMatches = [
   ['c.audience', 'entry.audience'],
   ['c.prerequisite', 'entry.prerequisite'],
   ['c.outcome', 'entry.outcome'],
-  ['c.updated_at', 'entry.updatedAt'],
+  [publicArticleDateSql, 'entry.updatedAt'],
   ['c.minutes', 'entry.minutes'],
   ['p.display_name', 'author.name'],
   ['p.department', 'author.department'],

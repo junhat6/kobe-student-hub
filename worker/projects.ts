@@ -5,6 +5,7 @@ import {
 } from './auth/student-participation';
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
+import { japanDate } from './japan-date';
 import type { Profile } from '../src/types';
 import { normalizeProjectFields } from '../src/project-input';
 import { decodePublicProfile, publicArticleSqlBounds, publicProfileSqlBounds } from './publication';
@@ -112,7 +113,8 @@ export type ProjectSnapshotRow = Pick<
 >;
 export function decodeProjectSnapshot(r: ProjectSnapshotRow): PublicProjectReader | null {
   const f = fields(r),
-    author = decodePublicProfile(r);
+    author = decodePublicProfile(r),
+    publishedOn = japanDate(r.published_at_ms);
   return f &&
     f.githubUrl === r.github_url &&
     f.demoUrl === r.demo_url &&
@@ -121,14 +123,12 @@ export function decodeProjectSnapshot(r: ProjectSnapshotRow): PublicProjectReade
     f.description.trim() &&
     uuid(r.id) &&
     author &&
-    Number.isSafeInteger(r.published_at_ms) &&
-    r.published_at_ms >= 0 &&
-    r.published_at_ms <= 253402300799999
+    publishedOn
     ? {
         project: {
           ...f,
           id: r.id,
-          publishedOn: new Date(r.published_at_ms).toISOString().slice(0, 10),
+          publishedOn,
         },
         author,
       }
