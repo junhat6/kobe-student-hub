@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { completeGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
@@ -147,6 +148,15 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
     await expect(
       reader.getByText('あなたの公開プロフィールの「いいね」に表示されます。', { exact: true }),
     ).toBeVisible();
+    // #175: the pointer still rests on the button right after pressing it; the liked label
+    // must stay readable in that hover state (it used to be white on a pale pink, 1.08:1).
+    await liked.hover();
+    await expect(liked).toHaveCSS('background-color', 'rgb(184, 36, 63)');
+    const hovered = await new AxeBuilder({ page: reader })
+      .include('.like-toggle')
+      .withRules(['color-contrast'])
+      .analyze();
+    expect(hovered.violations).toEqual([]);
     await reader.screenshot({
       path: info.outputPath('likes-liked.png'),
       fullPage: true,

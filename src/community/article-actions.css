@@ -39,9 +39,14 @@
   transform: scale(0.97);
 }
 .like-toggle.is-liked {
-  background: #e23a57;
-  border-color: #e23a57;
+  background: #c8304b;
+  border-color: #c8304b;
   color: #fff;
+}
+/* Keep the liked state readable while the pointer still rests on it (white on #b8243f ≈ 6.2:1). */
+.like-toggle.is-liked:hover:not(:disabled) {
+  background: #b8243f;
+  border-color: #b8243f;
 }
 .like-toggle:disabled {
   opacity: 0.7;
