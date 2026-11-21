@@ -54,12 +54,29 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   await expect(
     page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
   ).toBeVisible();
+  // C10: a saved project is a private draft. Other runs in this shared preview may reuse the
+  // title, so compare same-title public cards before and after the explicit publish.
+  const publicCount = async () => {
+    const response = await page.request.get('/api/projects');
+    expect(response.status()).toBe(200);
+    const { cards } = (await response.json()) as { cards: { project: { title: string } }[] };
+    return cards.filter((card) => card.project.title === title).length;
+  };
+  const before = await publicCount();
   await page.getByRole('button', { name: '作品の公開準備・記録を確認', exact: true }).click();
+  // C10: an author without public articles can still publish the project on its own.
+  await expect(
+    page.getByText('公開中の自分の記事はまだありません。作品だけでも公開できます。', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(await publicCount()).toBe(before);
   await page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }).click();
   const link = page.getByRole('link', { name: 'ログインなしで作品を見る' });
   await expect(link).toBeVisible();
   const path = await link.getAttribute('href');
   expect(path).toMatch(/^\/projects\/[0-9a-f-]{36}$/);
+  expect(await publicCount()).toBe(before + 1);
   await page
     .getByLabel('作品説明（プレーンテキスト）', { exact: true })
     .fill('PRIVATE_PROJECT_CONTINUATION');
@@ -99,6 +116,8 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
       fullPage: true,
       scale: 'css',
     });
+    const authorHref = await reader.locator('.detail-author .author').getAttribute('href');
+    expect(authorHref).toBeTruthy();
     await reader.locator('.detail-author .author').click();
     await expect(
       reader.getByRole('heading', { name: '架空の作品投稿者', exact: true }),
@@ -140,6 +159,14 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     });
     await reader.goto('/works');
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
+    const searchTitle = async () => {
+      await reader.goto('/');
+      await reader.getByRole('searchbox').fill(title);
+      await reader.getByRole('button', { name: '検索', exact: true }).click();
+      await expect(reader).toHaveURL(/\/search\?/);
+    };
+    await searchTitle();
+    await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
     await register(reader, info);
     await reader.goto(path!);
     await reader.getByRole('button', { name: 'この作品を通報する', exact: true }).click();
@@ -160,6 +187,16 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     await reader.goto(path!);
     await expect(reader.getByRole('heading', { name: '作品が見つかりません' })).toBeVisible();
     await reader.goto('/works');
+    await expect(reader.getByRole('link', { name: title, exact: true })).toHaveCount(0);
+    expect(await publicCount()).toBe(before);
+    // C10: the stopped project also leaves search and its author's page. It was this author's
+    // only publication, so the profile itself is no longer public (existing rule).
+    await searchTitle();
+    await expect(reader.getByRole('link', { name: title, exact: true })).toHaveCount(0);
+    await reader.goto(authorHref!);
+    await expect(
+      reader.getByRole('heading', { name: '投稿者が見つかりません', exact: true }),
+    ).toBeVisible();
     await expect(reader.getByRole('link', { name: title, exact: true })).toHaveCount(0);
   } finally {
     await guest.close();
