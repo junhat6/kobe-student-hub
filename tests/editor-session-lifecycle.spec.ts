@@ -289,6 +289,10 @@ test('actual background tab cannot reveal after delayed proof; fresh foreground 
     '--no-default-browser-check',
     '--disable-background-networking',
     '--disable-component-update',
+    // Playwright's own launch() passes these on macOS; without them Chrome asks the login
+    // keychain for "Chromium Safe Storage" and blocks unattended runs with a GUI password prompt.
+    '--use-mock-keychain',
+    '--password-store=basic',
     ...(process.env.PRIVACY_HEADED === '1' ? [] : ['--headless=new']),
     ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
     'about:blank',
