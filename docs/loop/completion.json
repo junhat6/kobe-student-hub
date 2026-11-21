@@ -306,9 +306,9 @@
       ],
       "journey": "all",
       "risk": "R1",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": "受け入れ1・2: tests/ordinary-dead-end-browser.spec.ts（PC1280/モバイル390、HTTPS fixture は本番と同じ SPA fallback）で、未知URL・不正な%エンコード・存在しない記事/作品/投稿者が「〜が見つかりません」と戻り道を出し、戻り道で移動できる。/api 全停止時に ホーム・作品・検索・記事詳細・投稿者・未知URL・マイページ・下書き・作品登録・閲覧履歴・利用ルール が再試行ボタンを出し、復旧後に押すと元の内容へ戻る（セッション系は確認後に明示的に開く）。復旧後にヘッダーが「ログイン」のまま残る不具合を修正（公開画面でも、公開読み取りの成功・online で再確認する #176）。受け入れ3: 記事の下書きは tests/ordinary-drafts-browser.spec.ts「an expired session keeps unsaved text…」で独立検証合格(#137)。作品の書きかけは tests/ordinary-project-rescue-browser.spec.ts（PC1280/モバイル390）で、保存済み作品は同じアカウントの再ログインで同じ作品に戻り、別アカウントには適用されない。保存前の新規作品はコピー用に残すだけで自動適用しない(#171)。#171 の R2 独立検証の合格まで unverified のまま"
+      "evidence": "受け入れ1・2: tests/ordinary-dead-end-browser.spec.ts（PC1280/モバイル390、HTTPS fixture は本番と同じ SPA fallback）で、未知URL・不正な%エンコード・存在しない記事/作品/投稿者が「〜が見つかりません」と戻り道を出し、戻り道で移動できる。/api 全停止時に ホーム・作品・検索・記事詳細・投稿者・未知URL・マイページ・下書き・作品登録・閲覧履歴・利用ルール が再試行ボタンを出し、復旧後に押すと元の内容へ戻る（セッション系は確認後に明示的に開く）。復旧後にヘッダーが「ログイン」のまま残る不具合を修正（公開画面でも、公開読み取りの成功・online で再確認する #176）。受け入れ3: 記事の下書きは tests/ordinary-drafts-browser.spec.ts「an expired session keeps unsaved text…」で独立検証合格(#137)。作品の書きかけは tests/ordinary-project-rescue-browser.spec.ts（PC1280/モバイル390）で、保存済み作品は同じアカウントの再ログインで同じ作品に戻り、別アカウントには適用されない。保存前の新規作品はコピー用に残すだけで自動適用しない(#171)。R2 独立検証合格(#171, main a03f2d5: ordinary-project-rescue 6 passed、ordinary-drafts 24 passed、別セッション置換・期限切れ直後の別アカウント・他人の作品id・rescue中の遷移/再読み込み・storage/URL/通信/console に出ないことを一時 spec 14 passed で確認 https://github.com/junhat6/kobe-student-hub/issues/171#issuecomment-7066271952)。本番：受け入れ1・2の実装は release(r2026.11.22.1)に載るが、受け入れ3の執筆画面は本番で閉じているため production は unknown のまま"
     }
   ]
 }
