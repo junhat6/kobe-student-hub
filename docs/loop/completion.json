@@ -249,7 +249,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "unknown",
-      "evidence": null
+      "evidence": "受け入れ1: /moderation は MODERATION_OPERATOR_ACCOUNT_IDS のサーバー側 allowlist に載ったセッションだけが案件一覧・内容を読める（未設定・一般学生は 404、自分を運営者にできない）。tests/editor-ordinary-moderation.spec.ts・editor-project-moderation.spec.ts（PC/モバイル、axe）、project-moderation.test.ts・moderation-http.test.ts。受け入れ2: 記事・作品とも理由つきで一時非公開・復元・公開表示から削除を判断でき（版の CAS、結果不明は再送しない）、判断理由は投稿者のマイページ「運営からのお知らせ」に本人だけへ出る。3人の通報による作品の自動一時非公開も、記事と同じく投稿者のお知らせに説明が出るようにした（通報理由・通報者は載せない。tests/project-moderation.test.ts、ordinary-project-report-threshold-browser.spec.ts PC1280/モバイル390）。editor lab は 0026 の表を本番と同じく作り、自動非公開 trigger だけ外す。R2 独立検証待ち(#160)"
     },
     {
       "id": "C17",

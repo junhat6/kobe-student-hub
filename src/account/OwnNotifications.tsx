@@ -55,7 +55,7 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
           {items.map((item) => (
             <li key={item.id}>
               <h3>
-                {item.id.startsWith('project.')
+                {/^project(?:-report)?\./.test(item.id)
                   ? label[item.kind].replace('記事', '作品')
                   : label[item.kind]}
               </h3>

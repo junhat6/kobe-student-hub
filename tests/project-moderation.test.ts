@@ -377,3 +377,28 @@ it('article hidden images use the same operator projection without weakening own
   await db.prepare("UPDATE private_accounts SET status='active' WHERE id='account-1'").run();
   await login(1);
 });
+it('tells only the owner, without reporter text, that the 3rd distinct report hid the project', async () => {
+  const { id } = await seed();
+  for (const n of [1, 2, 3]) await report(id, n);
+  expect((await req('/api/projects/' + id)).status).toBe(404);
+  const owner = (await (await req('/api/private/notifications')).json()) as {
+    id: string;
+    contentId: string;
+    kind: string;
+    reason: string;
+  }[];
+  const notice = owner.filter((n) => n.contentId === id);
+  expect(notice).toEqual([
+    expect.objectContaining({
+      id: expect.stringMatching(/^project-report\.[0-9a-f-]{36}$/),
+      kind: 'temporarily_hidden',
+      reason: '異なる3人からの通報により、一時非公開になりました。運営が内容を確認します。',
+    }),
+  ]);
+  expect(JSON.stringify(owner)).not.toContain('Reporter private detail');
+  expect(JSON.stringify(owner)).not.toContain('Fictional issue');
+  for (const n of [1, 2, 3, 4])
+    expect(
+      JSON.stringify(await (await req('/api/private/notifications', 'GET', undefined, n)).json()),
+    ).not.toContain(id);
+});

@@ -215,7 +215,7 @@ function ownNotice(v: unknown): v is OwnModerationNotice {
   return (
     keys(v, ['id', 'contentId', 'title', 'kind', 'reason', 'createdAt']) &&
     typeof v.id === 'string' &&
-    /^(?:report|decision|project)\.[0-9a-f-]{36}$/.test(v.id) &&
+    /^(?:report|decision|project|project-report)\.[0-9a-f-]{36}$/.test(v.id) &&
     id(v.contentId) &&
     text(v.title, 200) &&
     typeof v.kind === 'string' &&

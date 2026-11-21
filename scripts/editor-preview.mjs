@@ -23,6 +23,7 @@ for (const file of [
   'migrations/0022_article_revisions.sql',
   'migrations/0024_project_article_links.sql',
   'migrations/0025_project_technologies.sql',
+  'migrations/0026_project_report_threshold.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
@@ -31,35 +32,37 @@ for (const file of [
       ? 'technologies'
       : null;
   // Initialization is idempotent: check the specific local table before applying its schema.
-  const table = file.includes('0022')
-    ? 'article_publication_revisions'
-    : file.includes('0021')
-      ? 'project_moderation_state'
-      : file.includes('0019')
-        ? 'moderation_email_deliveries'
-        : file.includes('0020')
-          ? 'media_assets'
-          : file.includes('0018')
-            ? 'article_moderation_state'
-            : file.includes('0011')
-              ? 'article_publication_stops'
-              : file.includes('0016')
-                ? 'private_enrollment_periods'
-                : file.includes('0001')
-                  ? 'public_profiles'
-                  : file.includes('0004')
-                    ? 'private_accounts'
-                    : file.includes('0005')
-                      ? 'private_article_drafts'
-                      : file.includes('0006')
-                        ? 'article_reports'
-                        : file.includes('0010')
-                          ? 'project_reports'
-                          : file.includes('0009')
-                            ? 'project_drafts'
-                            : file.includes('0008')
-                              ? 'article_likes'
-                              : 'account_public_profiles';
+  const table = file.includes('0026')
+    ? 'project_report_outbox'
+    : file.includes('0022')
+      ? 'article_publication_revisions'
+      : file.includes('0021')
+        ? 'project_moderation_state'
+        : file.includes('0019')
+          ? 'moderation_email_deliveries'
+          : file.includes('0020')
+            ? 'media_assets'
+            : file.includes('0018')
+              ? 'article_moderation_state'
+              : file.includes('0011')
+                ? 'article_publication_stops'
+                : file.includes('0016')
+                  ? 'private_enrollment_periods'
+                  : file.includes('0001')
+                    ? 'public_profiles'
+                    : file.includes('0004')
+                      ? 'private_accounts'
+                      : file.includes('0005')
+                        ? 'private_article_drafts'
+                        : file.includes('0006')
+                          ? 'article_reports'
+                          : file.includes('0010')
+                            ? 'project_reports'
+                            : file.includes('0009')
+                              ? 'project_drafts'
+                              : file.includes('0008')
+                                ? 'article_likes'
+                                : 'account_public_profiles';
   const check = spawnSync(
     'npx',
     [
@@ -99,6 +102,22 @@ for (const file of [
       file,
     ]);
 }
+// 0026 tables match production so owner notices can read project_report_outbox. This lab keeps
+// its pre-threshold report semantics (its specs file 4–21 reports on one work), so only the
+// auto-hide trigger is removed here. The threshold itself is checked with every migration in
+// tests/ordinary-project-report-threshold-browser.spec.ts.
+run([
+  'd1',
+  'execute',
+  'kobe-editor-fixture',
+  '--config',
+  config,
+  '--local',
+  '--persist-to',
+  '.wrangler/editor-state',
+  '--command',
+  'DROP TRIGGER IF EXISTS project_reports_threshold',
+]);
 // Apply every IF NOT EXISTS stop table/guard on each LOCAL startup, including partial initialization.
 run([
   'd1',

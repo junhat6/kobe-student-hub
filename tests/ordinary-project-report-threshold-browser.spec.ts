@@ -106,6 +106,13 @@ test('three different accounts temporarily hide a project without deleting it', 
     await expect(records.getByText(title, { exact: false })).toBeVisible();
     await expect(records.locator('.own-publications-state-hidden')).toHaveText('一時非公開');
     await expect(records.locator('.own-publications-state-deleted')).toHaveCount(0);
+    // The owner learns why, without any reporter's reason.
+    const notices = page.getByRole('region', { name: '運営からのお知らせ', exact: true });
+    await notices.getByRole('button', { name: 'お知らせを確認', exact: true }).click();
+    await expect(notices).toContainText('作品が一時非公開になりました');
+    await expect(notices).toContainText(title);
+    await expect(notices).toContainText('異なる3人からの通報により、一時非公開になりました。');
+    await expect(notices).not.toContainText('架空の通報理由');
     await page.screenshot({
       path: info.outputPath('project-report-owner-hidden.png'),
       fullPage: true,
