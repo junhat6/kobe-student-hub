@@ -16,7 +16,9 @@ export default defineConfig({
     url: 'https://127.0.0.1:8788',
     ignoreHTTPSErrors: true,
     reuseExistingServer: false,
-    timeout: 60000,
+    // 起動前にローカル D1 の初期化で wrangler を約40回順に呼ぶため、CI では 47〜56 秒かかる。
+    // 60 秒だと上限すれすれで release の verify が落ちた（rc/288f6f6）ので余裕を持たせる。
+    timeout: 180_000,
   },
   reporter: [['list']],
 });
