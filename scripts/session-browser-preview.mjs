@@ -78,9 +78,14 @@ const control = async (r) => {
     return new Response('released');
   }
   if (u.pathname === '/__control/token') {
+    // The fixture's iat is fixed at server start; a suite longer than its 600s lifetime
+    // would otherwise sign already-expired tokens, so each token is issued at sign time.
+    const issuedAt = Math.floor(Date.now() / 1000);
     tokens.set(
       u.searchParams.get('state'),
       await signer.sign({
+        iat: issuedAt,
+        exp: issuedAt + 600,
         sub: u.searchParams.get('actor'),
         email: u.searchParams.get('actor') + '@st.kobedenshi.ac.jp',
         nonce: u.searchParams.get('nonce'),
