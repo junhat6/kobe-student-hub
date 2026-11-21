@@ -195,7 +195,7 @@ export default function DraftEditor({
       const current = draftRef.current,
         value = currentText.current;
       return current && !same(value, current)
-        ? { draftId: current.id, title: value.title, body: value.body }
+        ? { kind: 'article' as const, draftId: current.id, title: value.title, body: value.body }
         : null;
     });
     return () => provideRescue(null);
@@ -206,7 +206,7 @@ export default function DraftEditor({
   async function restoreRescue() {
     const value = pendingRescue.current;
     pendingRescue.current = null;
-    if (!value) return;
+    if (value?.kind !== 'article') return;
     await run(async () => {
       setOpening(true);
       setStatus('保存できなかった文章を下書きに戻しています…');

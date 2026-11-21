@@ -15,6 +15,7 @@ import {
   type AuthorSessionGuard,
 } from '../editor/session-client';
 import { announceSessionConfirmed } from '../shell/viewer';
+import type { ProjectFields } from '../project-types';
 type Phase =
   | 'checking'
   | 'active'
@@ -23,11 +24,27 @@ type Phase =
   | 'unverified'
   | 'logout-pending'
   | 'logout-unknown';
-/** Unsaved article text kept in page memory only when the session itself expired. */
-export interface UnsavedRescue {
-  draftId: string;
-  title: string;
-  body: string;
+/**
+ * Unsaved input kept in page memory only when the session itself expired.
+ * A project that was never saved has no id: it is shown for copying but never applied
+ * to the next session, because nothing on the client can prove it is the same account.
+ */
+export type UnsavedRescue =
+  | { kind: 'article'; draftId: string; title: string; body: string }
+  | { kind: 'project'; projectId: string | null; fields: ProjectFields };
+const PROJECT_LABELS: [keyof ProjectFields, string][] = [
+  ['technologies', '使った技術'],
+  ['githubUrl', 'GitHub URL'],
+  ['demoUrl', 'デモ URL'],
+];
+/** The plain text shown in the read-only rescue box and copied to the clipboard. */
+export function rescueText(value: UnsavedRescue) {
+  if (value.kind === 'article') return (value.title ? value.title + '\n\n' : '') + value.body;
+  const { fields } = value;
+  const lines = PROJECT_LABELS.filter(([key]) => fields[key]).map(
+    ([key, label]) => label + '：' + fields[key],
+  );
+  return [fields.title, lines.join('\n'), fields.description].filter(Boolean).join('\n\n');
 }
 export interface RescueChannel {
   /** The editor registers how to read its unsaved buffer; null unregisters. */
@@ -48,8 +65,10 @@ export interface AccountSessionBoundaryProps {
   title?: string;
   onRescueChange?: (value: boolean) => void;
 }
-const EXPIRED_WITH_RESCUE =
-  'ログインの有効期限が切れたため、最後の変更を保存できませんでした。保存できなかった文章を下に残しています。';
+const expiredWithRescue = (value: UnsavedRescue) =>
+  value.kind === 'article'
+    ? 'ログインの有効期限が切れたため、最後の変更を保存できませんでした。保存できなかった文章を下に残しています。'
+    : 'ログインの有効期限が切れたため、最後の変更を保存できませんでした。保存できなかった作品の入力を下に残しています。';
 /** Reuses the existing UI consumption guard; server authentication remains authoritative. */
 export default function AccountSessionBoundary({
   variant = 'account',
@@ -173,7 +192,7 @@ export default function AccountSessionBoundary({
         setMessage(
           kind === 'signed-out'
             ? rescueRef.current
-              ? EXPIRED_WITH_RESCUE
+              ? expiredWithRescue(rescueRef.current)
               : copy(
                   '現在のセッションは無効です。前の編集画面は閉じています。',
                   '現在のセッションは無効です。前のアカウント情報は閉じています。',
@@ -263,7 +282,11 @@ export default function AccountSessionBoundary({
         setPhase('review');
         setMessage(
           rescueRef.current
-            ? 'ログインを確認しました。「確認したセッションで下書きを開く」を押すと、保存できなかった文章を同じ下書きに戻します。'
+            ? rescueRef.current.kind === 'article'
+              ? 'ログインを確認しました。「確認したセッションで下書きを開く」を押すと、保存できなかった文章を同じ下書きに戻します。'
+              : rescueRef.current.projectId
+                ? 'ログインを確認しました。「確認したセッションで下書きを開く」を押すと、保存できなかった入力を同じ作品に戻します。'
+                : 'ログインを確認しました。保存前の新しい作品の入力は自動では戻しません。下に残した入力をコピーして使ってください。'
             : copy(
                 '有効なセッションを確認しました。編集画面はまだ開いていません。内容を新しく読み込むには続行してください。',
                 '有効なセッションを確認しました。アカウント情報はまだ開いていません。内容を新しく読み込むには続行してください。',
@@ -280,7 +303,7 @@ export default function AccountSessionBoundary({
         setPhase('signed-out');
         setMessage(
           rescueRef.current
-            ? EXPIRED_WITH_RESCUE
+            ? expiredWithRescue(rescueRef.current)
             : copy(
                 '現在ログインしていません。このローカル画面では学校Googleログインやアカウント作成は利用できません。',
                 '現在ログインしていません。アカウント情報を開くにはログインが必要です。',
@@ -324,7 +347,9 @@ export default function AccountSessionBoundary({
       setPhase('active');
       setMessage(
         rescueRef.current
-          ? '確認したセッションで下書きを開きました。保存できなかった文章を同じ下書きに戻しています。'
+          ? rescueRef.current.kind === 'article'
+            ? '確認したセッションで下書きを開きました。保存できなかった文章を同じ下書きに戻しています。'
+            : '確認したセッションで作品を開きました。'
           : copy(
               '確認したセッションの編集画面を新しく開きました。前のセッションの入力は引き継いでいません。',
               '確認したセッションのアカウント情報を新しく開きました。前のセッションの入力は引き継いでいません。',
@@ -477,11 +502,12 @@ export default function AccountSessionBoundary({
     return () => window.removeEventListener('beforeunload', warn);
   }, [rescue, onRescueChange]);
   useEffect(() => () => onRescueChange?.(false), [onRescueChange]);
-  const rescueText = rescue ? (rescue.title ? rescue.title + '\n\n' : '') + rescue.body : '';
+  const rescueValue = rescue ? rescueText(rescue) : '';
+  const rescueNoun = rescue?.kind === 'project' ? '作品の入力' : '文章';
   async function copyRescue() {
     try {
-      await navigator.clipboard.writeText(rescueText);
-      if (mounted.current) setCopyMessage('文章をコピーしました。');
+      await navigator.clipboard.writeText(rescueValue);
+      if (mounted.current) setCopyMessage(rescueNoun + 'をコピーしました。');
     } catch {
       if (mounted.current)
         setCopyMessage('コピーできませんでした。文章を選択してコピーしてください。');
@@ -490,7 +516,11 @@ export default function AccountSessionBoundary({
   function discardRescue() {
     if (
       window.confirm(
-        '保存できなかった文章をこの画面から消します。消した文章は元に戻せません。消しますか？',
+        '保存できなかった' +
+          rescueNoun +
+          'をこの画面から消します。消した' +
+          rescueNoun +
+          'は元に戻せません。消しますか？',
       )
     )
       setRescue(null);
@@ -565,18 +595,23 @@ export default function AccountSessionBoundary({
       </section>
       {rescue && (
         <section className="session-rescue" aria-labelledby="session-rescue-heading">
-          <h2 id="session-rescue-heading">保存できなかった文章</h2>
+          <h2 id="session-rescue-heading">保存できなかった{rescueNoun}</h2>
           <p>
-            この文章はこのページの中にだけ残っています。ページを閉じたり再読み込みしたりすると消えます。
+            この{rescueNoun}
+            はこのページの中にだけ残っています。ページを閉じたり再読み込みしたりすると消えます。
             {phase === 'active'
               ? ''
-              : '新しいタブでログインし直してからこのタブに戻ると、同じ下書きに戻して続きを保存できます。'}
+              : rescue.kind === 'article'
+                ? '新しいタブでログインし直してからこのタブに戻ると、同じ下書きに戻して続きを保存できます。'
+                : rescue.projectId
+                  ? '新しいタブでログインし直してからこのタブに戻ると、同じ作品に戻して続きを保存できます。'
+                  : '保存前の新しい作品だったため、ログインし直しても自動では戻しません。コピーして、ログイン後の入力欄に貼り付けてください。'}
           </p>
           <textarea
             readOnly
-            aria-label="保存できなかった文章の内容"
-            value={rescueText}
-            rows={Math.min(12, Math.max(4, rescueText.split('\n').length + 1))}
+            aria-label={'保存できなかった' + rescueNoun + 'の内容'}
+            value={rescueValue}
+            rows={Math.min(12, Math.max(4, rescueValue.split('\n').length + 1))}
           />
           <div className="session-rescue-actions">
             {phase !== 'active' && (
@@ -584,8 +619,12 @@ export default function AccountSessionBoundary({
                 新しいタブでログインし直す
               </a>
             )}
-            <Button onClick={() => void copyRescue()}>文章をコピー</Button>
-            <Button onClick={discardRescue}>この文章を破棄</Button>
+            <Button onClick={() => void copyRescue()}>
+              {rescue.kind === 'project' ? '入力をコピー' : '文章をコピー'}
+            </Button>
+            <Button onClick={discardRescue}>
+              {rescue.kind === 'project' ? 'この入力を破棄' : 'この文章を破棄'}
+            </Button>
           </div>
           <p className="session-rescue-copy" aria-live="polite">
             {copyMessage}

@@ -17,6 +17,7 @@ import MarkdownRenderer from '../MarkdownRenderer';
 import MediaAttachments from './MediaAttachments';
 import MediaPublicationPreview from './MediaPublicationPreview';
 import { referencedMediaIds } from '../shared/media';
+import type { RescueChannel } from '../account/AccountSessionBoundary';
 const empty: ProjectFields = {
   title: '',
   description: '',
@@ -80,11 +81,13 @@ export default function ProjectRegistration({
   fetcher = fetch,
   surface = 'lab',
   onNavigationRiskChange,
+  rescue,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
   surface?: PublicSurface;
   onNavigationRiskChange?: (risk: boolean) => void;
+  rescue?: RescueChannel;
 }) {
   const ordinary = surface === 'ordinary';
   const formId = useId();
@@ -189,9 +192,63 @@ export default function ProjectRegistration({
       }
     });
   }
+  const inputRef = useRef(input),
+    savedRef = useRef(saved);
+  inputRef.current = input;
+  savedRef.current = saved;
+  const provideRescue = rescue?.provide;
+  // Lets the session boundary keep unsaved input in memory when the session expires.
+  useLayoutEffect(() => {
+    if (!provideRescue) return;
+    provideRescue(() => {
+      const value = inputRef.current,
+        source = savedRef.current;
+      const unchanged = source
+        ? sameProjectFields(value, source)
+        : !Object.values(value).some(Boolean);
+      return unchanged
+        ? null
+        : { kind: 'project', projectId: source?.id ?? null, fields: { ...value } };
+    });
+    return () => provideRescue(null);
+  }, [provideRescue]);
+  const pendingRescue = useRef(rescue?.pending ?? null);
+  const rescueRestored = rescue?.restored;
+  // The server decides whether the new session owns the project; input is applied only after it opens.
+  // A project that was never saved stays in the boundary's copy box and is not applied here.
+  async function restoreRescue() {
+    const value = pendingRescue.current;
+    pendingRescue.current = null;
+    if (value?.kind !== 'project' || !value.projectId) return;
+    const id = value.projectId;
+    await run(async (signal, g) => {
+      setMessage('保存できなかった入力を作品に戻しています…');
+      try {
+        const opened = await client.read(id, signal);
+        if (!current(g)) return;
+        if (opened.id !== id) throw Error('Unexpected project');
+        setList((rows) => mergeConfirmedProject(rows, opened));
+        load(
+          opened,
+          sameProjectFields(opened, value.fields)
+            ? '保存できなかった入力は、すでに保存済みの版と同じでした。'
+            : 'ログインが切れる前の入力を作品に戻しました。まだ保存されていません。',
+        );
+        setInput({ ...value.fields });
+        rescueRestored?.();
+      } catch {
+        if (current(g))
+          setMessage(
+            '保存できなかった入力を、このアカウントの作品として開けませんでした。上に残した入力をコピーして使ってください。',
+          );
+      }
+    });
+  }
   useEffect(() => {
     mounted.current = true;
-    void refresh();
+    void refresh().then(() => {
+      if (mounted.current) return restoreRescue();
+    });
     return () => {
       cancelAutosave();
       mounted.current = false;
