@@ -158,9 +158,9 @@
       ],
       "journey": "J3",
       "risk": "R2",
-      "status": "unverified",
+      "status": "pass",
       "production": "closed",
-      "evidence": null
+      "evidence": "受け入れ1: tests/ordinary-projects-browser.spec.ts（PC1280/モバイル390）で、保存しただけの作品は /api/projects に出ず明示的な公開操作で初めて1件増え、本人の公開停止後は作品詳細「作品が見つかりません」・/works・/api/projects・検索から消え、唯一の公開物を止めた投稿者ページは非公開。受け入れ2: tests/ordinary-project-links-browser.spec.ts で自分の公開記事を紐づけ、読者が作品⇔記事を直接行き来できる。他人の記事・重複・4件以上・非UUIDの articleIds は tests/ordinary-discovery.test.ts で拒否。受け入れ3: 公開記事のない投稿者に「作品だけでも公開できます」が出てそのまま公開でき、読者画面・投稿者ページの作品タブが成立する（同 projects spec）。R2 独立検証合格(#154, main e87c506: 一時 spec 2 passed＋既存 4 passed＋npm test 925 passed。他に公開記事がある投稿者が作品だけ止めると作品タブからだけ消え、紐づけ記事の「この記事を紐づけた作品」からも消える。他人・未ログインの下書き読取/更新/公開/停止と古い expectedVersion の公開は拒否 https://github.com/junhat6/kobe-student-hub/issues/154#issuecomment-7067190318)。公開後の本文更新・紐づけ変更は #168。本番：執筆画面は本番で閉じているため production は closed のまま"
     },
     {
       "id": "C11",
