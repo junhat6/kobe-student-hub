@@ -44,6 +44,6 @@ npm run deploy:check
 
 React・TypeScript・Vite・Tailwind CSS・Base UI、Hono・Cloudflare Workers Static Assets・D1を使用します。Markdownのraw HTMLは無効です。
 
-mainへ直接commit・pushし（PRは任意・CI不要）、本番へは`npm run release`でmainのSHAを`release`へ昇格させます。full CIは昇格時だけ必須です。詳しくは[ブランチとリリース](docs/RELEASE.md)を参照してください。PRD原文は変更せず、秘密・個人情報を公開リポジトリへ載せません。記録は短い進捗とPRに集約します。
+mainへ直接commit・pushし（PRは任意・CI不要）、本番へは`npm run release -- --deploy`でmainのSHAを`release`へ昇格させて反映します。full CIは昇格時だけ必須です。詳しくは[ブランチとリリース](docs/RELEASE.md)を参照してください。本番への反映（D1 migration を含む）とPRD方針の更新はagentが判断して進め、方針の変更は[DECISIONS.md](docs/DECISIONS.md)に記録します。秘密・個人情報を公開リポジトリへ載せません。記録は短い進捗とPRに集約します。
 
 [作業ルール](AGENTS.md) · [現在の作業](docs/WORK.md) · [デプロイ](docs/DEPLOYMENT.md) · [設計判断](docs/DECISIONS.md) · [デザイン](DESIGN.md)

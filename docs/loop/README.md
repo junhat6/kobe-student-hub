@@ -33,7 +33,7 @@
 3. **作る人と評価する人を分ける。** エージェントは自分の成果を甘く採点する（Anthropic の評価で確認された傾向）。UX巡回と危険度の高い変更の検証は、作ったセッションとは別のcontextで行う。
 4. **検証の重さはリスク段階で決める（下表）。** 戻せる変更は速く出して巡回で拾う。戻せない変更だけ厚く守る。
 5. **mainは常に動く、リリースは選んで出す。** main へは直接commitしてよい。本番へは「選んだmainのSHA」だけを昇格させ、そこで初めて full CI を必須にする。
-6. **詰まったら止まらずに迂回する。** 同じ仕事で3周失敗したら `blocked` にして次へ進み、まとめて人に報告する。人の判断が要るもの（課金・実利用者・資格情報）は待ち行列に積み、ほかの仕事を続ける。
+6. **詰まったら止まらずに迂回する。** 同じ仕事で3周失敗したら `blocked` にして次へ進み、まとめて人に報告する。人の判断が要るもの（課金・実利用者・資格情報）は待ち行列に積み、ほかの仕事を続ける。それ以外（本番 migration・deploy・PRD方針を含む）は自分で決めて進め、決めた理由を残す。
 7. **記録は最小、学びは残す。** 機能ごとのQA文書は作らない。証拠はcommit本文・Issueコメント・CI artifactへ。ただし「次の周回が同じ失敗をしないための学び」は [AGENTS.md](../../AGENTS.md) か該当ループの指示書に1行で足す（compound engineering の考え方）。
 
 ### リスク段階（検証の重さ）
@@ -42,8 +42,8 @@
 | --- | --- | --- | --- |
 | **R0 戻せる** | 文言、見た目、レイアウト、空状態、文書、テスト追加 | build と関係するテストを自分で実行 | release CI |
 | **R1 振る舞い** | 画面の導線、公開APIの読み取り、検索・推薦ロジック | 上記＋自分でブラウザ確認（PC/モバイル） | release CI＋UX巡回1回 |
-| **R2 境界** | 認証・権限・所有者チェック、非公開データ、通報・運営、ログ、D1 migration、本番データ操作 | 上記＋**別contextの独立検証**（観点は AGENTS.md の恒久条件） | release CI＋独立検証＋migrationの事前readback手順 |
-| **R3 人の判断** | 課金・契約、資格情報の発行、実利用者への告知、PRD方針の変更 | 実施しない。[人の待ち行列](LOOPS.md#人の待ち行列)に積む | 人が決めた後に R2 として扱う |
+| **R2 境界** | 認証・権限・所有者チェック、非公開データ、通報・運営、ログ、D1 migration、本番データ操作、PRD方針の変更 | 上記＋**別contextの独立検証**（観点は AGENTS.md の恒久条件）。PRD方針は [DECISIONS.md](../DECISIONS.md) に理由つきで記録 | release CI＋独立検証。migration は expand のみで、適用は release の deploy が Time Travel ブックマークを残してから行う |
+| **R3 人の判断** | 課金・契約、資格情報の発行、実利用者への告知・募集 | 実施しない。[人の待ち行列](LOOPS.md#人の待ち行列)に積む | 人が決めた後に R2 として扱う |
 
 ## 3. 全体図
 
@@ -91,8 +91,8 @@
 | `release` | 本番の写し。ここにある＝本番にある | `npm run release` だけで昇格。main の選んだSHAを `rc/<sha7>` へpushし、CIの verify が green なら release へ fast-forward | full CI（verify）必須、bypassなし |
 
 - PRは使わず fast-forward で昇格するので、release 上のSHAは必ず main の履歴に含まれる（「本番にあるのにmainにない修正」が生まれない）。
-- 昇格のたびにタグを打ち、GitHub Release を作り、本番へdeployし、本番URLへsmokeを当てる。失敗すれば直前のタグへ戻す。
-- `wrangler deploy`・リモートD1操作・release への直接push・force push は agent hook で拒否する（定義は `.claude/settings.json` と `scripts/loop/`）。本番への道は `npm run release` の1本だけ。
+- 昇格のたびにタグを打ち、GitHub Release を作り、未適用の D1 migration を当ててから本番へdeployし、本番URLへsmokeを当てる。失敗すれば直前の版へ戻す。
+- release への直接push・force push は agent hook で拒否する（定義は `.claude/settings.json` と `scripts/loop/`）。本番の運用（deploy・rollback・リモートD1）は hook で止めず、agent が判断する（2026-11-21 オーナー決定）。通常の本番反映は `npm run release` の1本で行い、手順は release skill（`.claude/skills/release/SKILL.md`）にまとめてある。
 - 不具合修正も「main で直す → 昇格」が原則。release への直接修正は緊急時だけ。
 
 **この方式を選んだ理由**
@@ -107,5 +107,5 @@
 ## 6. 変えないもの
 
 - AGENTS.md の恒久条件：学校Googleのサーバー側本人確認、所有者チェック、非公開データ（学校メール・認証ID・申告年度・下書き・履歴）、安全なMarkdown、ログに内容・身元・秘密を出さない、秘密をファイルやコマンドに置かない。
-- PRD原文は編集しない。仮説・判断は [DECISIONS.md](../DECISIONS.md) に別記。
+- PRD方針は agent が判断して更新してよい（2026-11-21 から）。PRD の原文（オーナーの非公開 Google Doc）は書き換えず、変えた方針は [DECISIONS.md](../DECISIONS.md) に日付と理由つきで記録し、そちらを優先する。
 - 「AIの動作確認は学生の価値検証ではない」「PC/モバイルviewportの確認は実機確認ではない」という区別。報告でも混ぜない。

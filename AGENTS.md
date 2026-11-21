@@ -5,7 +5,7 @@
 ## 目的
 
 神戸電子の学生が、記事・作品から知識・経験・活動に出会い、投稿者の活動を知り、次の行動の材料にする場所。
-友だち探しアプリや学校の情報ポータルにしない。学校公式ではない。PRD原文は正であり編集しない。新しい仮説は [docs/DECISIONS.md](docs/DECISIONS.md) に別記する。用語は [CONTEXT.md](CONTEXT.md)。
+友だち探しアプリや学校の情報ポータルにしない。学校公式ではない。PRD方針は agent が判断して更新してよい。PRD原文（非公開の Google Doc）は書き換えず、変えた方針・新しい仮説は [docs/DECISIONS.md](docs/DECISIONS.md) に日付と理由つきで記録し、そちらを優先する。用語は [CONTEXT.md](CONTEXT.md)。
 
 ## 進め方（2026-11-21 から）
 
@@ -14,15 +14,16 @@
 - 完成の定義は [completion.json](docs/loop/completion.json)。builder は status/evidence/production だけ変えてよい。
 - 待ち行列は GitHub Issues（`loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
 - 現在地は [docs/WORK.md](docs/WORK.md)（5行）。機能ごとの設計メモ・QA文書は作らない。証拠は commit 本文・Issue コメント・CI artifact へ。
-- 日常の実装判断で人に承認を求めない。迷ったら決めて進め、決めたことを残す。人の判断が要るもの（課金・資格情報・実利用者・PRD方針・本番D1の migration）は `needs-human` に積んで他の仕事を続ける。
+- 日常の実装判断で人に承認を求めない。迷ったら決めて進め、決めたことを残す。本番 D1 の migration・deploy・rollback と PRD方針も agent が判断する。人の判断が要るもの（課金・契約、資格情報の発行、実利用者）だけを `needs-human` に積んで他の仕事を続ける。
 
 ## ブランチ・リリース（詳細は [docs/RELEASE.md](docs/RELEASE.md)）
 
 - main は開発の幹。直接 commit・push してよい（push 前に `git fetch && git rebase origin/main`）。PR と PR の CI は任意。
 - main を壊したら最優先で直す。15分で直せなければ revert。
-- release への昇格は `npm run release` だけで行う。full CI（verify）は昇格時に必須。
-- hook の定義は `.claude/settings.json` と `scripts/loop/`。`wrangler deploy`・リモート D1・release への直接 push・force push は hook で拒否する。Codex など hook の無い環境でも同じ決まりを守る。
-- deploy に placeholder の D1 ID を使わない。本番の設定はリポジトリの外（[DEPLOYMENT.md](docs/DEPLOYMENT.md)）。
+- release への昇格と本番反映は `npm run release -- --deploy` で行う。full CI（verify）は昇格時に必須。手順と失敗時の判断は release skill（[.claude/skills/release/SKILL.md](.claude/skills/release/SKILL.md)）。
+- hook の定義は `.claude/settings.json` と `scripts/loop/`。release への直接 push・force push・素の stash は hook で拒否する。本番の運用（deploy・rollback・secret・リモート D1）は止めない。Codex など hook の無い環境でも同じ決まりを守る。
+- migration は expand → contract（1つ前の Worker でも動く形）で書く。本番への適用は release の deploy が Time Travel ブックマークを残してから行う。
+- 本番の wrangler 設定は `scripts/production-wrangler.mjs` が生成する。ID・宛先はリポジトリに置かない（`~/.config/kobe-student-hub/production.json` か environment `production` の secrets。[RELEASE.md](docs/RELEASE.md#本番の設定)）。
 - 素の `git stash` を使わない（worktree 間で共有される）。一時退避は WIP commit で。
 
 ## 検査（backpressure）

@@ -1,3 +1,12 @@
+# Deployment
+
+## 現在の決まり（2026-11-21〜。以下の古い記述より優先）
+
+- **本番**（`kobe-student-hub-production`、`https://hub.junhat6.com`、Workers Paid）への反映は [RELEASE.md](RELEASE.md) の `npm run release -- --deploy` だけで行う。設定の組み立て・D1 migration・deploy・smoke・rollback は `scripts/deploy-production.mjs`、判断は release skill（`.claude/skills/release/SKILL.md`）。
+- **D1 migration は release の deploy に含める。** agent が判断して適用してよい（人の承認は不要）。適用前に Time Travel のブックマークを記録し、migration は expand → contract（1つ前の Worker でも動く形）で書く。
+- 本番の ID・宛先はリポジトリに置かない（[RELEASE.md「本番の設定」](RELEASE.md#本番の設定)）。secret の値はどこにも書かない。
+- 下の「Cloudflare preview deployment」以降は、別プレビュー（`kobe-student-hub-preview`）と過去の各サイクルの記録。「remote migration は人の承認が要る」「Worker deploy では remote SQL を実行しない」「本番はサンプルのみ」といった記述は、この決定で置き換わった（履歴として残す）。
+
 # Cloudflare preview deployment
 
 ## Verified public preview
@@ -36,7 +45,7 @@ When existing authorized connections differ in capability, the agent can apply s
 
 Branch/release policy (2026-11-21) is in [RELEASE.md](RELEASE.md): `ci.yml` now runs only for release candidates (`rc/**`, `release`) and is required only on `release`; `main-health.yml` gives a non-blocking quick check on main. `ci.yml` runs lockfile install, generated-type consistency, build, local Worker/D1 tests and migrations, 38 desktop/mobile E2E and dry-run. It needs no production credentials. Reports/screenshots/failure traces are retained for 14 days.
 
-`deploy.yml` remains opt-in via repository variable CLOUDFLARE_DEPLOY_ENABLED=true. It checks out main, validates the same source, prepares the ignored runtime config from the four private settings, and deploys using Actions secret CLOUDFLARE_API_TOKEN. It is **not activated** and no token was created. Standalone GitHub auto-deployment therefore remains pending an authorized narrowly scoped credential/settings; a connected agent can continue verified deployments with existing access. New persistent access requires the applicable confirmation; do not create account-wide admin tokens.
+`deploy.yml` (preview only) remains opt-in via repository variable CLOUDFLARE_DEPLOY_ENABLED=true. Production deploys run from `release.yml` instead (see RELEASE.md). It checks out main, validates the same source, prepares the ignored runtime config from the four private settings, and deploys using Actions secret CLOUDFLARE_API_TOKEN. It is **not activated** and no token was created. Standalone GitHub auto-deployment therefore remains pending an authorized narrowly scoped credential/settings; a connected agent can continue verified deployments with existing access. New persistent access requires the applicable confirmation; do not create account-wide admin tokens.
 
 Do not change unrelated services or the shared account namespace. Keep this sample preview clearly labelled and noindexed. Before reporting success, use the literal returned URL and verify health, catalog, deep link, headers and write denial. Preserve release source/version evidence privately; publish only intended preview URLs and sanitized project evidence.
 
@@ -120,17 +129,9 @@ Cycle39 pending-registration work reuses the existing private account schema onl
 Cycle40 prepares the [OAuth HTTP adapter and optional binding contract](archive/OAUTH-HTTP.md). The production entry's source release gate remains false; even complete runtime inputs cannot activate it. No actual origin/client/secret/key, new Worker/database, binding installation or deployment is included. Optional input types do not create secret storage. Existing preview configuration and generated Env remain unchanged. Real callback publication still requires actual log/transport, origin, eligibility and operating checks; do not flip the source gate or add deployment settings as a shortcut.
 
 
-## Closed dedicated production preparation
+## Former production preparation (removed 2026-11-21)
 
-The [production preparation boundary](archive/PRODUCTION-CONFIG.md) is separate from the existing preview settings. Cycle41 introduced a closed entry; Cycle42 adds the fixed private selection loader and sample-only preparation. There is still no automatic production deploy command. Tests use fictional targets; any real selection/configuration remains ignored and private. No actual origin, resource identifier, secret binding installation, resource creation, remote SQL or deployment is included. Matching local account/resource inputs is not remote ownership or authorization evidence.
-
-
-## Privately selected sample-only production target
-
-`production:prepare` reads only the owned mode0600 `.wrangler/production-target.private.json`, validates the exact selected/expected target and closed OAuth source, and writes `.wrangler/production.prepare.json` privately. It invokes no deployment, network, SQL or credential flow. Dedicated public sample hosting is enabled in that generated config; authentication remains source-disabled. See [PRODUCTION-CONFIG.md](archive/PRODUCTION-CONFIG.md) and [local independent QA](archive/QA-PRIVATE-PRODUCTION-TARGET.md). Runtime IDs/origin and operational deployment evidence must not be published here.
-
-A deployment must use the reviewed main archive/build, matching manifest/config fingerprints, verified dedicated resources and successful main CI. New empty-database bootstrap is a separate explicitly verified operation: only public sample schema/data and their migration records, not later auth/private schemas. Verify actual live health/catalog/denials and unchanged preview separately after deployment. Configuration preparation and successful tests do not prove a live release.
-
+Cycle41〜42 の `production:prepare`（`.wrangler/production-target.private.json` から sample-only の設定を作る仕組み）と `deploy:production` の拒否スクリプトは、本番が独自ドメイン・認証・通報メールつきで運用されている実態と合わなくなったため削除した。現在は `scripts/production-wrangler.mjs` が本番設定を組み立てる（[RELEASE.md](RELEASE.md#本番の設定)）。経緯は [archive/PRODUCTION-CONFIG.md](archive/PRODUCTION-CONFIG.md)。
 
 ## Retired draft-trial paths
 

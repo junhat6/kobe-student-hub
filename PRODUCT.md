@@ -30,7 +30,7 @@ Kobe Student Hub。学校公式の名称・ロゴやGoogle由来の写真を流�
 
 ## Evidence on Hand
 
-[WORK.md](docs/WORK.md)・[EVIDENCE.md](docs/archive/EVIDENCE.md)に作業・QA・実配備の記録がある。架空のコンテンツと合成認証の動作証拠は、実学生の理解・実践・離脱率の証拠ではない。私的回答や運用値は公開文書へ転載しない。PRD原文を変更せず、新しい仮説を別に記録する。
+[WORK.md](docs/WORK.md)・[EVIDENCE.md](docs/archive/EVIDENCE.md)に作業・QA・実配備の記録がある。架空のコンテンツと合成認証の動作証拠は、実学生の理解・実践・離脱率の証拠ではない。私的回答や運用値は公開文書へ転載しない。PRD原文は書き換えず、agent が判断した方針の変更と新しい仮説は[DECISIONS.md](docs/DECISIONS.md)に記録する（2026-11-21 から PRD 方針は agent が更新してよい）。
 
 ## Product Principles
 

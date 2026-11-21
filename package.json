@@ -12,14 +12,13 @@
     "db:local": "wrangler d1 migrations apply kobe-student-hub-preview --local && wrangler d1 execute kobe-student-hub-preview --local --file content-revisions/0001_git_practice.sql && wrangler d1 execute kobe-student-hub-preview --local --file content-revisions/0002_learning_notes.sql && wrangler d1 execute kobe-student-hub-preview --local --file content-revisions/0003_learning_notes_decisions.sql && wrangler d1 execute kobe-student-hub-preview --local --file content-revisions/0004_learning_notes_no_assignment.sql",
     "preview": "wrangler dev --ip 127.0.0.1 --port 8787",
     "deploy:check": "npm run build && wrangler deploy --dry-run",
-    "deploy:production": "node scripts/deploy-production-disabled.mjs",
+    "deploy:production": "node scripts/deploy-production.mjs",
     "types": "wrangler types --include-runtime=false",
     "deploy:prepare": "node scripts/prepare-deploy.mjs",
     "editor:build": "vite build --config vite.editor.config.ts",
     "editor:preview": "node scripts/editor-preview.mjs",
     "test:editor": "playwright test --config playwright.editor.config.ts",
     "deploy:preview": "node scripts/prepare-deploy.mjs --for-deploy && npm run build && wrangler deploy --config .wrangler/preview.deploy.json",
-    "production:prepare": "node scripts/prepare-production.mjs",
     "test:pending-pilot": "playwright test --config playwright.pilot.config.ts",
     "test:auth-browser": "playwright test --config playwright.generation.config.ts",
     "test:retired-trial": "playwright test --config playwright.retired-trial.config.ts",
@@ -28,7 +27,8 @@
     "prepare": "node .husky/install.mjs",
     "lint:staged": "lint-staged",
     "release": "node scripts/release.mjs",
-    "smoke": "node scripts/loop/smoke.mjs"
+    "smoke": "node scripts/loop/smoke.mjs",
+    "production:config": "node scripts/production-wrangler.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 // PreToolUse hook (Claude Code) for Bash.
-// 自律ループで「戻せない・外に出る」操作だけを止める。普段の commit / push / test は止めない。
-// 止めた操作には理由と正しい入口（npm run release など）を返し、agent が自分で進路を直せるようにする。
+// 自律ループで、並行するセッションの作業や release の関所を壊す git 操作だけを止める。
+// 普段の commit / push / test は止めない。止めた操作には理由と正しい入口を返し、agent が自分で進路を直せるようにする。
+//
+// 本番の運用（Cloudflare への deploy・rollback・secret、リモート D1 の SQL・migration）は止めない。
+// 2026-11-21 のオーナー決定で、agent が自分で判断して本番を進める方針になったため。
+// 本番の安全は hook ではなく release の手順（CI 必須・migration 前の Time Travel ブックマーク・smoke と自動 rollback）で担う。
 
 // git push の引数部分だけを取り出す（commit message などに出てくる語で誤検知しないため）
 const pushes = (c) => [...c.matchAll(/\bgit\s+push\b([^;&|\n]*)/g)].map((m) => ` ${m[1]} `);
@@ -25,21 +29,6 @@ const RULES = [
     test: (c) =>
       anyPush(c, /\s(--delete|-d)\s+.*\b(main|release)\b|\s:(refs\/heads\/)?(main|release)\s/),
     reason: 'main / release ブランチの削除は禁止です。',
-  },
-  {
-    id: 'wrangler-deploy',
-    test: (c) =>
-      /\bwrangler\s+(deploy|versions\s+deploy|rollback|secret\s+put|versions\s+secret\s+put)\b/.test(
-        c,
-      ) && !/--dry-run\b/.test(c),
-    reason:
-      'Cloudflare への直接 deploy・rollback・secret の変更は止めています。本番への反映は npm run release -- --deploy で行います（docs/RELEASE.md）。',
-  },
-  {
-    id: 'remote-d1',
-    test: (c) => /\bwrangler\s+d1\s+(execute|migrations\s+apply)\b/.test(c) && /--remote\b/.test(c),
-    reason:
-      'リモート D1 への SQL / migration は止めています。本番 schema の変更は、人の承認を得てから別の操作として行います（docs/DEPLOYMENT.md）。',
   },
   {
     id: 'bare-stash',

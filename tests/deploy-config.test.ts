@@ -102,8 +102,3 @@ describe('private runtime deploy configuration', () => {
     expect(r.config).toBeNull();
   });
 });
-
-it('keeps remote SQL mutation separate from the deployment command', () => {
-  const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-  expect(pkg.scripts['deploy:production']).not.toMatch(/d1\s+(?:migrations\s+apply|execute)/);
-});

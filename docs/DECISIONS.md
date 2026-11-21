@@ -1,6 +1,17 @@
 # Decisions and hypotheses
 
-Recorded 2026-11-03. These records supplement the PRD; they do not rewrite it.
+Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
+
+## 2026-11-21 — 本番運用と PRD 方針を agent に任せる（オーナー決定）
+
+オーナー（服部）が次を決めた。「AI エージェントが大胆に自律的に進める」方針に合わせるため。
+
+1. 本番 D1 の migration を含む本番運用（deploy・rollback・secret）は agent が判断して進める。agent hook でリモート D1 と Cloudflare への反映を拒否する仕組みは撤去した。安全は hook ではなく、release の手順（full CI 必須・expand のみの migration・適用前の Time Travel ブックマーク・smoke と自動 rollback）で担う。
+2. 本番 deploy は GitHub Actions（`release.yml`）へ移す。CI 用 Cloudflare token の発行と Workers Paid への加入はオーナー本人の作業。agent は environment `production` と設定の secrets を先に用意し、token が入れば自動で Actions の deploy に切り替わる。release は skill（`.claude/skills/release/SKILL.md`）で agent が担う。
+3. PRD 方針は agent が判断して更新してよい。変えた方針はこのファイルに日付と理由つきで記録する。AGENTS.md の恒久条件（本人確認・非公開データ・安全な Markdown など）は PRD 方針ではないので、この権限では緩めない。
+4. 人の判断に残すのは、課金・契約、資格情報の発行、実利用者への告知・募集・試用だけ。
+
+採らない場合の影響：本番 migration と PRD 方針を人の承認待ちにしたままだと、main で完成した機能が本番に出るまで人の在席に依存し、ループの速度が人の応答で決まる（#166 で migration 0024〜0026 が止まっていた）。
 
 ## 2026-11-08 — 通常の参加条件を自己申告年度へ更新
 

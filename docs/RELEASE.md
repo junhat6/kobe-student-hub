@@ -31,8 +31,8 @@
 | --- | --- | --- | --- |
 | `ci.yml`（job `verify`） | `rc/**`・`release` への push、release 向け PR、手動 | **release で必須** | format・types・build・unit・全 E2E・auth/editor ブラウザー・deploy:check |
 | `main-health.yml`（job `health`） | main への push | 必須ではない | format・types・build・unit（E2E なし） |
-| `release.yml` | release への push | — | タグ `rYYYY.MM.DD.N` と GitHub Release（前回タグからの commit 一覧）を作る |
-| `deploy.yml` | main への push（`CLOUDFLARE_DEPLOY_ENABLED` が無いので今は動かない） | — | 旧プレビュー用。現状のまま残している |
+| `release.yml`（job `tag` → `deploy`） | release への push、手動 | — | タグ `rYYYY.MM.DD.N` と GitHub Release（前回タグからの commit 一覧）を作り、environment `production` に `CLOUDFLARE_API_TOKEN` があれば本番へ deploy する（無ければ deploy job は notice を出して飛ばす） |
+| `deploy.yml` | main への push（`CLOUDFLARE_DEPLOY_ENABLED` が無いので今は動かない） | — | 旧プレビュー（`kobe-student-hub-preview`）用。本番とは無関係 |
 
 PR に CI を付けない理由。いまはセッションの数だけ並行して変更が入り、PR ごとに 15〜25 分の E2E を待つと、ループの速度が CI の待ち時間で決まってしまう。壊れたものが本番に入らないことは昇格時の `verify` で守れる。main が壊れたことは `main-health` が数分で知らせる。
 
@@ -42,7 +42,8 @@ PR に CI を付けない理由。いまはセッションの数だけ並行し�
 npm run release -- --plan            # 何が昇格するかを見るだけ
 npm run release                      # origin/main の先頭を昇格（CI を待つ）
 npm run release -- --sha <sha>       # main の特定の SHA を昇格
-npm run release -- --deploy          # 昇格 + 本番 deploy + smoke（失敗時は自動 rollback）
+npm run release -- --deploy          # 昇格 + 本番 deploy（migration → deploy → smoke、失敗時は自動 rollback）
+npm run release -- --sha <release の SHA> --deploy --skip-migrations   # 昇格済みの版を Worker だけ出し直す
 npm run smoke -- https://hub.junhat6.com
 ```
 
@@ -51,17 +52,37 @@ npm run smoke -- https://hub.junhat6.com
 1. その SHA が `origin/main` の履歴にあり、今の `release` から fast-forward できることを確かめる。
 2. その SHA に `verify` の成功がまだ無ければ、`rc/<sha7>` へ push して full CI を待つ（最長 60 分）。
 3. green なら `release` へ push する。ruleset が `verify` の成功をもう一度確かめる。その後 `release.yml` がタグと Release を作る。
-4. `--deploy` を付けたときは、その SHA を一時的な worktree に取り出して build し、`KSH_PRODUCTION_CONFIG` の設定で deploy する。本番 smoke（トップ・`/api/health`・`/api/catalog`・書き込み拒否・security header）が失敗したら `wrangler rollback` で直前の版に戻す。
+4. `--deploy` を付けたときは本番へ出す。environment `production` に `CLOUDFLARE_API_TOKEN` があれば、`release.yml` の deploy job を `gh run watch` で最後まで見届ける（release が既にその SHA なら workflow を手動で起こし直す）。無ければ、その SHA を一時的な worktree に取り出して build し、手元で同じ `scripts/deploy-production.mjs` を実行する。
 
-**hotfix も main で直す。** release へ直接 commit したり cherry-pick したりしない。直した commit を main に push し、その SHA を昇格させる。緊急時だけ人の判断で例外にする。
+`scripts/deploy-production.mjs`（手元と Actions で共通）は次の順で動く。
 
-**DB schema は deploy に含めない。** リモート D1 への migration は、これまでどおり別の操作として人の承認を得てから行う（[DEPLOYMENT.md](DEPLOYMENT.md)）。Worker の rollback では schema は戻らない。
+1. 本番の wrangler 設定を生成する（`scripts/production-wrangler.mjs`、下の「本番の設定」）。
+2. preflight：`wrangler versions upload` で、トラフィックを切り替えずに設定と bundle を Cloudflare に検証させる。
+3. 本番 D1 の `d1_migrations` と `migrations/` を比べ、未適用があれば **Time Travel のブックマークを記録してから** `wrangler d1 migrations apply --remote` で適用する。
+4. `wrangler deploy` で切り替える（独自ドメイン `hub.junhat6.com`・cron `*/15`・CPU 上限も設定どおりに揃う）。
+5. 本番 smoke（トップ・`/api/health`・`/api/catalog`・書き込み拒否・security header）。失敗したら `wrangler rollback` で直前の版に戻す。
 
-## 本番 deploy の前提（2026-11-21 時点で未完）
+終了コード：0 成功／2 smoke 失敗で rollback 済み／3 設定の入力が無い／4 D1 に届かない／1 その他。
 
-- 本番の wrangler 設定は秘密なので、リポジトリの外に置く。`KSH_PRODUCTION_CONFIG` にそのパスを、`KSH_PRODUCTION_ORIGIN` に本番 URL（既定は `https://hub.junhat6.com`）を指定する。以前の設定は `/tmp` 配下にあって既に消えたため、`npm run production:prepare` などで作り直す必要がある。
-- 本番が最後に反映されたのは account-only 版。その後の main（通常投稿など）は、Workers Paid（CPU 上限）の契約判断を待って止まっている（#119）。**契約の変更は人の判断が必要なので、ループからは行わない。**
-- GitHub Actions から deploy するための Cloudflare token は作っていない。token ができたら、`release.yml` に deploy job を足して、手元からの deploy をやめる。
+**hotfix も main で直す。** release へ直接 commit したり cherry-pick したりしない。直した commit を main に push し、その SHA を昇格させる。
+
+**D1 migration は deploy に含め、agent が判断して適用する**（2026-11-21 オーナー決定。それまでは人の承認を得た別操作だった）。安全は次の3つで担う。
+
+- migration は expand → contract で書く。1つ前の Worker でも動く形（追加だけ）にし、削除・改名・既存データの書き換えは別の列車に分ける。deploy は「migration → Worker 切り替え」の順なので、どこで失敗しても Worker の rollback だけで復旧できる。
+- 適用前のブックマークを必ずログ（Actions は job summary）に残す。
+- D1 は自動では戻さない。Time Travel の restore はブックマーク以降の利用者の書き込みも消すため、戻すかは agent が個別に判断する（判断表は `.claude/skills/release/SKILL.md`）。
+
+## 本番の設定
+
+本番 Worker は `kobe-student-hub-production`（独自ドメイン `hub.junhat6.com`、D1 `kobe-student-hub-production`、Workers Paid）。wrangler 設定はリポジトリに置かず、deploy のたびに `scripts/production-wrangler.mjs` が組み立てる（`npm run production:config` で `.wrangler/production.deploy.json` に書き出せる）。
+
+- **リポジトリに書くもの**：Worker 名・独自ドメイン・cron・CPU 上限（1 リクエスト 1 秒）・assets・observability・通報メールの送信元。
+- **リポジトリに書かないもの**（公開リポジトリのため）：account ID、D1 ID、Google client ID、通報メールの宛先。環境変数（`CLOUDFLARE_ACCOUNT_ID`・`KSH_PROD_D1_DATABASE_ID`・`KSH_PROD_GOOGLE_CLIENT_ID`・`KSH_PROD_MODERATION_EMAIL_TO`）か、手元の `~/.config/kobe-student-hub/production.json`（mode 0600）から読む。GitHub Actions では environment `production` の secrets に同じ名前で入っている。
+- **secret**（Google client secret、cookie 鍵、運営者 ID、通報メールの宛先・送信元、公開窓口）は Cloudflare 上にあり、`wrangler deploy` は既存の secret を引き継ぐ。値はどこにも書かない。変えるときは `wrangler secret put`（agent が判断してよい）。
+
+以前の設定は worktree 内の `/tmp` にあって消えた（#166）。正本を worktree の外（`~/.config`）と GitHub の environment に分けて置くのはそのため。値は Cloudflare（`wrangler versions view` の bindings）から読み直せる。
+
+**GitHub Actions への移行。** environment `production`（release ブランチからだけ使える）と設定の secrets は用意済み。オーナーが Cloudflare で token を発行し、`gh secret set CLOUDFLARE_API_TOKEN --env production` で入れた時点から、`npm run release -- --deploy` は自動で Actions の deploy を見届ける形に切り替わる（コードの変更は要らない）。token は本番の account だけに限定し、権限は `Workers Scripts: Edit`・`D1: Edit`・`Account Settings: Read` と、zone `junhat6.com` の `Workers Routes: Edit`。手元の wrangler OAuth は D1 に使えない（認証エラー）ため、token が入るまでの D1 migration は agent が Cloudflare MCP で行う（skill の「手元で D1 に届かないとき」）。
 
 ## agent の hooks（`.claude/settings.json`）
 
@@ -70,10 +91,10 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 | hook | スクリプト | やること |
 | --- | --- | --- |
 | SessionStart | `scripts/loop/session-start.mjs` | 現在地（未リリースの commit 数、main-health の結果、並行中の worktree、WORK.md の現在地）を文脈に入れる |
-| PreToolUse(Bash) | `scripts/loop/guard.mjs` | force push、release への直接 push、main/release の削除、`wrangler deploy` / `rollback` / `secret put`、リモート D1、素の `git stash`、ruleset の変更を拒否し、正しい入口を返す |
+| PreToolUse(Bash) | `scripts/loop/guard.mjs` | force push、release への直接 push、main/release の削除、素の `git stash`、ruleset の変更を拒否し、正しい入口を返す。本番の運用（`wrangler deploy` / `rollback` / `secret put`、リモート D1）は止めない（2026-11-21 から） |
 | Stop | `scripts/loop/stop-check.mjs` | main に届いていない commit や、commit していない変更があれば 1 回だけ止めて、push を促す（理由を書けばそのまま終えられる） |
 
-`npm run release` の中で行う push や deploy は hook の対象外なので、止められない（入口を 1 つにするため）。ruleset を変えるときは、担当がコマンドの先頭に `KSH_LOOP_INFRA=1` を付けて、意図した変更であることを明示する。止めたい hook があれば、`KSH_LOOP_STOP_CHECK=off` を設定して起動する。
+`npm run release` の中で行う push は hook の対象外なので、止められない（入口を 1 つにするため）。ruleset を変えるときは、担当がコマンドの先頭に `KSH_LOOP_INFRA=1` を付けて、意図した変更であることを明示する。止めたい hook があれば、`KSH_LOOP_STOP_CHECK=off` を設定して起動する。
 
 ## Orca automations
 
@@ -81,13 +102,13 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 
 | 名前 | 起動 | precheck（`node scripts/loop/precheck.mjs <mode>`） | 仕事 |
 | --- | --- | --- | --- |
-| `ksh release` | 3 時間ごと（9〜24 時） | `release`：未リリースの commit がある・main-health が赤でない・open な `P0` Issue が無い・rc の CI が実行中でない | `npm run release -- --deploy` を実行し、結果ごとに対応する |
+| `ksh release` | 3 時間ごと（9〜24 時） | `release`：未リリースの commit がある・main-health が赤でない・open な `P0` Issue が無い・rc の CI が実行中でない | release skill（`.claude/skills/release/SKILL.md`）に従って `npm run release -- --deploy` を回し、結果ごとに対応する |
 | `ksh mend` | 毎時 | `mend`：main-health の最新が失敗 | 失敗の原因を直して main に push する（アンドン） |
 | `ksh patrol` | 3 時間ごと（`docs/loop/prompts/patrol.md`） | `patrol`：`patrol-log` Issue に記録した前回 SHA 以降に `src/`・`worker/`・`public/` の変更がある、または前回巡回の後に release が出た | 別 context で PC / モバイルの利用者の旅を歩き、UX の所見を Issue にする |
 | `ksh finish` | 30 分ごと | `finish`：未 claim の `P0`/`P1`（`loop:finish`/`loop:ux`）があり、claim 中が 3 件未満 | `docs/loop/prompts/finish.md` に従って Issue を 1 件閉じる |
 | `ksh garden` | 毎日 5:00 | `garden`：`garden-log` の前回 SHA 以降に main への commit がある | `docs/loop/prompts/garden.md` |
 | `ksh replan` | 4 時間ごと | `replan`：前回 `Loop: replan` 以降に Issue か completion.json の変化、待ち行列が空、または blocked が 3 件以上 | `docs/loop/prompts/replan.md` |
 
-ラベル：`P0`（open の間は列車を止める）、`patrol-log`（巡回記録）、`needs-human`（契約・secret・リモート D1 など、人の判断が必要なもの）。
+ラベル：`P0`（open の間は列車を止める）、`patrol-log`（巡回記録）、`needs-human`（課金・契約、新しい資格情報の発行、実利用者への連絡など、人の判断が必要なもの）。
 
 いずれも 1 回の起動ごとに新しい worktree を作り、指示書（`docs/loop/prompts/<名前>.md`）を読んで 1 周だけ回す。指示書を書き換えれば、automation を登録し直さなくても次の周回から反映される。GitHub のイベント（CI 失敗・Issue）で起動する Orca bot は、作成に owner の承認が必要なため未作成。

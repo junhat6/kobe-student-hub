@@ -6,11 +6,12 @@
 //   2. その SHA に CI(verify) の成功が無ければ rc/<sha7> へ push して full CI を走らせ、結果を待つ
 //   3. green なら release へ fast-forward push（ruleset が verify の成功を再確認する）
 //      → release.yml がタグと GitHub Release を作る
-//   4. --deploy なら、その SHA を隔離した worktree で build して本番へ deploy し、smoke が落ちたら直前版へ rollback
+//   4. --deploy なら本番へ出す。CI 用 token があれば release.yml の deploy job を待って結果を見届け、
+//      無ければ手元で scripts/deploy-production.mjs を実行する（migration → deploy → smoke → 失敗時 rollback）
 //
 // CI は PR や main では必須にせず、ここでだけ必須にする。main を速く回し、本番に入るものだけを厳しく見るため。
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { smoke } from './loop/smoke.mjs';
@@ -116,64 +117,120 @@ async function main() {
     log(`release を ${short} へ昇格しました。タグと GitHub Release は release.yml が作ります。`);
   }
 
-  if (flag('--deploy')) await deploy(sha);
+  if (flag('--deploy')) await deploy(sha, release !== sha);
   else log('本番 deploy はしていません（--deploy で実行）。');
 }
 
-async function deploy(sha) {
-  const config = process.env.KSH_PRODUCTION_CONFIG && resolve(process.env.KSH_PRODUCTION_CONFIG);
-  const origin = process.env.KSH_PRODUCTION_ORIGIN || 'https://hub.junhat6.com';
-  if (!config || !existsSync(config))
-    die(
-      'KSH_PRODUCTION_CONFIG（非公開の本番 wrangler 設定）がありません。昇格までは完了しています。設定の用意は docs/RELEASE.md「本番 deploy の前提」を参照。',
-      3,
+// 本番 deploy の担い手を決める。GitHub の environment `production` に CLOUDFLARE_API_TOKEN があれば
+// GitHub Actions（release.yml の deploy job）、無ければ手元の wrangler。どちらも scripts/deploy-production.mjs を実行する。
+function actionsDeployEnabled() {
+  if (process.env.KSH_DEPLOY_VIA === 'local') return false;
+  if (process.env.KSH_DEPLOY_VIA === 'actions') return true;
+  try {
+    const names = sh('gh', [
+      'api',
+      `repos/${REPO}/environments/production/secrets`,
+      '-q',
+      '.secrets[].name',
+    ]);
+    return names.split('\n').includes('CLOUDFLARE_API_TOKEN');
+  } catch {
+    return false;
+  }
+}
+
+function releaseRun(sha) {
+  try {
+    const runs = JSON.parse(
+      sh('gh', [
+        'run',
+        'list',
+        '--repo',
+        REPO,
+        '--workflow',
+        'release.yml',
+        '--commit',
+        sha,
+        '--limit',
+        '1',
+        '--json',
+        'databaseId,status,conclusion,url,createdAt',
+      ]),
     );
+    return runs[0];
+  } catch {
+    return undefined;
+  }
+}
 
-  const before = await smoke(origin);
-  if (!before.ok) log(`deploy 前の本番 smoke が既に失敗しています: ${before.failures.join(', ')}`);
+async function deployViaActions(sha, promotedNow) {
+  // release への push で release.yml が動く。push していない（既に release が sha）なら、手動で起こし直す。
+  let run = releaseRun(sha);
+  let since = 0;
+  if (!promotedNow && run?.status !== 'in_progress' && run?.status !== 'queued') {
+    // release は既にこの SHA。前回の run は token 追加前に deploy を飛ばしたか失敗したので、手動で起こし直す
+    log('release は既にこの SHA です。release.yml を手動で起こして本番 deploy をやり直します。');
+    since = Date.now() - 60_000;
+    sh('gh', ['workflow', 'run', 'release.yml', '--repo', REPO, '--ref', 'release']);
+    run = undefined;
+  }
+  // push / dispatch から run が見えるまで少し待つ（最長 10 分）
+  for (let i = 0; i < 40 && (!run || Date.parse(run.createdAt) < since); i++) {
+    await sleep(15_000);
+    run = releaseRun(sha);
+  }
+  if (!run)
+    die(
+      'release.yml の run が見つかりません。gh run list --workflow release.yml で確かめてください。',
+    );
+  log(`GitHub Actions で本番 deploy 中: ${run.url}`);
+  const watched = spawnSync(
+    'gh',
+    ['run', 'watch', String(run.databaseId), '--repo', REPO, '--exit-status', '--interval', '30'],
+    { stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+  if (watched.status !== 0)
+    die(
+      `release.yml が失敗しました。gh run view ${run.databaseId} --repo ${REPO} --log-failed で原因を確かめてください（deploy の終了コードの意味は scripts/deploy-production.mjs の先頭）。`,
+      2,
+    );
+  const after = await smoke(process.env.KSH_PRODUCTION_ORIGIN || 'https://hub.junhat6.com');
+  if (!after.ok)
+    die(`Actions は成功しましたが本番 smoke が失敗しています: ${after.failures.join(', ')}`, 2);
+  log(`本番 deploy 成功（GitHub Actions）: ${run.url}`);
+}
 
+function deployLocally(sha) {
   const dir = mkdtempSync(join(tmpdir(), `ksh-release-${sha.slice(0, 7)}-`));
   try {
     sh('git', ['worktree', 'add', '--detach', dir, sha], { stdio: 'inherit' });
     const inDir = { cwd: dir, stdio: 'inherit', env: { ...process.env, HUSKY: '0' } };
     sh('npm', ['ci'], inDir);
     sh('npm', ['run', 'build'], inDir);
-    sh(
-      'npx',
-      ['wrangler', 'deploy', '--config', config, '--message', `release ${sha.slice(0, 7)}`],
-      inDir,
-    );
-    log('deploy 完了。smoke を実行します。');
-    await sleep(5_000);
-    const after = await smoke(origin);
-    if (after.ok) {
-      log(`本番 smoke 成功: ${origin}`);
-      tryGit('fetch', '--tags', '--quiet', 'origin');
-      return;
-    }
-    log(`本番 smoke 失敗: ${after.failures.join(', ')}。直前の版へ rollback します。`);
-    sh(
-      'npx',
+    // 手順は今の main の deploy-production.mjs を使う（古い SHA にはまだ無いことがあるため）
+    const r = spawnSync(
+      process.execPath,
       [
-        'wrangler',
-        'rollback',
-        '--config',
-        config,
-        '--message',
-        `smoke failed for ${sha.slice(0, 7)}`,
-        '--yes',
+        resolve('scripts/deploy-production.mjs'),
+        '--root',
+        dir,
+        '--sha',
+        sha,
+        ...(flag('--skip-migrations') ? ['--skip-migrations'] : []),
       ],
-      inDir,
+      { stdio: 'inherit' },
     );
-    const back = await smoke(origin);
-    die(
-      `rollback しました（rollback 後の smoke: ${back.ok ? '成功' : back.failures.join(', ')}）。release ブランチは ${sha.slice(0, 7)} のままなので、main で直して次の列車に乗せてください。`,
-      2,
-    );
+    if (r.status !== 0) process.exitCode = r.status ?? 1;
   } finally {
     tryGit('worktree', 'remove', '--force', dir);
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+async function deploy(sha, promotedNow) {
+  if (actionsDeployEnabled()) return deployViaActions(sha, promotedNow);
+  log('CI 用 token が無いので、手元の wrangler で本番 deploy します。');
+  deployLocally(sha);
 }
 
 await main();

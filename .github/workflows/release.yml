@@ -1,9 +1,13 @@
-name: Release tag
-# release ブランチが進んだら、その SHA にタグと GitHub Release を付ける。
-# release へ入れるのは scripts/release.mjs だけ（ruleset が CI verify の成功を要求）。ここは記録係。
+name: Release
+# release ブランチが進んだら、その SHA にタグと GitHub Release を付け、本番へ deploy する。
+# release へ入れるのは scripts/release.mjs だけ（ruleset が CI verify の成功を要求）。
+# deploy は environment `production` に CLOUDFLARE_API_TOKEN があるときだけ動く。無い間は手元の
+# `npm run release -- --deploy` が同じ scripts/deploy-production.mjs を実行する（docs/RELEASE.md）。
 on:
   push:
     branches: [release]
+  # token を足した後や失敗後に、release の先頭を deploy し直すため（scripts/release.mjs が使う）
+  workflow_dispatch:
 permissions:
   contents: write
 concurrency:
@@ -39,3 +43,50 @@ jobs:
           git tag "$tag" "$SHA"
           git push origin "$tag"
           gh release create "$tag" --target "$SHA" --title "$tag" --notes-file notes.md
+
+  deploy:
+    needs: tag
+    if: github.ref == 'refs/heads/release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: production
+      url: https://hub.junhat6.com
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    steps:
+      - name: Check deploy credential
+        id: gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::environment production に CLOUDFLARE_API_TOKEN が無いので本番 deploy を飛ばします（手元の npm run release -- --deploy が担当）"
+          fi
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '26'
+          cache: npm
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npm ci
+        env:
+          HUSKY: '0'
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npm run build
+      - if: steps.gate.outputs.enabled == 'true'
+        name: Deploy (migrations → deploy → smoke → rollback on failure)
+        run: node scripts/deploy-production.mjs --sha "$GITHUB_SHA"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          KSH_PROD_D1_DATABASE_ID: ${{ secrets.KSH_PROD_D1_DATABASE_ID }}
+          KSH_PROD_GOOGLE_CLIENT_ID: ${{ secrets.KSH_PROD_GOOGLE_CLIENT_ID }}
+          KSH_PROD_MODERATION_EMAIL_TO: ${{ secrets.KSH_PROD_MODERATION_EMAIL_TO }}

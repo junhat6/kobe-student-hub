@@ -153,12 +153,12 @@ full CI は `npm run release` の昇格時に必ず回ります。push 前に全
 | 項目 | 内容 |
 | --- | --- |
 | 担当 | release レーン（loop-infra が実装・運用） |
-| 起動 | Orca automation `ksh release`：**9〜24時に3時間ごと** の定時列車＋P0修正時の臨時便（`npm run release -- --deploy` を手で） |
+| 起動 | Orca automation `ksh release`：**9〜24時に3時間ごと** の定時列車＋P0修正時の臨時便（`npm run release -- --deploy` を手で）。手順と判断は release skill（`.claude/skills/release/SKILL.md`） |
 | precheck | `node scripts/loop/precheck.mjs release`：未リリースの commit がある、main-health が赤でない、リリースCIが実行中でない。加えて open な `P0` Issue が無い（UX巡回の S1 で列車を止める）。R2 commit がある場合はその独立検証が Issue 上で済んでいる |
-| 手順 | `npm run release`：選んだSHA → `rc/<sha7>` → CI verify green → release へ fast-forward → tag → GitHub Release → 本番 deploy → smoke → 失敗なら直前タグへ戻す（詳細は [RELEASE.md](../RELEASE.md)） |
+| 手順 | `npm run release -- --deploy`：選んだSHA → `rc/<sha7>` → CI verify green → release へ fast-forward → tag → GitHub Release → D1 migration（ブックマーク記録後）→ 本番 deploy → smoke → 失敗なら直前の版へ戻す。CI 用 token があれば deploy は GitHub Actions が行い、release スクリプトがそれを見届ける（詳細は [RELEASE.md](../RELEASE.md)） |
 | 出力 | tag、GitHub Release（commit trailer から自動生成した変更点）、本番に対する patrol 1回の起動 |
 
-**D1 migration の扱い**：コードを戻してもDBは戻らないため、migration は「追加してから使う（expand → contract）」で書き、1つ前のコードでも動く形にする。本番への migration 適用は deploy に含めず、人の承認を得た別操作として行う（[RELEASE.md](../RELEASE.md)、agent hook がリモートD1操作を拒否）。builder は migration を含む変更を作ったら `needs-human` Issue に「適用するSQL・適用前の D1 Time Travel ブックマーク・適用後の readback 手順」をまとめ、人の1回の承認で済む形にしておく。承認待ちの間は、新しいschemaを使うコードを release に乗せない（expand の段だけ先に出す）。
+**D1 migration の扱い**：コードを戻してもDBは戻らないため、migration は「追加してから使う（expand → contract）」で書き、1つ前のコードでも動く形にする。本番への適用は release の deploy に含め、agent が判断して行う（2026-11-21 オーナー決定。以前は人の承認を得た別操作だった）。deploy は適用前に D1 Time Travel のブックマークを記録し、migration → Worker 切り替え → smoke の順に進む。失敗時は Worker だけ戻し、D1 を戻すかは agent が判断する（[RELEASE.md](../RELEASE.md)、release skill）。builder は migration に削除・改名・既存データの書き換えを混ぜず、必要なら contract を別の Issue に分ける。
 
 定時列車にした理由：毎commit出荷だと本番の smoke と巡回が追いつかず、逆に不定期だと「いつ出るか」を誰も約束できない。3時間ごとなら、並行セッションの成果がまとまって出て、巡回が1回挟まり、人は夜のレビューでその日の本番を見られる。
 
@@ -174,9 +174,11 @@ AIには学生の価値を検証できません。このループは人が回し
 
 `needs-human` ラベルの Issue。現時点で分かっているもの：
 
-- 有料プランへの変更（画像処理のCPU時間がFreeの公称上限を超える件。PR #119 参照）。通常投稿の本番開放の前提。
-- 実在の学生への告知・募集。
-- 新しい資格情報（Cloudflare API token を CI に置くか等）の発行。
+- 課金・契約の変更（R2 画像ストレージの有効化など）。Workers Paid は 2026-11-21 に加入済み。
+- 実在の学生への告知・募集・試用。
+- 新しい資格情報の発行（CI 用 Cloudflare API token など。置き場所と使い道は agent が用意済みのものを使う）。
+
+本番 D1 の migration・deploy・rollback と PRD 方針の判断は、2026-11-21 から人の待ち行列に積まない（agent が判断して進め、理由を残す）。
 
 ループはこれらを待たずに進めます。開放できないものは「本番では閉じたまま、mainでは完成」の状態で台帳に記録します（completion.json の `production` 欄）。
 
@@ -189,6 +191,6 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh patrol` | `0 */3 * * *`＋release後に本番1回 | `patrol-log` Issue 最新コメントの sha から origin/main までに src/worker/public の変更 | prompts/patrol.md |
 | `ksh garden` | `0 5 * * *` | `garden-log` Issue 最新コメントの sha 以降に main への commit | prompts/garden.md |
 | `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
-| `ksh release` | 9〜24時に3時間ごと | 未リリースcommitあり・main-health 非赤・リリースCI非実行・open P0 なし | docs/RELEASE.md |
+| `ksh release` | 9〜24時に3時間ごと | 未リリースcommitあり・main-health 非赤・リリースCI非実行・open P0 なし | `.claude/skills/release/SKILL.md` |
 
 同時に走る builder（finish）は最大3。patrol と garden は builder と別 worktree で動かす。

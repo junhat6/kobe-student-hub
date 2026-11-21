@@ -14,11 +14,6 @@ describe('loop guard (PreToolUse hook)', () => {
     ['git push origin HEAD:refs/heads/release', 'push-release'],
     ['git push origin release', 'push-release'],
     ['git push origin --delete main', 'delete-branch'],
-    ['npx wrangler deploy --config x.json', 'wrangler-deploy'],
-    ['wrangler rollback --yes', 'wrangler-deploy'],
-    ['npx wrangler secret put FOO', 'wrangler-deploy'],
-    ['npx wrangler d1 execute db --remote --command "select 1"', 'remote-d1'],
-    ['npx wrangler d1 migrations apply db --remote', 'remote-d1'],
     ['git stash', 'bare-stash'],
     ['git stash pop', 'bare-stash'],
     ['git stash && git pull', 'bare-stash'],
@@ -40,5 +35,11 @@ describe('loop guard (PreToolUse hook)', () => {
     "git commit -m 'add release train' && git push origin HEAD:main",
     'git commit -m "feat: release notes -f flag" && git push',
     'KSH_LOOP_INFRA=1 gh api -X PUT repos/o/r/rulesets/1',
+    // 本番の運用は agent が自分で判断して行う（2026-11-21 オーナー決定）。hook では止めない
+    'npx wrangler deploy --config x.json',
+    'wrangler rollback --yes',
+    'npx wrangler secret put FOO',
+    'npx wrangler d1 execute db --remote --command "select 1"',
+    'npx wrangler d1 migrations apply db --remote',
   ])('allows %s', (cmd) => expect(id(cmd)).toBeNull());
 });
