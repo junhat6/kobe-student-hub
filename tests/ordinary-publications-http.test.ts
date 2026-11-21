@@ -198,6 +198,7 @@ describe('ordinary publication composition with actual local Workers/D1', () => 
           saved.publication && {
             entry: saved.publication.entry,
             author: saved.publication.author,
+            publication: { publishedOn: saved.publication.entry.updatedAt, revised: false },
           },
         );
       else if (path === '/api/articles')

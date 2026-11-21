@@ -644,7 +644,10 @@ function Detail({ catalog }: { catalog: Catalog }) {
           <div className="detail-author">
             <Author profile={catalog.profiles.find((p) => p.id === e.authorId)} />
             <span>
-              <time dateTime={e.updatedAt}>{formatDate(e.updatedAt)}</time> 更新 · 約{e.minutes}分
+              <span className="nowrap">
+                <time dateTime={e.updatedAt}>{formatDate(e.updatedAt)}</time> 更新
+              </span>{' '}
+              · <span className="nowrap">約{e.minutes}分</span>
             </span>
           </div>
           <div className="tags">

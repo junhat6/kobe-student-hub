@@ -1,13 +1,13 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
-import type { Entry, Profile } from '../src/types';
+import type { PublishedArticleDetail } from '../src/types';
 import type { PrivateDraft } from '../worker/drafts';
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1800000000000;
 let mf: Miniflare;
 type Session = { setCookie: string; contextCookie: string; csrfToken: string };
-type Public = { entry: Entry; author: Profile };
+type Public = PublishedArticleDetail;
 let users: Session[];
 async function call<T>(input: Record<string, unknown>): Promise<T> {
   return (await (
@@ -113,11 +113,18 @@ describe('explicit article correction with immutable evidence', () => {
   it('updates the stable public URL only after confirmation and preserves both snapshots/creation time', async () => {
     const d = await create('Original title', 'Original body');
     const first = (await publish(d.id))!;
+    const day = new Date(NOW + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    // Readers see 「公開」 for a first publication and 「更新」 only after an explicit revision.
+    expect((await read(first.contentId))?.publication).toEqual({
+      publishedOn: day,
+      revised: false,
+    });
     const saved = await update(d);
     expect((await read(first.contentId))?.entry.body).toBe('Original body');
     expect(await publish(d.id, { ...meta, expectedVersion: saved.version })).toBeNull();
     expect(await revise(saved)).toEqual(first);
     expect((await read(first.contentId))?.entry.body).toBe('Corrected body');
+    expect((await read(first.contentId))?.publication).toEqual({ publishedOn: day, revised: true });
     expect(
       (
         await call<{ publication: { sourceVersion: number } }>({

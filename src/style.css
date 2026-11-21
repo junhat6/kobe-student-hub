@@ -1479,3 +1479,8 @@ footer > a {
     gap: 20px;
   }
 }
+
+/* Keep a date or reading-time label together instead of breaking it mid-phrase (e.g. 「約1」/「分」). */
+.nowrap {
+  white-space: nowrap;
+}

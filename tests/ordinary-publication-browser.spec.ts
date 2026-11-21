@@ -3,6 +3,20 @@ import { test, expect, type BrowserContext, type Page, type TestInfo } from '@pl
 import { accountMenu } from './helpers/header';
 import { japanDaysSince } from './helpers/japan-day';
 
+/** Each date / reading-time label of the article header stays on a single line. */
+async function expectUnbrokenDates(page: Page) {
+  const parts = page.locator('.detail-dates .nowrap');
+  expect(await parts.count()).toBeGreaterThanOrEqual(2);
+  // An inline label returns one rect per text fragment; all of them share one line when unbroken.
+  expect(
+    await parts.evaluateAll((nodes) =>
+      nodes.map(
+        (node) => new Set([...node.getClientRects()].map((rect) => Math.round(rect.top))).size,
+      ),
+    ),
+  ).toEqual(Array(await parts.count()).fill(1));
+}
+
 const testStartedAt = Date.now();
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -122,6 +136,11 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
     const publicDate = reader.locator('.detail-author time');
     await expect(publicDate).toHaveText(/^\d{4}\.\d{2}\.\d{2}$/);
     expect(japanDaysSince(testStartedAt)).toContain(await publicDate.textContent());
+    // #184: a first publication reads 「公開」, not 「更新」, and no label breaks mid-phrase.
+    await expect(reader.locator('.detail-dates')).toHaveText(
+      /^\d{4}\.\d{2}\.\d{2} 公開 · 約\d+分$/,
+    );
+    await expectUnbrokenDates(reader);
     const readerContext = reader.getByRole('region', { name: '読む前の目安' });
     for (const text of ['AIで制作している学生', '特別な前提知識は不要', '自分の判断を説明する'])
       await expect(readerContext.getByText(text, { exact: true })).toBeVisible();
@@ -525,6 +544,11 @@ test('ordinary author corrects an article at the same URL after saving and expli
       '扱うデータ量を再計測し、判断を訂正しました。',
     );
     await expect(reader.locator('main')).not.toContainText('この文章は公開する保存版です。');
+    // #184: after an explicit revision the reader sees both the first publication and the update.
+    await expect(reader.locator('.detail-dates')).toHaveText(
+      /^\d{4}\.\d{2}\.\d{2} 公開 · \d{4}\.\d{2}\.\d{2} 更新 · 約\d+分$/,
+    );
+    await expectUnbrokenDates(reader);
     expect(
       await reader.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);

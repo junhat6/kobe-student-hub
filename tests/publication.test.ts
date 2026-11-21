@@ -126,6 +126,10 @@ describe('unconnected publication snapshot boundary with real local sessions and
         bio: '手動で公開した自己紹介',
         initials: '手',
       },
+      publication: {
+        publishedOn: new Date(NOW + 9 * 3600 * 1000).toISOString().slice(0, 10),
+        revised: false,
+      },
     });
     for (const marker of [
       'account-0',

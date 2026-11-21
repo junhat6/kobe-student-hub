@@ -173,6 +173,25 @@ describe('explicit saved-version publication client', () => {
       ),
     ).rejects.toBeInstanceOf(PublicationClientError);
   });
+  it('accepts first-publication dates only when they are well-formed and not after the latest day', async () => {
+    const reader = (body: unknown) =>
+      createPublicationClient('', (async () => Response.json(body)) as typeof fetch).readArticle(
+        contentId,
+      );
+    const article = { entry: receipt.entry, author: receipt.author };
+    const publication = { publishedOn: receipt.entry.updatedAt, revised: true };
+    expect(await reader({ ...article, publication })).toEqual({ ...article, publication });
+    for (const bad of [
+      { publishedOn: '9999-12-31', revised: false },
+      { publishedOn: receipt.entry.updatedAt, revised: 'no' },
+      { publishedOn: receipt.entry.updatedAt },
+      { publishedOn: receipt.entry.updatedAt, revised: false, private: 'x' },
+      null,
+    ])
+      await expect(reader({ ...article, publication: bad })).rejects.toBeInstanceOf(
+        PublicationClientError,
+      );
+  });
   it('marks only an anonymous 404 article as missing', async () => {
     const status = (s: number) =>
       createPublicationClient('', (async () =>

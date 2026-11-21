@@ -1,7 +1,7 @@
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { proofAuthorization } from '../shared/auth-proof';
 import { validMediaIds } from '../shared/media';
-import type { Entry, Profile } from '../types';
+import type { Entry, Profile, PublishedArticleDetail } from '../types';
 import type { EditorDraft } from './draft-client';
 import type { PublicProfile } from './profile-client';
 export interface PublicationMetadata {
@@ -85,9 +85,25 @@ export function checkedMetadata(v: unknown): PublicationMetadata | null {
       }
     : null;
 }
-function article(v: unknown): v is { entry: Entry; author: Profile } {
+function publicationDates(v: unknown, updatedAt: unknown): boolean {
+  return (
+    keys(v, ['publishedOn', 'revised']) &&
+    typeof v.publishedOn === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(v.publishedOn) &&
+    typeof updatedAt === 'string' &&
+    v.publishedOn <= updatedAt &&
+    typeof v.revised === 'boolean'
+  );
+}
+function article(v: unknown): v is PublishedArticleDetail {
   if (
-    !keys(v, ['entry', 'author']) ||
+    !(
+      keys(v, ['entry', 'author']) ||
+      (keys(v, ['entry', 'author', 'publication']) &&
+        typeof v.entry === 'object' &&
+        v.entry !== null &&
+        publicationDates(v.publication, (v.entry as Record<string, unknown>).updatedAt))
+    ) ||
     !keys(v.entry, [
       'id',
       'kind',
@@ -313,7 +329,7 @@ export function createPublicationClient(
         throw new PublicationClientError();
       return result.contentId;
     },
-    async readArticle(id: string): Promise<{ entry: Entry; author: Profile }> {
+    async readArticle(id: string): Promise<PublishedArticleDetail> {
       if (!uuid(id)) throw new PublicationClientError(true);
       const result = await request(publicPaths(surface).articleApi(id), undefined, true);
       if (!article(result) || result.entry.id !== id) throw new PublicationClientError();

@@ -28,6 +28,14 @@ export interface Catalog {
   mode: 'sample';
 }
 
+/** Public article detail. `publication` is omitted when the first public revision cannot be read. */
+export interface PublishedArticleDetail {
+  entry: Entry;
+  author: Profile;
+  /** Japan day of the first public revision; `revised` is true once a later revision was published. */
+  publication?: { publishedOn: string; revised: boolean };
+}
+
 export type PublishedArticleSummary = Pick<
   Entry,
   | 'id'

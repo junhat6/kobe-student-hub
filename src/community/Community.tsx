@@ -7,7 +7,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MarkdownRenderer from '../MarkdownRenderer';
-import type { Entry, Profile, PublicLikedArticles } from '../types';
+import type { Entry, Profile, PublicLikedArticles, PublishedArticleDetail } from '../types';
 import { createOrdinaryDiscoveryClient } from './discovery-client';
 import RelatedReading from './RelatedReading';
 import { RecordReadingHistory } from '../history/RecordReadingHistory';
@@ -22,16 +22,56 @@ import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
 import './article.css';
 
+/**
+ * A first publication reads 「公開」; only a later revision adds 「更新」, so readers can tell a new
+ * article from a rewritten one. Each part stays on one line on narrow screens.
+ */
+function ArticleDates({
+  updatedAt,
+  publication,
+  minutes,
+}: {
+  updatedAt: string;
+  publication?: PublishedArticleDetail['publication'];
+  minutes: number;
+}) {
+  const parts = publication
+    ? [
+        <>
+          <time dateTime={publication.publishedOn}>{formatDate(publication.publishedOn)}</time> 公開
+        </>,
+        ...(publication.revised
+          ? [
+              <>
+                <time dateTime={updatedAt}>{formatDate(updatedAt)}</time> 更新
+              </>,
+            ]
+          : []),
+      ]
+    : [
+        <>
+          <time dateTime={updatedAt}>{formatDate(updatedAt)}</time> 更新
+        </>,
+      ];
+  return (
+    <span className="detail-dates">
+      {[...parts, <>約{minutes}分</>].map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 && ' · '}
+          <span className="nowrap">{part}</span>
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
 function StudentArticle({ id }: { id: string }) {
   const reportRisk = useUnsavedNavigation(
     '未送信の通報、または結果を確認中の操作があります。画面を離れると手元の入力は失われます。送信済みの操作は取り消せません。移動しますか？',
   );
   const client = useMemo(() => createPublicationClient('', fetch, 'ordinary'), []);
   const read = useMemo(() => (_signal: AbortSignal) => client.readArticle(id), [client, id]);
-  const { value, failed, missing, retry } = usePublicRead<{ entry: Entry; author: Profile }>(
-    id,
-    read,
-  );
+  const { value, failed, missing, retry } = usePublicRead<PublishedArticleDetail>(id, read);
   if (missing) return <ReadMissing subject="記事" back={{ to: '/', label: '記事一覧へ戻る' }} />;
   if (failed) return <ReadFailure subject="記事" retry={retry} />;
   if (!value)
@@ -68,10 +108,11 @@ function StudentArticle({ id }: { id: string }) {
                 <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
               </span>
             </Link>
-            <span>
-              <time dateTime={entry.updatedAt}>{formatDate(entry.updatedAt)}</time> 更新 · 約
-              {entry.minutes}分
-            </span>
+            <ArticleDates
+              updatedAt={entry.updatedAt}
+              publication={value.publication}
+              minutes={entry.minutes}
+            />
           </div>
           <div className="tags">
             {entry.tags.map((tag) => (
