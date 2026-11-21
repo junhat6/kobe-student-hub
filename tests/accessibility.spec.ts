@@ -38,8 +38,11 @@ const screens: { name: string; path: string; ready: (page: Page) => Promise<void
   {
     name: 'article',
     path: '/articles/learning-notes',
-    ready: (page) =>
-      expect(page.getByRole('heading', { name: 'この記事は、こんな人へ' })).toBeVisible(),
+    // Wait for the highlighted code blocks too, so axe sees the final scroll containers.
+    ready: async (page) => {
+      await expect(page.getByRole('heading', { name: 'この記事は、こんな人へ' })).toBeVisible();
+      await expect(page.locator('.prose pre code.hljs').first()).toBeVisible();
+    },
   },
   {
     name: 'project',

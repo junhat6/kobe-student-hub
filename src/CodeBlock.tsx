@@ -53,7 +53,8 @@ export default function CodeBlock({ children }: { children?: ReactNode }) {
                 : ''}
         </span>
       </div>
-      <pre ref={pre} tabIndex={-1}>
+      {/* Focusable so keyboard users can scroll long lines on narrow screens. */}
+      <pre ref={pre} tabIndex={0} aria-label="コード">
         {children}
       </pre>
     </div>
