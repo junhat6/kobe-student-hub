@@ -120,8 +120,12 @@ if (after.ok) {
   process.exit(0);
 }
 summary(`本番 smoke 失敗: ${after.failures.join(', ')}。直前の版へ rollback します。`);
-wrangler(['rollback', '--message', `smoke failed for ${short}`, '--yes']);
+const rolledBack = wrangler(['rollback', '--message', `smoke failed for ${short}`, '--yes']).ok;
 const back = await smoke(origin);
+if (!rolledBack)
+  die(
+    `wrangler rollback が失敗しました。本番は ${short} のままの可能性があります（smoke: ${back.ok ? '成功' : back.failures.join(', ')}）。wrangler deployments list で確かめ、手で戻してください。`,
+  );
 die(
   `rollback しました（rollback 後の smoke: ${back.ok ? '成功' : back.failures.join(', ')}）。release ブランチは ${short} のままなので、main で直して次の列車に乗せてください。`,
   2,
