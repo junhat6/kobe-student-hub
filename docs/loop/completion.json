@@ -81,9 +81,9 @@
       ],
       "journey": "J1",
       "risk": "R2",
-      "status": "unverified",
+      "status": "pass",
       "production": "unknown",
-      "evidence": null
+      "evidence": "#149: tests/ordinary-author-profile-browser.spec.ts（HTTPS fixture、PC1280/モバイル390、匿名）：記事詳細・作品詳細の投稿者リンク→/students/<id>、記事タブ・作品タブに本人の公開物だけ（他人の記事・作品は出ない）。fixture の Google ID トークンに name/given_name/family_name/picture の canary を入れ、HTML と /api/* 応答に学校メール・Google sub・canary が出ず、本文に申告年度（2019/2031）・入学年度/卒業予定の語が出ず、プロフィールに img がないことを確認。停止後の投稿者 404 は tests/public-students.test.ts。R2 独立検証合格（mutation で検出を確認）https://github.com/junhat6/kobe-student-hub/issues/149#issuecomment-7054832158"
     },
     {
       "id": "C06",
