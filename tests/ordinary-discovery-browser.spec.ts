@@ -142,9 +142,17 @@ test('ordinary new, real popularity, tag recommendations and related article/pro
     ).toBeVisible();
     await page.getByRole('link', { name: '技術選定の記録-' + key, exact: true }).click();
     const context = page.getByRole('region', { name: '読む前の目安' });
-    for (const label of ['想定読者', '前提知識', '読んだあとに'])
-      await expect(context.getByText(label, { exact: true })).toBeVisible();
-    await expect(context.getByText('投稿者の記載はありません', { exact: true })).toHaveCount(3);
+    // #172: all three empty fields are named on one line, not three rows.
+    await expect(
+      context.getByText('想定読者・前提知識・読んだあとに：記載なし', { exact: true }),
+    ).toBeVisible();
+    await expect(context.locator('dt')).toHaveCount(0);
+    const missingLine = await context.locator('.reader-context-missing').evaluate((element) => {
+      const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight);
+      return { height: element.getBoundingClientRect().height, lineHeight };
+    });
+    expect(missingLine.height).toBeLessThan(missingLine.lineHeight * 1.5);
+    expect((await context.boundingBox())!.height).toBeLessThan(120);
     expect(
       await page.evaluate(() => {
         const context = document.querySelector('.reader-context');

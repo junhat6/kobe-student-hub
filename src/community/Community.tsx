@@ -41,6 +41,15 @@ function StudentArticle({ id }: { id: string }) {
       </p>
     );
   const { entry, author } = value;
+  const readerContextFields = [
+    ['想定読者', entry.audience],
+    ['前提知識', entry.prerequisite],
+    ['読んだあとに', entry.outcome],
+  ] as const;
+  const readerContext = {
+    filled: readerContextFields.filter(([, text]) => text),
+    missing: readerContextFields.filter(([, text]) => !text).map(([label]) => label),
+  };
   return (
     <div className="shell detail-layout">
       <RecordReadingHistory kind="article" contentId={entry.id} />
@@ -74,24 +83,21 @@ function StudentArticle({ id }: { id: string }) {
         </div>
         <section className="reader-context" aria-label="読む前の目安">
           <h2>この記事について</h2>
-          <dl>
-            {(
-              [
-                ['想定読者', entry.audience],
-                ['前提知識', entry.prerequisite],
-                ['読んだあとに', entry.outcome],
-              ] as const
-            ).map(([label, text]) => (
-              <Fragment key={label}>
-                <dt>{label}</dt>
-                {text ? (
+          {readerContext.filled.length > 0 && (
+            <dl>
+              {readerContext.filled.map(([label, text]) => (
+                <Fragment key={label}>
+                  <dt>{label}</dt>
                   <dd>{text}</dd>
-                ) : (
-                  <dd className="reader-context-missing">投稿者の記載はありません</dd>
-                )}
-              </Fragment>
-            ))}
-          </dl>
+                </Fragment>
+              ))}
+            </dl>
+          )}
+          {readerContext.missing.length > 0 && (
+            // #172: empty optional fields share one short line instead of a row each,
+            // so the reader still sees what is missing without pushing the body down.
+            <p className="reader-context-missing">{readerContext.missing.join('・')}：記載なし</p>
+          )}
         </section>
         <div className="prose">
           <MarkdownRenderer body={entry.body} />

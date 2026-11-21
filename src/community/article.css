@@ -390,6 +390,10 @@
   }
 }
 .detail-layout .reader-context .reader-context-missing {
+  margin: 0;
   color: var(--ink-soft);
-  font-style: italic;
+  font-size: 13px;
+}
+.detail-layout .reader-context dl + .reader-context-missing {
+  margin-top: 12px;
 }
