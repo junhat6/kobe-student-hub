@@ -14,6 +14,14 @@ async function seriousViolations(page: Page) {
 async function check(page: Page, path: string, ready: () => Promise<void>) {
   await page.goto(path);
   await ready();
+  // Colour transitions (e.g. a primary button turning from its disabled pale blue to the accent
+  // after the session check) must settle first, or axe can sample a mid-transition colour. CI
+  // caught /login this way on rc/9d1c184. CSS transitions are finite, unlike looping animations.
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every((a) => !(a instanceof CSSTransition) || a.playState !== 'running'),
+  );
   expect
     .soft({ path, violations: await seriousViolations(page) })
     .toEqual({ path, violations: [] });
@@ -68,7 +76,9 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     await check(page, '/students/' + owner.profileId, () =>
       expect(page.getByRole('heading', { name: '架空の読みやすさ投稿者-' + key })).toBeVisible(),
     );
-    await check(page, '/login', () => expect(page.locator('main')).toBeVisible());
+    await check(page, '/login', () =>
+      expect(page.getByRole('button', { name: '学校Googleでログイン', exact: true })).toBeEnabled(),
+    );
     await check(page, '/signup', () =>
       expect(page.getByLabel('入学年度 必須', { exact: true })).toBeVisible(),
     );
