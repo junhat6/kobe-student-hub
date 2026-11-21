@@ -76,6 +76,16 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     await check(page, '/history', () =>
       expect(page.getByRole('link', { name: 'ログインして履歴を見る', exact: true })).toBeVisible(),
     );
+    // #182: the signed-out account screens, including the school-account rejection notice.
+    await check(page, '/account', () =>
+      expect(page.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible(),
+    );
+    await check(page, '/account#school-account-required', () =>
+      expect(page.getByRole('alert')).toContainText('学校のアカウントではないため'),
+    );
+    await check(page, '/drafts', () =>
+      expect(page.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible(),
+    );
 
     // Report forms on an ordinary article and work, opened by another signed-in student.
     const reader = await actor(browser, contexts, '架空の読者-' + key);

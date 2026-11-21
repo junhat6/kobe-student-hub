@@ -191,15 +191,14 @@
   flex-wrap: wrap;
   margin-top: 24px;
 }
+/* The sign-in button keeps the shared primary look: white text on the accent blue.
+   `.account-signed-out a` would otherwise recolour it to link blue (#182). */
 .account-signed-out .primary {
-  color: #10283f;
+  color: #fff;
   text-decoration: none;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-}
-.account-signed-out .primary:hover {
-  color: #fff;
 }
 .account-page .account-enrollment {
   padding: 0;
