@@ -76,7 +76,6 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
   }
   return (
     <section aria-label="自分の閲覧履歴" className="reading-history">
-      <h2>閲覧履歴</h2>
       <p>
         自分だけに表示されます。最後に読んだ日時と記事・作品への参照を保存します。本文や画像は保存しません。
       </p>
@@ -153,7 +152,7 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
       ) : (
         !message && <p role="status">履歴を読み込んでいます…</p>
       )}
-      {value && (
+      {value && (offset > 0 || value.nextOffset !== null) && (
         <nav className="history-actions" aria-label="履歴のページ">
           <Button
             disabled={busy || offset === 0}
@@ -176,6 +175,7 @@ export default function HistoryPage() {
   return (
     <section className="account-page">
       <AccountSessionBoundary
+        title="閲覧履歴"
         signedOutContent={
           <p>
             <Link to="/login">ログインして履歴を見る</Link>

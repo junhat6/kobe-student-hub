@@ -51,6 +51,11 @@ test('logged-in read → private history → single/all delete → collection di
     panel.getByRole('link', { name: '「動いた」で終わらせない、制作ノートの残し方', exact: true }),
   ).toBeVisible();
   await expect(panel.getByText('記事 · 架空サンプル', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: '閲覧履歴', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'アカウント', exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('navigation', { name: '履歴のページ' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('private-reading-history.png'), fullPage: true });
   await panel
@@ -60,6 +65,7 @@ test('logged-in read → private history → single/all delete → collection di
     })
     .click();
   await expect(panel.getByText('閲覧履歴はまだありません。', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: '次の20件', exact: true })).toHaveCount(0);
   saved = recorded(page);
   await page.goto('/projects/tiny-notes');
   expect(await (await saved).json()).toEqual({ recorded: true });
@@ -177,6 +183,7 @@ test('history next/previous controls retain the requested page with bounded synt
   await page.goto('/history');
   const panel = page.getByRole('region', { name: '自分の閲覧履歴', exact: true });
   await expect(panel.getByRole('link', { name: '架空の履歴 0', exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: '前の20件', exact: true })).toBeDisabled();
   await expect(panel.getByText('記事 · 架空サンプル', { exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: '次の20件', exact: true }).click();
   await expect(panel.getByRole('link', { name: '架空の履歴 20', exact: true })).toBeVisible();
