@@ -95,10 +95,28 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   await composer.getByLabel('前提知識（任意）').fill('特別な前提知識は不要');
   await composer.getByLabel('読んだあとにできること（任意）').fill('自分の判断を説明する');
   await expect(composer.getByLabel('読了時間の目安（分）')).toHaveValue('1');
+  // C09: the owner can read the exact saved snapshot before publishing, and nothing is
+  // published until the explicit confirmation is checked and the button is pressed.
+  const snapshot = composer.locator('details.publication-snapshot');
+  await snapshot.getByText(/^保存済みの版 \d+ の本文を確認$/).click();
+  await expect(snapshot.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  await expect(snapshot).toContainText('この文章は公開する保存版です。');
+  const submit = composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true });
+  await expect(submit).toBeDisabled();
+  // Other tests in this shared preview reuse the title, so count same-title public cards.
+  const publicCount = async () => {
+    const response = await page.request.get('/api/articles');
+    expect(response.status()).toBe(200);
+    const { cards } = (await response.json()) as { cards: { entry: { title: string } }[] };
+    return cards.filter((card) => card.entry.title === title).length;
+  };
+  const before = await publicCount();
   await composer.getByRole('checkbox').check();
-  await composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true }).click();
+  await expect(submit).toBeEnabled();
+  await submit.click();
   const publicLink = composer.getByRole('link', { name: 'ログインなしの読者画面を開く' });
   await expect(publicLink).toBeVisible();
+  expect(await publicCount()).toBe(before + 1);
   const articlePath = await publicLink.getAttribute('href');
   expect(articlePath).toMatch(/^\/articles\/[0-9a-f-]{36}$/);
   return articlePath!;
@@ -194,6 +212,25 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
     await reader.reload();
     await expect(reader.getByRole('heading', { name: '記事が見つかりません' })).toBeVisible();
     await reader.goto('/');
+    await expect(
+      reader.getByRole('link', { name: '架空のAI技術選定ノート', exact: true }),
+    ).toHaveCount(0);
+    // C09: after the owner's stop the article also leaves search and the author's profile.
+    await reader.getByRole('searchbox').fill('AI技術選定');
+    await reader.getByRole('button', { name: '検索', exact: true }).click();
+    await expect(reader).toHaveURL(/\/search\?/);
+    await expect(
+      reader.getByRole('heading', { name: '一致する記事・作品はありません', exact: true }),
+    ).toBeVisible();
+    await expect(
+      reader.getByRole('link', { name: '架空のAI技術選定ノート', exact: true }),
+    ).toHaveCount(0);
+    // The stopped article was this author's only publication, so the profile itself is no
+    // longer public (a profile without public content is not shown), not merely the card.
+    await reader.goto(authorHref!);
+    await expect(
+      reader.getByRole('heading', { name: '投稿者が見つかりません', exact: true }),
+    ).toBeVisible();
     await expect(
       reader.getByRole('link', { name: '架空のAI技術選定ノート', exact: true }),
     ).toHaveCount(0);
