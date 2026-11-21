@@ -109,7 +109,7 @@ export default function ArticleLikeButton({ contentId }: { contentId: string }) 
               ? null
               : liked
                 ? 'あなたの公開プロフィールの「いいね」に表示されます。'
-                : '役に立ったら、いいねで書いた人に伝えよう。'}
+                : 'いいねは公開されます。あなたの公開プロフィールに、いいねした記事として表示されます。'}
         {hint === 'login' && state.kind !== 'error' && (
           <>
             いいねするには<Link to="/login">ログイン</Link>してください。
