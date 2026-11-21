@@ -6,7 +6,7 @@ const MIN = 44;
 
 // Controls smaller than MIN in either direction. Links inside running text are exempt, as in
 // WCAG 2.5.8: enlarging them would break the sentence they belong to.
-export function smallTargets(page: Page) {
+function smallTargets(page: Page) {
   return page.evaluate((min) => {
     const selector =
       'a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [tabindex]:not([tabindex="-1"])';
@@ -45,7 +45,7 @@ export const noOverflow = (page: Page) =>
 // Tab through the page and record every stop that is invisible or shows no change when focused.
 // The indicator may sit on the control itself or on a wrapper (:focus-within / :has rings on the
 // search box and cards), so compare the focused and blurred styles of the control and 3 parents.
-export async function keyboardGaps(page: Page, limit = 120) {
+async function keyboardGaps(page: Page, limit = 120) {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.locator('body').focus();
   const gaps: string[] = [];
@@ -99,7 +99,7 @@ export async function keyboardGaps(page: Page, limit = 120) {
   return { gaps, stops: seen.size };
 }
 
-export async function seriousAxeViolations(page: Page) {
+async function seriousAxeViolations(page: Page) {
   const { violations } = await new AxeBuilder({ page }).analyze();
   return violations
     .filter((v) => v.impact === 'critical' || v.impact === 'serious')

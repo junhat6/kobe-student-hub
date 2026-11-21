@@ -3,7 +3,7 @@
  * Storage keeps UTC milliseconds; only the displayed day is shifted, so a 03:00 JST
  * publication is not shown as the previous day.
  */
-export const JAPAN_OFFSET_MS = 9 * 60 * 60 * 1000;
+const JAPAN_OFFSET_MS = 9 * 60 * 60 * 1000;
 /** Largest stored timestamp whose Japan day still has a four-digit year. */
 export const MAX_JAPAN_DATE_MS = 253402300799999 - JAPAN_OFFSET_MS;
 

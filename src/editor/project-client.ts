@@ -47,7 +47,7 @@ function summary(v: unknown): v is ProjectDraftSummary {
     Number(v.updatedAt) >= 0
   );
 }
-export function validProjectDraft(v: unknown): v is ProjectDraft {
+function validProjectDraft(v: unknown): v is ProjectDraft {
   return (
     publicKeys(v, ['id', ...fields, 'version', 'updatedAt']) &&
     validFields(v) &&

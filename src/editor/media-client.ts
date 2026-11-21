@@ -215,7 +215,7 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
     },
   };
 }
-export const MEDIA_SOURCE_MAX_BYTES = 12 * 1024 * 1024;
+const MEDIA_SOURCE_MAX_BYTES = 12 * 1024 * 1024;
 /** Native decode/resize strips metadata; the server independently bounds and decodes every output pixel. */
 export async function prepareImage(file: File): Promise<Blob> {
   // Each refusal names its own reason so the author knows what to change before choosing again.

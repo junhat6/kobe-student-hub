@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-export const SCHOOL_GOOGLE_DOMAIN = 'st.kobedenshi.ac.jp';
+const SCHOOL_GOOGLE_DOMAIN = 'st.kobedenshi.ac.jp';
 const GOOGLE_JWKS_URL = new URL('https://www.googleapis.com/oauth2/v3/certs');
 // Public signing-key cache only: no request tokens or personal identity in module state.
 const googleKeys = createRemoteJWKSet(GOOGLE_JWKS_URL, {

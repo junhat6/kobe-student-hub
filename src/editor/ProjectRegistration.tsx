@@ -26,7 +26,7 @@ const empty: ProjectFields = {
   technologies: '',
 };
 /** Display-only split of the one-line technologies text; the stored snapshot stays the exact text. */
-export const technologyNames = (value: string) =>
+const technologyNames = (value: string) =>
   value
     .split(/[,、，]/)
     .map((name) => name.trim())

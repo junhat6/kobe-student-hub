@@ -3,7 +3,7 @@ import { completeGoogleFormPost } from './google-form-post';
 
 // A fictional signed-in student with a public profile, created through the HTTPS fixture's API
 // so browser specs can start from published content without walking the whole sign-up flow.
-export const ORIGIN = 'https://127.0.0.1:8790';
+const ORIGIN = 'https://127.0.0.1:8790';
 export type Actor = { context: BrowserContext; csrf: string; profileId: string };
 
 export async function actor(

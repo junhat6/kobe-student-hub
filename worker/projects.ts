@@ -23,7 +23,7 @@ const uuid = (x: unknown): x is string =>
   typeof x === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(x);
 /** Optional owner-chosen article links: 1-3 distinct UUIDs. Ownership is enforced by the insert trigger. */
-export const validArticleIds = (x: unknown): x is string[] =>
+const validArticleIds = (x: unknown): x is string[] =>
   Array.isArray(x) &&
   x.length >= 1 &&
   x.length <= 3 &&

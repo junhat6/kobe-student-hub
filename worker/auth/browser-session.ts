@@ -1,8 +1,4 @@
-import {
-  AUTHORIZATION_HEADER,
-  parseProofAuthorization,
-  hasLegacyProofHeader,
-} from '../../src/shared/auth-proof';
+import { parseProofAuthorization, hasLegacyProofHeader } from '../../src/shared/auth-proof';
 import { base64url } from 'jose';
 import {
   canonicalEnrollmentYears,
@@ -15,8 +11,7 @@ import {
   type SessionStorageProof,
 } from './session-guard';
 export const CONTEXT_COOKIE = '__Host-kobe-browser';
-export { AUTHORIZATION_HEADER };
-export const CONTEXT_LIFETIME_MS = 28_800_000;
+const CONTEXT_LIFETIME_MS = 28_800_000;
 export interface BrowserIssuanceLimits {
   maxLiveContexts: number;
   maxCommandsPerMinute: number;
@@ -35,7 +30,7 @@ export interface BrowserClaim {
 }
 export const freshBrowserSecret = () =>
   base64url.encode(crypto.getRandomValues(new Uint8Array(32)));
-export const validBrowserSecret = (v: unknown): v is string =>
+const validBrowserSecret = (v: unknown): v is string =>
   typeof v === 'string' && /^[A-Za-z0-9_-]{43}$/.test(v);
 export async function browserDigest(domain: string, value: string) {
   return Array.from(

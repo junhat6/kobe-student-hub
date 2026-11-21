@@ -1,11 +1,10 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
+import { noOverflow } from './helpers/screen-quality';
 // C20: broken links, API outages and session checks never leave the reader at a dead end.
 // Runs on the HTTPS fixture at PC(1280) and mobile(390) via playwright.generation.config.ts.
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
-const noOverflow = (page: Page) =>
-  page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 async function register(page: Page, info: TestInfo) {
   const actor = `fictional-deadend-${info.project.name}-${Date.now().toString(36)}`;
   await page.route(provider, async (route) => {

@@ -47,7 +47,7 @@ export async function recordSentHeaders(
 }
 
 /** Header names that must never accompany an anonymous public read. */
-export const IDENTITY_HEADERS = ['cookie', 'x-csrf-token', 'authorization'] as const;
+const IDENTITY_HEADERS = ['cookie', 'x-csrf-token', 'authorization'] as const;
 
 /** Lists "path header" for every identity header found, so a failure names the request. */
 export function identityHeadersOf(sent: SentRequest[]) {

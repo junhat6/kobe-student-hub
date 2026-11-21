@@ -38,7 +38,7 @@ const PROJECT_LABELS: [keyof ProjectFields, string][] = [
   ['demoUrl', 'デモ URL'],
 ];
 /** The plain text shown in the read-only rescue box and copied to the clipboard. */
-export function rescueText(value: UnsavedRescue) {
+function rescueText(value: UnsavedRescue) {
   if (value.kind === 'article') return (value.title ? value.title + '\n\n' : '') + value.body;
   const { fields } = value;
   const lines = PROJECT_LABELS.filter(([key]) => fields[key]).map(

@@ -65,7 +65,7 @@ const sources = {
   },
 } as const;
 /** Trusted internal spool only; no HTTP endpoint grants access to these operations. */
-export class ModerationEmailStore {
+class ModerationEmailStore {
   private readonly t: (typeof sources)[Source];
   constructor(
     private readonly db: D1Database,
