@@ -43,3 +43,15 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* 全体の a { color: inherit; text-decoration: none } を上書きし、次の一手の行き先をリンクと分かる見た目にする */
+.account-notifications a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #175f91;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.account-notifications a:hover {
+  color: #0d4a73;
+}

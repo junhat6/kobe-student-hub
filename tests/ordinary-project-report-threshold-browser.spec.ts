@@ -113,6 +113,22 @@ test('three different accounts temporarily hide a project without deleting it', 
     await expect(notices).toContainText(title);
     await expect(notices).toContainText('異なる3人からの通報により、一時非公開になりました。');
     await expect(notices).not.toContainText('架空の通報理由');
+    // The next steps must look like links, not body text (#181).
+    const bodyColor = await notices
+      .locator('.notification-reason')
+      .first()
+      .evaluate((el) => getComputedStyle(el).color);
+    for (const name of [
+      '自分の公開記録を確認する',
+      '判断についての相談・異議申立ての案内（別のタブ）',
+    ]) {
+      const link = notices.getByRole('link', { name, exact: true }).first();
+      await expect(link).toBeVisible();
+      await expect(link).toHaveCSS('text-decoration-line', 'underline');
+      await expect(link).not.toHaveCSS('color', bodyColor);
+      expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+    await notices.screenshot({ path: info.outputPath('project-report-owner-notice.png') });
     await page.screenshot({
       path: info.outputPath('project-report-owner-hidden.png'),
       fullPage: true,
