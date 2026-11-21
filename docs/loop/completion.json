@@ -143,9 +143,9 @@
       ],
       "journey": "J2",
       "risk": "R2",
-      "status": "unverified",
+      "status": "pass",
       "production": "closed",
-      "evidence": null
+      "evidence": "受け入れ1: tests/ordinary-publication-browser.spec.ts の publishArticle（PC1280/モバイル390）で、公開前に保存版本文のプレビューを開け、確認チェック前は公開ボタンが無効で /api/articles に出ず、明示操作の後に初めて1件増える。受け入れ2: 同 spec「ordinary author corrects an article at the same URL…」で改稿が同じURLに反映、未確認の下書きの続きは出ない。受け入れ3: 同 spec の公開停止後に記事詳細「記事が見つかりません」・ホーム・検索（一致なし）から消え、唯一の公開物を止めた投稿者ページは非公開。関連と閲覧履歴は tests/ordinary-integrated-authoring-browser.spec.ts。R2 独立検証合格(#153, main c5a87e4: 一時 spec 2 passed＋既存 20 passed。他に公開物がある投稿者ページから停止記事だけ消える、他人・未ログイン・古い expectedSourceVersion・confirmStop なしの停止は拒否、停止後の再公開で復活しない https://github.com/junhat6/kobe-student-hub/issues/153#issuecomment-7066699614)。本番：執筆画面は本番で閉じているため production は closed のまま"
     },
     {
       "id": "C10",
