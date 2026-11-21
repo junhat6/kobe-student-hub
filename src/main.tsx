@@ -13,6 +13,7 @@ import { Button } from '@base-ui/react/button';
 import { searchCatalog, relatedEntries } from './catalog';
 import type { Catalog, Entry, Profile } from './types';
 import { isCatalog } from './validation';
+import { announceServerReachable } from './editor/anonymous-public-read';
 import { safeListPath, readListOrigin, listContextPath } from './navigation';
 import { usePagePosition } from './usePagePosition';
 import { RecordReadingHistory } from './history/RecordReadingHistory';
@@ -103,6 +104,7 @@ function App() {
     setFailed(false);
     fetch('/api/catalog', { signal: controller.signal })
       .then((r) => {
+        announceServerReachable();
         if (!r.ok) throw Error();
         return r.json();
       })

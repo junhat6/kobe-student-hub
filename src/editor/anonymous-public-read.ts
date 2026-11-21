@@ -8,6 +8,13 @@ export function publicReadMissing(error: unknown): boolean {
     (error instanceof Error && (error as { missing?: unknown }).missing === true)
   );
 }
+/**
+ * Tells the header the server answered a public read, so a header that could not read the
+ * session during an outage re-checks it. Carries no URL, content or identity.
+ */
+export function announceServerReachable() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('ksh:server-reachable'));
+}
 /** Bounded anonymous JSON transport: no identity bootstrap or credentials. */
 export async function readAnonymousJson(
   path: string,
@@ -44,6 +51,7 @@ export async function readAnonymousJson(
       signal: controller.signal,
       headers: { Accept: 'application/json' },
     });
+    announceServerReachable();
     if (
       expired ||
       controller.signal.aborted ||

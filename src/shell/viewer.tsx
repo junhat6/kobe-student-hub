@@ -131,11 +131,25 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
       const status = viewerRef.current.status;
       if (status === 'unknown' || status === 'signed-out') refresh();
     };
+    // Public pages never check the session themselves: when the connection comes back (a public
+    // read succeeded or the browser is online again), re-read a session the header lost to the
+    // outage. "signed-out" was a definite server answer, so it is not re-read here.
+    const onReachable = () => {
+      if (viewerRef.current.status !== 'unknown') return;
+      // One re-check per recovery: a page firing several reads must not queue several.
+      viewerRef.current = { status: 'loading' };
+      setViewer(viewerRef.current);
+      refresh();
+    };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', refresh);
     window.addEventListener('ksh:session-changed', onChanged);
     window.addEventListener('ksh:session-confirmed', onConfirmed);
+    window.addEventListener('ksh:server-reachable', onReachable);
+    window.addEventListener('online', onReachable);
     return () => {
+      window.removeEventListener('ksh:server-reachable', onReachable);
+      window.removeEventListener('online', onReachable);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', refresh);
       window.removeEventListener('ksh:session-changed', onChanged);

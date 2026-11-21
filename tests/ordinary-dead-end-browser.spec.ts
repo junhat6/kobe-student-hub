@@ -82,9 +82,15 @@ test('every page offers a retry during an API outage and recovers after it', asy
     if (path === '/') await page.screenshot({ path: info.outputPath('home-outage.png') });
     await page.unroute('**/api/**');
     for (const button of buttons) await button.click();
+    // The header must follow the recovered session on every page, including public pages
+    // that never check the session themselves (#176), not keep offering "ログイン".
+    const accountMenu = page
+      .getByRole('banner')
+      .getByRole('button', { name: 'アカウントメニュー' });
     if (recovered === null) {
       for (const button of buttons) await expect(button, path).toHaveCount(0);
       await expect(main.getByText(failure!), path).toHaveCount(0);
+      await expect(accountMenu, path).toBeVisible();
       continue;
     }
     // Session pages re-check first and open private content only on an explicit second step.
@@ -93,11 +99,6 @@ test('every page offers a retry during an API outage and recovers after it', asy
     await expect(done.or(open).first(), path).toBeVisible();
     if (!(await done.isVisible())) await open.click();
     await expect(done, path).toBeVisible();
-    // The header must follow the recovered session, not keep offering "ログイン".
-    if (path === '/account' || path === '/drafts')
-      await expect(
-        page.getByRole('banner').getByRole('button', { name: 'アカウントメニュー' }),
-        path,
-      ).toBeVisible();
+    await expect(accountMenu, path).toBeVisible();
   }
 });
