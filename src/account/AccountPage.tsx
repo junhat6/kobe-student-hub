@@ -139,7 +139,10 @@ function AccountContent({
   );
 }
 export default function AccountPage() {
-  const authenticationFailed = useLocation().hash === '#authentication-failed';
+  const hash = useLocation().hash;
+  const authenticationFailed = hash === '#authentication-failed';
+  // Set by the server only after a fully verified Google token from outside the school domain.
+  const schoolAccountRequired = hash === '#school-account-required';
   // Route protection stays outside session visibility changes.
   const onNavigationRiskChange = useUnsavedNavigation(
     '未保存のプロフィール、または結果を確認中の操作があります。画面を離れると手元の入力は失われます。送信済みの操作は取り消せません。移動しますか？',
@@ -161,6 +164,11 @@ export default function AccountPage() {
             {authenticationFailed && (
               <p className="account-message" role="alert">
                 ログイン・登録を完了できませんでした。もう一度やり直してください。
+              </p>
+            )}
+            {schoolAccountRequired && (
+              <p className="account-message" role="alert">
+                選んだGoogleアカウントは学校のアカウントではないため、ログイン・登録できません。学校メール（@st.kobedenshi.ac.jp）のGoogleアカウントを選んでやり直してください。
               </p>
             )}
             <div className="account-signed-out">

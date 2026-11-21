@@ -83,7 +83,13 @@ async function signedOutAccount(page: Page, failed = false) {
   ).toBeVisible();
   await expect(enrollment(page)).toHaveCount(0);
 }
-async function fakeGoogle(page: Page, actor: string, denied = false, legacyFragment = false) {
+async function fakeGoogle(
+  page: Page,
+  actor: string,
+  denied = false,
+  legacyFragment = false,
+  outside = false,
+) {
   const visits: string[] = [];
   await page.route(googleAuthorization, async (route) => {
     const url = new URL(route.request().url());
@@ -97,7 +103,11 @@ async function fakeGoogle(page: Page, actor: string, denied = false, legacyFragm
     if (!denied) {
       const token = await page
         .context()
-        .request.get(ORIGIN + '/__control/token?' + new URLSearchParams({ state, nonce, actor }));
+        .request.get(
+          ORIGIN +
+            '/__control/token?' +
+            new URLSearchParams({ state, nonce, actor, ...(outside ? { outside: '1' } : {}) }),
+        );
       expect(token.status()).toBe(200);
     }
     const fields = {
@@ -301,6 +311,44 @@ test('provider denial lands on a clean signed-out account page without success o
   );
   expect((await context.request.get(ORIGIN + '/api/private/enrollment')).status()).toBe(401);
   await expect(page.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible();
+});
+
+test('an outside-school Google account is refused with the reason for signup and login, leaving no session or years', async ({
+  page,
+  context,
+}, info) => {
+  const reason =
+    '選んだGoogleアカウントは学校のアカウントではないため、ログイン・登録できません。学校メール（@st.kobedenshi.ac.jp）のGoogleアカウントを選んでやり直してください。';
+  for (const login of [false, true]) {
+    await context.clearCookies();
+    const visits = await fakeGoogle(page, fictional(info, 'outside'), false, false, true);
+    if (login) await page.goto('/login');
+    else {
+      await signup(page);
+      await fillYears(page);
+    }
+    await google(page, login).click();
+    await expect(page).toHaveURL(ORIGIN + '/account#school-account-required');
+    await expect(page.getByRole('alert')).toHaveText(reason);
+    await expect(page.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible();
+    await expect(enrollment(page)).toHaveCount(0);
+    expect(visits).toHaveLength(1);
+    expect(new URL(page.url()).search).toBe('');
+    expect(await page.locator('body').innerText()).not.toMatch(/gmail\.com|fictional-ordinary/);
+    expect((await context.cookies()).some((cookie) => cookie.name === '__Host-kobe-session')).toBe(
+      false,
+    );
+    expect((await context.request.get(ORIGIN + '/api/private/enrollment')).status()).toBe(401);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: info.outputPath('outside-school-' + (login ? 'login' : 'signup') + '.png'),
+      fullPage: true,
+      scale: 'css',
+    });
+    await page.unroute(googleAuthorization);
+  }
 });
 
 test('fragment receiver clears its URL before POST and never automatically retries after pagehide', async ({

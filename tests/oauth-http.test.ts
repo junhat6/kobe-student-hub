@@ -746,3 +746,40 @@ it('ignores any stale return cookie on the bare receiver and original same-origi
   expect(cookies(completed)).toHaveLength(1);
   expect(cookies(completed)[0]).toMatch(/^__Host-kobe-session=/);
 });
+
+it('refuses a verified outside-school account with a reason, without account, session or replay', async () => {
+  for (const reg of [false, true]) {
+    const a = await prepare('fictional-outside-' + reg, reg, {
+        hd: undefined,
+        email: 'fictional-outside@gmail.com',
+      }),
+      accounts = await count('private_accounts'),
+      sessions = await count('auth_sessions'),
+      before = exchanges;
+    const carrier = cookies(await stageReturn(a))[0].split(';')[0];
+    const refused = await request('/api/auth/callback/complete', 'GET', {
+      Cookie: carrier + '; ' + a.cookie,
+    });
+    privacy(refused);
+    expect(refused.status).toBe(303);
+    expect(refused.headers.get('Location')).toBe(O + '/#school-account-required');
+    expect(cookies(refused).some((c) => c.startsWith('__Host-kobe-session='))).toBe(false);
+    expect(await refused.text()).toBe('');
+    expect(exchanges).toBe(before + 1);
+    expect(await count('private_accounts')).toBe(accounts);
+    expect(await count('auth_sessions')).toBe(sessions);
+    // The attempt was consumed: a replay is the ordinary opaque failure.
+    const replay = await request('/api/auth/callback/complete', 'GET', {
+      Cookie: carrier + '; ' + a.cookie,
+    });
+    expect(replay.headers.get('Location')).toBe(O + '/#authentication-failed');
+    expect(exchanges).toBe(before + 1);
+  }
+  // A forged-looking but otherwise school-shaped mismatch stays opaque.
+  const mixed = await prepare('fictional-mixed', false, { email: 'fictional@gmail.com' });
+  const carrier = cookies(await stageReturn(mixed))[0].split(';')[0];
+  const failed = await request('/api/auth/callback/complete', 'GET', {
+    Cookie: carrier + '; ' + mixed.cookie,
+  });
+  expect(failed.headers.get('Location')).toBe(O + '/#authentication-failed');
+});

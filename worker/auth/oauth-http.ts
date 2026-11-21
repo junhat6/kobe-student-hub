@@ -413,7 +413,11 @@ export function createOAuthHttpHandler(
               ? '/api/auth/pilot#' +
                 (result?.kind === 'pending-receipt' ? 'received' : 'unavailable')
               : (options.accountLanding === true ? '/account#' : '/#') +
-                (result?.kind === 'authenticated' ? '' : 'authentication-failed')),
+                (result?.kind === 'authenticated'
+                  ? ''
+                  : result?.kind === 'outside-school'
+                    ? 'school-account-required'
+                    : 'authentication-failed')),
         },
       });
       // Never mutate the shared attempt cookie: even a claimed response can arrive after a newer start.

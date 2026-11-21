@@ -23,6 +23,15 @@ export interface VerifiedSchoolIdentity {
 }
 
 /**
+ * A genuine, fully verified Google identity whose hosted domain and email domain are both
+ * outside the school. Carries no identity fields: the caller may only explain the refusal.
+ */
+export const OUTSIDE_SCHOOL_ACCOUNT = Object.freeze({ kind: 'outside-school' as const });
+export type OutsideSchoolAccount = typeof OUTSIDE_SCHOOL_ACCOUNT;
+export const isOutsideSchoolAccount = (value: unknown): value is OutsideSchoolAccount =>
+  value === OUTSIDE_SCHOOL_ACCOUNT;
+
+/**
  * Real signature and claims verification. Does not create a session or prove enrollment.
  * Future OAuth code must atomically consume its state/nonce before issuing a session.
  * All failures (including configuration/network/JWKS errors) fail closed without logging.
@@ -31,6 +40,20 @@ export async function verifySchoolGoogleIdToken(
   token: string,
   context: GoogleVerificationContext,
 ): Promise<VerifiedSchoolIdentity | null> {
+  const result = await classifyGoogleIdToken(token, context);
+  return isOutsideSchoolAccount(result) ? null : result;
+}
+
+/**
+ * Same verification, but distinguishes a non-school account only after the signature, issuer,
+ * audience, presenter, lifetime, nonce and verified email all pass. Forged, replayed or
+ * half-school tokens stay an indistinguishable null, so the distinction reveals nothing an
+ * attacker controls.
+ */
+export async function classifyGoogleIdToken(
+  token: string,
+  context: GoogleVerificationContext,
+): Promise<VerifiedSchoolIdentity | OutsideSchoolAccount | null> {
   const { clientId, expectedNonce } = context;
   if (!clientId || !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(clientId)) return null;
   if (!expectedNonce || !/^[A-Za-z0-9_-]{32,128}$/.test(expectedNonce)) return null;
@@ -46,7 +69,8 @@ export async function verifySchoolGoogleIdToken(
       algorithms: ['RS256'],
       issuer: ['https://accounts.google.com', 'accounts.google.com'],
       audience: clientId,
-      requiredClaims: ['iss', 'aud', 'sub', 'exp', 'iat', 'nonce', 'email', 'email_verified', 'hd'],
+      // hd is checked below: personal Google accounts omit it and must reach the outside-school branch.
+      requiredClaims: ['iss', 'aud', 'sub', 'exp', 'iat', 'nonce', 'email', 'email_verified'],
       maxTokenAge: 600,
       clockTolerance: 5,
     });
@@ -62,14 +86,19 @@ export async function verifySchoolGoogleIdToken(
     )
       return null;
     if (payload.nonce !== expectedNonce) return null;
-    if (payload.email_verified !== true || payload.hd !== SCHOOL_GOOGLE_DOMAIN) return null;
+    if (payload.email_verified !== true) return null;
     if (
       typeof payload.email !== 'string' ||
       payload.email.length > 320 ||
       !/^[^\s@]+@[^\s@]+$/.test(payload.email)
     )
       return null;
-    if (payload.email.split('@')[1].toLowerCase() !== SCHOOL_GOOGLE_DOMAIN) return null;
+    if (payload.hd !== undefined && typeof payload.hd !== 'string') return null;
+    const schoolHost = payload.hd === SCHOOL_GOOGLE_DOMAIN,
+      schoolEmail = payload.email.split('@')[1].toLowerCase() === SCHOOL_GOOGLE_DOMAIN;
+    // Both outside: an ordinary personal or other-organization account. Mixed claims stay null.
+    if (!schoolHost && !schoolEmail) return OUTSIDE_SCHOOL_ACCOUNT;
+    if (!schoolHost || !schoolEmail) return null;
 
     // Deliberately omit Google name, picture, domain hints and the original token.
     return Object.freeze({ provider: 'google', subject: payload.sub, email: payload.email });

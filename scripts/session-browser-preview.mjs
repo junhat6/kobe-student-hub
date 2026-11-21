@@ -89,6 +89,10 @@ const control = async (r) => {
         sub: u.searchParams.get('actor'),
         email: u.searchParams.get('actor') + '@st.kobedenshi.ac.jp',
         nonce: u.searchParams.get('nonce'),
+        // outside=1: a genuine personal Google account (no hd, non-school email domain).
+        ...(u.searchParams.get('outside') === '1'
+          ? { hd: undefined, email: u.searchParams.get('actor') + '@gmail.com' }
+          : {}),
         // Google profile claims the app must never publish (C05 checks they stay off public pages).
         name: 'GOOGLE_NAME_CANARY',
         given_name: 'GOOGLE_GIVEN_CANARY',

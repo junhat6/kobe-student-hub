@@ -1,6 +1,6 @@
 import type { SessionRestrictionReader } from './session-guard';
 import { BrowserOAuthFlow, type BrowserFlowConfig, type OAuthIntent } from './browser-flow';
-import { verifySchoolGoogleIdToken } from './google-identity';
+import { classifyGoogleIdToken, isOutsideSchoolAccount } from './google-identity';
 import { PendingRegistrationStore } from './pending-registration';
 import type { VerifiedSchoolIdentity } from './google-identity';
 import { SessionStore } from './sessions';
@@ -12,6 +12,8 @@ export type GoogleRegistrationResult =
   { kind: 'pending-receipt'; clearCookie: string } | { kind: 'failed'; clearCookie: string };
 export type GoogleLoginResult =
   | { kind: 'failed'; clearCookie: string }
+  // A verified Google account outside the school domain; the attempt is already consumed.
+  | { kind: 'outside-school'; clearCookie: string }
   | ({ kind: 'authenticated'; clearCookie: string } & NonNullable<
       Awaited<ReturnType<SessionStore['create']>>
     >);
@@ -168,10 +170,15 @@ export class GoogleLoginBroker {
       if (!token || abort.signal.aborted) return failure;
       clearTimeout(timer);
       abort.abort();
-      const identity = await verifySchoolGoogleIdToken(token, {
+      const identity = await classifyGoogleIdToken(token, {
         clientId: this.config.clientId,
         expectedNonce: claim.nonce,
       });
+      if (isOutsideSchoolAccount(identity))
+        // The retired pending pilot keeps its single opaque failure.
+        return intent === 'pending-registration'
+          ? failure
+          : { kind: 'outside-school', clearCookie: claim.clearCookie };
       if (!identity) return failure;
       if (intent === 'pending-registration') {
         if (allowIdentity && !allowIdentity(identity)) return failure;

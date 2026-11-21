@@ -153,12 +153,26 @@ describe('server-only bounded Google exchange with local D1 and real signatures'
   it('burns signed but invalid identity and nonce failures', async () => {
     const foreign = await googleFixture();
     for (const patch of [
-      { hd: 'example.invalid', email: 'x@example.invalid' },
+      { email: 'x@example.invalid' },
+      { hd: 'example.invalid' },
       { nonce: 'incorrect-nonce' },
     ]) {
       const a = (await start())!;
       response = async () => Response.json({ id_token: await signed(a, patch) });
       failure(await callback(a));
+      expect(await callback(a)).toBeNull();
+    }
+    // A fully verified outside-school account is explained, but its attempt is burned all the same.
+    for (const patch of [
+      { hd: 'example.invalid', email: 'x@example.invalid' },
+      { hd: undefined, email: 'x@gmail.com' },
+    ]) {
+      const a = (await start())!;
+      response = async () => Response.json({ id_token: await signed(a, patch) });
+      expect(await callback(a)).toEqual({
+        kind: 'outside-school',
+        clearCookie: expect.stringContaining('Max-Age=0'),
+      });
       expect(await callback(a)).toBeNull();
     }
     const a = (await start())!;

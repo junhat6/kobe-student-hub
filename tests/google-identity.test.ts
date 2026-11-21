@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { SignJWT, base64url, type JWTPayload } from 'jose';
-import { verifySchoolGoogleIdToken } from '../worker/auth/google-identity';
+import {
+  classifyGoogleIdToken,
+  OUTSIDE_SCHOOL_ACCOUNT,
+  verifySchoolGoogleIdToken,
+} from '../worker/auth/google-identity';
 import { googleFixture, TEST_CLIENT_ID, TEST_EMAIL, TEST_NONCE } from './helpers/google-fixtures';
 let fixture: Awaited<ReturnType<typeof googleFixture>>;
 const context = { clientId: TEST_CLIENT_ID, expectedNonce: TEST_NONCE };
@@ -53,6 +57,42 @@ describe('server Google identity boundary with real JOSE signatures', () => {
     ['missing nonce', { nonce: undefined }],
   ] satisfies [string, JWTPayload][])('rejects %s', async (_label, patch) => {
     expect(await verifySchoolGoogleIdToken(await fixture.sign(patch), context)).toBeNull();
+  });
+  describe('outside-school classification', () => {
+    const personal = { hd: undefined, email: 'fictional-person@gmail.com' };
+    it.each([
+      ['personal account without hd', personal],
+      ['other organization', { hd: 'example.invalid', email: 'fixture@example.invalid' }],
+    ] satisfies [string, JWTPayload][])(
+      'classifies a fully verified %s as outside the school, without identity fields',
+      async (_label, patch) => {
+        const token = await fixture.sign(patch);
+        expect(await classifyGoogleIdToken(token, context)).toBe(OUTSIDE_SCHOOL_ACCOUNT);
+        expect(OUTSIDE_SCHOOL_ACCOUNT).toEqual({ kind: 'outside-school' });
+        // The session-issuing helper still only ever sees a school identity or null.
+        expect(await verifySchoolGoogleIdToken(token, context)).toBeNull();
+      },
+    );
+    it.each([
+      ['nonce mismatch', { ...personal, nonce: 'wrong-nonce' }],
+      ['foreign audience', { ...personal, aud: 'other.apps.googleusercontent.com' }],
+      ['expired', { ...personal, exp: 1 }],
+      ['unverified email', { ...personal, email_verified: false }],
+      ['malformed email', { ...personal, email: 'fixture@@gmail.com' }],
+      ['non-string hd', { hd: 1, email: 'fixture@example.invalid' }],
+      ['school hd with outside email', { email: 'fixture@example.invalid' }],
+      ['school email without school hd', { hd: undefined }],
+      ['lookalike hd with school email', { hd: 'st.kobedenshi.ac.jp.example.invalid' }],
+    ] satisfies [string, JWTPayload][])(
+      'keeps %s an opaque failure instead of explaining it',
+      async (_label, patch) => {
+        expect(await classifyGoogleIdToken(await fixture.sign(patch), context)).toBeNull();
+      },
+    );
+    it('keeps a personal-account token signed by a foreign key an opaque failure', async () => {
+      const foreign = await googleFixture();
+      expect(await classifyGoogleIdToken(await foreign.sign(personal), context)).toBeNull();
+    });
   });
   it('rejects tampering, foreign signing keys, unknown kid and algorithm confusion', async () => {
     const parts = (await fixture.sign()).split('.');
