@@ -84,6 +84,11 @@ const control = async (r) => {
         sub: u.searchParams.get('actor'),
         email: u.searchParams.get('actor') + '@st.kobedenshi.ac.jp',
         nonce: u.searchParams.get('nonce'),
+        // Google profile claims the app must never publish (C05 checks they stay off public pages).
+        name: 'GOOGLE_NAME_CANARY',
+        given_name: 'GOOGLE_GIVEN_CANARY',
+        family_name: 'GOOGLE_FAMILY_CANARY',
+        picture: 'https://lh3.googleusercontent.com/a/GOOGLE_PICTURE_CANARY',
       }),
     );
     return new Response('ready');
