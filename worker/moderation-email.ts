@@ -51,34 +51,56 @@ interface Event {
   contentId: string;
   event: 'report_received' | 'temporarily_hidden';
 }
+type Source = 'article' | 'project';
+const sources = {
+  article: {
+    deliveries: 'moderation_email_deliveries',
+    outbox: 'article_report_outbox',
+    target: 'content_id',
+  },
+  project: {
+    deliveries: 'project_moderation_email_deliveries',
+    outbox: 'project_report_outbox',
+    target: 'project_id',
+  },
+} as const;
 /** Trusted internal spool only; no HTTP endpoint grants access to these operations. */
 export class ModerationEmailStore {
-  constructor(private readonly db: D1Database) {}
+  private readonly t: (typeof sources)[Source];
+  constructor(
+    private readonly db: D1Database,
+    source: Source = 'article',
+  ) {
+    this.t = sources[source];
+  }
   async expire(now: number) {
+    const { deliveries } = this.t;
     await this.db
       .prepare(
-        `UPDATE moderation_email_deliveries SET state='unknown',lease_token=NULL,lease_until_ms=NULL,updated_at_ms=? WHERE outbox_id IN (SELECT outbox_id FROM moderation_email_deliveries WHERE state='leased' AND lease_until_ms<=? ORDER BY lease_until_ms,outbox_id LIMIT 20)`,
+        `UPDATE ${deliveries} SET state='unknown',lease_token=NULL,lease_until_ms=NULL,updated_at_ms=? WHERE outbox_id IN (SELECT outbox_id FROM ${deliveries} WHERE state='leased' AND lease_until_ms<=? ORDER BY lease_until_ms,outbox_id LIMIT 20)`,
       )
       .bind(now, now)
       .run();
   }
   async claim(now: number): Promise<Claim | null> {
+    const { deliveries, outbox } = this.t;
     return this.db
       .prepare(
-        `INSERT INTO moderation_email_deliveries(outbox_id,state,attempts,lease_token,lease_until_ms,updated_at_ms)
-      SELECT o.id,'leased',1,?,?,? FROM article_report_outbox o LEFT JOIN moderation_email_deliveries d ON d.outbox_id=o.id
+        `INSERT INTO ${deliveries}(outbox_id,state,attempts,lease_token,lease_until_ms,updated_at_ms)
+      SELECT o.id,'leased',1,?,?,? FROM ${outbox} o LEFT JOIN ${deliveries} d ON d.outbox_id=o.id
       WHERE o.state='pending' AND (d.outbox_id IS NULL OR (d.state='ready' AND d.attempts<3)) ORDER BY o.created_at_ms,o.id LIMIT 1
-      ON CONFLICT(outbox_id) DO UPDATE SET state='leased',attempts=moderation_email_deliveries.attempts+1,lease_token=excluded.lease_token,lease_until_ms=excluded.lease_until_ms,updated_at_ms=excluded.updated_at_ms
-      WHERE moderation_email_deliveries.state='ready' AND moderation_email_deliveries.attempts<3
+      ON CONFLICT(outbox_id) DO UPDATE SET state='leased',attempts=${deliveries}.attempts+1,lease_token=excluded.lease_token,lease_until_ms=excluded.lease_until_ms,updated_at_ms=excluded.updated_at_ms
+      WHERE ${deliveries}.state='ready' AND ${deliveries}.attempts<3
       RETURNING outbox_id outboxId,lease_token leaseToken,attempts`,
       )
       .bind(crypto.randomUUID(), now + 30000, now)
       .first<Claim>();
   }
   async event(claim: Claim): Promise<Event | null> {
+    const { deliveries, outbox, target } = this.t;
     return this.db
       .prepare(
-        "SELECT o.content_id contentId,o.event FROM article_report_outbox o JOIN moderation_email_deliveries d ON d.outbox_id=o.id WHERE o.id=? AND d.lease_token=? AND d.state='leased'",
+        `SELECT o.${target} contentId,o.event FROM ${outbox} o JOIN ${deliveries} d ON d.outbox_id=o.id WHERE o.id=? AND d.lease_token=? AND d.state='leased'`,
       )
       .bind(claim.outboxId, claim.leaseToken)
       .first<Event>();
@@ -91,7 +113,7 @@ export class ModerationEmailStore {
   ): Promise<boolean> {
     const value = await this.db
       .prepare(
-        `UPDATE moderation_email_deliveries SET state=?,provider_message_id=?,lease_token=NULL,lease_until_ms=NULL,updated_at_ms=? WHERE outbox_id=? AND state='leased' AND lease_token=? AND lease_until_ms>? RETURNING outbox_id`,
+        `UPDATE ${this.t.deliveries} SET state=?,provider_message_id=?,lease_token=NULL,lease_until_ms=NULL,updated_at_ms=? WHERE outbox_id=? AND state='leased' AND lease_token=? AND lease_until_ms>? RETURNING outbox_id`,
       )
       .bind(state, messageId, now, claim.outboxId, claim.leaseToken, now)
       .first();
@@ -144,6 +166,27 @@ function acceptedId(value: unknown): string | null {
     return null;
   }
 }
+const mail = {
+  article: {
+    hidden: '記事を一時非公開にしました',
+    received: '記事の通報が届いています',
+    body: '運営画面で記事と通報内容を確認できます。',
+    path: '/moderation?case=',
+  },
+  project: {
+    hidden: '作品を一時非公開にしました',
+    received: '作品の通報が届いています',
+    body: '運営画面で作品と通報内容を確認できます。',
+    path: '/moderation?type=project&case=',
+  },
+} as const;
+type Summary = {
+  enabled: boolean;
+  attempted: number;
+  accepted: number;
+  failed: number;
+  unknown: number;
+};
 /** Bounded single attempts. Accepted is provider acceptance, never proof of delivery. */
 export async function dispatchModerationEmails(
   db: D1Database,
@@ -151,19 +194,39 @@ export async function dispatchModerationEmails(
   clock: () => number = Date.now,
   timeoutMs = 10000,
 ) {
-  const summary = { enabled: options !== null, attempted: 0, accepted: 0, failed: 0, unknown: 0 };
+  const summary: Summary = {
+    enabled: options !== null,
+    attempted: 0,
+    accepted: 0,
+    failed: 0,
+    unknown: 0,
+  };
   if (!options || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10000)
     return summary;
-  const store = new ModerationEmailStore(db);
+  // Any doubt about a receipt stops the whole run, so the next source never masks it.
+  for (const source of ['article', 'project'] as const)
+    if (!(await dispatchSource(db, source, options, clock, timeoutMs, summary))) break;
+  return summary;
+}
+async function dispatchSource(
+  db: D1Database,
+  source: Source,
+  options: ModerationEmailOptions,
+  clock: () => number,
+  timeoutMs: number,
+  summary: Summary,
+): Promise<boolean> {
+  const store = new ModerationEmailStore(db, source);
+  const copy = mail[source];
   try {
     const now = clock();
-    if (!time(now)) return summary;
+    if (!time(now)) return false;
     await store.expire(now);
     for (let i = 0; i < 5; i++) {
       const at = clock();
-      if (!time(at)) break;
+      if (!time(at)) return false;
       const claim = await store.claim(at);
-      if (!claim) break;
+      if (!claim) return true;
       const event = await store.event(claim);
       if (
         !event ||
@@ -173,24 +236,18 @@ export async function dispatchModerationEmails(
       ) {
         await store.finish(claim, 'unknown', clock());
         summary.unknown++;
-        break;
+        return false;
       }
-      const link = options.origin + '/moderation?case=' + encodeURIComponent(event.contentId);
+      const link = options.origin + copy.path + encodeURIComponent(event.contentId);
       let timer: ReturnType<typeof setTimeout> | undefined;
       const send = Promise.resolve()
         .then(() =>
           options.email.send({
             from: options.from,
             to: options.to,
-            subject:
-              event.event === 'temporarily_hidden'
-                ? '記事を一時非公開にしました'
-                : '記事の通報が届いています',
-            text: '運営画面で記事と通報内容を確認できます。\n' + link,
-            html:
-              '<p>運営画面で記事と通報内容を確認できます。</p><p><a href="' +
-              link +
-              '">運営画面で確認する</a></p>',
+            subject: event.event === 'temporarily_hidden' ? copy.hidden : copy.received,
+            text: copy.body + '\n' + link,
+            html: '<p>' + copy.body + '</p><p><a href="' + link + '">運営画面で確認する</a></p>',
           }),
         )
         .then(
@@ -215,12 +272,13 @@ export async function dispatchModerationEmails(
       }
       if (!saved) {
         summary.unknown++;
-        break;
+        return false;
       }
       summary[state]++;
     }
+    return true;
   } catch {
     summary.unknown++;
+    return false;
   }
-  return summary;
 }

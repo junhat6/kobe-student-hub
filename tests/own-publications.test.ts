@@ -142,14 +142,14 @@ it('returns authorized genuine empty and no other owner records or private field
   ])
     expect(JSON.stringify(r)).not.toContain(x);
 });
-it('reads actual article three-report hiding and project multiple-report non-hiding as stored states', async () => {
+it('reads actual article and project three-report hiding as stored states', async () => {
   const article = await publish('article', 'Article report state'),
     project = await publish('project', 'Project report state');
   for (let n = 1; n < 4; n++)
     expect(await action('article-report', { reason: 'Plain report' }, article, n)).toEqual({
       received: true,
     });
-  for (let n = 1; n < 5; n++)
+  for (let n = 1; n < 4; n++)
     expect(await action('project-report', { reason: 'Plain project report' }, project, n)).toEqual({
       received: true,
     });
@@ -166,7 +166,7 @@ it('reads actual article three-report hiding and project multiple-report non-hid
       kind: 'project',
       publicId: project,
       title: 'Project report state',
-      status: 'published',
+      status: 'hidden',
       publishedAt: NOW,
       sourceVersion: 1,
     },

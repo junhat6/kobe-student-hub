@@ -159,19 +159,31 @@ beforeAll(async () => {
 afterAll(async () => {
   await mf?.dispose();
 });
-it('migrates accepted reports, passes trusted operators through ordinary dispatch, defaults deny and never auto-hides', async () => {
-  for (const n of [0, 3, 4]) await report(legacy, n);
+it('migrates accepted reports, passes trusted operators through ordinary dispatch, defaults deny and hides only at the 3rd distinct report', async () => {
   const db = await mf.getD1Database('DB');
+  const status = async () =>
+    await db.prepare('SELECT status FROM project_publications WHERE id=?').bind(legacy).first();
+  await report(legacy, 0);
+  expect(await status()).toEqual({ status: 'published' });
+  await report(legacy, 3);
+  expect(await status()).toEqual({ status: 'hidden' });
   expect(
-    await db.prepare('SELECT status FROM project_publications WHERE id=?').bind(legacy).first(),
-  ).toEqual({ status: 'published' });
+    (
+      await req(
+        '/api/private/project-reports/' + legacy,
+        'POST',
+        { reason: 'After temporary hide' },
+        4,
+      )
+    ).status,
+  ).toBe(404);
   const r = await req(state(legacy), 'GET', undefined, 1);
   expect(r.status).toBe(200);
   expect(await r.json()).toMatchObject({
     round: 1,
-    version: 4,
-    status: 'published',
-    reportCount: 4,
+    version: 3,
+    status: 'hidden',
+    reportCount: 3,
   });
   for (const [n, extra] of [
     [0, {}],

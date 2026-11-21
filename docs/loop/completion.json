@@ -235,7 +235,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "unknown",
-      "evidence": null
+      "evidence": "記事: 既存の 0006/0018 trigger（異なる3アカウントで一時非公開・round ごと）と tests/moderation-email.test.ts。作品: migration 0026 で3人目の異なるアカウントの通報で status=hidden（行は残り削除しない）、以後の受付は 404、全通報を project_report_outbox に積み、dispatchModerationEmails が記事と同じ受領記録つきで「作品の通報が届いています／作品を一時非公開にしました」と /moderation?type=project&case=<id> を運営者へ送る（通報本文・通報者は載せない）。tests/project-reports.test.ts・project-moderation.test.ts・own-publications.test.ts、ブラウザは tests/ordinary-project-report-threshold-browser.spec.ts（PC1280/モバイル390、別 context の3アカウントが理由つきで通報→匿名は「作品が見つかりません」・一覧から消える→投稿者のマイページで「一時非公開」）。メールは送信 binding 未設定のため fake SendEmail でのローカル確認のみ。R2 独立検証待ち(#159)"
     },
     {
       "id": "C16",

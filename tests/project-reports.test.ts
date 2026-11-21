@@ -1,5 +1,6 @@
 import { applyFixtureMigrations } from './helpers/migrations';
-import { beforeAll, afterAll, it, expect } from 'vitest';
+import { beforeAll, afterAll, it, expect, vi } from 'vitest';
+import { dispatchModerationEmails } from '../worker/moderation-email';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import type { ProjectReportCase, ProjectReportCaseSummary } from '../src/project-report-types';
@@ -108,7 +109,7 @@ it('distinguishes genuine no receipt and authorized empty queue from unavailable
   expect((await req(queue, 'GET', undefined, 1, { 'X-Test-No-Operator': '1' })).status).toBe(404);
   expect((await req('/api/private/project-reports/' + crypto.randomUUID())).status).toBe(404);
 });
-it('deduplicates12 concurrent reports preserving original reason, without hiding or notifying', async () => {
+it('deduplicates12 concurrent reports preserving original reason; one account never hides and queues one notice', async () => {
   const rs = await Promise.all(
     Array.from({ length: 12 }, () =>
       req(reportPath(), 'POST', { reason: 'Original plain reason', detail: 'Private detail' }),
@@ -131,6 +132,14 @@ it('deduplicates12 concurrent reports preserving original reason, without hiding
       .first<{ status: string }>())!.status,
   ).toBe('published');
   expect(await (await req(reportPath(), 'GET', undefined, 2)).json()).toEqual({ received: false });
+  expect(
+    (
+      await db
+        .prepare('SELECT report_count,event FROM project_report_outbox WHERE project_id=?')
+        .bind(project)
+        .all()
+    ).results,
+  ).toEqual([{ report_count: 1, event: 'report_received' }]);
 });
 it('exposes bounded private cases only to configured operator without reporter identity', async () => {
   const q = (await (await req(queue, 'GET', undefined, 1)).json()) as ProjectReportCaseSummary[];
@@ -184,17 +193,32 @@ it('retains accepted own receipt on hidden/deleted while denying others and inta
     .run();
 });
 it('returns latest20 with explicit truncation, preserving reports after reporter deletion', async () => {
-  await Promise.all(
-    Array.from({ length: 22 }, (_, i) =>
-      req(reportPath(), 'POST', { reason: 'Report ' + (i + 2) }, i + 2),
-    ),
-  );
+  const db = await mf.getD1Database('DB');
+  // The 3rd distinct reporter hides the project; an operator restore lets later reports in.
+  for (let i = 0; i < 22; i++) {
+    expect((await req(reportPath(), 'POST', { reason: 'Report ' + (i + 2) }, i + 2)).status).toBe(
+      201,
+    );
+    await db
+      .prepare("UPDATE project_publications SET status='published' WHERE id=?")
+      .bind(project)
+      .run();
+  }
+  expect(
+    (
+      await db
+        .prepare(
+          "SELECT report_count FROM project_report_outbox WHERE project_id=? AND event='temporarily_hidden'",
+        )
+        .bind(project)
+        .all()
+    ).results,
+  ).toEqual([{ report_count: 3 }]);
   let c = (await (
     await req(queue + '/' + project, 'GET', undefined, 1)
   ).json()) as ProjectReportCase;
   expect(c.reports).toHaveLength(20);
   expect(c.reportsTruncated).toBe(true);
-  const db = await mf.getD1Database('DB');
   expect(
     (await db
       .prepare('SELECT status FROM project_publications WHERE id=?')
@@ -216,6 +240,91 @@ it('returns latest20 with explicit truncation, preserving reports after reporter
   ).toBe(23);
   c = (await (await req(queue + '/' + project, 'GET', undefined, 1)).json()) as ProjectReportCase;
   expect(c.reports).toHaveLength(20);
+});
+it('temporarily hides on the 3rd distinct account without deleting, and stops further intake', async () => {
+  const db = await mf.getD1Database('DB'),
+    fresh = await seedProject(),
+    path = '/api/private/project-reports/' + fresh;
+  const status = async () =>
+    (await db
+      .prepare('SELECT status FROM project_publications WHERE id=?')
+      .bind(fresh)
+      .first<{ status: string }>())!.status;
+  for (const n of [3, 3, 4]) {
+    expect((await req(path, 'POST', { reason: 'Same or second reporter' }, n)).status).toBe(201);
+    expect(await status()).toBe('published');
+  }
+  expect((await req(path, 'POST', { reason: 'Third distinct reporter' }, 5)).status).toBe(201);
+  expect(await status()).toBe('hidden');
+  expect(
+    (await db
+      .prepare('SELECT count(*) n FROM project_reports WHERE project_id=?')
+      .bind(fresh)
+      .first<{ n: number }>())!.n,
+  ).toBe(3);
+  expect(
+    (
+      await db
+        .prepare(
+          'SELECT report_count,event FROM project_report_outbox WHERE project_id=? ORDER BY report_count',
+        )
+        .bind(fresh)
+        .all()
+    ).results,
+  ).toEqual([
+    { report_count: 1, event: 'report_received' },
+    { report_count: 2, event: 'report_received' },
+    { report_count: 3, event: 'temporarily_hidden' },
+  ]);
+  expect((await req(path, 'POST', { reason: 'After hide' }, 6)).status).toBe(404);
+  expect(await (await req(path, 'GET', undefined, 5)).json()).toEqual({ received: true });
+  const c = (await (
+    await req(queue + '/' + fresh, 'GET', undefined, 1)
+  ).json()) as ProjectReportCase;
+  expect(c.status).toBe('hidden');
+  expect(c.reports).toHaveLength(3);
+});
+it('emails the operator once per queued project report with a project case link and no report text', async () => {
+  const db = await mf.getD1Database('DB');
+  const sent: { subject: string; text: string; html: string }[] = [];
+  const send = vi.fn(async (m: { subject: string; text: string; html: string }) => {
+    sent.push(m);
+    return { messageId: 'provider-' + sent.length };
+  });
+  const options = {
+    email: { send } as unknown as SendEmail,
+    from: 'notice@example.invalid',
+    to: 'verified-ops@example.invalid',
+    origin: O,
+  };
+  const queued = (await db
+    .prepare('SELECT count(*) n FROM project_report_outbox')
+    .first<{ n: number }>())!.n;
+  let accepted = 0;
+  for (let i = 0; i < queued && accepted < queued; i++)
+    accepted += (await dispatchModerationEmails(db, options, () => NOW + 10)).accepted;
+  expect(accepted).toBe(queued);
+  expect((await dispatchModerationEmails(db, options, () => NOW + 11)).attempted).toBe(0);
+  expect(
+    (await db
+      .prepare(
+        "SELECT count(*) n FROM project_moderation_email_deliveries WHERE state='accepted' AND attempts=1",
+      )
+      .first<{ n: number }>())!.n,
+  ).toBe(queued);
+  expect(sent.filter((m) => m.subject === '作品を一時非公開にしました').length).toBeGreaterThan(0);
+  expect(sent.filter((m) => m.subject === '作品の通報が届いています').length).toBeGreaterThan(0);
+  for (const m of sent) {
+    expect(m.text).toMatch(
+      new RegExp(
+        '^運営画面で作品と通報内容を確認できます。\\n' +
+          O.replace(/\./g, '\\.') +
+          '/moderation\\?type=project&case=[0-9a-f-]{36}$',
+      ),
+    );
+    for (const marker of ['Report ', 'reporter', 'account-', '@st.kobedenshi', 'Private detail'])
+      expect(JSON.stringify(m)).not.toContain(marker);
+  }
 });
 it('rejects privileged/malformed/plain text overflow inputs and unsafe transport', async () => {
   for (const v of [
@@ -325,6 +434,8 @@ it('never acknowledges failed inserts and refuses malformed cases/storage withou
     .bind('x'.repeat(201), project)
     .run();
   expect((await req(queue + '/' + project, 'GET', undefined, 1)).status).toBe(404);
+  for (const table of ['project_moderation_email_deliveries', 'project_report_outbox'])
+    await db.prepare('DROP TABLE ' + table).run();
   await db.prepare('DROP TABLE project_reports').run();
   expect((await req(queue, 'GET', undefined, 1)).status).toBe(404);
   expect((await req(reportPath())).status).toBe(404);
