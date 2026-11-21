@@ -190,7 +190,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "unknown",
-      "evidence": null
+      "evidence": "tests/ordinary-profile-self-entry-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）: 学校Googleで登録した直後の作成欄は4項目とも空で画像なし。fixture の Google token に入る氏名・写真の canary は、アカウント画面・公開プロフィール・すべての /api 応答に出ない。公開されるのは本人が入力した表示名・学科・学年の表示・自己紹介だけ。編集（学科を空にする含む）は、すでに公開プロフィールを開いている読者の再読み込みで即反映し、古い値は残らない（/api/students は no-store。no-store を外すと spec が落ちることを確認）。既存: ordinary-profile-edit（公開URL維持・受付不明/競合で入力保持）、ordinary-author-profile（匿名読者に私的情報なし）。R2 独立検証の合格まで unverified のまま"
     },
     {
       "id": "C13",
