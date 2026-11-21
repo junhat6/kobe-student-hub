@@ -347,6 +347,21 @@ describe('private reading history with native D1 final authority', () => {
     expect(await (await record('git-branches')).json()).toEqual({ recorded: true });
     await clear();
   });
+  it("never shows one account's entries or collection setting to another account", async () => {
+    await record('learning-notes', 'article', 0);
+    expect(await (await request('PATCH', { enabled: false })).json()).toEqual({ enabled: false });
+    const peer = await list(1);
+    expect(peer.entries).toEqual([]);
+    expect(peer.enabled).toBe(true);
+    expect(await (await record('git-branches', 'article', 1)).json()).toEqual({ recorded: true });
+    const own = await list(0);
+    expect(own.entries.map((e) => e.contentId)).toEqual(['learning-notes']);
+    expect(own.enabled).toBe(false);
+    expect((await list(1)).entries.map((e) => e.contentId)).toEqual(['git-branches']);
+    await request('PATCH', { enabled: true });
+    await clear();
+    await clear(1);
+  });
   it('keeps all 500 existing references, paginates, and refuses a new target at capacity without eviction', async () => {
     const db = await mf.getD1Database('DB');
     await db
