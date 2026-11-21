@@ -89,9 +89,8 @@ export default {
       u.pathname.startsWith('/assets/')
     )
       return fetch('https://fixture-assets.invalid' + u.pathname);
-    return new Response(
-      '<!doctype html><title>Local generation QA</title><p>Bounded local HTTP fixture; production UI is not mounted.</p>',
-      { headers: { 'Content-Type': 'text/html' } },
-    );
+    // Mirror production's single-page-application fallback so unknown and malformed URLs
+    // reach the app's own "not found" screen instead of a fixture-only page.
+    return fetch('https://fixture-assets.invalid/');
   },
 };

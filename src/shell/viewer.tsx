@@ -73,6 +73,8 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
   );
   const [generation, setGeneration] = useState(0);
   const refresh = useCallback(() => setGeneration((value) => value + 1), []);
+  const viewerRef = useRef(viewer);
+  viewerRef.current = viewer;
   // The token the shown name belongs to; a different token must never show the old name.
   const shownToken = useRef<string | null>(null);
   useEffect(() => {
@@ -123,13 +125,21 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
       setViewer({ status: 'loading' });
       refresh();
     };
+    // A private screen proved a session the header could not read (e.g. after an outage);
+    // re-read so the header stops offering "ログイン" to a signed-in reader.
+    const onConfirmed = () => {
+      const status = viewerRef.current.status;
+      if (status === 'unknown' || status === 'signed-out') refresh();
+    };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', refresh);
     window.addEventListener('ksh:session-changed', onChanged);
+    window.addEventListener('ksh:session-confirmed', onConfirmed);
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', refresh);
       window.removeEventListener('ksh:session-changed', onChanged);
+      window.removeEventListener('ksh:session-confirmed', onConfirmed);
     };
   }, [refresh]);
   const logout = useCallback(async () => {
@@ -152,3 +162,7 @@ export const useViewer = () => useContext(ViewerContext);
 
 /** Lets private screens tell the header that the session may have changed. */
 export const announceSessionChange = () => window.dispatchEvent(new Event('ksh:session-changed'));
+
+/** Lets private screens tell the header they confirmed a session; carries no token. */
+export const announceSessionConfirmed = () =>
+  window.dispatchEvent(new Event('ksh:session-confirmed'));

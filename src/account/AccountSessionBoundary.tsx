@@ -14,6 +14,7 @@ import {
   SessionClientError,
   type AuthorSessionGuard,
 } from '../editor/session-client';
+import { announceSessionConfirmed } from '../shell/viewer';
 type Phase =
   | 'checking'
   | 'active'
@@ -201,6 +202,7 @@ export default function AccountSessionBoundary({
     guard.current = bound;
     tokenRef.current = current;
     setSessionToken(current);
+    announceSessionConfirmed();
   }
   // SDK instances keep this stable proxy across a hidden/same-session recovery.
   const guardedFetch = useCallback<typeof fetch>((input, init) => {
