@@ -121,22 +121,24 @@ async function main() {
   else log('本番 deploy はしていません（--deploy で実行）。');
 }
 
-// 本番 deploy の担い手を決める。GitHub の environment `production` に CLOUDFLARE_API_TOKEN があれば
-// GitHub Actions（release.yml の deploy job）、無ければ手元の wrangler。どちらも scripts/deploy-production.mjs を実行する。
+// 本番 deploy の担い手を決める。GitHub に CLOUDFLARE_API_TOKEN があれば GitHub Actions（release.yml の deploy job）、
+// 無ければ手元の wrangler。どちらも scripts/deploy-production.mjs を実行する。
+// token は environment `production`（release ブランチ限定）に置くのが正だが、repo の secret でも deploy job からは
+// 同じ `secrets.CLOUDFLARE_API_TOKEN` で読めるので、両方を見る（2026-11-22 オーナーが repo 側に登録したため）。
+function secretNames(path) {
+  try {
+    return sh('gh', ['api', path, '-q', '.secrets[].name']).split('\n');
+  } catch {
+    return [];
+  }
+}
+
 function actionsDeployEnabled() {
   if (process.env.KSH_DEPLOY_VIA === 'local') return false;
   if (process.env.KSH_DEPLOY_VIA === 'actions') return true;
-  try {
-    const names = sh('gh', [
-      'api',
-      `repos/${REPO}/environments/production/secrets`,
-      '-q',
-      '.secrets[].name',
-    ]);
-    return names.split('\n').includes('CLOUDFLARE_API_TOKEN');
-  } catch {
-    return false;
-  }
+  return [`repos/${REPO}/environments/production/secrets`, `repos/${REPO}/actions/secrets`].some(
+    (path) => secretNames(path).includes('CLOUDFLARE_API_TOKEN'),
+  );
 }
 
 function releaseRun(sha) {

@@ -82,7 +82,7 @@ npm run smoke -- https://hub.junhat6.com
 
 以前の設定は worktree 内の `/tmp` にあって消えた（#166）。正本を worktree の外（`~/.config`）と GitHub の environment に分けて置くのはそのため。値は Cloudflare（`wrangler versions view` の bindings）から読み直せる。
 
-**GitHub Actions への移行。** environment `production`（release ブランチからだけ使える）と設定の secrets は用意済み。オーナーが Cloudflare で token を発行し、`gh secret set CLOUDFLARE_API_TOKEN --env production` で入れた時点から、`npm run release -- --deploy` は自動で Actions の deploy を見届ける形に切り替わる（コードの変更は要らない）。token は本番の account だけに限定し、権限は `Workers Scripts: Edit`・`D1: Edit`・`Account Settings: Read` と、zone `junhat6.com` の `Workers Routes: Edit`。手元の wrangler OAuth は D1 に使えない（認証エラー）ため、token が入るまでの D1 migration は agent が Cloudflare MCP で行う（skill の「手元で D1 に届かないとき」）。
+**GitHub Actions への移行（2026-11-22 完了）。** オーナーが Workers Paid に加入し、CI 用 token（`kobe-student-hub-github-actions`）を **repo の secret** `CLOUDFLARE_API_TOKEN` に入れた。account ID などは environment `production` の secrets にある。deploy job は environment `production` で動くので両方を読める。`scripts/release.mjs` は environment と repo のどちらかに token があれば Actions の deploy を見届ける形に切り替わる。token の権限は本番の account だけに限定し、`Workers Scripts: Edit`・`D1: Edit`・`Account Settings: Read` と、zone `junhat6.com` の `Workers Routes: Edit`。repo の secret は release 以外のブランチの workflow からも読めるため、environment `production`（release 限定）へ移すのが望ましい（値を知るのはオーナーだけなので、移すならオーナーが `gh secret set CLOUDFLARE_API_TOKEN --env production` → `gh secret delete CLOUDFLARE_API_TOKEN`）。手元の wrangler OAuth は D1 に使えない（認証エラー）ため、手元で deploy するときの D1 migration は skill の「手元で D1 に届かないとき」に従う。
 
 ## agent の hooks（`.claude/settings.json`）
 
