@@ -112,9 +112,9 @@
       ],
       "journey": "J2",
       "risk": "R2",
-      "status": "unverified",
+      "status": "pass",
       "production": "open",
-      "evidence": "受け入れ1: worker/auth/google-identity.ts がサーバーで Google ID トークンの署名・iss・aud・azp・nonce・email_verified と hd/メールの両ドメインを検証し、クライアントのメール文字列は使わない（tests/google-identity.test.ts、実 JOSE 署名）。受け入れ2: tests/session-registration-browser.spec.ts「ordinary signup requires two blank private years…」で年度2つが必須、tests/ordinary-author-profile-browser.spec.ts で公開ページ・公開APIに年度が出ない。受け入れ3: 署名等をすべて通った学校外アカウント（hd無しの個人Gmail・他組織）だけを outside-school と区別し /account#school-account-required で理由と学校メールのドメインを表示。アカウント・session は作らず試行は消費（tests/google-login.test.ts、tests/oauth-http.test.ts、ブラウザは session-registration-browser.spec.ts で登録・ログインとも PC/モバイル）。偽造・nonce不一致・ドメイン食い違いは従来どおり区別しない失敗。受け入れ4: ヘッダーのアカウントメニューから「ログアウト」（session-registration-independent-browser.spec.ts）。#151 の R2 独立検証の合格まで unverified のまま"
+      "evidence": "受け入れ1: worker/auth/google-identity.ts がサーバーで Google ID トークンの署名・iss・aud・azp・nonce・email_verified と hd/メールの両ドメインを検証し、クライアントのメール文字列は使わない（tests/google-identity.test.ts、実 JOSE 署名）。受け入れ2: tests/session-registration-browser.spec.ts「ordinary signup requires two blank private years…」で年度2つが必須、tests/ordinary-author-profile-browser.spec.ts で公開ページ・公開APIに年度が出ない。受け入れ3: 署名等をすべて通った学校外アカウント（hd無しの個人Gmail・他組織）だけを outside-school と区別し /account#school-account-required で理由と学校メールのドメインを表示。アカウント・session は作らず試行は消費（tests/google-login.test.ts、tests/oauth-http.test.ts、ブラウザは session-registration-browser.spec.ts で登録・ログインとも PC/モバイル）。偽造・nonce不一致・ドメイン食い違いは従来どおり区別しない失敗。受け入れ4: ヘッダーのアカウントメニューから「ログアウト」（session-registration-independent-browser.spec.ts）。#151 の R2 独立検証に合格（main cf83978、攻め方27件＋既存spec 83件）"
     },
     {
       "id": "C08",
