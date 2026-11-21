@@ -304,3 +304,58 @@ test('lost upload response keeps the same command for explicit retry; session lo
     )
     .toBe(true);
 });
+test('unsupported, oversized, unreadable and too-many-pixel images are refused with their own reason before any upload', async ({
+  page,
+}, info) => {
+  await article(page, info);
+  const uploads: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() === 'PUT' && new URL(r.url()).pathname.startsWith('/api/private/media/'))
+      uploads.push(r.url());
+  });
+  const input = page.getByLabel('下書きへ画像を追加', { exact: true }),
+    status = page.locator('.media-attachments p[aria-live="polite"]');
+  await expect(status).toHaveText(/画像は私的に保存されます/);
+  const ihdr = (width: number, height: number) => {
+    const b = Buffer.alloc(64);
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]).copy(b);
+    b.write('IHDR', 12, 'latin1');
+    b.writeUInt32BE(width, 16);
+    b.writeUInt32BE(height, 20);
+    return b;
+  };
+  for (const [file, reason] of [
+    [
+      { name: 'synthetic.gif', mimeType: 'image/gif', buffer: Buffer.from('GIF89a') },
+      'この形式の画像は添付できません。JPEGかPNGの画像を選んでください',
+    ],
+    [
+      {
+        name: 'synthetic-huge.png',
+        mimeType: 'image/png',
+        buffer: Buffer.concat([ihdr(800, 600), Buffer.alloc(12 * 1024 * 1024)]),
+      },
+      '画像が大きすぎます（12.0 MiB）。12 MiB以内の画像を選んでください。',
+    ],
+    [
+      { name: 'synthetic-text.png', mimeType: 'image/png', buffer: Buffer.from('not an image') },
+      '画像の中身をJPEG・PNGとして読み取れませんでした。',
+    ],
+    [
+      { name: 'synthetic-wide.png', mimeType: 'image/png', buffer: ihdr(20000, 1000) },
+      '画像の画素数が大きすぎます（20000 × 1000）。1600万画素以内の画像を選んでください。',
+    ],
+  ] as const) {
+    await input.setInputFiles(file);
+    await expect(status).toContainText(reason);
+    // A refusal is final and local: no pending retry command and the picker stays usable.
+    await expect(page.getByText('結果未確定の画像があります。', { exact: false })).toHaveCount(0);
+    await expect(input).toBeEnabled();
+  }
+  expect(uploads).toEqual([]);
+  await expect(page.locator('.media-grid figure')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page
+    .locator('.media-attachments')
+    .screenshot({ path: info.outputPath('refused-image-reason.png') });
+});

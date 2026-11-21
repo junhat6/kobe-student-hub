@@ -121,7 +121,7 @@ export default function MediaAttachments({
         <div>
           <h3>画像を添える</h3>
           <p>
-            JPEG・PNGを縮小して保存します。1枚512
+            JPEG・PNG（元画像12 MiB・1600万画素まで）を縮小して保存します。1枚512
             KiB・下書き8枚まで。保存しただけでは公開されません。位置情報などのメタデータは除去します。
           </p>
         </div>

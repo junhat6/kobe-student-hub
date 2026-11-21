@@ -215,14 +215,19 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
     },
   };
 }
+export const MEDIA_SOURCE_MAX_BYTES = 12 * 1024 * 1024;
 /** Native decode/resize strips metadata; the server independently bounds and decodes every output pixel. */
 export async function prepareImage(file: File): Promise<Blob> {
-  if (
-    !['image/png', 'image/jpeg'].includes(file.type) ||
-    file.size < 1 ||
-    file.size > 12 * 1024 * 1024
-  )
-    throw new Error('JPEG・PNGの画像（12 MiB以内）を選んでください。');
+  // Each refusal names its own reason so the author knows what to change before choosing again.
+  if (!['image/png', 'image/jpeg'].includes(file.type))
+    throw new Error(
+      'この形式の画像は添付できません。JPEGかPNGの画像を選んでください（GIF・WebP・HEIC・SVGなどは不可）。',
+    );
+  if (file.size < 1) throw new Error('空のファイルは添付できません。別の画像を選んでください。');
+  if (file.size > MEDIA_SOURCE_MAX_BYTES)
+    throw new Error(
+      `画像が大きすぎます（${(file.size / 1048576).toFixed(1)} MiB）。12 MiB以内の画像を選んでください。`,
+    );
   // Inspect bounded dimensions before asking the browser to allocate a camera-size bitmap.
   const header = new Uint8Array(await file.slice(0, 262144).arrayBuffer()),
     view = new DataView(header.buffer);
@@ -251,8 +256,14 @@ export async function prepareImage(file: File): Promise<Blob> {
       offset += length + 2;
     }
   }
-  if (!width || !height || width * height > 16000000 || width > 16384 || height > 16384)
-    throw new Error('元画像はJPEG・PNGの1600万画素以内にしてください。');
+  if (!width || !height)
+    throw new Error(
+      '画像の中身をJPEG・PNGとして読み取れませんでした。拡張子と実際の形式が合っているか確かめてください。',
+    );
+  if (width * height > 16000000 || width > 16384 || height > 16384)
+    throw new Error(
+      `画像の画素数が大きすぎます（${width} × ${height}）。1600万画素以内の画像を選んでください。`,
+    );
   const image = await createImageBitmap(file, { imageOrientation: 'from-image' });
   try {
     if (
