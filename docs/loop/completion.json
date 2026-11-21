@@ -173,9 +173,9 @@
       ],
       "journey": "J2",
       "risk": "R2",
-      "status": "unverified",
+      "status": "pass",
       "production": "closed",
-      "evidence": null,
+      "evidence": "受け入れ1: tests/media.test.ts で公開前画像は他人の私的読取・公開URL・未ログインとも404、他人の画像UUIDは自分の公開へ付与不可、公開停止後の新規取得は404。tests/ordinary-media-browser.spec.ts（PC1280/モバイル390）で記事PNG・作品JPEGを添付し、明示公開まで /api/media は404、公開後に読者画面で表示、本人の公開停止後は404。受け入れ2: 同 spec と tests/ordinary-project-detail-browser.spec.ts で YouTube URL が同意ボタンを経て youtube-nocookie の埋め込みとして表示され、同意前は外部通信0件（tests/youtube-renderer.test.tsx で偽ホストは埋め込まない）。受け入れ3: 9e3c66e で拒否理由を分離し、同 spec で GIF・12 MiB超・読めないPNG・1600万画素超がそれぞれの理由つきで断られ PUT 0件。サーバーも SVG/テキスト偽装 415・512 KiB超 413（tests/media.test.ts）。R2 独立検証合格(#155, main 9e3c66e: 一時攻撃テスト 4 passed＋ブラウザ 12 passed＋npm test 925 passed https://github.com/junhat6/kobe-student-hub/issues/155#issuecomment-7067391558)。既知の制限：クライアント検査を通った後のサーバー拒否は理由のない汎用文。本番：有料プラン判断待ちのため production は closed のまま",
       "note": "本番開放は有料プラン判断待ち（画像処理のCPU時間）。needs-human。"
     },
     {
