@@ -62,7 +62,7 @@ npm run smoke -- https://hub.junhat6.com
 4. `wrangler deploy` で切り替える（独自ドメイン `hub.junhat6.com`・cron `*/15`・CPU 上限も設定どおりに揃う）。
 5. 本番 smoke（トップ・`/api/health`・`/api/catalog`・書き込み拒否・security header）。失敗したら `wrangler rollback` で直前の版に戻す。
 
-終了コード：0 成功／2 smoke 失敗で rollback 済み／3 設定の入力が無い／4 D1 に届かない／1 その他。
+終了コード：0 成功／2 smoke 失敗で rollback 済み／3 設定の入力が無い／4 D1 に届かない／1 その他（rollback の失敗を含む）。`npm run release` は Actions の deploy が失敗したとき、理由を問わず 1 を返す（ログで確かめる）。
 
 **hotfix も main で直す。** release へ直接 commit したり cherry-pick したりしない。直した commit を main に push し、その SHA を昇格させる。
 

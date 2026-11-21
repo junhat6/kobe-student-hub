@@ -32,7 +32,8 @@ description: kobe-student-hub の本番リリースを1周回す。main の SHA 
 | exit 3 | 本番設定の入力が無い | `~/.config/kobe-student-hub/production.json`（0600）か環境変数を用意する（docs/RELEASE.md「本番の設定」）。値は Cloudflare（`wrangler deployments list` / `versions view`）から読める |
 | exit 4 | 手元の wrangler が本番 D1 に届かない | 手元の wrangler OAuth は D1 に使えない。下の「手元で D1 に届かないとき」 |
 | exit 2 | smoke 失敗で Worker を rollback 済み | 原因を調べて main で直す。D1 を戻すかは下の「D1 を戻す判断」 |
-| Actions の run が赤 | CI 側の deploy が失敗 | `gh run view <id> --log-failed`。終了コードの意味は上と同じ（`scripts/deploy-production.mjs` の先頭） |
+| exit 1 で `wrangler rollback が失敗しました` | smoke 失敗後の rollback も失敗。本番は壊れた版のままかもしれない | `npx wrangler deployments list` で今の版を確かめ、`wrangler rollback <version-id>` で手で戻す。smoke で確認 |
+| Actions の run が赤（release.mjs は exit 1） | CI 側の deploy が失敗 | `gh run view <id> --log-failed`。終了コードの意味は上と同じ（`scripts/deploy-production.mjs` の先頭） |
 
 ## migration の確認（昇格前）
 

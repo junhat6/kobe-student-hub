@@ -193,8 +193,7 @@ async function deployViaActions(sha, promotedNow) {
   );
   if (watched.status !== 0)
     die(
-      `release.yml が失敗しました。gh run view ${run.databaseId} --repo ${REPO} --log-failed で原因を確かめてください（deploy の終了コードの意味は scripts/deploy-production.mjs の先頭）。`,
-      2,
+      `release.yml が失敗しました。gh run view ${run.databaseId} --repo ${REPO} --log-failed で原因を確かめてください（deploy の終了コードの意味は scripts/deploy-production.mjs の先頭。rollback 済みとは限らない）。`,
     );
   const after = await smoke(process.env.KSH_PRODUCTION_ORIGIN || 'https://hub.junhat6.com');
   if (!after.ok)
