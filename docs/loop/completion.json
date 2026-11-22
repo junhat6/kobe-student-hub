@@ -323,9 +323,9 @@
       ],
       "journey": "J2",
       "risk": "R1",
-      "status": "unverified",
+      "status": "fail",
       "production": "unknown",
-      "evidence": ""
+      "evidence": "#196: 条件1〜4は独立検証3回で合格（tests/ordinary-agent-writing-browser.spec.ts PC1280/モバイル390：依頼文コピー、確認→反映→戻す、反映・保存だけでは公開一覧に出ない、公開情報は「AIの出力から入れる」を押すまで空、「AIに渡す」は公開後の下書き編集・メール・アカウントID・年度を含まない。tests/agent-kit-session-index.test.ts：キットは標準ライブラリのみで送信なし）。条件5は不合格：session_index.py index で、ホームフォルダを作業場所にしたセッションの project 列に利用者名が出る（#196 issuecomment-7073832488）。"
     }
   ]
 }
