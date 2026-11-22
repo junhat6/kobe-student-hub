@@ -13,7 +13,7 @@
 | [completion.json](completion.json) | 「完成」の定義（完成台帳）。完成ループの北極星 |
 | [DESIGN-PRINCIPLES.md](DESIGN-PRINCIPLES.md) | 境界と受け入れ条件の設計原則（C21 の学び）。条件を書く・見直すときに読む |
 | [ux-rubric.md](ux-rubric.md) | UX巡回ループの採点基準と利用者の旅（journey） |
-| [INBOX.md](INBOX.md) | オーナーの受け口：スクショ・収録・材料・質問をメール1本で渡し、同じスレッドで返事を受け取る |
+| [INBOX.md](INBOX.md) | オーナーの受け口の地図：スクショは Muse か Discord、動画は Drive「hub動画ポスト」→ Muse → video-review |
 | [ORCA.md](ORCA.md) | Orca の automation を残し bots に移らない判断、worktree の後片付け（`ksh tidy`） |
 | [ORCA-BOTS-PHILOSOPHY.md](ORCA-BOTS-PHILOSOPHY.md) | Orca bots と自作ループの思想の違い、bots から借りるもの |
 | [prompts/](prompts/) | 各ループが毎回読む指示書（ループ1周＝この1ファイルを読んで1仕事） |

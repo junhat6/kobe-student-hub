@@ -2,7 +2,15 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
-## 2026-11-22 — オーナーの受け口をメール1本にし、返事を同じスレッドに返す（オーナーの困りごとを受けた方針）
+## 2026-11-23 — 受け口は新しく作らない。スクショは Muse か Discord、動画は Drive「hub動画ポスト」→ Muse（オーナーの確認を受けて、直下の「メール1本」を取り消す）
+
+オーナー（服部）の確認：スクショとその画面への不満は、従来どおり Muse（ヨッチ）に直接投げるか Discord のテキストチャンネルに投稿して Muse が読みに行く形でよく、新しい仕組みは要らない。動画だけが Drive の「hub動画ポスト」経由の仕組みを使う。これを受けて次のように決める。
+
+1. **メール1本の受け口（`ksh inbox`、`scripts/loop/inbox.mjs`、`prompts/inbox.md`）をやめる。** Orca の automation も消した（一度も動いていない）。理由：スクショまで新しい経路に寄せることになり、オーナーの確認と合わない。
+2. **動画の取得役は Muse だけ。** Muse が Drive から `~/video-inbox/` に置き、`ksh-video-review` がレビューし、Muse が要約を返す。Issue にするのはオーナーが頼んだときだけ。loop の automation は Drive のこのフォルダを読まない・動かさない。理由：取得役が2つあると、片方が動かした動画をもう片方が見落とし、二重にも置かれる（loop が Drive を直接見る案を一度作って、この理由で取り下げた）。
+3. 経路の地図は [INBOX.md](loop/INBOX.md)。実機の画面を公開 Issue に貼らないことは変えない。見直す条件：Muse が動けない時間に動画が溜まり続ける、またはオーナーが「直った」の知らせを求めたとき（その場合も Drive ではなく `~/video-inbox/` の隣に書く形で足す）。
+
+## 2026-11-22 — オーナーの受け口をメール1本にし、返事を同じスレッドに返す（オーナーの困りごとを受けた方針）（→ 2026-11-23 の上の項で取り消し）
 
 オーナー（服部）の困りごと：出先でスマホだけで動作確認していると、AirDrop が使えず、見つけたものを渡せない。MacBook Air からでも、bots・セッション・skills のどこに渡せばよいか分からない。手数は最小に、スマホだけでも完結し、渡した結果が見える場所に返ってきてほしい。設計は任せる。これを受けて次のように決める。
 

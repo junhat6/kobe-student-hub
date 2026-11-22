@@ -12,7 +12,7 @@
 - 進め方の正本は [docs/loop/](docs/loop/README.md)。まず README の「原則」と「リスク段階」を読む。
 - 自分の役の指示書を読んで1周1仕事：[finish](docs/loop/prompts/finish.md) / [patrol](docs/loop/prompts/patrol.md) / [polish](docs/loop/prompts/polish.md) / [garden](docs/loop/prompts/garden.md) / [replan](docs/loop/prompts/replan.md)。役の分け方は [SESSIONS.md](docs/loop/SESSIONS.md)。
 - 完成の定義は [completion.json](docs/loop/completion.json)。builder は status/evidence/production だけ変えてよい。受け入れ条件や境界を設計するときは [DESIGN-PRINCIPLES.md](docs/loop/DESIGN-PRINCIPLES.md)（伏せるより渡すものを決める・検証できる条件・繰り返し fail は条件を疑う）。
-- オーナーからの実機報告・材料・質問はメール1本の受け口で届き、同じスレッドに返す（[INBOX.md](docs/loop/INBOX.md)）。
+- オーナーの実機の不満はスクショなら Muse（ヨッチ）か Discord、動画なら Drive「hub動画ポスト」→ Muse → video-review で届く（[INBOX.md](docs/loop/INBOX.md)）。
 - 待ち行列は GitHub Issues（`loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
 - 現在地は [docs/WORK.md](docs/WORK.md)（5行）。機能ごとの設計メモ・QA文書は作らない。証拠は commit 本文・Issue コメント・CI artifact へ。
 - 日常の実装判断で人に承認を求めない。迷ったら決めて進め、決めたことを残す。本番 D1 の migration・deploy・rollback と PRD方針も agent が判断する。人の判断が要るもの（課金・契約、資格情報の発行、実利用者）だけを `needs-human` に積んで他の仕事を続ける。
