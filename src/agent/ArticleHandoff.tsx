@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { articleForAgent } from './article-format';
 import { copyText } from './clipboard';
+import Icon from '../shared/Icon';
 import './agent.css';
 
 /**
@@ -27,15 +28,17 @@ export default function ArticleHandoff(props: {
   return (
     <div className="agent-handoff">
       <Button className="agent-button" onClick={() => void copy()}>
-        <span aria-hidden="true">✦ </span>AIに渡す（Markdownでコピー）
+        <Icon name={state === 'copied' ? 'check' : 'copy'} size={18} />
+        AIに渡す（Markdownでコピー）
       </Button>
-      <span role="status">
-        {state === 'copied'
-          ? 'コピーしました。自分のAIに貼って、質問や「自分の場合」を聞いてみてください。'
-          : state === 'failed'
-            ? 'コピーできませんでした。ブラウザの設定を確認してください。'
-            : '記事を自分のAIに読ませて、わからないところを聞けます。'}
+      <span className="sr-only" role="status">
+        {state === 'copied' ? 'コピーしました' : ''}
       </span>
+      {state === 'failed' ? (
+        <span role="alert">コピーできませんでした。ブラウザの設定を確認してください。</span>
+      ) : (
+        <span>記事を自分のAIに読ませて、わからないところを聞けます。</span>
+      )}
     </div>
   );
 }

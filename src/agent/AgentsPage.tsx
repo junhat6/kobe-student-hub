@@ -1,33 +1,28 @@
-import { useState } from 'react';
+import { useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Button } from '@base-ui/react/button';
 import { ARTICLE_FORMAT_EXAMPLE } from './article-format';
-import { copyText } from './clipboard';
+import CopyButton from '../shared/CopyButton';
 import './agent.css';
 import './agents-page.css';
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
-  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const block = useRef<HTMLPreElement>(null);
   return (
     <div className="agents-copy">
-      <pre tabIndex={0} aria-label={label}>
+      <pre ref={block} tabIndex={0} aria-label={label}>
         <code>{text}</code>
       </pre>
-      <div className="agents-copy-row">
-        <Button
-          className="agent-button"
-          onClick={async () => setState((await copyText(text)) ? 'copied' : 'failed')}
-        >
-          コピー
-        </Button>
-        <span role="status">
-          {state === 'copied'
-            ? 'コピーしました'
-            : state === 'failed'
-              ? 'コピーできませんでした。選択してコピーしてください'
-              : ''}
-        </span>
-      </div>
+      <CopyButton
+        className="agents-copy-button"
+        label={label + 'をコピー'}
+        text={() => text}
+        onFailed={() => {
+          const node = block.current;
+          if (!node) return;
+          getSelection()?.selectAllChildren(node);
+          node.focus();
+        }}
+      />
     </div>
   );
 }

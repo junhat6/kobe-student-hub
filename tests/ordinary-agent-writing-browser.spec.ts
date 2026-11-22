@@ -1,4 +1,5 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
+import { createProfileOnAccount } from './helpers/profile';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -18,21 +19,12 @@ async function register(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
-  await page.getByText('公開プロフィールを準備する', { exact: true }).click();
-  const profile = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await profile.getByLabel('表示名 必須').fill('架空のエージェント利用者');
-  await profile.getByRole('checkbox').check();
-  await profile
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
-  await expect(profile.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
+  await createProfileOnAccount(page, '架空のエージェント利用者');
 }
 
 const noHorizontalScroll = (page: Page) =>
@@ -70,7 +62,7 @@ test('a student hands the draft to their own agent, imports its file, and publis
   // 1. The copied request carries the rules, the file format and the current draft.
   await page.locator('summary', { hasText: '自分のAIエージェントと書く' }).click();
   await page.getByRole('button', { name: '依頼文をコピー', exact: true }).click();
-  await expect(page.getByText('コピーしました。AIの入力欄に貼り付けてください。')).toBeVisible();
+  await expect(page.locator('.agent-panel [role="status"]')).toHaveText('コピーしました');
   const request = await page.evaluate(() => navigator.clipboard.readText());
   expect(request).toContain('## 守ること');
   expect(request).toContain('minutes:');
@@ -126,7 +118,7 @@ test('a student hands the draft to their own agent, imports its file, and publis
   // 6. A reader can hand the published article to their own agent as Markdown with its source.
   await page.goto(articlePath);
   await page.getByRole('button', { name: /AIに渡す/ }).click();
-  await expect(page.getByText(/コピーしました。自分のAIに貼って/)).toBeVisible();
+  await expect(page.locator('.agent-handoff [role="status"]')).toHaveText('コピーしました');
   const handed = await page.evaluate(() => navigator.clipboard.readText());
   expect(handed).toContain('# 架空のエージェント記事');
   expect(handed).toContain(ORIGIN + articlePath);
@@ -140,7 +132,7 @@ test('the agents guide and the writing kit are public', async ({ page }, info) =
   await expect(
     page.getByRole('heading', { name: '自分のAIエージェントと使う', exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel('エージェントへの依頼文')).toContainText(
+  await expect(page.getByLabel('エージェントへの依頼文', { exact: true })).toContainText(
     ORIGIN + '/agent-kit/ksh-article/SKILL.md',
   );
   expect(await noHorizontalScroll(page)).toBe(true);

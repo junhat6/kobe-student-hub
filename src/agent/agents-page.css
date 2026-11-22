@@ -46,14 +46,22 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.agents-copy-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--ink-muted);
+.agents-copy {
+  position: relative;
+}
+.agents-copy pre {
+  padding-right: 56px;
+}
+.agents-copy-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.agents-copy-button .copy-button-failed {
+  max-width: 220px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #fff;
 }
 .agents-files {
   font-size: 14px;

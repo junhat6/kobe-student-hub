@@ -7,6 +7,7 @@ import {
   type AgentArticle,
 } from './article-format';
 import { copyText } from './clipboard';
+import Icon from '../shared/Icon';
 import './agent.css';
 
 const MAX_FILE_BYTES = 512 * 1024;
@@ -85,10 +86,11 @@ export default function AgentWritingPanel({
               </a>
             </p>
             <Button className="agent-button" disabled={disabled} onClick={() => void copyRequest()}>
+              <Icon name={copyState === 'copied' ? 'check' : 'copy'} size={18} />
               依頼文をコピー
             </Button>
-            <span className="agent-inline-status" role="status">
-              {copyState === 'copied' ? 'コピーしました。AIの入力欄に貼り付けてください。' : ''}
+            <span className="sr-only" role="status">
+              {copyState === 'copied' ? 'コピーしました' : ''}
             </span>
             {copyState === 'manual' && (
               <>
