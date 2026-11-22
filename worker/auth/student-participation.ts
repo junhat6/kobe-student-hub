@@ -6,7 +6,7 @@ import {
 } from './session-guard';
 
 // Identity/session authority and participation are distinct. Never use public year labels.
-const periodSql = `EXISTS(SELECT 1 FROM private_enrollment_periods e WHERE e.owner_account_id=? AND e.policy_version=1 AND e.starts_at_ms<=? AND e.ends_at_ms>? AND e.updated_at_ms<=?)`;
+export const periodSql = `EXISTS(SELECT 1 FROM private_enrollment_periods e WHERE e.owner_account_id=? AND e.policy_version=1 AND e.starts_at_ms<=? AND e.ends_at_ms>? AND e.updated_at_ms<=?)`;
 export const liveStudentSessionSql = `(${liveSessionSql} AND ${periodSql})`;
 export function liveStudentRestrictedSessionSql(p: SessionStorageProof) {
   return `(${liveRestrictedSessionSql(p)} AND ${periodSql})`;

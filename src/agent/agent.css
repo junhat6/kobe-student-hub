@@ -237,3 +237,79 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* MCP 接続：公開の準備の注意・マイページの接続一覧・接続許可画面 */
+.publication-secret-notice {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent-strong);
+  border-radius: 10px;
+  font-size: 14px;
+}
+.publication-secret-notice p {
+  margin: 0 0 6px;
+}
+.publication-secret-notice ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.agent-connection-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.agent-connection-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.agent-connection-list li > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.agent-connection-list small,
+.agent-connections-note {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.agent-consent {
+  max-width: 640px;
+}
+.agent-consent-lead {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.agent-consent-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 16px 0;
+}
+.agent-consent-facts dt {
+  font-weight: 700;
+}
+.agent-consent-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.agent-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+@media (max-width: 480px) {
+  .agent-consent-facts {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .agent-consent-facts dd {
+    margin-bottom: 8px;
+  }
+}

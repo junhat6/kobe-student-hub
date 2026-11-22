@@ -34,6 +34,7 @@ await build({
     'ordinary-discovery-test': 'tests/fixtures/ordinary-discovery-worker.ts',
     'publication-discovery-test': 'tests/fixtures/publication-discovery-worker.ts',
     'likes-test': 'tests/fixtures/likes-worker.ts',
+    'agent-mcp-test': 'tests/fixtures/agent-mcp-worker.ts',
   },
   loader: { '.sql': 'text', '.wasm': 'copy' },
   outdir: '.worker',

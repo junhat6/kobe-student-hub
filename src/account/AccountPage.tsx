@@ -8,6 +8,8 @@ import ProfileEditor, { type ProfileState } from './ProfileEditor';
 import Icon from '../shared/Icon';
 import OwnPublications from '../editor/OwnPublications';
 import OwnNotifications from './OwnNotifications';
+import AgentConnections from '../agent/AgentConnections';
+import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import { useViewer } from '../shell/viewer';
 import { ParticipationNotice, writesClosed, type ParticipationState } from './participation';
@@ -84,6 +86,9 @@ function AccountContent({
         </div>
       )}
       {authoringUiEnabled && ready && <OwnNotifications fetcher={fetcher} />}
+      {authoringUiEnabled && AGENT_MCP_RELEASE_ENABLED && (
+        <AgentConnections csrfToken={csrfToken} fetcher={fetcher} />
+      )}
       <div id="enrollment" className="account-block account-settings">
         <AccountEnrollment
           csrfToken={csrfToken}

@@ -7,6 +7,8 @@ import './editor.css';
 import PublicationComposer from './PublicationComposer';
 import MediaAttachments from './MediaAttachments';
 import AgentWritingPanel from '../agent/AgentWritingPanel';
+import { useAgentDrafts } from '../agent/connections-client';
+import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import type { AgentArticle, AgentArticleMetadata } from '../agent/article-format';
 import {
   formatMarkdown,
@@ -131,6 +133,8 @@ export default function DraftEditor({
     draftId: string;
     metadata: AgentArticleMetadata;
   } | null>(null);
+  // Drafts an AI agent made through MCP, and its summary/tag suggestions (ordinary surface only).
+  const agentDrafts = useAgentDrafts(ordinary && AGENT_MCP_RELEASE_ENABLED, fetcher, list);
   const compositionRef = useRef(false);
   const pendingFormat = useRef<MarkdownFormat | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -666,6 +670,7 @@ export default function DraftEditor({
                   <span>{item.title || '無題の下書き'}</span>
                   <small id={'draft-stamp-' + item.id} aria-hidden="true">
                     {stamp(item.updatedAt)} · 版 {item.version}
+                    {agentDrafts?.agentDraftIds.includes(item.id) ? ' · AIエージェントが作成' : ''}
                   </small>
                 </Button>
               </li>
@@ -907,7 +912,11 @@ export default function DraftEditor({
                   canStart={canPublishStart}
                   onPending={onPublicationPending}
                   onUnsavedPreparation={onUnsavedPreparation}
-                  suggested={agentMetadata?.draftId === draft.id ? agentMetadata.metadata : null}
+                  suggested={
+                    agentMetadata?.draftId === draft.id
+                      ? agentMetadata.metadata
+                      : mcpSuggestion(agentDrafts?.hints, draft.id)
+                  }
                 />
               )}
               {problem && (
@@ -1028,4 +1037,22 @@ export default function DraftEditor({
       )}
     </div>
   );
+}
+
+/** Suggestions an agent left through MCP, in the paste-flow shape. Used only when pressed. */
+function mcpSuggestion(
+  hints: { draftId: string; summary: string; tags: string[] }[] | undefined,
+  draftId: string,
+): AgentArticleMetadata | null {
+  const hint = hints?.find((h) => h.draftId === draftId);
+  return hint
+    ? {
+        summary: hint.summary,
+        tags: hint.tags,
+        audience: '',
+        prerequisite: '',
+        outcome: '',
+        minutes: null,
+      }
+    : null;
 }

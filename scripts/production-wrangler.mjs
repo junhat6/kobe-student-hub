@@ -78,7 +78,14 @@ export function productionConfig(inputs, root = process.cwd()) {
       directory: r('dist'),
       binding: 'ASSETS',
       not_found_handling: 'single-page-application',
-      run_worker_first: ['/api/*', '/trial-assets', '/trial-assets/*'],
+      run_worker_first: [
+        '/api/*',
+        '/trial-assets',
+        '/trial-assets/*',
+        '/.well-known/oauth-protected-resource',
+        '/.well-known/oauth-protected-resource/*',
+        '/.well-known/oauth-authorization-server',
+      ],
     },
     d1_databases: [
       {

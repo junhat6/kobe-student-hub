@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ARTICLE_FORMAT_EXAMPLE } from './article-format';
 import CopyButton from '../shared/CopyButton';
+import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import './agent.css';
 import './agents-page.css';
 
@@ -48,12 +49,46 @@ export default function AgentsPage() {
       </p>
 
       <nav className="agents-toc" aria-label="このページの内容">
+        {AGENT_MCP_RELEASE_ENABLED && <a href="#connect">AIとつなぐ（MCP）</a>}
         <a href="#write-from-history">作業履歴から書く</a>
         <a href="#write-in-editor">下書き画面で書く</a>
         <a href="#read">記事をAIと読む</a>
         <a href="#format">ファイルの形</a>
         <a href="#safety">情報の扱い</a>
       </nav>
+
+      {AGENT_MCP_RELEASE_ENABLED && (
+        <section>
+          <h2 id="connect">AIエージェントとつなぐ（MCP）</h2>
+          <p>
+            つなぐと、AIエージェントがあなたの下書きを直接作れます。作られた下書きは非公開のままで、
+            <Link to="/drafts">下書き</Link>
+            で読んで直し、自分で公開します。最初の1回だけ、学校Googleでログインして「接続を許可」を押します。
+          </p>
+          <CopyBlock label="MCP サーバーの URL" text={`${origin}/api/mcp`} />
+          <ul>
+            <li>
+              Claude Code：<code>claude mcp add --transport http ksh {origin}/api/mcp</code> のあと{' '}
+              <code>/mcp</code> でログイン
+            </li>
+            <li>Claude（claude.ai）：設定 → コネクタ → カスタムコネクタを追加 → 上の URL</li>
+            <li>
+              Codex CLI：<code>codex mcp add ksh --url {origin}/api/mcp</code> のあと{' '}
+              <code>codex mcp login ksh</code>
+            </li>
+            <li>
+              Gemini CLI：<code>gemini mcp add --transport http ksh {origin}/api/mcp</code> のあと{' '}
+              <code>/mcp auth ksh</code>
+            </li>
+          </ul>
+          <p>
+            エージェントにできるのは、公開記事を読むことと、あなたの下書きを作る・直すことだけです（公開・削除はできません。作成は1日10件まで）。
+            毎日決まった時間に書かせる設定例は{' '}
+            <a href="/agent-kit/ksh-article/SKILL.md">SKILL.md</a> にあります。接続は
+            <Link to="/account">マイページ</Link>でいつでも解除できます。
+          </p>
+        </section>
+      )}
 
       <section>
         <h2 id="write-from-history">AIとの作業履歴から記事を書く</h2>

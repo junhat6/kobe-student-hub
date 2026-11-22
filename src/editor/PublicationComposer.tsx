@@ -16,6 +16,7 @@ import { referencedMediaIds } from '../shared/media';
 import MediaPublicationPreview from './MediaPublicationPreview';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
+import { describeFindings, scanDraft } from '../shared/secret-scan';
 interface Props {
   surface?: PublicSurface;
   fetcher?: typeof fetch;
@@ -312,6 +313,11 @@ export default function PublicationComposer({
     setSuggestionUsed(suggested);
     setConfirmed(false);
   }
+  // Best-effort notice only (owner decision 2026-11-22): it never blocks publishing.
+  const secretFindings = useMemo(
+    () => scanDraft(draft.title, draft.body),
+    [draft.title, draft.body],
+  );
   const [suggestionUsed, setSuggestionUsed] = useState<AgentArticleMetadata | null>(null);
   const suggestionOffered = Boolean(
     suggested &&
@@ -469,6 +475,20 @@ export default function PublicationComposer({
                 </SavedPreviewBoundary>
               </details>
               <MediaPublicationPreview body={draft.body} fetcher={fetcher} scopeKey={csrfToken} />
+              {secretFindings.length > 0 && (
+                <div className="publication-secret-notice" role="note">
+                  <p>
+                    公開前に確かめてください。決まった形の検査で、秘密や個人情報に見える箇所がありました（検査は完全ではありません。全文を読んで決めてください）。
+                  </p>
+                  <ul>
+                    {describeFindings(secretFindings)
+                      .split('\n')
+                      .map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                  </ul>
+                </div>
+              )}
               <form
                 onSubmit={(event) => {
                   event.preventDefault();

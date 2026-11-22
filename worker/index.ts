@@ -15,6 +15,8 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
 import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
+import { cleanupAgentConnections, createAgentHandler } from './agent/http';
+import { AGENT_MCP_RELEASE_ENABLED } from '../src/shared/agent-release';
 // Ordinary account access and authoring have separate source release stages.
 const OAUTH_HTTP_RELEASE_ENABLED = true;
 const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = true;
@@ -69,6 +71,17 @@ app.use('*', async (c, next) => {
       'X-Robots-Tag': 'noindex, nofollow',
       'X-Content-Type-Options': 'nosniff',
     });
+  await next();
+});
+// Agent metadata lives under /.well-known, so this runs before the /api/* composition.
+app.use('*', async (c, next) => {
+  if (!(OAUTH_HTTP_RELEASE_ENABLED && ORDINARY_DRAFT_HTTP_RELEASE_ENABLED)) return next();
+  const response = await createAgentHandler(
+    c.env.DB,
+    (c.env as Env & OAuthBindings).AUTH_ORIGIN ?? '',
+    { enabled: AGENT_MCP_RELEASE_ENABLED },
+  )(c.req.raw);
+  if (response) return response;
   await next();
 });
 app.get(
@@ -180,6 +193,8 @@ export default {
       );
     // Email dispatch keeps its own authoring/operator/binding conditions.
     if (!OAUTH_HTTP_RELEASE_ENABLED || !ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) return;
+    if (AGENT_MCP_RELEASE_ENABLED && event.cron === AUTH_MAINTENANCE_CRON)
+      ctx.waitUntil(cleanupAgentConnections(env.DB).catch(() => {}));
     if (!parseModerationOperators(env as Env & ModerationBindings).length) return;
     const options = moderationEmailOptions(
       env as Env & ModerationEmailBindings,

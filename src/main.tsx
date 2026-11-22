@@ -29,6 +29,7 @@ import {
   isDraftRoute,
   isProjectWriteRoute,
 } from './account/routes';
+import { AGENT_MCP_RELEASE_ENABLED } from './shared/agent-release';
 const Registration = React.lazy(() => import('./account/Registration'));
 const AccountPage = React.lazy(() => import('./account/AccountPage'));
 const HistoryPage = React.lazy(() => import('./history/HistoryPage'));
@@ -39,6 +40,7 @@ const ServiceInfo = React.lazy(() => import('./account/ServiceInfo'));
 const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
 const Community = React.lazy(() => import('./community/Community'));
 const AgentsPage = React.lazy(() => import('./agent/AgentsPage'));
+const ConnectPage = React.lazy(() => import('./agent/ConnectPage'));
 class BodyBoundary extends React.Component<
   { children: React.ReactNode; purpose?: 'account' | 'drafts' },
   { failed: boolean }
@@ -82,6 +84,8 @@ function App() {
   const projectWritePath = isProjectWriteRoute(location.pathname);
   const moderationPath = authoringUiEnabled && location.pathname === '/moderation';
   const historyPath = authoringUiEnabled && location.pathname === '/history';
+  const connectPath =
+    authoringUiEnabled && AGENT_MCP_RELEASE_ENABLED && location.pathname === '/connect';
   const serviceInfoPath =
     (accountUiEnabled && location.pathname === '/guide') ||
     (authoringUiEnabled && location.pathname === '/agents');
@@ -90,7 +94,8 @@ function App() {
     draftPath ||
     projectWritePath ||
     moderationPath ||
-    historyPath;
+    historyPath ||
+    connectPath;
   const communityPath =
     authoringUiEnabled &&
     (['/', '/search', '/works'].includes(location.pathname) ||
@@ -160,7 +165,9 @@ function App() {
                 </p>
               }
             >
-              {historyPath ? (
+              {connectPath ? (
+                <ConnectPage />
+              ) : historyPath ? (
                 <HistoryPage />
               ) : moderationPath ? (
                 <ModerationPage />
