@@ -129,8 +129,8 @@
       "journey": "J2",
       "risk": "R2",
       "status": "pass",
-      "production": "closed",
-      "evidence": "1: tests/ordinary-drafts-browser.spec.ts（Markdown で書きプレビューで見出し表示）。2: tests/ordinary-autosave-browser.spec.ts（2秒の無操作で1回だけ自動保存、ブラウザ保存なし）と tests/ordinary-draft-privacy-browser.spec.ts（cookie・storage を共有しない別ブラウザで同じアカウントにログインして再開し、そこで書いた続きが元のブラウザに戻る）。3: 同 privacy spec（保存が503で失敗→「保存結果を確認できませんでした。手元の編集はこの画面に残っています。」と保存結果の確認を出し、本文は画面に残り自動再試行しない。通信断→編集を隠して保持し、ログイン状態の再確認で本文が戻る。どちらも確認後の明示保存でサーバーに反映）、ログイン切れは #137 で独立検証済み。4: tests/ordinary-draft-deletion-browser.spec.ts（確認つき削除）と privacy spec（別アカウントの一覧は空、他人の下書きの読み・更新・削除は存在しない場合と同じ404、未ログインは401、検索・ホーム・公開APIに出ない）。PC1280/モバイル390。R2 独立検証合格(#152, main 7758d1e: npm test 938 passed、下書き4 spec 62 passed、他人の下書きの GET/PATCH/PUT/DELETE は404・未ログイン401・公開API/関連/プロフィールに出ない)"
+      "production": "open",
+      "evidence": "1: tests/ordinary-drafts-browser.spec.ts（Markdown で書きプレビューで見出し表示）。2: tests/ordinary-autosave-browser.spec.ts（2秒の無操作で1回だけ自動保存、ブラウザ保存なし）と tests/ordinary-draft-privacy-browser.spec.ts（cookie・storage を共有しない別ブラウザで同じアカウントにログインして再開し、そこで書いた続きが元のブラウザに戻る）。3: 同 privacy spec（保存が503で失敗→「保存結果を確認できませんでした。手元の編集はこの画面に残っています。」と保存結果の確認を出し、本文は画面に残り自動再試行しない。通信断→編集を隠して保持し、ログイン状態の再確認で本文が戻る。どちらも確認後の明示保存でサーバーに反映）、ログイン切れは #137 で独立検証済み。4: tests/ordinary-draft-deletion-browser.spec.ts（確認つき削除）と privacy spec（別アカウントの一覧は空、他人の下書きの読み・更新・削除は存在しない場合と同じ404、未ログインは401、検索・ホーム・公開APIに出ない）。PC1280/モバイル390。R2 独立検証合格(#152, main 7758d1e: npm test 938 passed、下書き4 spec 62 passed、他人の下書きの GET/PATCH/PUT/DELETE は404・未ログイン401・公開API/関連/プロフィールに出ない)。 本番（2026-11-22 r2026.11.22.3）：/api/health が writesEnabled:true、未ログインの /api/private/drafts・project-drafts・profile が 401（経路は本番で生きている）。cpu_ms 1000 の設定で deploy が通っており Workers Paid は加入済み。ログインした状態の本番確認は #217。"
     },
     {
       "id": "C09",
@@ -144,8 +144,8 @@
       "journey": "J2",
       "risk": "R2",
       "status": "pass",
-      "production": "closed",
-      "evidence": "受け入れ1: tests/ordinary-publication-browser.spec.ts の publishArticle（PC1280/モバイル390）で、公開前に保存版本文のプレビューを開け、確認チェック前は公開ボタンが無効で /api/articles に出ず、明示操作の後に初めて1件増える。受け入れ2: 同 spec「ordinary author corrects an article at the same URL…」で改稿が同じURLに反映、未確認の下書きの続きは出ない。受け入れ3: 同 spec の公開停止後に記事詳細「記事が見つかりません」・ホーム・検索（一致なし）から消え、唯一の公開物を止めた投稿者ページは非公開。関連と閲覧履歴は tests/ordinary-integrated-authoring-browser.spec.ts。R2 独立検証合格(#153, main c5a87e4: 一時 spec 2 passed＋既存 20 passed。他に公開物がある投稿者ページから停止記事だけ消える、他人・未ログイン・古い expectedSourceVersion・confirmStop なしの停止は拒否、停止後の再公開で復活しない https://github.com/junhat6/kobe-student-hub/issues/153#issuecomment-7066699614)。本番：執筆画面は本番で閉じているため production は closed のまま"
+      "production": "open",
+      "evidence": "受け入れ1: tests/ordinary-publication-browser.spec.ts の publishArticle（PC1280/モバイル390）で、公開前に保存版本文のプレビューを開け、確認チェック前は公開ボタンが無効で /api/articles に出ず、明示操作の後に初めて1件増える。受け入れ2: 同 spec「ordinary author corrects an article at the same URL…」で改稿が同じURLに反映、未確認の下書きの続きは出ない。受け入れ3: 同 spec の公開停止後に記事詳細「記事が見つかりません」・ホーム・検索（一致なし）から消え、唯一の公開物を止めた投稿者ページは非公開。関連と閲覧履歴は tests/ordinary-integrated-authoring-browser.spec.ts。R2 独立検証合格(#153, main c5a87e4: 一時 spec 2 passed＋既存 20 passed。他に公開物がある投稿者ページから停止記事だけ消える、他人・未ログイン・古い expectedSourceVersion・confirmStop なしの停止は拒否、停止後の再公開で復活しない https://github.com/junhat6/kobe-student-hub/issues/153#issuecomment-7066699614)。 本番（2026-11-22 r2026.11.22.3）：/api/health が writesEnabled:true、未ログインの /api/private/drafts・project-drafts・profile が 401（経路は本番で生きている）。cpu_ms 1000 の設定で deploy が通っており Workers Paid は加入済み。ログインした状態の本番確認は #217。"
     },
     {
       "id": "C10",
@@ -159,8 +159,8 @@
       "journey": "J3",
       "risk": "R2",
       "status": "pass",
-      "production": "closed",
-      "evidence": "受け入れ1: tests/ordinary-projects-browser.spec.ts（PC1280/モバイル390）で、保存しただけの作品は /api/projects に出ず明示的な公開操作で初めて1件増え、本人の公開停止後は作品詳細「作品が見つかりません」・/works・/api/projects・検索から消え、唯一の公開物を止めた投稿者ページは非公開。受け入れ2: tests/ordinary-project-links-browser.spec.ts で自分の公開記事を紐づけ、読者が作品⇔記事を直接行き来できる。他人の記事・重複・4件以上・非UUIDの articleIds は tests/ordinary-discovery.test.ts で拒否。受け入れ3: 公開記事のない投稿者に「作品だけでも公開できます」が出てそのまま公開でき、読者画面・投稿者ページの作品タブが成立する（同 projects spec）。R2 独立検証合格(#154, main e87c506: 一時 spec 2 passed＋既存 4 passed＋npm test 925 passed。他に公開記事がある投稿者が作品だけ止めると作品タブからだけ消え、紐づけ記事の「この記事を紐づけた作品」からも消える。他人・未ログインの下書き読取/更新/公開/停止と古い expectedVersion の公開は拒否 https://github.com/junhat6/kobe-student-hub/issues/154#issuecomment-7067190318)。公開後の本文更新・紐づけ変更は #168。本番：執筆画面は本番で閉じているため production は closed のまま"
+      "production": "open",
+      "evidence": "受け入れ1: tests/ordinary-projects-browser.spec.ts（PC1280/モバイル390）で、保存しただけの作品は /api/projects に出ず明示的な公開操作で初めて1件増え、本人の公開停止後は作品詳細「作品が見つかりません」・/works・/api/projects・検索から消え、唯一の公開物を止めた投稿者ページは非公開。受け入れ2: tests/ordinary-project-links-browser.spec.ts で自分の公開記事を紐づけ、読者が作品⇔記事を直接行き来できる。他人の記事・重複・4件以上・非UUIDの articleIds は tests/ordinary-discovery.test.ts で拒否。受け入れ3: 公開記事のない投稿者に「作品だけでも公開できます」が出てそのまま公開でき、読者画面・投稿者ページの作品タブが成立する（同 projects spec）。R2 独立検証合格(#154, main e87c506: 一時 spec 2 passed＋既存 4 passed＋npm test 925 passed。他に公開記事がある投稿者が作品だけ止めると作品タブからだけ消え、紐づけ記事の「この記事を紐づけた作品」からも消える。他人・未ログインの下書き読取/更新/公開/停止と古い expectedVersion の公開は拒否 https://github.com/junhat6/kobe-student-hub/issues/154#issuecomment-7067190318)。公開後の本文更新・紐づけ変更は #168。 本番（2026-11-22 r2026.11.22.3）：/api/health が writesEnabled:true、未ログインの /api/private/drafts・project-drafts・profile が 401（経路は本番で生きている）。cpu_ms 1000 の設定で deploy が通っており Workers Paid は加入済み。ログインした状態の本番確認は #217。"
     },
     {
       "id": "C11",
@@ -174,9 +174,9 @@
       "journey": "J2",
       "risk": "R2",
       "status": "pass",
-      "production": "closed",
-      "evidence": "受け入れ1: tests/media.test.ts で公開前画像は他人の私的読取・公開URL・未ログインとも404、他人の画像UUIDは自分の公開へ付与不可、公開停止後の新規取得は404。tests/ordinary-media-browser.spec.ts（PC1280/モバイル390）で記事PNG・作品JPEGを添付し、明示公開まで /api/media は404、公開後に読者画面で表示、本人の公開停止後は404。受け入れ2: 同 spec と tests/ordinary-project-detail-browser.spec.ts で YouTube URL が同意ボタンを経て youtube-nocookie の埋め込みとして表示され、同意前は外部通信0件（tests/youtube-renderer.test.tsx で偽ホストは埋め込まない）。受け入れ3: 9e3c66e で拒否理由を分離し、同 spec で GIF・12 MiB超・読めないPNG・1600万画素超がそれぞれの理由つきで断られ PUT 0件。サーバーも SVG/テキスト偽装 415・512 KiB超 413（tests/media.test.ts）。R2 独立検証合格(#155, main 9e3c66e: 一時攻撃テスト 4 passed＋ブラウザ 12 passed＋npm test 925 passed https://github.com/junhat6/kobe-student-hub/issues/155#issuecomment-7067391558)。既知の制限：クライアント検査を通った後のサーバー拒否は理由のない汎用文。本番：有料プラン判断待ちのため production は closed のまま",
-      "note": "本番開放は有料プラン判断待ち（画像処理のCPU時間）。needs-human。"
+      "production": "open",
+      "evidence": "受け入れ1: tests/media.test.ts で公開前画像は他人の私的読取・公開URL・未ログインとも404、他人の画像UUIDは自分の公開へ付与不可、公開停止後の新規取得は404。tests/ordinary-media-browser.spec.ts（PC1280/モバイル390）で記事PNG・作品JPEGを添付し、明示公開まで /api/media は404、公開後に読者画面で表示、本人の公開停止後は404。受け入れ2: 同 spec と tests/ordinary-project-detail-browser.spec.ts で YouTube URL が同意ボタンを経て youtube-nocookie の埋め込みとして表示され、同意前は外部通信0件（tests/youtube-renderer.test.tsx で偽ホストは埋め込まない）。受け入れ3: 9e3c66e で拒否理由を分離し、同 spec で GIF・12 MiB超・読めないPNG・1600万画素超がそれぞれの理由つきで断られ PUT 0件。サーバーも SVG/テキスト偽装 415・512 KiB超 413（tests/media.test.ts）。R2 独立検証合格(#155, main 9e3c66e: 一時攻撃テスト 4 passed＋ブラウザ 12 passed＋npm test 925 passed https://github.com/junhat6/kobe-student-hub/issues/155#issuecomment-7067391558)。既知の制限：クライアント検査を通った後のサーバー拒否は理由のない汎用文。 本番（2026-11-22 r2026.11.22.3）：/api/health が writesEnabled:true、未ログインの /api/private/drafts・project-drafts・profile が 401（経路は本番で生きている）。cpu_ms 1000 の設定で deploy が通っており Workers Paid は加入済み。ログインした状態の本番確認は #217。",
+      "note": "2026-11-22 オーナー決定で R2 の利用に同意済み。保存先を D1 BLOB から private R2 へ移す作業は #12（R2 のダッシュボード有効化は #218）。"
     },
     {
       "id": "C12",
