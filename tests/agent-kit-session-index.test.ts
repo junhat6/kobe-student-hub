@@ -140,6 +140,7 @@ describe('agent kit session_index.py', () => {
       new Set([
         '__future__',
         'argparse',
+        'hashlib', // local only: the short ID for show (#215)
         'json',
         'os',
         're',
@@ -265,12 +266,68 @@ describe('agent kit session_index.py with the home folder as the working place',
     }
   });
 
-  it('opens every session with the masked path that index printed (the SKILL.md flow)', () => {
+  // #215: index prints a short ID per session and SKILL.md tells the agent to pass it to show as
+  // is. The masked path next to it holds "~" and "<you>", which a shell rewrites when unquoted, so
+  // the ID is run here through a real shell without quotes, as an agent would type it.
+  it('opens Claude Code, Codex and Gemini sessions by the unquoted ID that index printed', () => {
+    const index = runIn('index', '--grep', 'kubernetes');
+    const lines = index.split('\n');
+    const idRows = lines
+      .map((line, i) => ({ row: lines[i - 1] ?? '', id: /^\s{12}ID ([^\s]+)\s/.exec(line)?.[1] }))
+      .filter((entry): entry is { row: string; id: string } => Boolean(entry.id));
+    expect(idRows).toHaveLength(5);
+    for (const { id } of idRows) expect(id).toMatch(/^[0-9a-f]{10}$/);
+    const byTool = (tool: string) => idRows.filter(({ row }) => row.includes(` ${tool} `));
+    expect(byTool('claude')).toHaveLength(1);
+    expect(byTool('codex')).toHaveLength(2);
+    expect(byTool('gemini')).toHaveLength(1);
+    expect(new Set(idRows.map(({ id }) => id)).size).toBe(5);
+    const shell = (id: string) =>
+      execFileSync('/bin/sh', ['-c', `python3 -I "$SCRIPT" show ${id}`], {
+        env: {
+          PATH: process.env.PATH ?? '',
+          HOME: homeOnly,
+          PYTHONIOENCODING: 'utf-8',
+          SCRIPT,
+        },
+        encoding: 'utf-8',
+      });
+    for (const tool of ['claude', 'codex', 'gemini']) {
+      for (const { id } of byTool(tool)) {
+        const shown = shell(id);
+        expect(shown, tool).toContain('## あなた');
+        expect(shown, tool).toContain('kubernetes');
+        expect(shown, tool).not.toContain(NAME);
+      }
+    }
+    // The same ID on the next run, and in upper case.
+    const again = runIn('index', '--grep', 'kubernetes');
+    for (const { id } of idRows) expect(again).toContain(`ID ${id} `);
+    expect(shell(byTool('claude')[0].id.toUpperCase())).toContain('kubernetes');
+    // Antigravity keeps only requests: show says it is not supported, as before.
+    let failure = '';
+    try {
+      shell(byTool('antigravity')[0].id);
+    } catch (error) {
+      failure = String((error as { stderr?: string }).stderr ?? '');
+    }
+    expect(failure).toContain('対応していません');
+    // An unknown ID points back to index without echoing anything private.
+    try {
+      shell('0123456789');
+      failure = '';
+    } catch (error) {
+      failure = String((error as { stderr?: string }).stderr ?? '');
+    }
+    expect(failure).toContain('index の行にある ID');
+  });
+
+  it('still opens every session with the masked path that index printed, when quoted', () => {
     const index = runIn('index', '--grep', 'kubernetes');
     const paths = index
       .split('\n')
-      .filter((line) => /^\s{12}\S/.test(line))
-      .map((line) => line.trim())
+      .map((line) => /^\s{12}ID [0-9a-f]{10}\s+(\S.*)$/.exec(line)?.[1])
+      .filter((path): path is string => Boolean(path))
       .filter((path) => !path.endsWith('history.jsonl'));
     expect(paths.length).toBe(4);
     expect(paths.some((path) => path.startsWith('~/.claude/projects/~/'))).toBe(true);

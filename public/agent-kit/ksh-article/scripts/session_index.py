@@ -4,18 +4,19 @@
 Kobe Student Hub writing kit. Reads the session logs that Claude Code, Codex, Gemini CLI and
 Antigravity CLI keep on this computer, and prints:
 
-  index  one line per session: date, tool, project, title or first request
-  show   one session as a short transcript (your requests + the agent's replies, no tool output)
+  index  one line per session: date, tool, project, title or first request, and a short ID
+  show   one session (by that ID) as a short transcript (your requests + the agent's replies, no tool output)
 
 Secrets and personal paths are masked in what this prints as a best effort: some will slip
 through. Always read the result yourself before putting anything in an article.
 
   python3 session_index.py index --since 2026-10-01 --grep docker
-  python3 session_index.py show <path printed by index> --max-chars 20000
+  python3 session_index.py show <ID printed by index> --max-chars 20000
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -387,18 +388,34 @@ def command_index(args):
         project, title, path = (mask(value) for value in (s.project, s.title, str(s.path)))
         day = s.started.strftime("%Y-%m-%d") if s.started else "----------"
         print(f"{day}  {s.tool:<11} {one_line(project, 28):<28}  {one_line(title, 90)}")
-        print(f"            {path}")
+        print(f"            ID {session_id(s.path)}  {path}")
     if not rows:
         print("該当するセッションが見つかりませんでした。--since や --grep を外して試してください。")
 
 
+def session_id(path: Path) -> str:
+    """A short ID for show: hex digits only, so it can be passed unquoted in any shell.
+
+    The masked path index prints contains "~" and "<you>", which a shell expands or reads as a
+    redirect when it is passed without quotes (#215). The ID is a hash of the real path: it holds
+    no user name, and it stays the same between runs.
+    """
+    return hashlib.sha256(str(path).encode("utf-8", "surrogateescape")).hexdigest()[:ID_LENGTH]
+
+
+ID_LENGTH = 10
+_ID = re.compile(r"[0-9a-f]{%d}" % ID_LENGTH)
+
+
 def find_session_file(shown: str) -> Path | None:
-    """index prints masked paths; find the file whose masked path is exactly what you passed."""
-    path = Path(os.path.expanduser(shown))
-    if path.is_file():
-        return path
+    """Find the file for an ID printed by index (or, as before, its masked path or a real path)."""
+    wanted = shown.lower() if _ID.fullmatch(shown.lower()) else None
+    if not wanted:
+        path = Path(os.path.expanduser(shown))
+        if path.is_file():
+            return path
     for s in all_sessions():
-        if mask(str(s.path)) == shown:
+        if (session_id(s.path) == wanted) if wanted else (mask(str(s.path)) == shown):
             return s.path
     return None
 
@@ -406,7 +423,7 @@ def find_session_file(shown: str) -> Path | None:
 def command_show(args):
     path = find_session_file(args.path.strip())
     if path is None:
-        sys.exit("ファイルが見つかりません: " + mask(args.path))
+        sys.exit("セッションが見つかりません: " + mask(args.path) + "（index の行にある ID を渡してください）")
     if ".claude" in path.parts:
         messages = claude_messages(path)
     elif ".codex" in path.parts:
@@ -437,7 +454,7 @@ def main():
     index.add_argument("--limit", type=int, default=60)
     index.set_defaults(run=command_index)
     show = sub.add_parser("show", help="1つのセッションを短い会話録にする")
-    show.add_argument("path")
+    show.add_argument("path", metavar="ID", help="index の行にある ID（伏せたパスや実際のパスでも開けます）")
     show.add_argument("--max-chars", type=int, default=30000)
     show.add_argument("--you-chars", type=int, default=2000)
     show.add_argument("--agent-chars", type=int, default=1200)

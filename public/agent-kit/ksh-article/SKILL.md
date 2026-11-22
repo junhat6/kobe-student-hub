@@ -43,13 +43,15 @@ Kobe Student Hub は、神戸電子の学生が学習・制作の経験を記事
 そのまま開くと大きすぎるので、同梱のスクリプトで絞ります（Python 3 の標準ライブラリだけで動きます）。
 
 ```sh
-# 一覧（日付・ツール・プロジェクト・タイトル）
+# 一覧（日付・ツール・プロジェクト・タイトル。2行目に show 用の ID と伏せたパス）
 python3 scripts/session_index.py index --since 2026-10-01
 python3 scripts/session_index.py index --grep docker        # 依頼文に含む語で絞る
 python3 scripts/session_index.py index --project my-app     # プロジェクト名で絞る
 # 1セッションを短い会話録に（ツールの出力は省き、秘密らしき文字列とメール・ユーザー名をできる範囲で伏せる）
-python3 scripts/session_index.py show <index に出たパス> --max-chars 20000
+python3 scripts/session_index.py show <index に出た ID> --max-chars 20000   # 例: show 3f9a1c2b7e
 ```
+
+`show` には、`index` の各セッションの2行目にある `ID`（英数字10文字）をそのまま渡してください。引用符は要りません。ID の横の伏せたパス（`~` や `<you>` を含む）は表示用で、引用符なしで渡すとシェルが書き換えてしまいます。Antigravity の行は `show` に対応していないので、`index` に出る依頼文を使ってください。
 
 スクリプトが無い環境では、`/agent-kit/ksh-article/scripts/session_index.py` をサイトから取得するか、上の場所のファイルを `jq` などで「本人の依頼文」と「エージェントの返答の文章」だけに絞って読んでください。ツールの出力全体は読まないでください（長く、秘密が混ざりやすい）。
 
