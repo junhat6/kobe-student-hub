@@ -103,22 +103,22 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   await expect(snapshot).toContainText('この文章は公開する保存版です。');
   const submit = composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true });
   await expect(submit).toBeDisabled();
-  // Other tests in this shared preview reuse the title, so count same-title public cards.
-  const publicCount = async () => {
+  // Other tests publish the same title in parallel and the feed is the newest 20, so a
+  // same-title count races; instead the article just published must be in the anonymous feed.
+  const publicIds = async () => {
     const response = await page.request.get('/api/articles');
     expect(response.status()).toBe(200);
-    const { cards } = (await response.json()) as { cards: { entry: { title: string } }[] };
-    return cards.filter((card) => card.entry.title === title).length;
+    const { cards } = (await response.json()) as { cards: { entry: { id: string } }[] };
+    return cards.map((card) => card.entry.id);
   };
-  const before = await publicCount();
   await composer.getByRole('checkbox').check();
   await expect(submit).toBeEnabled();
   await submit.click();
   const publicLink = composer.getByRole('link', { name: 'ログインなしの読者画面を開く' });
   await expect(publicLink).toBeVisible();
-  expect(await publicCount()).toBe(before + 1);
   const articlePath = await publicLink.getAttribute('href');
   expect(articlePath).toMatch(/^\/articles\/[0-9a-f-]{36}$/);
+  expect(await publicIds()).toContain(articlePath!.slice('/articles/'.length));
   return articlePath!;
 }
 
