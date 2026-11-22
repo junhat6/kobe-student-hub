@@ -74,9 +74,15 @@ test('a student reports a public profile and an operator reads it with the repor
     await readerPage
       .getByRole('button', { name: '確認したプロフィール通報を送信', exact: true })
       .click();
-    await expect(readerPage.locator('.project-report-form [role="status"]')).toContainText(
-      'このアカウントの受付記録を確認しました',
-    );
+    const status = readerPage.locator('.project-report-form [role="status"]');
+    await expect(status).toContainText('送信しました。このプロフィールの通報を受け付けました');
+    await expect(status.locator('svg')).toBeVisible();
+    // The form closes and the private reason no longer stays on screen.
+    await expect(reason).toHaveCount(0);
+    await expect(
+      readerPage.getByRole('button', { name: '確認したプロフィール通報を送信', exact: true }),
+    ).toHaveCount(0);
+    expect.soft(await seriousViolations(readerPage)).toEqual([]);
     await readerPage.screenshot({
       path: info.outputPath('profile-report-received.png'),
       fullPage: true,

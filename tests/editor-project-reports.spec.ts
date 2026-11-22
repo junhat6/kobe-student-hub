@@ -60,8 +60,8 @@ async function input(page: Page, reason = '架空の通報理由') {
     })
     .check();
 }
-const received =
-  'このアカウントの受付記録を確認しました。理由の一致や通知・非公開化・判断の確認ではありません。';
+const received = '送信しました。この作品の通報を受け付けました。運営が内容を確認します。';
+const alreadyReceived = 'この作品は、このアカウントから通報済みです。運営が内容を確認します。';
 test('explicit project report stays private and a trusted read-only operator can inspect the saved record', async ({
   page,
 }) => {
@@ -79,6 +79,11 @@ test('explicit project report stays private and a trusted read-only operator can
   await input(page, reason);
   await panel(page).getByRole('button', { name: '確認した作品通報を送信', exact: true }).click();
   await expect(panel(page).getByRole('status')).toHaveText(received);
+  // Once received, the form closes and the private input is cleared from the page.
+  await expect(panel(page).getByLabel('作品の通報理由（必須）', { exact: true })).toHaveCount(0);
+  await expect(
+    panel(page).getByRole('button', { name: '確認した作品通報を送信', exact: true }),
+  ).toHaveCount(0);
   const publicResult = await page.evaluate(async (id) => {
     const r = await fetch('/__lab/projects/' + id, { credentials: 'omit' });
     return { status: r.status, text: await r.text() };
@@ -144,10 +149,8 @@ test('a committed report with a lost response keeps its input and reconciles onl
   ).toBeDisabled();
   expect(posts).toBe(1);
   await panel(page).getByRole('button', { name: '作品通報の受付を確認', exact: true }).click();
-  await expect(panel(page).getByRole('status')).toHaveText(received);
-  await expect(panel(page).getByLabel('作品の通報理由（必須）', { exact: true })).toHaveValue(
-    '架空の通報理由',
-  );
+  await expect(panel(page).getByRole('status')).toHaveText(alreadyReceived);
+  await expect(panel(page).getByLabel('作品の通報理由（必須）', { exact: true })).toHaveCount(0);
   expect(posts).toBe(1);
 });
 test('a changed session cannot consume an old report acknowledgement or retain previous private input', async ({

@@ -70,8 +70,7 @@ async function input(page: Page, reason = '架空の通報理由') {
     })
     .check();
 }
-const received =
-  'このアカウントの受付記録を確認しました。理由の一致や通知・非公開化・判断の確認ではありません。';
+const received = '送信しました。この作品の通報を受け付けました。運営が内容を確認します。';
 test('independent twenty-one work reports stay public and read-only case clearly limits to twenty', async ({
   page,
   playwright,

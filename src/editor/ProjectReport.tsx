@@ -49,9 +49,10 @@ export function ReportForm({
         setKnown(true);
         setReceived(value.received);
         setUncertain(false);
+        if (value.received) setInput({ reason: '', detail: '' });
         setMessage(
           value.received
-            ? 'このアカウントの受付記録を確認しました。理由の一致や通知・非公開化・判断の確認ではありません。'
+            ? `この${subject}は、このアカウントから通報済みです。運営が内容を確認します。`
             : 'このセッションの受付はまだありません。内容を確認して送信を選んでください。',
         );
       }
@@ -90,9 +91,8 @@ export function ReportForm({
       await client.report(projectId, snapshot, true, controller.signal);
       if (mounted.current && run === generation.current) {
         setReceived(true);
-        setMessage(
-          'このアカウントの受付記録を確認しました。理由の一致や通知・非公開化・判断の確認ではありません。',
-        );
+        setInput({ reason: '', detail: '' });
+        setMessage(`送信しました。この${subject}の通報を受け付けました。運営が内容を確認します。`);
       }
     } catch {
       if (mounted.current && run === generation.current) {
@@ -139,62 +139,92 @@ export function ReportForm({
   }
   return (
     <div className="project-report-form">
-      <p role="status" aria-live="polite">
-        {message}
-      </p>
-      <Button disabled={busy} onClick={() => void check()}>
-        {subject}通報の受付を確認
-      </Button>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
+      <p
+        role="status"
+        aria-live="polite"
+        className={
+          'project-report-status' + (received ? ' is-received' : uncertain ? ' is-uncertain' : '')
+        }
       >
-        <fieldset disabled={busy}>
-          <legend>運営確認用の非公開テキスト</legend>
-          <label htmlFor={id + 'reason'}>{subject}の通報理由（必須）</label>
-          <textarea
-            id={id + 'reason'}
-            readOnly={received || uncertain}
-            value={input.reason}
-            maxLength={400}
-            onChange={(e) => change('reason', e.target.value)}
-          />
-          <small>{Array.from(input.reason).length}/200文字</small>
-          <label htmlFor={id + 'detail'}>{subject}の通報詳細（任意）</label>
-          <textarea
-            id={id + 'detail'}
-            readOnly={received || uncertain}
-            value={input.detail}
-            maxLength={4000}
-            onChange={(e) => change('detail', e.target.value)}
-          />
-          <small>
-            2000文字・8000バイトまで。不要な個人情報や実際の秘密情報は入力しないでください。
-          </small>
-        </fieldset>
-        <label className="project-report-confirm">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            disabled={busy || !known || received || uncertain || !validProjectReportInput(input)}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />
-          <span>入力した理由・詳細を、この{subject}の通報として運営確認用に送信します</span>
-        </label>
-        <Button
-          type="submit"
-          disabled={
-            busy || !known || received || uncertain || !confirmed || !validProjectReportInput(input)
-          }
-        >
-          確認した{subject}通報を送信
-        </Button>
-      </form>
-      <p>
-        受付確認はこのセッションからの通報の有無だけです。入力と既存の受付内容の一致や、運営の対応結果を示すものではありません。
+        {received && (
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" focusable="false">
+            <circle cx="12" cy="12" r="11" fill="currentColor" />
+            <path
+              d="M6.5 12.5l3.5 3.5 7.5-8"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+        <span>{message}</span>
       </p>
+      {!received && (
+        <>
+          <Button disabled={busy} onClick={() => void check()}>
+            {subject}通報の受付を確認
+          </Button>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit();
+            }}
+          >
+            <fieldset disabled={busy}>
+              <legend>運営確認用の非公開テキスト</legend>
+              <label htmlFor={id + 'reason'}>{subject}の通報理由（必須）</label>
+              <textarea
+                id={id + 'reason'}
+                readOnly={received || uncertain}
+                value={input.reason}
+                maxLength={400}
+                onChange={(e) => change('reason', e.target.value)}
+              />
+              <small>{Array.from(input.reason).length}/200文字</small>
+              <label htmlFor={id + 'detail'}>{subject}の通報詳細（任意）</label>
+              <textarea
+                id={id + 'detail'}
+                readOnly={received || uncertain}
+                value={input.detail}
+                maxLength={4000}
+                onChange={(e) => change('detail', e.target.value)}
+              />
+              <small>
+                2000文字・8000バイトまで。不要な個人情報や実際の秘密情報は入力しないでください。
+              </small>
+            </fieldset>
+            <label className="project-report-confirm">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                disabled={
+                  busy || !known || received || uncertain || !validProjectReportInput(input)
+                }
+                onChange={(e) => setConfirmed(e.target.checked)}
+              />
+              <span>入力した理由・詳細を、この{subject}の通報として運営確認用に送信します</span>
+            </label>
+            <Button
+              type="submit"
+              disabled={
+                busy ||
+                !known ||
+                received ||
+                uncertain ||
+                !confirmed ||
+                !validProjectReportInput(input)
+              }
+            >
+              確認した{subject}通報を送信
+            </Button>
+          </form>
+          <p>
+            受付確認はこのセッションからの通報の有無だけです。入力と既存の受付内容の一致や、運営の対応結果を示すものではありません。
+          </p>
+        </>
+      )}
     </div>
   );
 }

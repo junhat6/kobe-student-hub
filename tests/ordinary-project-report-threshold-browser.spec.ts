@@ -74,7 +74,7 @@ test('three different accounts temporarily hide a project without deleting it', 
       await reader.locator('.project-report-form').getByRole('checkbox').check();
       await reader.getByRole('button', { name: '確認した作品通報を送信', exact: true }).click();
       await expect(reader.locator('.project-report-form [role="status"]')).toContainText(
-        'このアカウントの受付記録を確認しました',
+        '送信しました。この作品の通報を受け付けました',
       );
       if (n === 0) {
         await reader.screenshot({
