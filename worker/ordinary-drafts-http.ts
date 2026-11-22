@@ -1,4 +1,5 @@
 import { createReadingHistoryHandler } from './reading-history-http';
+import { createOwnActivityHandler } from './own-activity-http';
 import { createPrivateDraftHandler } from './draft-http';
 import { createPrivateProfileHandler } from './profile-http';
 import { createPrivatePublicationHandler } from './publication-http';
@@ -36,6 +37,7 @@ export function createOrdinaryDraftHandler(
   if (options.enabled !== true) return async (_request: Request): Promise<Response | null> => null;
   const handlers = [
     createReadingHistoryHandler(db, origin, clock),
+    createOwnActivityHandler(db, origin, clock),
     createMediaHandler(db, origin, clock, options.mediaBucket),
     createOrdinaryDiscoveryHandler(db, origin, clock),
     createPublicStudentHandler(db, origin, clock),

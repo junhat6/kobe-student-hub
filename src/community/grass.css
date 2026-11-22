@@ -38,6 +38,10 @@
   color: #2b1205;
   animation: grass-bounce 600ms cubic-bezier(0.3, 1.6, 0.5, 1) 300ms both;
 }
+.grass-read {
+  background: var(--tint);
+  color: var(--ink-soft);
+}
 .grass-nudge {
   color: var(--ink-soft);
   font-size: 13px;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createPublicStudentClient } from './student-client';
+import { createPublicStudentClient, validActivity } from './student-client';
 import { buildGrass } from './grass';
 import type { PublicStudentActivity } from '../public-student-types';
 import Icon from '../shared/Icon';
@@ -32,16 +32,51 @@ function useActivity(id: string | undefined, own: boolean) {
 }
 
 /**
+ * Owner-only reading layer (private reading history, counts per day). Failure or absence just
+ * leaves the publication grass as it is; it is never shown anywhere but one's own page.
+ */
+function useOwnReading(fetcher: typeof fetch | undefined) {
+  const [value, setValue] = useState<PublicStudentActivity | null>(null);
+  useEffect(() => {
+    if (!fetcher) return;
+    const controller = new AbortController();
+    fetcher('/api/private/activity', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((body: unknown) => {
+        if (validActivity(body)) setValue(body);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [fetcher]);
+  return value;
+}
+
+/**
  * The "grass": one square per day, greener the more the student published that day.
  * `own` adds the nudge that keeps a weekly streak going; the public view only shows facts.
  */
-export default function ActivityGrass({ id, own = false }: { id?: string; own?: boolean }) {
+export default function ActivityGrass({
+  id,
+  own = false,
+  fetcher,
+}: {
+  id?: string;
+  own?: boolean;
+  /** Signed-in fetcher; only given on one's own page, where viewing also grows the grass. */
+  fetcher?: typeof fetch;
+}) {
   const activity = useActivity(id, own);
+  const reading = useOwnReading(own ? fetcher : undefined);
   if (!activity) return null;
-  const grass = buildGrass(activity);
+  const grass = buildGrass(activity, own ? reading : null);
   const label =
     `過去半年の公開：${grass.activeDays}日・${grass.total}件` +
-    (grass.streakWeeks ? `、${grass.streakWeeks}週連続` : '');
+    (grass.streakWeeks ? `、${grass.streakWeeks}週連続` : '') +
+    (own && grass.readTotal ? `、閲覧${grass.readTotal}（自分だけ）` : '');
   let nudge = '';
   if (own && grass.total === 0) nudge = '最初の1本で芽が出ます';
   else if (own && !grass.thisWeek && grass.streakWeeks > 0)
@@ -59,6 +94,18 @@ export default function ActivityGrass({ id, own = false }: { id?: string; own?: 
             aria-hidden="true"
           >
             {grass.streakWeeks}週連続
+          </span>
+        )}
+        {own && grass.readTotal > 0 && (
+          <span
+            className="grass-chip grass-read"
+            role="img"
+            aria-label={`閲覧 ${grass.readTotal}（自分だけに見えます）`}
+            title="閲覧（自分だけに見えます）"
+          >
+            <Icon name="eye" size={16} />
+            {grass.readTotal}
+            <Icon name="lock" size={12} />
           </span>
         )}
         {nudge && <span className="grass-nudge">{nudge}</span>}
@@ -83,7 +130,13 @@ export default function ActivityGrass({ id, own = false }: { id?: string; own?: 
                 gridRow: d + 1,
                 animationDelay: `${Math.min(w * 18, 480)}ms`,
               }}
-              title={cell.outside ? undefined : `${cell.date}：${cell.count}件`}
+              title={
+                cell.outside
+                  ? undefined
+                  : own && cell.read
+                    ? `${cell.date}：公開${cell.count}・閲覧${cell.read}`
+                    : `${cell.date}：${cell.count}件`
+              }
             />
           )),
         )}

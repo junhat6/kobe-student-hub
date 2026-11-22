@@ -68,4 +68,29 @@ describe('the grass transport', () => {
     ])
       expect(validActivity(bad)).toBe(false);
   });
+  it('shades the owner grass with the reading layer but keeps streaks about publishing', () => {
+    const publicDays = { from, to, days: [{ date: '2026-11-20', count: 1 }] };
+    const reading = {
+      from,
+      to,
+      days: [
+        { date: '2026-11-20', count: 1 },
+        { date: '2026-11-21', count: 4 },
+      ],
+    };
+    const g = buildGrass(publicDays, reading);
+    const cell = (date: string) => g.weeks.flat().find((c) => c.date === date)!;
+    expect(cell('2026-11-20')).toMatchObject({ count: 1, read: 1, level: 2 });
+    expect(cell('2026-11-21')).toMatchObject({ count: 0, read: 4, level: 3 });
+    expect(g.total).toBe(1);
+    expect(g.readTotal).toBe(5);
+    expect(g.streakWeeks).toBe(buildGrass(publicDays).streakWeeks);
+    // A reading layer from another day's window is ignored rather than misaligned.
+    expect(buildGrass(publicDays, { ...reading, to: '2026-11-21' }).readTotal).toBe(0);
+    expect(
+      buildGrass(publicDays)
+        .weeks.flat()
+        .every((c) => c.read === 0),
+    ).toBe(true);
+  });
 });

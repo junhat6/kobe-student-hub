@@ -198,6 +198,51 @@ describe('ordinary shared public student with actual Workers/D1', () => {
     expect(wrong.status).toBe(405);
     expect(wrong.headers.get('X-Fixture-Db-Calls')).toBe('0');
   });
+  it('adds the owner-only reading layer: counts per day for the signed-in reader, never on public reads', async () => {
+    const today = new Date(NOW + 9 * 3600000).toISOString().slice(0, 10);
+    expect((await request('/api/private/activity')).status).toBe(401);
+    for (const path of ['/api/private/activity?x=1', '/api/private/activity/extra'])
+      expect((await request(path, 'GET', 0)).status).toBe(404);
+    expect((await request('/api/private/activity', 'POST', 0, {})).status).toBe(405);
+    const before = await request('/api/private/activity', 'GET', 0);
+    expect(before.status).toBe(200);
+    expect(before.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(before.headers.get('Vary')).toBe('Cookie');
+    expect(((await before.json()) as PublicStudentActivity).days).toEqual([]);
+    for (const [kind, contentId] of [
+      ['article', articles[2]],
+      ['project', projects[2]],
+    ]) {
+      const viewed = await request('/api/private/reading-history', 'PUT', 0, { kind, contentId });
+      expect(viewed.status).toBe(200);
+    }
+    const own = (await (
+      await request('/api/private/activity', 'GET', 0)
+    ).json()) as PublicStudentActivity;
+    expect(Object.keys(own).sort()).toEqual(['days', 'from', 'to']);
+    expect(own.to).toBe(today);
+    expect(own.days).toEqual([{ date: today, count: 2 }]);
+    // Another account sees only its own (empty) reading, and the public grass is unchanged.
+    expect(
+      ((await (await request('/api/private/activity', 'GET', 1)).json()) as PublicStudentActivity)
+        .days,
+    ).toEqual([]);
+    expect(
+      (
+        (await (
+          await request('/api/students/' + authors[0] + '/activity')
+        ).json()) as PublicStudentActivity
+      ).days,
+    ).toEqual([{ date: today, count: 1 }]);
+    // Deleting the reading history removes the layer.
+    expect((await request('/api/private/reading-history', 'DELETE', 0, { all: true })).status).toBe(
+      200,
+    );
+    expect(
+      ((await (await request('/api/private/activity', 'GET', 0)).json()) as PublicStudentActivity)
+        .days,
+    ).toEqual([]);
+  });
   it('fails the whole profile for an invalid selected article or project, instead of returning the other side', async () => {
     const db = await mf.getD1Database('DB');
     await db.prepare('UPDATE content SET body=? WHERE id=?').bind('\0', articles[2]).run();

@@ -79,7 +79,7 @@ function AccountContent({
           />
         </div>
       )}
-      {authoringUiEnabled && ready && <ActivityGrass id={ownProfileId} own />}
+      {authoringUiEnabled && ready && <ActivityGrass id={ownProfileId} own fetcher={fetcher} />}
       {authoringUiEnabled && ready && <AccountActions participation={participation} />}
       {authoringUiEnabled && <ParticipationNotice participation={participation} place="account" />}
       {authoringUiEnabled && ready && (

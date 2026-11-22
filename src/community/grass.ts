@@ -3,6 +3,8 @@ import type { PublicStudentActivity } from '../public-student-types';
 export interface GrassCell {
   date: string;
   count: number;
+  /** Owner-only: items last viewed that day (private reading history). 0 on public pages. */
+  read: number;
   /** 0 = nothing, 1..3 = one, two, three or more public events. */
   level: 0 | 1 | 2 | 3;
   /** Outside the window (padding before the first day or after today). */
@@ -17,6 +19,8 @@ export interface Grass {
   streakWeeks: number;
   /** True when this week already has activity. */
   thisWeek: boolean;
+  /** Owner-only total of the reading layer. */
+  readTotal: number;
 }
 const DAY_MS = 86400000;
 const dayNumber = (iso: string) => Date.parse(iso + 'T00:00:00Z') / DAY_MS;
@@ -29,8 +33,15 @@ const weekday = (day: number) => (((day + 3) % 7) + 7) % 7;
  * students have exams and part-time jobs, and a daily streak would punish a missed day
  * instead of rewarding a returning one.
  */
-export function buildGrass(activity: PublicStudentActivity): Grass {
+export function buildGrass(
+  activity: PublicStudentActivity,
+  reading?: PublicStudentActivity | null,
+): Grass {
   const counts = new Map(activity.days.map((d) => [d.date, d.count]));
+  // The reading layer only shades one's own grass; streaks stay about publishing.
+  const reads = new Map(
+    reading && reading.to === activity.to ? reading.days.map((d) => [d.date, d.count]) : [],
+  );
   const first = dayNumber(activity.from);
   const today = dayNumber(activity.to);
   const start = first - weekday(first);
@@ -40,11 +51,15 @@ export function buildGrass(activity: PublicStudentActivity): Grass {
     const week: GrassCell[] = [];
     for (let offset = 0; offset < 7; offset++) {
       const d = day + offset;
-      const count = d >= first && d <= today ? (counts.get(iso(d)) ?? 0) : 0;
+      const inside = d >= first && d <= today;
+      const count = inside ? (counts.get(iso(d)) ?? 0) : 0;
+      const read = inside ? (reads.get(iso(d)) ?? 0) : 0;
+      const shade = count + read;
       week.push({
         date: iso(d),
         count,
-        level: count === 0 ? 0 : count === 1 ? 1 : count === 2 ? 2 : 3,
+        read,
+        level: shade === 0 ? 0 : shade === 1 ? 1 : shade === 2 ? 2 : 3,
         outside: d < first || d > today,
       });
     }
@@ -60,5 +75,6 @@ export function buildGrass(activity: PublicStudentActivity): Grass {
     activeDays: activity.days.length,
     streakWeeks,
     thisWeek,
+    readTotal: [...reads.values()].reduce((sum, n) => sum + n, 0),
   };
 }
