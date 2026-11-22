@@ -2,34 +2,22 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import type { OwnEnrollmentResult } from '../shared/enrollment';
 import { createEnrollmentClient, type EnrollmentInput } from './enrollment-client';
+import EnrollmentYearsPicker from '../shared/EnrollmentYearsPicker';
+import Icon from '../shared/Icon';
 import './enrollment.css';
 
 type RecordValue = OwnEnrollmentResult['enrollment'];
 type Participation = OwnEnrollmentResult['participation'];
-type Fields = { admissionYear: string; graduationYear: string };
-const blank: Fields = { admissionYear: '', graduationYear: '' };
+type Fields = { admission: string; graduation: string };
 const fields = (value: RecordValue): Fields =>
   value
-    ? { admissionYear: String(value.admissionYear), graduationYear: String(value.graduationYear) }
-    : { ...blank };
-const sameRecord = (a: RecordValue, b: RecordValue) =>
-  a === null
-    ? b === null
-    : b !== null &&
-      a.version === b.version &&
-      a.admissionYear === b.admissionYear &&
-      a.graduationYear === b.graduationYear &&
-      a.updatedAtMs === b.updatedAtMs;
-const participationText: Record<Participation, string> = {
-  missing: '入学年度と卒業予定年度を登録してください。',
-  upcoming: '登録した入学年度より前です。入力に誤りがあれば訂正してください。',
-  current: '登録した年度に基づく利用期間内です。年度はこの画面で訂正できます。',
-  ended: '登録した卒業予定年度を過ぎています。入力に誤りがあれば訂正してください。',
-};
-function year(value: string) {
-  return /^(?:19|20|21)\d{2}$/.test(value) ? Number(value) : null;
-}
+    ? { admission: String(value.admissionYear), graduation: String(value.graduationYear) }
+    : { admission: '', graduation: '' };
 
+/**
+ * Private self-declared study period. The page reads it on its own and re-reads after an
+ * unclear save, so students never have to "check the saved state" themselves.
+ */
 export default function AccountEnrollment({
   csrfToken,
   fetcher = fetch,
@@ -48,32 +36,18 @@ export default function AccountEnrollment({
   notify.current = onParticipationChange;
   const [loaded, setLoaded] = useState(false),
     [busy, setBusy] = useState<'read' | 'save' | null>(null),
-    [failed, setFailed] = useState(false);
+    [readFailed, setReadFailed] = useState(false),
+    [saveFailed, setSaveFailed] = useState(false),
+    [justSaved, setJustSaved] = useState(false);
   const [saved, setSaved] = useState<RecordValue>(null),
-    [input, setInput] = useState<Fields>({ ...blank }),
-    [participation, setParticipation] = useState<Participation>('missing');
-  const [uncertain, setUncertain] = useState(false),
-    [attempt, setAttempt] = useState<EnrollmentInput | null>(null),
-    [needsBasis, setNeedsBasis] = useState(false);
-  const [message, setMessage] = useState('年度の登録状態を確認しています…');
-  const admissionYear = year(input.admissionYear),
-    graduationYear = year(input.graduationYear);
-  const admissionError =
-    input.admissionYear !== '' && admissionYear === null
-      ? '入学年度は1900〜2199の西暦4桁で入力してください。'
-      : '';
-  const graduationError =
-    input.graduationYear !== '' && graduationYear === null
-      ? '卒業予定年度は1900〜2199の西暦4桁で入力してください。'
-      : admissionYear !== null && graduationYear !== null && graduationYear < admissionYear
-        ? '卒業予定年度は入学年度と同じか、それより後にしてください。'
-        : '';
+    [input, setInput] = useState<Fields>(fields(null));
+  const [message, setMessage] = useState('');
+  const admissionYear = Number(input.admission),
+    graduationYear = Number(input.graduation);
   const valid =
-    admissionYear !== null && graduationYear !== null && graduationYear >= admissionYear;
+    input.admission !== '' && input.graduation !== '' && graduationYear >= admissionYear;
   const baseline = fields(saved),
-    dirty =
-      input.admissionYear !== baseline.admissionYear ||
-      input.graduationYear !== baseline.graduationYear;
+    dirty = input.admission !== baseline.admission || input.graduation !== baseline.graduation;
   const current = (generation: number, controller: AbortController) =>
     mounted.current && revision.current === generation && request.current === controller;
   function begin(kind: 'read' | 'save') {
@@ -89,120 +63,85 @@ export default function AccountEnrollment({
       setBusy(null);
     }
   }
-  function publishParticipation(value: Participation) {
-    setParticipation(value);
-    notify.current?.(value);
+  function apply(result: OwnEnrollmentResult) {
+    setSaved(result.enrollment);
+    notify.current?.(result.participation);
   }
-  async function inspect(initial = false) {
+  /** keepInput: after an unclear save, keep what the student chose so one tap retries it. */
+  async function read(keepInput: boolean) {
     const operation = begin('read');
-    if (!operation) return;
+    if (!operation) return null;
     const { controller, generation } = operation;
-    setMessage('年度の登録状態を確認しています…');
-    const firstRead = initial || !loaded;
-    const attempted = firstRead ? null : attempt;
-    const previous = firstRead ? null : saved;
     try {
       const result = await client.read(controller.signal);
-      if (!current(generation, controller)) return;
+      if (!current(generation, controller)) return null;
       setLoaded(true);
-      setFailed(false);
-      setSaved(result.enrollment);
-      publishParticipation(result.participation);
-      if (firstRead) {
-        setInput(fields(result.enrollment));
-        setUncertain(false);
-        setAttempt(null);
-        setNeedsBasis(false);
-        setMessage(
-          result.enrollment
-            ? '保存済みの年度を確認しました。誤りがあれば、この画面で訂正してください。'
-            : '入学年度と卒業予定年度を入力してください。',
-        );
-      } else if (attempted) {
-        const record = result.enrollment;
-        if (
-          record &&
-          record.admissionYear === attempted.admissionYear &&
-          record.graduationYear === attempted.graduationYear &&
-          record.version === attempted.expectedVersion + 1
-        ) {
-          setUncertain(false);
-          setAttempt(null);
-          setNeedsBasis(false);
-          setMessage('送信した年度の保存を確認しました。手元の入力はそのまま残しています。');
-        } else {
-          setUncertain(false);
-          setNeedsBasis(true);
-          setMessage(
-            '送信した内容の保存は確認できませんでした。現在の保存状態と手元の入力を比べ、訂正する場合は保存版を基準にしてください。',
-          );
-        }
-      } else if (!sameRecord(previous, result.enrollment)) {
-        setNeedsBasis(true);
-        setMessage(
-          '保存状態が変わっています。手元の入力は残しています。現在の保存版を確認してから訂正してください。',
-        );
-      } else {
-        setMessage('現在の保存状態を確認しました。手元の入力はそのまま残しています。');
-      }
+      setReadFailed(false);
+      apply(result);
+      if (!keepInput) setInput(fields(result.enrollment));
+      return result;
     } catch {
       if (current(generation, controller)) {
-        setFailed(true);
+        setReadFailed(true);
         notify.current?.('missing');
-        setMessage(
-          '年度の登録状態を確認できませんでした。入力はこの画面に残しています。もう一度、保存状態を確認してください。',
-        );
+        setMessage('在学期間を読み込めませんでした。');
       }
+      return null;
     } finally {
       finish(generation, controller);
     }
   }
   async function save() {
-    if (!loaded || !valid || !dirty || failed || uncertain || needsBasis) return;
+    if (!loaded || !valid || !dirty) return;
     const snapshot: EnrollmentInput = {
-      admissionYear: admissionYear!,
-      graduationYear: graduationYear!,
+      admissionYear,
+      graduationYear,
       expectedVersion: saved?.version ?? 0,
     };
     const operation = begin('save');
     if (!operation) return;
     const { controller, generation } = operation;
-    setAttempt(snapshot);
-    setMessage('年度を保存しています…');
+    setSaveFailed(false);
+    setJustSaved(false);
+    setMessage('保存しています…');
+    let unclear = false;
     try {
       const result = await client.save(snapshot, controller.signal);
       if (!current(generation, controller)) return;
-      setSaved(result.enrollment);
-      publishParticipation(result.participation);
-      setAttempt(null);
-      setUncertain(false);
-      setFailed(false);
-      setNeedsBasis(false);
-      setMessage('年度を保存しました。誤りがあれば、この画面で訂正できます。');
+      apply(result);
+      setJustSaved(true);
+      setMessage('在学期間を保存しました。');
     } catch {
-      if (current(generation, controller)) {
-        setUncertain(true);
-        setFailed(true);
-        notify.current?.('missing');
-        setMessage(
-          '保存結果を確認できませんでした。入力は残しています。再送せず、保存状態を確認してください。',
-        );
-      }
+      unclear = current(generation, controller);
     } finally {
       finish(generation, controller);
+    }
+    if (!unclear) return;
+    // Never resend on our own: read what the server holds, then let one tap retry if needed.
+    const after = await read(true);
+    if (!mounted.current) return;
+    const record = after?.enrollment;
+    if (
+      record &&
+      record.admissionYear === snapshot.admissionYear &&
+      record.graduationYear === snapshot.graduationYear
+    ) {
+      setJustSaved(true);
+      setMessage('在学期間を保存しました。');
+    } else {
+      setSaveFailed(true);
+      setMessage('保存できませんでした。');
     }
   }
   useEffect(() => {
     mounted.current = true;
     setLoaded(false);
     setSaved(null);
-    setInput({ ...blank });
-    setUncertain(false);
-    setAttempt(null);
-    setNeedsBasis(false);
-    setFailed(false);
-    publishParticipation('missing');
-    void inspect(true);
+    setInput(fields(null));
+    setReadFailed(false);
+    setSaveFailed(false);
+    notify.current?.('missing');
+    void read(false);
     return () => {
       mounted.current = false;
       revision.current++;
@@ -211,145 +150,71 @@ export default function AccountEnrollment({
     };
   }, [client]);
   useEffect(() => {
-    if (!loaded || (!dirty && !uncertain)) return;
+    if (!loaded || !dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [loaded, dirty, uncertain]);
-  const readOnly = uncertain || needsBasis;
+  }, [loaded, dirty]);
   return (
     <section className="account-enrollment" aria-labelledby={id + 'heading'}>
-      <h2 id={id + 'heading'}>入学年度と卒業予定年度</h2>
-      <p>利用期間の確認に使う非公開の登録情報です。公開プロフィールには載りません。</p>
-      <p className="enrollment-status" role="status" aria-live="polite" aria-atomic="true">
+      <div className="enrollment-head">
+        <h2 id={id + 'heading'}>在学期間</h2>
+        <span className="private-mark" role="img" aria-label="非公開" title="自分だけに見えます">
+          <Icon name="lock" size={16} />
+        </span>
+      </div>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {message}
       </p>
-      <Button disabled={busy !== null} onClick={() => void inspect()}>
-        保存状態を確認
-      </Button>
+      {readFailed && (
+        <div className="enrollment-problem" role="alert">
+          <Icon name="alert" size={18} />
+          <span>読み込めませんでした</span>
+          <Button disabled={busy !== null} onClick={() => void read(loaded)}>
+            もう一度
+          </Button>
+        </div>
+      )}
       {loaded && (
-        <>
-          <div className="enrollment-saved" aria-label="保存済みの年度">
-            {saved ? (
-              <p>
-                {failed || uncertain ? '前回確認した年度' : '保存済み'}：{saved.admissionYear}
-                年度入学・{saved.graduationYear}年度卒業予定
-              </p>
-            ) : (
-              <p>
-                {failed || uncertain
-                  ? '年度の登録状態は未確認です。'
-                  : '年度はまだ登録されていません。'}
-              </p>
-            )}
-            {!failed && !uncertain && <p>{participationText[participation]}</p>}
-          </div>
-          <form
-            autoComplete="off"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
+        <form
+          autoComplete="off"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void save();
+          }}
+        >
+          <EnrollmentYearsPicker
+            id={id}
+            admission={input.admission}
+            graduation={input.graduation}
+            disabled={busy !== null}
+            onChange={(next) => {
+              setInput(next);
+              setJustSaved(false);
+              setSaveFailed(false);
             }}
           >
-            <fieldset disabled={busy !== null}>
-              <legend>{readOnly ? '保持している入力' : '年度を入力・訂正する'}</legend>
-              <div className="enrollment-fields">
-                <div>
-                  <label htmlFor={id + 'admission'}>
-                    入学年度 <span>必須</span>
-                  </label>
-                  <input
-                    id={id + 'admission'}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    required
-                    value={input.admissionYear}
-                    readOnly={readOnly}
-                    aria-invalid={Boolean(admissionError)}
-                    aria-describedby={
-                      id + 'year-help' + (admissionError ? ' ' + id + 'admission-error' : '')
-                    }
-                    onChange={(event) =>
-                      setInput((value) => ({ ...value, admissionYear: event.target.value }))
-                    }
-                  />
-                  {admissionError && (
-                    <p className="enrollment-error" id={id + 'admission-error'}>
-                      {admissionError}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label htmlFor={id + 'graduation'}>
-                    卒業予定年度 <span>必須</span>
-                  </label>
-                  <input
-                    id={id + 'graduation'}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    required
-                    value={input.graduationYear}
-                    readOnly={readOnly}
-                    aria-invalid={Boolean(graduationError)}
-                    aria-describedby={
-                      id +
-                      'year-help ' +
-                      id +
-                      'graduation-help' +
-                      (graduationError ? ' ' + id + 'graduation-error' : '')
-                    }
-                    onChange={(event) =>
-                      setInput((value) => ({ ...value, graduationYear: event.target.value }))
-                    }
-                  />
-                  {graduationError && (
-                    <p className="enrollment-error" id={id + 'graduation-error'}>
-                      {graduationError}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <p className="enrollment-help" id={id + 'year-help'}>
-                1900〜2199の西暦4桁で入力してください。年度は4月から翌年3月までです。
-              </p>
-              <p className="enrollment-help" id={id + 'graduation-help'}>
-                2028年3月に卒業予定なら「2027」年度です。同じ年度に入学・卒業予定の場合も登録できます。
-              </p>
-            </fieldset>
-            {needsBasis && !failed && (
-              <Button
-                className="enrollment-basis"
-                type="button"
-                disabled={busy !== null}
-                onClick={() => {
-                  setNeedsBasis(false);
-                  setAttempt(null);
-                  setMessage(
-                    '確認した保存版を基準にしました。手元の入力を確認して、必要な訂正を保存してください。',
-                  );
-                }}
-              >
-                確認した保存版を基準にする
+            {dirty ? (
+              <Button className="enrollment-save" type="submit" disabled={busy !== null || !valid}>
+                {busy === 'save' ? '保存中…' : '保存'}
               </Button>
+            ) : (
+              justSaved && (
+                <span className="saved-mark" role="img" aria-label="保存しました">
+                  <Icon name="check" size={20} />
+                </span>
+              )
             )}
-            <Button
-              className="enrollment-save"
-              type="submit"
-              disabled={busy !== null || !valid || !dirty || failed || uncertain || needsBasis}
-            >
-              {busy === 'save' ? '保存しています…' : saved ? '年度を訂正して保存' : '年度を保存'}
-            </Button>
-            <p className="enrollment-help">
-              {dirty ? '手元に未保存の年度があります。' : '入力と保存状態は一致しています。'}{' '}
-              自動保存はありません。
+          </EnrollmentYearsPicker>
+          {saveFailed && (
+            <p className="enrollment-error" role="alert">
+              保存できませんでした。もう一度「保存」を押してください。
             </p>
-          </form>
-        </>
+          )}
+        </form>
       )}
     </section>
   );

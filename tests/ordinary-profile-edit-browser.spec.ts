@@ -17,38 +17,30 @@ async function createProfile(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
-  const region = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await region.getByText('公開プロフィールを準備する', { exact: true }).click();
-  await region.getByLabel('表示名 必須').fill('架空の編集前プロフィール');
-  await region.getByLabel('自己紹介（任意）').fill('自分で入力した初回の公開文');
-  await region.getByRole('checkbox').check();
+  const region = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await region.getByLabel('表示名', { exact: true }).fill('架空の編集前プロフィール');
+  await region.getByLabel('自己紹介', { exact: true }).fill('自分で入力した初回の公開文');
   const response = page.waitForResponse(
     (r) => r.url().endsWith('/api/private/profile') && r.request().method() === 'POST',
   );
-  await region
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
+  await region.getByRole('button', { name: '公開する', exact: true }).click();
   const result = await (await response).json();
   expect(result.profile.id).toMatch(/^profile-[a-f0-9-]{36}$/);
-  await expect(region.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   return result.profile.id as string;
 }
-const editor = (page: Page) =>
-  page.getByRole('region', { name: '公開プロフィールの編集', exact: true });
+const editor = (page: Page) => page.getByRole('region', { name: 'プロフィール', exact: true });
 async function openEdit(page: Page) {
-  await editor(page).getByText('公開プロフィールを編集する', { exact: true }).click();
-  await expect(editor(page).getByLabel('表示名 必須')).toBeVisible();
+  await editor(page).getByRole('button', { name: 'プロフィールを編集', exact: true }).click();
+  await expect(editor(page).getByLabel('表示名', { exact: true })).toBeVisible();
 }
 async function save(page: Page) {
-  await editor(page).getByRole('checkbox').check();
-  await editor(page).getByRole('button', { name: '公開プロフィールを更新', exact: true }).click();
+  await editor(page).getByRole('button', { name: '保存', exact: true }).click();
 }
 test('explicit profile edit keeps its public author URL and exposes only confirmed updated fields', async ({
   page,
@@ -57,13 +49,10 @@ test('explicit profile edit keeps its public author URL and exposes only confirm
   const id = await createProfile(page, info);
   await openEdit(page);
   const region = editor(page);
-  await region.getByLabel('表示名 必須').fill('更新した架空の書き手');
-  await region.getByLabel('自己紹介（任意）').fill('更新した公開紹介');
-  await expect(
-    region.getByRole('button', { name: '公開プロフィールを更新', exact: true }),
-  ).toBeDisabled();
+  await region.getByLabel('表示名', { exact: true }).fill('更新した架空の書き手');
+  await region.getByLabel('自己紹介', { exact: true }).fill('更新した公開紹介');
   await save(page);
-  await expect(region.getByRole('status')).toHaveText('公開プロフィールを更新しました。');
+  await expect(region.getByRole('status')).toHaveText('プロフィールを保存しました。');
   await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill('架空プロフィール更新の制作ノート');
@@ -107,7 +96,7 @@ test('explicit profile edit keeps its public author URL and exposes only confirm
     await guest.close();
   }
 });
-test('unknown acknowledgement and stale edit retain input until explicit recovery without automatic resend', async ({
+test('an unclear save is re-read instead of resent, and a stale edit keeps the input', async ({
   page,
   context,
 }, info) => {
@@ -128,38 +117,32 @@ test('unknown acknowledgement and stale edit retain input until explicit recover
     });
   });
   const region = editor(page);
-  await region.getByLabel('自己紹介（任意）').fill('受付結果が不明でも保持する公開文');
+  await region.getByLabel('自己紹介', { exact: true }).fill('受付結果が不明でも確かめる公開文');
   await save(page);
-  await expect(region.getByRole('status')).toContainText('再送せず');
-  await expect(region.getByLabel('自己紹介（任意）')).toHaveValue(
-    '受付結果が不明でも保持する公開文',
-  );
-  await expect(
-    region.getByRole('button', { name: '公開プロフィールを更新', exact: true }),
-  ).toBeDisabled();
-  expect(patches).toBe(1);
-  await region.getByRole('button', { name: '公開内容を再確認', exact: true }).click();
-  await expect(region.getByRole('status')).toHaveText('変更した公開内容を確認できました。');
+  // The page reads what the server holds and reports the save itself; no second PATCH.
+  await expect(region.getByRole('status')).toHaveText('プロフィールを保存しました。');
+  await expect(region).toContainText('受付結果が不明でも確かめる公開文');
   expect(patches).toBe(1);
   await page.unroute('**/api/private/profile');
   const other = await context.newPage();
   try {
     await other.goto('/account');
+    await openEdit(page);
     await openEdit(other);
-    await editor(other).getByLabel('自己紹介（任意）').fill('別画面からの新しい公開文');
+    await editor(other).getByLabel('自己紹介', { exact: true }).fill('別画面からの新しい公開文');
     await save(other);
-    await expect(editor(other).getByRole('status')).toHaveText('公開プロフィールを更新しました。');
-    await region.getByLabel('自己紹介（任意）').fill('古い画面で保持する入力');
+    await expect(editor(other).getByRole('status')).toHaveText('プロフィールを保存しました。');
+    await region.getByLabel('自己紹介', { exact: true }).fill('古い画面で保持する入力');
     await save(page);
-    await expect(region.getByRole('status')).toContainText('別の画面で変更');
-    await region.getByRole('button', { name: '公開内容を再確認', exact: true }).click();
-    await expect(region.getByRole('status')).toContainText('手元の入力は保持');
-    await expect(region.getByLabel('自己紹介（任意）')).toHaveValue('古い画面で保持する入力');
+    await expect(region.getByRole('alert')).toContainText('別の画面で変更');
+    await expect(region.getByLabel('自己紹介', { exact: true })).toHaveValue(
+      '古い画面で保持する入力',
+    );
     await region.screenshot({ path: info.outputPath('profile-stale-input-retained.png') });
-    await region
-      .getByRole('button', { name: '入力を置き換えて最新内容を使う', exact: true })
-      .click();
-    await expect(region.getByLabel('自己紹介（任意）')).toHaveValue('別画面からの新しい公開文');
+    // One more tap saves the kept input against the latest version.
+    await save(page);
+    await expect(region.getByRole('status')).toHaveText('プロフィールを保存しました。');
+    await expect(region).toContainText('古い画面で保持する入力');
     expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,

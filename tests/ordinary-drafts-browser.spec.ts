@@ -1,5 +1,6 @@
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
+import { createProfileOnAccount, ensureProfileByApi } from './helpers/profile';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
@@ -19,7 +20,7 @@ const latch = () => {
   return { promise, release };
 };
 
-async function register(page: Page, info: TestInfo, suffix = 'a') {
+async function register(page: Page, info: TestInfo, suffix = 'a', profile = true) {
   const actor =
     'fictional-drafts-' + info.project.name + '-' + suffix + '-' + Date.now().toString(36);
   await page.route(provider, async (route) => {
@@ -38,10 +39,15 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
+  if (!profile) {
+    await page.unroute(provider);
+    return actor;
+  }
+  await createProfileOnAccount(page);
   await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
   await page.unroute(provider);
   return actor;
@@ -93,6 +99,7 @@ async function replaceSession(context: BrowserContext, actor = 'fictional-browse
   expect(
     (await completeGoogleFormPost(context.request, ORIGIN, { state, code: state })).status(),
   ).toBe(303);
+  await ensureProfileByApi(context.request, ORIGIN, '架空の別アカウント');
   const drafts = await context.request.get(ORIGIN + '/api/private/drafts');
   expect(drafts.status()).toBe(200);
   return ((await drafts.json()) as unknown[]).length;
@@ -136,15 +143,18 @@ test('ordinary drafts offers signed-out login and is independent of catalog fail
   expect(draftCalls).toBe(0);
 });
 
-test('ordinary signup to account to drafts saves and reopens without requiring a public profile', async ({
+test('ordinary signup asks for a profile first, then drafts save and reopen', async ({
   page,
 }, info) => {
-  let profileWrites = 0;
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/api/private/profile' && request.method() !== 'GET')
-      profileWrites++;
-  });
-  await register(page, info);
+  await register(page, info, 'a', false);
+  // Without a public profile the writing screen offers one way forward instead of the editor.
+  await page.goto('/drafts');
+  const first = page.getByRole('region', { name: 'まずプロフィールをつくろう', exact: true });
+  await expect(first).toBeVisible();
+  await expect(page.locator('.draft-editor')).toHaveCount(0);
+  await first.getByRole('link', { name: 'つくる', exact: true }).click();
+  await expect(page).toHaveURL(ORIGIN + '/account#profile');
+  await createProfileOnAccount(page);
   await enterDrafts(page);
   await expect(page.locator('main')).toHaveCount(1);
   await expect(page.locator('header')).toHaveCount(1);
@@ -180,8 +190,6 @@ test('ordinary signup to account to drafts saves and reopens without requiring a
   await page.getByRole('button', { name: 'AIと技術を選んだ理由', exact: true }).click();
   await assertPrivateBuffer(page, 'AIと技術を選んだ理由');
   await expect(body(page)).toHaveValue(/100万行/);
-  expect(profileWrites).toBe(0);
-  expect(await (await page.request.get('/api/private/profile')).json()).toEqual({ profile: null });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

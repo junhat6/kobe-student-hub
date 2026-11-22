@@ -1,5 +1,6 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page } from '@playwright/test';
+import { createProfileOnAccount } from './helpers/profile';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
@@ -27,7 +28,7 @@ async function register(page: Page) {
   });
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
-  await expect(page.getByRole('region', { name: '運営からのお知らせ', exact: true })).toBeVisible();
+  await createProfileOnAccount(page);
   await page.unroute(provider);
 }
 
@@ -85,9 +86,9 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
     await route.fulfill({ response });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
-  expect(await page.locator('.account-entry form input').count()).toBe(2);
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
+  expect(await page.locator('.account-entry form select').count()).toBe(2);
   const guideOpen = context.waitForEvent('page');
   await page.getByRole('link', { name: '利用ルールと情報の扱い（別のタブ）', exact: true }).click();
   const guide = await guideOpen;
@@ -125,16 +126,20 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
   });
   await guide.close();
   await page.bringToFront();
-  await expect(page.getByLabel('入学年度 必須', { exact: true })).toHaveValue('2026');
-  await expect(page.getByLabel('卒業予定年度 必須', { exact: true })).toHaveValue('2028');
+  await expect(page.getByLabel('入学', { exact: true })).toHaveValue('2026');
+  await expect(page.getByLabel('卒業予定', { exact: true })).toHaveValue('2028');
 
   await register(page);
   configured = contact;
-  const noticeOpen = context.waitForEvent('page');
-  await page
-    .getByRole('link', { name: '判断についての相談・異議申立ての案内（別のタブ）', exact: true })
-    .click();
-  const noticeGuide = await noticeOpen;
+  // With no moderation notice, the account page stays quiet; the appeal guide is still one URL away.
+  await expect(
+    page.getByRole('link', {
+      name: '判断についての相談・異議申立ての案内（別のタブ）',
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  const noticeGuide = await context.newPage();
+  await noticeGuide.goto(ORIGIN + '/guide#contact');
   await expect(noticeGuide).toHaveURL(ORIGIN + '/guide#contact');
   await expect(
     noticeGuide.getByRole('link', { name: '運営の問い合わせ窓口を開く', exact: true }),

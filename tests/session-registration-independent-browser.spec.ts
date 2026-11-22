@@ -12,8 +12,8 @@ const ORIGIN = 'https://127.0.0.1:8790';
 const A = 'fictional-browser-a',
   B = 'fictional-browser-b';
 const googleAuthorization = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
-const admission = (page: Page) => page.getByLabel('入学年度 必須', { exact: true });
-const graduation = (page: Page) => page.getByLabel('卒業予定年度 必須', { exact: true });
+const admission = (page: Page) => page.getByLabel('入学', { exact: true });
+const graduation = (page: Page) => page.getByLabel('卒業予定', { exact: true });
 const google = (page: Page, login = false) =>
   page.getByRole('button', {
     name: login ? '学校Googleでログイン' : '学校Googleで登録',
@@ -124,15 +124,15 @@ test('account pagehide conceals unsaved years immediately and a failed check rec
       else writes++;
     }
   });
-  await admission(page).fill('2091');
-  await graduation(page).fill('2092');
+  await admission(page).selectOption('2019');
+  await graduation(page).selectOption('2020');
   await page.evaluate(() =>
     window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true })),
   );
   await expect(privatePanel(page)).toBeHidden();
   await expect(privatePanel(page)).toHaveAttribute('inert', '');
   await expect(admission(page)).toBeHidden();
-  await expect(admission(page)).toHaveValue('2091');
+  await expect(admission(page)).toHaveValue('2019');
   const unavailable = async (route: Route) =>
     route.fulfill({
       status: 503,
@@ -155,8 +155,8 @@ test('account pagehide conceals unsaved years immediately and a failed check rec
   await page.unroute('**/api/private/session', unavailable);
   await accountCheck(page).click();
   await expect(admission(page)).toBeVisible();
-  await expect(admission(page)).toHaveValue('2091');
-  await expect(graduation(page)).toHaveValue('2092');
+  await expect(admission(page)).toHaveValue('2019');
+  await expect(graduation(page)).toHaveValue('2020');
   await expect(
     page.getByText('同じセッションを確認しました。手元の年度の入力を保持して再開しています。', {
       exact: true,
@@ -178,8 +178,8 @@ test('a changed account destroys the old buffer and rechecks a changed continuat
   context,
 }) => {
   await signIn(page, A);
-  await admission(page).fill('2091');
-  await graduation(page).fill('2092');
+  await admission(page).selectOption('2019');
+  await graduation(page).selectOption('2020');
   const other = await context.newPage();
   try {
     await other.goto('/account');
@@ -217,8 +217,8 @@ test('a changed account destroys the old buffer and rechecks a changed continuat
   expect(enrollmentReads).toBe(0);
   await continueAccount(page).click();
   await expect(admission(page)).toBeEditable();
-  await expect(admission(page)).not.toHaveValue('2091');
-  await expect(graduation(page)).not.toHaveValue('2092');
+  await expect(admission(page)).not.toHaveValue('2019');
+  await expect(graduation(page)).not.toHaveValue('2020');
   expect(enrollmentReads).toBe(1);
   const persisted = await context.request.get(ORIGIN + '/api/private/enrollment');
   expect(persisted.status()).toBe(200);
@@ -244,8 +244,8 @@ for (const returnKind of ['cancel', 'pageshow'] as const)
       });
       await page.goto('/signup');
       await expect(admission(page)).toBeEditable();
-      await admission(page).fill('2026');
-      await graduation(page).fill('2028');
+      await admission(page).selectOption('2026');
+      await graduation(page).selectOption('2028');
       const interrupted = page.waitForEvent('requestfailed', (request) =>
         googleAuthorization.test(request.url()),
       );
@@ -305,8 +305,8 @@ test('browser back from the intercepted Google page restores a usable signup wit
   });
   await page.goto('/signup');
   await expect(admission(page)).toBeEditable();
-  await admission(page).fill('2026');
-  await graduation(page).fill('2028');
+  await admission(page).selectOption('2026');
+  await graduation(page).selectOption('2028');
   await google(page).click();
   await expect(page).toHaveTitle('Fictional local provider');
   await page.goBack();
@@ -326,8 +326,8 @@ test('browser back from the intercepted Google page restores a usable signup wit
     await page.getByRole('button', { name: '入力を確認してやり直す', exact: true }).click();
   }
   await expect(admission(page)).toBeEditable();
-  await admission(page).fill('2026');
-  await graduation(page).fill('2028');
+  await admission(page).selectOption('2026');
+  await graduation(page).selectOption('2028');
   await expect(google(page)).toBeEnabled();
   expect(calls).toEqual(['/api/auth/register']);
   expect(visits).toBe(1);
@@ -341,8 +341,8 @@ test('registration inspection withholds private years until the final proof and 
   await fakeGoogle(page, fictional(info));
   await page.goto('/signup');
   await expect(admission(page)).toBeEditable();
-  await admission(page).fill('2026');
-  await graduation(page).fill('2028');
+  await admission(page).selectOption('2026');
+  await graduation(page).selectOption('2028');
   await google(page).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await expect(admission(page)).toHaveValue('2026');

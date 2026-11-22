@@ -4,6 +4,7 @@ import AccountSessionBoundary from './AccountSessionBoundary';
 import DraftEditor from '../editor/DraftEditor';
 import './account.css';
 import './ordinary-drafts.css';
+import ProfileFirst from './ProfileFirst';
 import { ParticipationNotice, useOwnParticipation, writesClosed } from './participation';
 
 function OwnDrafts({
@@ -21,14 +22,16 @@ function OwnDrafts({
   return (
     <>
       <ParticipationNotice participation={participation} place="drafts" />
-      <DraftEditor
-        variant="ordinary"
-        csrfToken={csrfToken}
-        fetcher={fetcher}
-        rescue={rescue}
-        writable={!writesClosed(participation)}
-        onNavigationRiskChange={onNavigationRiskChange}
-      />
+      <ProfileFirst csrfToken={csrfToken} bypass={writesClosed(participation)}>
+        <DraftEditor
+          variant="ordinary"
+          csrfToken={csrfToken}
+          fetcher={fetcher}
+          rescue={rescue}
+          writable={!writesClosed(participation)}
+          onNavigationRiskChange={onNavigationRiskChange}
+        />
+      </ProfileFirst>
     </>
   );
 }

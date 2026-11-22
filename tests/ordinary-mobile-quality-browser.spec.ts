@@ -70,7 +70,7 @@ test('J1–J5 screens fit the width, have 44px targets and visible keyboard focu
     // J2 entry: sign-in and sign-up.
     await check(page, '/login', () => expect(page.locator('main')).toBeVisible());
     await check(page, '/signup', () =>
-      expect(page.getByLabel('入学年度 必須', { exact: true })).toBeVisible(),
+      expect(page.getByLabel('入学', { exact: true })).toBeVisible(),
     );
     await check(page, '/guide', () => expect(page.locator('h1')).toBeVisible());
 

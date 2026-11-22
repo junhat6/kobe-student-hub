@@ -1,4 +1,5 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { createProfileOnAccount } from './helpers/profile';
 import { accountMenu } from './helpers/header';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -17,10 +18,11 @@ async function register(page: Page, info: TestInfo, who = 'a') {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
+  await createProfileOnAccount(page);
   await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
   await page.unroute(provider);
 }

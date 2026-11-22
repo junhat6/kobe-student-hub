@@ -31,15 +31,14 @@ const A = 'fictional-browser-a',
   B = 'fictional-browser-b';
 const registerPath = '**/api/auth/register';
 const googleAuthorization = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
-const admission = (page: Page) => page.getByLabel('入学年度 必須', { exact: true });
-const graduation = (page: Page) => page.getByLabel('卒業予定年度 必須', { exact: true });
+const admission = (page: Page) => page.getByLabel('入学', { exact: true });
+const graduation = (page: Page) => page.getByLabel('卒業予定', { exact: true });
 const google = (page: Page, login = false) =>
   page.getByRole('button', {
     name: login ? '学校Googleでログイン' : '学校Googleで登録',
     exact: true,
   });
-const enrollment = (page: Page) =>
-  page.getByRole('region', { name: '入学年度と卒業予定年度', exact: true });
+const enrollment = (page: Page) => page.getByRole('region', { name: '在学期間', exact: true });
 const fictional = (info: TestInfo, kind: string) =>
   'fictional-ordinary-' +
   kind +
@@ -48,13 +47,14 @@ const fictional = (info: TestInfo, kind: string) =>
   '-' +
   Date.now().toString(36);
 async function fillYears(page: Page) {
-  await admission(page).fill('2026');
-  await graduation(page).fill('2028');
+  await admission(page).selectOption('2026');
+  await graduation(page).selectOption('2028');
 }
 async function signup(page: Page) {
   await page.goto('/signup');
   await expect(admission(page)).toBeEditable();
-  await expect(graduation(page)).toBeEditable();
+  // Graduation opens once an admission month is chosen.
+  await expect(graduation(page)).toBeDisabled();
 }
 function starts(page: Page) {
   const calls: { path: string; body: unknown }[] = [];
@@ -157,19 +157,16 @@ test('ordinary signup requires two blank private years and confirms persisted da
   await expect(
     page.getByRole('heading', { name: '学生として登録する', exact: true }),
   ).toBeVisible();
-  await expect(page.locator('.account-entry input')).toHaveCount(2);
+  await expect(page.locator('.account-entry select')).toHaveCount(2);
   await expect(admission(page)).toHaveValue('');
   await expect(graduation(page)).toHaveValue('');
   await expect(admission(page)).toHaveAttribute('required', '');
   await expect(graduation(page)).toHaveAttribute('required', '');
   await expect(google(page)).toBeDisabled();
-  await admission(page).fill('2026');
-  await graduation(page).fill('2025');
-  await expect(google(page)).toBeDisabled();
-  await expect(
-    page.getByText('卒業予定年度は入学年度と同じか、それより後にしてください。', { exact: true }),
-  ).toBeVisible();
-  await graduation(page).fill('2028');
+  await admission(page).selectOption('2026');
+  // A graduation before the admission cannot even be chosen.
+  await expect(graduation(page).locator('option[value="2025"]')).toHaveCount(0);
+  await graduation(page).selectOption('2028');
   expect(calls).toEqual([]);
   await google(page).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
@@ -270,7 +267,7 @@ test('ordinary A/B login sends no years or registration call and an unknown logi
     const visits = await fakeGoogle(page, actor);
     await page.goto('/login');
     await expect(google(page, true)).toBeEnabled();
-    await expect(page.locator('.account-entry input')).toHaveCount(0);
+    await expect(page.locator('.account-entry select')).toHaveCount(0);
     await google(page, true).click();
     await expect(page).toHaveURL(
       ORIGIN + '/account' + (actor === A || actor === B ? '' : '#authentication-failed'),

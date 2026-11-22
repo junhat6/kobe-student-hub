@@ -572,3 +572,112 @@
     align-items: stretch;
   }
 }
+
+/* Icon-led shortcuts under the profile (2026-11-22: fewer words, same destinations). */
+.account-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 20px;
+}
+.account-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 72px;
+  padding: 10px 8px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  color: var(--ink, #141a22);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+}
+.account-action:hover {
+  border-color: #c4ceda;
+  color: var(--accent-strong, #1659c7);
+}
+.account-action-main {
+  background: var(--accent-strong, #1659c7);
+  border-color: var(--accent-strong, #1659c7);
+  color: #fff;
+}
+.account-action-main:hover {
+  color: #fff;
+  background: var(--accent-deep, #0f469f);
+}
+.account-notifications-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.own-publications-problem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.account-home .own-publications-kind {
+  display: inline-flex;
+  color: var(--ink-muted, #636d79);
+  background: none;
+  padding: 0;
+}
+.profile-first {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 480px;
+  margin: 40px auto;
+  padding: 32px 24px;
+  text-align: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 20px;
+}
+.profile-first h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.profile-first-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--accent-soft, #e8f0fe);
+  color: var(--accent-strong, #1659c7);
+}
+.account-page .account-settings .account-enrollment {
+  background: none;
+}
+.account-page .account-enrollment .enrollment-save {
+  justify-self: start;
+}
+/* Keep the shared button looks inside the session wrapper's legacy button rule. */
+.session-account button.primary {
+  border: 0;
+  border-radius: 999px;
+  padding: 0 20px;
+  background: var(--accent-strong, #1659c7);
+  color: #fff;
+  font-weight: 700;
+}
+.session-account button.primary:not(:disabled):hover {
+  background: var(--accent-deep, #0f469f);
+}
+.session-account button.primary:disabled {
+  opacity: 1;
+  background: #a9bfdf;
+}
+.session-account button.icon-button {
+  width: 44px;
+  padding: 0;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 999px;
+  color: var(--ink-soft, #46525f);
+}

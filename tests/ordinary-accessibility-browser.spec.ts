@@ -80,7 +80,7 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
       expect(page.getByRole('button', { name: '学校Googleでログイン', exact: true })).toBeEnabled(),
     );
     await check(page, '/signup', () =>
-      expect(page.getByLabel('入学年度 必須', { exact: true })).toBeVisible(),
+      expect(page.getByLabel('入学', { exact: true })).toBeVisible(),
     );
     await check(page, '/guide', () => expect(page.locator('h1')).toBeVisible());
     await check(page, '/history', () =>

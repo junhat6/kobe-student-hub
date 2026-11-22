@@ -17,8 +17,8 @@ async function register(page: Page, info: TestInfo, who: string) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
@@ -37,17 +37,11 @@ test('three different accounts temporarily hide a project without deleting it', 
 }, info) => {
   const title = `通報される架空作品-${info.project.name}`;
   await register(page, info, 'author');
-  await page.getByText('公開プロフィールを準備する', { exact: true }).click();
-  const profile = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await profile.getByLabel('表示名 必須').fill('架空のしきい値投稿者');
-  await profile.getByRole('checkbox').check();
-  await profile
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
-  await expect(profile.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
-  await page.getByRole('link', { name: '作品を登録する', exact: true }).click();
+  const profile = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await profile.getByLabel('表示名', { exact: true }).fill('架空のしきい値投稿者');
+  await profile.getByRole('button', { name: '公開する', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '作品を登録', exact: true }).click();
   await page.getByLabel('作品タイトル', { exact: true }).fill(title);
   await page.getByLabel('作品説明（プレーンテキスト）', { exact: true }).fill('架空の作品説明');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
@@ -108,7 +102,6 @@ test('three different accounts temporarily hide a project without deleting it', 
     await expect(records.locator('.own-publications-state-deleted')).toHaveCount(0);
     // The owner learns why, without any reporter's reason.
     const notices = page.getByRole('region', { name: '運営からのお知らせ', exact: true });
-    await notices.getByRole('button', { name: 'お知らせを確認', exact: true }).click();
     await expect(notices).toContainText('作品が一時非公開になりました');
     await expect(notices).toContainText(title);
     await expect(notices).toContainText('異なる3人からの通報により、一時非公開になりました。');

@@ -2,12 +2,10 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 
 const ORIGIN = 'https://127.0.0.1:8788';
 const endpoint = '**/api/private/enrollment';
-const region = (page: Page) =>
-  page.getByRole('region', { name: '入学年度と卒業予定年度', exact: true });
-const admission = (form: Locator) => form.getByLabel('入学年度 必須', { exact: true });
-const graduation = (form: Locator) => form.getByLabel('卒業予定年度 必須', { exact: true });
-const save = (form: Locator) => form.getByRole('button', { name: /^年度を(?:訂正して)?保存$/ });
-const check = (form: Locator) => form.getByRole('button', { name: '保存状態を確認', exact: true });
+const region = (page: Page) => page.getByRole('region', { name: '在学期間', exact: true });
+const admission = (form: Locator) => form.getByLabel('入学', { exact: true });
+const graduation = (form: Locator) => form.getByLabel('卒業予定', { exact: true });
+const save = (form: Locator) => form.getByRole('button', { name: '保存', exact: true });
 async function seed(page: Page) {
   const response = await page
     .context()
@@ -23,8 +21,8 @@ async function open(page: Page) {
   return { form, csrf };
 }
 async function fill(form: Locator, admissionYear = '2026', graduationYear = '2027') {
-  await admission(form).fill(admissionYear);
-  await graduation(form).fill(graduationYear);
+  await admission(form).selectOption(admissionYear);
+  await graduation(form).selectOption(graduationYear);
 }
 async function stored(page: Page) {
   const response = await page.context().request.get('/api/private/enrollment');
@@ -39,12 +37,11 @@ async function remoteSave(page: Page, csrf: string, graduationYear = 2027) {
   expect(response.status()).toBe(200);
 }
 async function saved(form: Locator) {
-  await expect(form.getByRole('status')).toHaveText(
-    '年度を保存しました。誤りがあれば、この画面で訂正できます。',
-  );
+  await expect(form.getByRole('status')).toHaveText('在学期間を保存しました。');
+  await expect(form.getByRole('img', { name: '保存しました', exact: true })).toBeVisible();
 }
 
-test('two blank private fields save explicitly, reload, and never populate the public profile', async ({
+test('two blank private choices save explicitly, reload, and never populate the public profile', async ({
   page,
 }, info) => {
   const writes: unknown[] = [];
@@ -53,19 +50,16 @@ test('two blank private fields save explicitly, reload, and never populate the p
       writes.push(request.postDataJSON());
   });
   const { form } = await open(page);
-  await expect(form.getByRole('textbox')).toHaveCount(2);
+  await expect(form.getByRole('combobox')).toHaveCount(2);
   await expect(admission(form)).toHaveValue('');
   await expect(graduation(form)).toHaveValue('');
-  await expect(save(form)).toBeDisabled();
-  await expect(
-    form.getByText(
-      '2028年3月に卒業予定なら「2027」年度です。同じ年度に入学・卒業予定の場合も登録できます。',
-      { exact: true },
-    ),
-  ).toBeVisible();
-  await fill(form);
+  // Months students know, instead of an academic-year rule to compute.
+  await expect(admission(form).locator('option[value="2026"]')).toHaveText('2026年4月');
+  await admission(form).selectOption('2026');
+  // Choosing the admission suggests the common two-year course.
+  await expect(graduation(form)).toHaveValue('2027');
+  await expect(graduation(form).locator('option:checked')).toHaveText('2028年3月');
   expect(writes).toEqual([]);
-  await expect(save(form)).toBeEnabled();
   await save(form).click();
   await saved(form);
   expect(writes).toEqual([{ admissionYear: 2026, graduationYear: 2027, expectedVersion: 0 }]);
@@ -75,7 +69,7 @@ test('two blank private fields save explicitly, reload, and never populate the p
   await page.reload();
   await expect(admission(form)).toHaveValue('2026');
   await expect(graduation(form)).toHaveValue('2027');
-  await expect(save(form)).toBeDisabled();
+  await expect(save(form)).toHaveCount(0);
   expect(writes).toHaveLength(1);
   const profile = await page.context().request.get('/api/private/profile');
   expect(profile.status()).toBe(200);
@@ -101,7 +95,6 @@ test('the owner corrects both years in the same form with a new expected version
   await save(form).click();
   await saved(form);
   await fill(form, '2025', '2028');
-  await expect(form.getByRole('button', { name: '年度を訂正して保存', exact: true })).toBeEnabled();
   const response = page.waitForResponse(
     (value) =>
       new URL(value.url()).pathname === '/api/private/enrollment' &&
@@ -119,13 +112,12 @@ test('the owner corrects both years in the same form with a new expected version
   expect(await stored(page)).toMatchObject({
     enrollment: { admissionYear: 2025, graduationYear: 2028, version: 2 },
   });
-  await expect(form.getByLabel('保存済みの年度')).toContainText('2025年度入学・2028年度卒業予定');
   await form.screenshot({ path: info.outputPath('enrollment-owner-correction.png'), scale: 'css' });
 });
 
-test('a lost committed save acknowledgement retains the attempted years until manual readback without another PUT', async ({
+test('a lost committed save acknowledgement is read back by the page itself without another PUT', async ({
   page,
-}, info) => {
+}) => {
   const { form } = await open(page);
   await fill(form, '2026', '2028');
   let puts = 0;
@@ -141,32 +133,17 @@ test('a lost committed save acknowledgement retains the attempted years until ma
     });
   });
   await save(form).click();
-  await expect(form.getByRole('status')).toHaveText(
-    '保存結果を確認できませんでした。入力は残しています。再送せず、保存状態を確認してください。',
-  );
+  await saved(form);
   await expect(admission(form)).toHaveValue('2026');
   await expect(graduation(form)).toHaveValue('2028');
-  await expect(admission(form)).not.toBeEditable();
-  await expect(save(form)).toBeDisabled();
-  expect(puts).toBe(1);
-  await form.screenshot({
-    path: info.outputPath('enrollment-unknown-keeps-input.png'),
-    scale: 'css',
-  });
-  await check(form).click();
-  await expect(form.getByRole('status')).toHaveText(
-    '送信した年度の保存を確認しました。手元の入力はそのまま残しています。',
-  );
-  await expect(admission(form)).toBeEditable();
-  await expect(graduation(form)).toHaveValue('2028');
-  await expect(save(form)).toBeDisabled();
+  await expect(save(form)).toHaveCount(0);
   expect(puts).toBe(1);
   expect(await stored(page)).toMatchObject({
     enrollment: { admissionYear: 2026, graduationYear: 2028, version: 1 },
   });
 });
 
-test('a changed saved version requires an explicit basis while preserving the owner correction', async ({
+test('a changed saved version keeps the owner choice, says it failed, and one more tap saves on the new version', async ({
   page,
 }, info) => {
   const { form, csrf } = await open(page);
@@ -178,27 +155,14 @@ test('a changed saved version requires an explicit basis while preserving the ow
       puts++;
   });
   await save(form).click();
-  await expect(form.getByRole('status')).toHaveText(
-    '保存結果を確認できませんでした。入力は残しています。再送せず、保存状態を確認してください。',
-  );
-  await check(form).click();
-  await expect(form.getByRole('status')).toHaveText(
-    '送信した内容の保存は確認できませんでした。現在の保存状態と手元の入力を比べ、訂正する場合は保存版を基準にしてください。',
-  );
-  await expect(form.getByLabel('保存済みの年度')).toContainText('2026年度入学・2027年度卒業予定');
+  await expect(form.getByRole('alert')).toContainText('保存できませんでした');
   await expect(admission(form)).toHaveValue('2026');
   await expect(graduation(form)).toHaveValue('2029');
-  await expect(graduation(form)).not.toBeEditable();
-  await expect(save(form)).toBeDisabled();
   expect(puts).toBe(1);
   await form.screenshot({
     path: info.outputPath('enrollment-conflict-retains-correction.png'),
     scale: 'css',
   });
-  await form.getByRole('button', { name: '確認した保存版を基準にする', exact: true }).click();
-  await expect(graduation(form)).toHaveValue('2029');
-  await expect(graduation(form)).toBeEditable();
-  expect(puts).toBe(1);
   await save(form).click();
   await saved(form);
   expect(puts).toBe(2);
@@ -207,7 +171,7 @@ test('a changed saved version requires an explicit basis while preserving the ow
   });
 });
 
-test('an initial read failure never becomes blank registration and a successful retry loads existing private years', async ({
+test('an initial read failure never becomes blank registration and a retry loads existing private years', async ({
   page,
 }) => {
   const csrf = await seed(page);
@@ -226,18 +190,13 @@ test('an initial read failure never becomes blank registration and a successful 
   });
   await page.goto('/lab/account');
   const form = region(page);
-  await expect(form.getByRole('status')).toHaveText(
-    '年度の登録状態を確認できませんでした。入力はこの画面に残しています。もう一度、保存状態を確認してください。',
-  );
-  await expect(form.getByRole('textbox')).toHaveCount(0);
+  await expect(form.getByRole('alert')).toContainText('読み込めませんでした');
+  await expect(form.getByRole('combobox')).toHaveCount(0);
   expect(puts).toBe(0);
   fail = false;
-  await check(form).click();
+  await form.getByRole('button', { name: 'もう一度', exact: true }).click();
   await expect(admission(form)).toHaveValue('2026');
   await expect(graduation(form)).toHaveValue('2028');
-  await expect(
-    form.getByRole('button', { name: '確認した保存版を基準にする', exact: true }),
-  ).toHaveCount(0);
-  await expect(save(form)).toBeDisabled();
+  await expect(save(form)).toHaveCount(0);
   expect(puts).toBe(0);
 });

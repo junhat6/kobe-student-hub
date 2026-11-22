@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
 import { createRegistrationClient, RegistrationClientError } from './registration-client';
 import { canonicalEnrollmentYears } from '../shared/enrollment';
+import EnrollmentYearsPicker from '../shared/EnrollmentYearsPicker';
 import './account.css';
 
 type Phase = 'checking' | 'ready' | 'starting' | 'unknown' | 'leaving';
@@ -21,23 +22,13 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
   const [phase, setPhase] = useState<Phase>('checking'),
     [mayRestart, setMayRestart] = useState(false);
   const [message, setMessage] = useState('現在のログイン状態を確認しています…');
-  const inputYear = (v: string) => (/^(?:19|20|21)\d{2}$/.test(v) ? Number(v) : null);
-  const admissionYear = inputYear(admission),
-    graduationYear = inputYear(graduation);
   const years =
-    admissionYear !== null && graduationYear !== null
-      ? canonicalEnrollmentYears({ admissionYear, graduationYear })
+    admission && graduation
+      ? canonicalEnrollmentYears({
+          admissionYear: Number(admission),
+          graduationYear: Number(graduation),
+        })
       : null;
-  const admissionError =
-    admission !== '' && admissionYear === null
-      ? '入学年度を1900〜2199の西暦4桁で入力してください。'
-      : '';
-  const graduationError =
-    graduation !== '' && graduationYear === null
-      ? '卒業予定年度を1900〜2199の西暦4桁で入力してください。'
-      : admissionYear !== null && graduationYear !== null && graduationYear < admissionYear
-        ? '卒業予定年度は入学年度と同じか、それより後にしてください。'
-        : '';
   const busy = phase === 'checking' || phase === 'starting' || phase === 'leaving';
   const current = (op: Operation) =>
     mounted.current &&
@@ -162,14 +153,9 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
       <h1 id={id + 'heading'}>{signup ? '学生として登録する' : 'ログインする'}</h1>
       <p className="account-intro">
         {signup
-          ? '学校メールで使うGoogleアカウントで登録します。'
-          : '登録済みの学校Googleアカウントで続けます。年度の入力は不要です。'}
+          ? 'いつからいつまで在学するかを選んで、学校のGoogleアカウントで登録します。'
+          : '学校のGoogleアカウントで続けます。'}
       </p>
-      {signup && (
-        <p className="account-privacy">
-          年度は利用期間の確認に使い、公開プロフィールには載せません。
-        </p>
-      )}
       <p className="account-privacy">
         <Link to="/guide" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
           利用ルールと情報の扱い（別のタブ）
@@ -186,68 +172,17 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
         }}
       >
         {signup && (
-          <fieldset disabled={busy}>
-            <legend className="account-legend">入学年度と卒業予定年度</legend>
-            <div className="account-field">
-              <label htmlFor={id + 'admission'}>
-                入学年度 <span>必須</span>
-              </label>
-              <input
-                id={id + 'admission'}
-                type="text"
-                placeholder="例：2025"
-                inputMode="numeric"
-                required
-                autoComplete="off"
-                value={admission}
-                readOnly={phase === 'unknown'}
-                aria-invalid={Boolean(admissionError)}
-                aria-describedby={
-                  id + 'years-help' + (admissionError ? ' ' + id + 'admission-error' : '')
-                }
-                onChange={(event) => setAdmission(event.target.value)}
-              />
-              {admissionError && (
-                <p id={id + 'admission-error'} className="account-error">
-                  {admissionError}
-                </p>
-              )}
-            </div>
-            <div className="account-field">
-              <label htmlFor={id + 'graduation'}>
-                卒業予定年度 <span>必須</span>
-              </label>
-              <input
-                id={id + 'graduation'}
-                type="text"
-                placeholder="例：2026"
-                inputMode="numeric"
-                required
-                autoComplete="off"
-                value={graduation}
-                readOnly={phase === 'unknown'}
-                aria-invalid={Boolean(graduationError)}
-                aria-describedby={
-                  id +
-                  'years-help ' +
-                  id +
-                  'graduation-help' +
-                  (graduationError ? ' ' + id + 'graduation-error' : '')
-                }
-                onChange={(event) => setGraduation(event.target.value)}
-              />
-              {graduationError && (
-                <p id={id + 'graduation-error'} className="account-error">
-                  {graduationError}
-                </p>
-              )}
-            </div>
-            <p id={id + 'years-help'} className="account-help">
-              年度は4月から翌年3月までです。
-            </p>
-            <p id={id + 'graduation-help'} className="account-help">
-              2028年3月に卒業予定なら「2027」年度です。
-            </p>
+          <fieldset disabled={busy || phase === 'unknown'}>
+            <legend className="account-legend">在学期間</legend>
+            <EnrollmentYearsPicker
+              id={id}
+              admission={admission}
+              graduation={graduation}
+              onChange={(next) => {
+                setAdmission(next.admission);
+                setGraduation(next.graduation);
+              }}
+            />
           </fieldset>
         )}
         <Button

@@ -1,5 +1,6 @@
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
+import { ensureProfileByApi } from './helpers/profile';
 import { accountMenu } from './helpers/header';
 import { japanDaysSince } from './helpers/japan-day';
 
@@ -57,27 +58,22 @@ async function register(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
-  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
+  // A new account starts by making its public profile.
+  await expect(page.getByRole('region', { name: 'プロフィールをつくる' })).toBeVisible();
   await page.unroute(provider);
 }
 
 async function publishArticle(page: Page, info: TestInfo, title = '架空のAI技術選定ノート') {
   await register(page, info);
-  await page.getByText('公開プロフィールを準備する', { exact: true }).click();
-  const profile = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await profile.getByLabel('表示名 必須').fill('架空の学生');
-  await profile.getByLabel('自己紹介（任意）').fill('架空の制作プロフィール');
-  await profile.getByRole('checkbox').check();
-  await profile
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
-  await expect(profile.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
+  const profile = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await profile.getByLabel('表示名', { exact: true }).fill('架空の学生');
+  await profile.getByLabel('自己紹介', { exact: true }).fill('架空の制作プロフィール');
+  await profile.getByRole('button', { name: '公開する', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill(title);
@@ -241,8 +237,7 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
 
 test('ordinary profile input survives cancelled SPA navigation', async ({ page }, info) => {
   await register(page, info);
-  await page.getByText('公開プロフィールを準備する', { exact: true }).click();
-  await page.getByLabel('表示名 必須').fill('未保存の架空プロフィール');
+  await page.getByLabel('表示名', { exact: true }).fill('未保存の架空プロフィール');
   const dialog = page.waitForEvent('dialog');
   const click = page
     .getByRole('navigation', { name: 'メイン' })
@@ -251,7 +246,7 @@ test('ordinary profile input survives cancelled SPA navigation', async ({ page }
   await (await dialog).dismiss();
   await click;
   await expect(page).toHaveURL(ORIGIN + '/account');
-  await expect(page.getByLabel('表示名 必須')).toHaveValue('未保存の架空プロフィール');
+  await expect(page.getByLabel('表示名', { exact: true })).toHaveValue('未保存の架空プロフィール');
 });
 
 // Use the existing signed-provider HTTP flow to replace a cookie without changing the observed page.
@@ -284,6 +279,7 @@ async function replaceSession(context: BrowserContext) {
   expect(
     (await completeGoogleFormPost(context.request, ORIGIN, { state, code: state })).status(),
   ).toBe(303);
+  await ensureProfileByApi(context.request, ORIGIN, '架空の別アカウント');
   expect((await context.request.get(ORIGIN + '/api/private/session')).status()).toBe(200);
 }
 
@@ -518,7 +514,6 @@ test('owner reads a temporary-hide explanation and another session cannot retain
     }
     await page.goto('/account');
     const notices = page.getByRole('region', { name: '運営からのお知らせ', exact: true });
-    await notices.getByRole('button', { name: 'お知らせを確認', exact: true }).click();
     await expect(notices).toContainText('記事が一時非公開になりました');
     await expect(notices).toContainText('架空の通知記事-' + info.project.name);
     await expect(notices).not.toContainText('PRIVATE_REPORTER');
@@ -531,11 +526,11 @@ test('owner reads a temporary-hide explanation and another session cannot retain
     await expect(notices).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText('架空の通知記事-' + info.project.name);
     await page.getByRole('button', { name: '確認したアカウントを開く', exact: true }).click();
-    await page
-      .getByRole('region', { name: '運営からのお知らせ', exact: true })
-      .getByRole('button', { name: 'お知らせを確認', exact: true })
-      .click();
-    await expect(page.getByText('お知らせはありません。', { exact: true })).toBeVisible();
+    // No notices for the newly opened account: the section stays out of the way.
+    await expect(page.getByRole('heading', { name: 'プロフィール', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: '運営からのお知らせ', exact: true })).toHaveCount(
+      0,
+    );
   } finally {
     await Promise.all(reporters.map((ctx) => ctx.close()));
   }

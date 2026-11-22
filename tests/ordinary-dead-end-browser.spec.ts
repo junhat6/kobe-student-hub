@@ -1,4 +1,5 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { createProfileOnAccount } from './helpers/profile';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { noOverflow } from './helpers/screen-quality';
 // C20: broken links, API outages and session checks never leave the reader at a dead end.
@@ -19,10 +20,11 @@ async function register(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
+  await createProfileOnAccount(page);
   await page.unroute(provider);
 }
 
@@ -65,7 +67,7 @@ test('every page offers a retry during an API outage and recovers after it', asy
     ['/articles/learning-notes', '再読み込み', '「動いた」で終わらせない、制作ノートの残し方'],
     ['/students/nobody', 'もう一度読み込む', '投稿者が見つかりません'],
     ['/no-such-page', '再読み込み', 'ページが見つかりません'],
-    ['/account', 'ログイン状態を確認', '保存済み：2026年度入学・2028年度卒業予定'],
+    ['/account', 'ログイン状態を確認', '在学期間'],
     ['/drafts', 'ログイン状態を確認', '保存した下書きはまだありません。'],
     ['/works/new', 'ログイン状態を確認', '作品タイトル'],
     ['/history', 'ログイン状態を確認', 'これから読む記事・作品を履歴に残す'],

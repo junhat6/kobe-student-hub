@@ -1,0 +1,29 @@
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.copy-button .icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink-soft, #46525f);
+  cursor: pointer;
+}
+.copy-button .icon-button:hover {
+  color: var(--accent-strong, #1659c7);
+}
+.copy-button .icon-button[data-state='copied'] {
+  color: #17803d;
+  border-color: #9fd3b1;
+}
+.copy-button-failed {
+  font-size: 13px;
+  color: #8c3423;
+}

@@ -5,6 +5,7 @@ import ProjectRegistration from '../editor/ProjectRegistration';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import './account.css';
 import './ordinary-drafts.css';
+import ProfileFirst from './ProfileFirst';
 import { ParticipationNotice, useOwnParticipation, writesClosed } from './participation';
 
 function OwnProjects({
@@ -22,14 +23,16 @@ function OwnProjects({
   return (
     <>
       <ParticipationNotice participation={participation} place="works" />
-      <ProjectRegistration
-        csrfToken={csrfToken}
-        fetcher={fetcher}
-        surface="ordinary"
-        writable={!writesClosed(participation)}
-        onNavigationRiskChange={onNavigationRiskChange}
-        rescue={rescue}
-      />
+      <ProfileFirst csrfToken={csrfToken} bypass={writesClosed(participation)}>
+        <ProjectRegistration
+          csrfToken={csrfToken}
+          fetcher={fetcher}
+          surface="ordinary"
+          writable={!writesClosed(participation)}
+          onNavigationRiskChange={onNavigationRiskChange}
+          rescue={rescue}
+        />
+      </ProfileFirst>
     </>
   );
 }

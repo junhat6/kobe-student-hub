@@ -53,8 +53,8 @@ async function signUp(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
@@ -69,15 +69,12 @@ test('profile fields start empty, publish only what the student typed, and edits
   const key = info.project.name + '-' + Date.now().toString(36);
 
   // 1. Nothing from Google is pre-filled: every field is empty and the preview has no image.
-  const setup = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await setup.getByText('公開プロフィールを準備する', { exact: true }).click();
-  for (const label of ['表示名 必須', '学科（任意）', '学年の表示（任意）', '自己紹介（任意）'])
-    await expect(setup.getByLabel(label)).toHaveValue('');
+  const setup = page.getByRole('region', { name: 'プロフィールをつくる' });
+  for (const label of ['表示名', '学科', '学年', '自己紹介'])
+    await expect(setup.getByLabel(label, { exact: true })).toHaveValue('');
   await expect(setup.locator('img')).toHaveCount(0);
   await expectNoGoogleIdentity(page, ownerBodies);
-  await expect(
-    setup.getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true }),
-  ).toBeDisabled();
+  await expect(setup.getByRole('button', { name: '公開する', exact: true })).toBeDisabled();
 
   const before = {
     displayName: '自分で決めた表示名-' + key,
@@ -85,23 +82,18 @@ test('profile fields start empty, publish only what the student typed, and edits
     yearLabel: '自分で書いた学年',
     bio: '自分で入力した最初の自己紹介',
   };
-  await setup.getByLabel('表示名 必須').fill(before.displayName);
-  await setup.getByLabel('学科（任意）').fill(before.department);
-  await setup.getByLabel('学年の表示（任意）').fill(before.yearLabel);
-  await setup.getByLabel('自己紹介（任意）').fill(before.bio);
-  await setup.getByRole('checkbox').check();
+  await setup.getByLabel('表示名', { exact: true }).fill(before.displayName);
+  await setup.getByLabel('学科', { exact: true }).fill(before.department);
+  await setup.getByLabel('学年', { exact: true }).fill(before.yearLabel);
+  await setup.getByLabel('自己紹介', { exact: true }).fill(before.bio);
   const created = page.waitForResponse(
     (r) => r.url().endsWith('/api/private/profile') && r.request().method() === 'POST',
   );
-  await setup
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
+  await setup.getByRole('button', { name: '公開する', exact: true }).click();
   const createdBody = await (await created).json();
   expect(createdBody.profile).toMatchObject(before);
   const profileId = createdBody.profile.id as string;
-  await expect(setup.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   await expectNoGoogleIdentity(page, ownerBodies);
 
   // The author page lists only students with public activity, so publish one article.
@@ -157,16 +149,15 @@ test('profile fields start empty, publish only what the student typed, and edits
       bio: '更新した自己紹介',
     };
     await page.reload();
-    const editor = page.getByRole('region', { name: '公開プロフィールの編集', exact: true });
-    await editor.getByText('公開プロフィールを編集する', { exact: true }).click();
-    await expect(editor.getByLabel('表示名 必須')).toHaveValue(before.displayName);
-    await editor.getByLabel('表示名 必須').fill(after.displayName);
-    await editor.getByLabel('学科・コース（任意）').fill('');
-    await editor.getByLabel('学年の表示（任意）').fill(after.yearLabel);
-    await editor.getByLabel('自己紹介（任意）').fill(after.bio);
-    await editor.getByRole('checkbox').check();
-    await editor.getByRole('button', { name: '公開プロフィールを更新', exact: true }).click();
-    await expect(editor.getByRole('status')).toHaveText('公開プロフィールを更新しました。');
+    const editor = page.getByRole('region', { name: 'プロフィール', exact: true });
+    await editor.getByRole('button', { name: 'プロフィールを編集', exact: true }).click();
+    await expect(editor.getByLabel('表示名', { exact: true })).toHaveValue(before.displayName);
+    await editor.getByLabel('表示名', { exact: true }).fill(after.displayName);
+    await editor.getByLabel('学科', { exact: true }).fill('');
+    await editor.getByLabel('学年', { exact: true }).fill(after.yearLabel);
+    await editor.getByLabel('自己紹介', { exact: true }).fill(after.bio);
+    await editor.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(editor.getByRole('status')).toHaveText('プロフィールを保存しました。');
 
     // 4. The reader's already-open page shows the edit on reload, with nothing left over.
     await reader.reload();

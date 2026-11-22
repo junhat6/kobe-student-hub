@@ -1,5 +1,6 @@
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
+import { createProfileOnAccount, ensureProfileByApi } from './helpers/profile';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
@@ -41,10 +42,11 @@ async function register(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
+  await createProfileOnAccount(page);
   await page.unroute(provider);
   await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await expect(newDraft(page)).toBeEnabled();
@@ -106,6 +108,7 @@ async function replaceSession(context: BrowserContext) {
   expect(
     (await completeGoogleFormPost(context.request, ORIGIN, { state, code: state })).status(),
   ).toBe(303);
+  await ensureProfileByApi(context.request, ORIGIN, '架空の別アカウント');
   const result = await context.request.get(ORIGIN + '/api/private/drafts');
   expect(result.status()).toBe(200);
   return ((await result.json()) as unknown[]).length;

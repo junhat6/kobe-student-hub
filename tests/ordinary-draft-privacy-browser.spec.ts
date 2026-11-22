@@ -7,6 +7,7 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test';
+import { createProfileOnAccount } from './helpers/profile';
 
 // C08: a draft written in one browser resumes in a separate browser (no shared cookies or storage),
 // is never visible to another account, a guest or public pages, and a failed save keeps the text.
@@ -31,13 +32,14 @@ async function signIn(page: Page, actor: string, mode: 'signup' | 'login') {
   });
   await page.goto('/' + mode);
   if (mode === 'signup') {
-    await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-    await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+    await page.getByLabel('入学', { exact: true }).selectOption('2026');
+    await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
     await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   } else {
     await page.getByRole('button', { name: '学校Googleでログイン', exact: true }).click();
   }
   await expect(page).toHaveURL(ORIGIN + '/account');
+  if (mode === 'signup') await createProfileOnAccount(page);
   await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
   await page.unroute(provider);
 }

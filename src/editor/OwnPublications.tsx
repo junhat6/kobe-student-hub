@@ -6,6 +6,7 @@ import { Button } from '@base-ui/react/button';
 import type { OwnPublications as PublicationList } from '../own-publication-types';
 import { createOwnPublicationsClient } from './own-publications-client';
 import './own-publications.css';
+import Icon from '../shared/Icon';
 const stamp = (value: number) =>
   new Intl.DateTimeFormat('ja-JP', {
     year: 'numeric',
@@ -102,15 +103,15 @@ export default function OwnPublications({
     <section className="own-publications" aria-label="自分の公開記録">
       <div className="own-publications-head">
         <h2>{ordinary ? '公開した記事・作品' : '自分の公開記録'}</h2>
-        {/* Accessible names start with the visible words (WCAG 2.5.3 Label in Name). */}
-        <Button
-          className="text-button"
-          disabled={busy || stopBusy}
-          onClick={() => void refresh()}
-          aria-label={ordinary ? '再読み込み：公開した記事・作品' : undefined}
-        >
-          {ordinary ? '再読み込み' : '自分の公開記録を更新'}
-        </Button>
+        {!ordinary && (
+          <Button
+            className="text-button"
+            disabled={busy || stopBusy}
+            onClick={() => void refresh()}
+          >
+            自分の公開記録を更新
+          </Button>
+        )}
       </div>
       {!ordinary && (
         <p className="own-publications-local">
@@ -121,8 +122,17 @@ export default function OwnPublications({
         {message}
       </p>
       {failed && (
-        <p role="alert">
-          読み込めませんでした。接続を確認して、もう一度「再読み込み」を押してください。
+        <p role="alert" className="own-publications-problem">
+          読み込めませんでした。
+          {ordinary && (
+            <Button
+              className="text-button"
+              disabled={busy || stopBusy}
+              onClick={() => void refresh()}
+            >
+              もう一度
+            </Button>
+          )}
         </p>
       )}
       {value && ordinary && value.publications.length === 0 && (
@@ -150,9 +160,19 @@ export default function OwnPublications({
                 return (
                   <li key={row.kind + ':' + row.publicId}>
                     <div className="own-publications-row">
-                      <span className="own-publications-kind">
-                        {row.kind === 'article' ? '記事' : '作品'}
-                      </span>
+                      {ordinary ? (
+                        <span
+                          className="own-publications-kind"
+                          role="img"
+                          aria-label={row.kind === 'article' ? '記事' : '作品'}
+                        >
+                          <Icon name={row.kind === 'article' ? 'doc' : 'cube'} size={18} />
+                        </span>
+                      ) : (
+                        <span className="own-publications-kind">
+                          {row.kind === 'article' ? '記事' : '作品'}
+                        </span>
+                      )}
                       <strong>
                         {ordinary && row.status === 'published' ? (
                           <a href={href}>{row.title}</a>
@@ -180,8 +200,7 @@ export default function OwnPublications({
                       <p className="own-publications-meta">
                         <time dateTime={new Date(row.publishedAt).toISOString()}>
                           {stamp(row.publishedAt)}
-                        </time>{' '}
-                        に公開
+                        </time>
                       </p>
                     ) : (
                       <dl>
@@ -241,11 +260,7 @@ export default function OwnPublications({
           onStopped={stopped}
         />
       )}
-      {ordinary ? (
-        <p className="own-publications-scope">
-          内容を直すときは<a href="/drafts">下書き</a>で編集して、もう一度公開してください。
-        </p>
-      ) : (
+      {!ordinary && (
         <p className="own-publications-scope">
           表示は保存された記録の状態です。理由・運営判断・通知・実際の配信結果を示しません。読者表示は別タブで確認でき、手元の編集はこのページに残ります。公開停止は選択した保存版の本人操作として確認します。編集・再公開・復元・削除・異議申立ての操作は提供していません。
         </p>

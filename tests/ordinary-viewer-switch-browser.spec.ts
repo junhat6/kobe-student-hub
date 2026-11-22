@@ -17,23 +17,17 @@ async function register(page: Page, info: TestInfo, label: string) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
 }
 async function createProfile(page: Page, name: string) {
-  await page.getByText('公開プロフィールを準備する', { exact: true }).click();
-  const profile = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await profile.getByLabel('表示名 必須').fill(name);
-  await profile.getByRole('checkbox').check();
-  await profile
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
-  await expect(profile.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
+  const profile = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await profile.getByLabel('表示名', { exact: true }).fill(name);
+  await profile.getByRole('button', { name: '公開する', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
 }
 
 test('switching accounts in another window never leaves the previous name on screen', async ({
@@ -46,7 +40,7 @@ test('switching accounts in another window never leaves the previous name on scr
   await register(page, info, 'a');
   await createProfile(page, nameA);
   await page.reload();
-  await expect(page.locator('.account-summary-name')).toHaveText(nameA);
+  await expect(page.locator('#profile .profile-editor-card strong')).toHaveText(nameA);
 
   // Account B signs in elsewhere; its session cookie then replaces A's in this browser,
   // as when another window of the same browser logs in as a different account.
@@ -65,13 +59,17 @@ test('switching accounts in another window never leaves the previous name on scr
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page.locator('body')).not.toContainText(nameA);
   await page.getByRole('button', { name: '確認したアカウントを開く', exact: true }).click();
-  await expect(page.locator('.account-summary-name')).toHaveText(nameB);
+  await expect(page.locator('#profile .profile-editor-card strong')).toHaveText(nameB);
   await expect(page.locator('body')).not.toContainText(nameA);
   await page.getByRole('button', { name: 'アカウントメニュー', exact: true }).click();
   const profileLink = page.getByRole('menuitem', { name: '公開プロフィールを見る', exact: true });
   const href = await profileLink.getAttribute('href');
   await page.keyboard.press('Escape');
-  expect(href).toBe(await page.locator('.account-summary-who a').getAttribute('href'));
+  expect(href).toBe(
+    await page
+      .getByRole('link', { name: '公開プロフィールを見る', exact: true })
+      .getAttribute('href'),
+  );
 });
 
 test('a temporary profile read failure is not shown as a missing profile', async ({
@@ -86,14 +84,15 @@ test('a temporary profile read failure is not shown as a missing profile', async
       : route.continue(),
   );
   await page.reload();
-  await expect(page.locator('.account-summary-name')).toHaveText(
-    'プロフィールを読み込めませんでした',
-  );
-  await expect(page.getByText('公開プロフィールを作ると、記事を公開できます')).toHaveCount(0);
+  const profile = page.locator('#profile');
+  await expect(profile.getByRole('alert')).toContainText('読み込めませんでした');
+  // A failed read is not "no profile": never ask to create one.
+  await expect(page.getByRole('heading', { name: 'プロフィールをつくる' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '公開する', exact: true })).toHaveCount(0);
   // While the failure continues, a retry visibly runs and then offers the retry again.
-  await page.getByRole('button', { name: 'もう一度読み込む', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'もう一度読み込む', exact: true })).toBeEnabled();
+  await profile.getByRole('button', { name: 'もう一度', exact: true }).click();
+  await expect(profile.getByRole('button', { name: 'もう一度', exact: true })).toBeEnabled();
   await page.unroute('**/api/private/profile');
-  await page.getByRole('button', { name: 'もう一度読み込む', exact: true }).click();
-  await expect(page.locator('.account-summary-name')).toHaveText(name);
+  await profile.getByRole('button', { name: 'もう一度', exact: true }).click();
+  await expect(profile).toContainText(name);
 });

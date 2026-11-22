@@ -19,8 +19,8 @@ async function register(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
@@ -33,17 +33,11 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   const title = `架空の作品-${info.project.name}`;
   const description = `公開する作品説明-${info.project.name}`;
   await register(page, info);
-  await page.getByText('公開プロフィールを準備する', { exact: true }).click();
-  const profile = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await profile.getByLabel('表示名 必須').fill('架空の作品投稿者');
-  await profile.getByRole('checkbox').check();
-  await profile
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
-  await expect(profile.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
-  await page.getByRole('link', { name: '作品を登録する', exact: true }).click();
+  const profile = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await profile.getByLabel('表示名', { exact: true }).fill('架空の作品投稿者');
+  await profile.getByRole('button', { name: '公開する', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '作品を登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/works/new');
   await page.getByLabel('作品タイトル', { exact: true }).fill(title);
   await page.getByLabel('作品説明（プレーンテキスト）', { exact: true }).fill(description);

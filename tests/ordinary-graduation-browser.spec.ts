@@ -21,24 +21,18 @@ async function register(page: Page, info: TestInfo) {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await page.unroute(provider);
 }
 
 async function publishAndKeepDraft(page: Page) {
-  const profile = page.getByRole('region', { name: '公開プロフィールの初回作成' });
-  await profile.getByText('公開プロフィールを準備する', { exact: true }).click();
-  await profile.getByLabel('表示名 必須').fill('架空の卒業生');
-  await profile.getByRole('checkbox').check();
-  await profile
-    .getByRole('button', { name: '確認した内容でプロフィールを作成', exact: true })
-    .click();
-  await expect(profile.locator('.profile-setup-status')).toHaveText(
-    '公開プロフィールを作成しました。',
-  );
+  const profile = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await profile.getByLabel('表示名', { exact: true }).fill('架空の卒業生');
+  await profile.getByRole('button', { name: '公開する', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '記事を書く', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill(TITLE);
@@ -56,13 +50,11 @@ async function publishAndKeepDraft(page: Page) {
 }
 
 async function correctYears(page: Page, admission: string, graduation: string) {
-  const form = page.getByRole('region', { name: '入学年度と卒業予定年度' });
-  await form.getByLabel('入学年度 必須', { exact: true }).fill(admission);
-  await form.getByLabel('卒業予定年度 必須', { exact: true }).fill(graduation);
-  await form.getByRole('button', { name: '年度を訂正して保存', exact: true }).click();
-  await expect(form.getByRole('status')).toHaveText(
-    '年度を保存しました。誤りがあれば、この画面で訂正できます。',
-  );
+  const form = page.getByRole('region', { name: '在学期間' });
+  await form.getByLabel('入学', { exact: true }).selectOption(admission);
+  await form.getByLabel('卒業予定', { exact: true }).selectOption(graduation);
+  await form.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(form.getByRole('status')).toHaveText('在学期間を保存しました。');
 }
 
 async function expectNoSeriousAxe(page: Page) {
@@ -87,20 +79,20 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
   await page.goto('/account');
   await correctYears(page, '2024', '2025');
   const notice = page.getByRole('note', { name: '新しい投稿について' });
-  await expect(notice.getByRole('heading', { name: '卒業予定年度を過ぎています' })).toBeVisible();
+  await expect(notice.getByRole('heading', { name: '卒業予定を過ぎています' })).toBeVisible();
   await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: '作品を登録する', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: '作品を登録', exact: true })).toHaveCount(0);
   expect(await noHorizontalScroll(page)).toBe(true);
   await expectNoSeriousAxe(page);
   await page.screenshot({ path: info.outputPath('graduated-account.png'), fullPage: true });
 
   // Drafts: readable and deletable, but no create, save or publish that would always fail.
-  await page.getByRole('link', { name: '下書きを確認・削除する', exact: true }).click();
+  await page.getByRole('link', { name: '下書き', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/drafts');
   await expect(
     page
       .getByRole('note', { name: '新しい投稿について' })
-      .getByRole('heading', { name: '卒業予定年度を過ぎています' }),
+      .getByRole('heading', { name: '卒業予定を過ぎています' }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: TITLE, exact: true }).click();
@@ -124,7 +116,7 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
   await expect(
     page
       .getByRole('note', { name: '新しい投稿について' })
-      .getByRole('heading', { name: '卒業予定年度を過ぎています' }),
+      .getByRole('heading', { name: '卒業予定を過ぎています' }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: '作品を保存', exact: true })).toBeDisabled();
   expect(await noHorizontalScroll(page)).toBe(true);

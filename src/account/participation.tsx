@@ -40,32 +40,27 @@ export function ParticipationNotice({
 }) {
   if (!writesClosed(participation)) return null;
   const ended = participation === 'ended';
-  const correction =
+  const fix =
     place === 'account' ? (
-      <a href="#enrollment">下の「入学年度と卒業予定年度」で訂正してください。</a>
+      <a href="#enrollment">在学期間を直す</a>
     ) : (
-      <Link to="/account#enrollment">マイページで訂正してください。</Link>
+      <Link to="/account#enrollment">在学期間を直す</Link>
     );
   return (
     <section className="participation-notice" role="note" aria-label="新しい投稿について">
-      <h2>{ended ? '卒業予定年度を過ぎています' : '入学年度より前です'}</h2>
+      <h2>{ended ? '卒業予定を過ぎています' : '入学前です'}</h2>
       <p>
-        {ended
-          ? '登録した卒業予定年度を過ぎているため、新しい記事・作品の作成、下書きの保存、公開はできません。'
-          : '登録した入学年度より前のため、まだ新しい記事・作品の作成、下書きの保存、公開はできません。'}
-      </p>
-      <p>
-        公開済みの記事・作品は自動では消えず、
+        新しい記事・作品は作れません。公開中のものの
         {place === 'account' ? (
-          <a href="#publications">「自分の公開記録」</a>
+          <a href="#publications">停止</a>
         ) : (
-          <Link to="/account#publications">マイページの「自分の公開記録」</Link>
+          <Link to="/account#publications">停止</Link>
         )}
-        から公開停止できます。保存した記事の下書きは
-        {place === 'drafts' ? 'この画面' : <Link to="/drafts">下書きの画面</Link>}
-        から削除できます。
+        と、
+        {place === 'drafts' ? '下書きの削除' : <Link to="/drafts">下書きの削除</Link>}
+        はできます。
       </p>
-      <p>年度の登録に誤りがあれば、{correction}</p>
+      <p>{fix}</p>
     </section>
   );
 }

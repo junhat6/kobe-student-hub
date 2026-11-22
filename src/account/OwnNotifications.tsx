@@ -1,84 +1,77 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
 import { createModerationClient } from '../editor/moderation-client';
 import type { OwnModerationNotice } from '../notification-types';
 import './notifications.css';
+import Icon from '../shared/Icon';
 const label = {
   temporarily_hidden: '記事が一時非公開になりました',
   restored: '記事が復元されました',
   deleted: '記事が公開表示から削除されました',
 };
+/** Loads by itself and stays out of the way when there is nothing to tell. */
 export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch }) {
   const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
-  const mounted = useRef(true),
-    lock = useRef(false);
   const [items, setItems] = useState<OwnModerationNotice[] | null>(null),
-    [busy, setBusy] = useState(false),
-    [message, setMessage] = useState('自分の記事・作品に対する判断と、その理由を確認できます。');
+    [failed, setFailed] = useState(false),
+    [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    mounted.current = true;
+    let live = true;
+    setFailed(false);
+    client.ownNotifications().then(
+      (value) => live && setItems(value),
+      () => live && setFailed(true),
+    );
     return () => {
-      mounted.current = false;
+      live = false;
     };
-  }, []);
-  async function load() {
-    if (lock.current) return;
-    lock.current = true;
-    setBusy(true);
-    setItems(null);
-    setMessage('お知らせを確認しています…');
-    try {
-      const value = await client.ownNotifications();
-      if (mounted.current) {
-        setItems(value);
-        setMessage(
-          value.length ? '新しいお知らせから20件まで表示しています。' : 'お知らせはありません。',
-        );
-      }
-    } catch {
-      if (mounted.current) setMessage('お知らせを確認できませんでした。もう一度確認してください。');
-    } finally {
-      lock.current = false;
-      if (mounted.current) setBusy(false);
-    }
-  }
+  }, [client, attempt]);
+  if (!failed && !items?.length) return null;
   return (
-    <section aria-label="運営からのお知らせ" className="account-notifications">
-      <h2>運営からのお知らせ</h2>
-      <p role="status">{message}</p>
-      <Button disabled={busy} onClick={() => void load()}>
-        お知らせを確認
-      </Button>
-      {items && (
-        <ul className="notification-list">
-          {items.map((item) => (
-            <li key={item.id}>
-              <h3>
-                {/^project(?:-report)?\./.test(item.id)
-                  ? label[item.kind].replace('記事', '作品')
-                  : label[item.kind]}
-              </h3>
-              <p>{item.title}</p>
-              <time dateTime={new Date(item.createdAt).toISOString()}>
-                {new Date(item.createdAt).toLocaleDateString('ja-JP')}
-              </time>
-              <p className="notification-reason">{item.reason}</p>
-              <Link to="/account#publications">自分の公開記録を確認する</Link>
-            </li>
-          ))}
-        </ul>
+    <section aria-label="運営からのお知らせ" className="account-block account-notifications">
+      <h2 className="account-notifications-title">
+        <Icon name="bell" size={18} />
+        運営からのお知らせ
+      </h2>
+      {failed ? (
+        <p role="alert">
+          読み込めませんでした。
+          <Button className="text-button" onClick={() => setAttempt((n) => n + 1)}>
+            もう一度
+          </Button>
+        </p>
+      ) : (
+        <>
+          <ul className="notification-list">
+            {items!.map((item) => (
+              <li key={item.id}>
+                <h3>
+                  {/^project(?:-report)?\./.test(item.id)
+                    ? label[item.kind].replace('記事', '作品')
+                    : label[item.kind]}
+                </h3>
+                <p>{item.title}</p>
+                <time dateTime={new Date(item.createdAt).toISOString()}>
+                  {new Date(item.createdAt).toLocaleDateString('ja-JP')}
+                </time>
+                <p className="notification-reason">{item.reason}</p>
+                <a href="#publications">自分の公開記録を確認する</a>
+              </li>
+            ))}
+          </ul>
+          <p className="moderation-limit">
+            <Link
+              to="/guide#contact"
+              target="_blank"
+              rel="noopener noreferrer"
+              referrerPolicy="no-referrer"
+            >
+              判断についての相談・異議申立ての案内（別のタブ）
+            </Link>
+          </p>
+        </>
       )}
-      <p className="moderation-limit">
-        <Link
-          to="/guide#contact"
-          target="_blank"
-          rel="noopener noreferrer"
-          referrerPolicy="no-referrer"
-        >
-          判断についての相談・異議申立ての案内（別のタブ）
-        </Link>
-      </p>
     </section>
   );
 }

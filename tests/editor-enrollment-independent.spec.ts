@@ -4,11 +4,10 @@ import path from 'node:path';
 
 const ORIGIN = 'https://127.0.0.1:8788';
 const endpoint = '**/api/private/enrollment';
-const region = (page: Page) =>
-  page.getByRole('region', { name: '入学年度と卒業予定年度', exact: true });
-const admission = (form: Locator) => form.getByLabel('入学年度 必須', { exact: true });
-const graduation = (form: Locator) => form.getByLabel('卒業予定年度 必須', { exact: true });
-const save = (form: Locator) => form.getByRole('button', { name: /^年度を(?:訂正して)?保存$/ });
+const region = (page: Page) => page.getByRole('region', { name: '在学期間', exact: true });
+const admission = (form: Locator) => form.getByLabel('入学', { exact: true });
+const graduation = (form: Locator) => form.getByLabel('卒業予定', { exact: true });
+const save = (form: Locator) => form.getByRole('button', { name: '保存', exact: true });
 async function seed(page: Page) {
   const response = await page
     .context()
@@ -33,7 +32,7 @@ async function stored(page: Page) {
   return result.json();
 }
 
-test('independent field errors are associated with both private labels and same-year declaration saves without extra steps', async ({
+test('independent choices cannot express an invalid period and a same-year declaration saves without extra steps', async ({
   page,
 }, info) => {
   const { form } = await open(page);
@@ -42,46 +41,28 @@ test('independent field errors are associated with both private labels and same-
     if (new URL(request.url()).pathname === '/api/private/enrollment' && request.method() === 'PUT')
       puts++;
   });
-  await admission(form).fill('２０２６');
-  await graduation(form).fill('1899');
-  await expect(admission(form)).toHaveAttribute('aria-invalid', 'true');
-  await expect(graduation(form)).toHaveAttribute('aria-invalid', 'true');
-  await expect(
-    form.getByText('入学年度は1900〜2199の西暦4桁で入力してください。', { exact: true }),
-  ).toBeVisible();
-  await expect(
-    form.getByText('卒業予定年度は1900〜2199の西暦4桁で入力してください。', { exact: true }),
-  ).toBeVisible();
-  for (const input of [admission(form), graduation(form)]) {
-    const descriptions = await input.getAttribute('aria-describedby');
-    expect(descriptions).toBeTruthy();
-    for (const id of descriptions!.split(' '))
-      await expect(page.locator('[id="' + id + '"]')).toBeVisible();
+  // Graduation waits for an admission, and only offers months on or after it.
+  await expect(graduation(form)).toBeDisabled();
+  await admission(form).selectOption('2026');
+  const offered = await graduation(form)
+    .locator('option:not([disabled])')
+    .evaluateAll((options) => options.map((o) => Number((o as HTMLOptionElement).value)));
+  expect(Math.min(...offered)).toBe(2026);
+  for (const select of [admission(form), graduation(form)]) {
+    const id = await select.getAttribute('id');
+    await expect(page.locator('label[for="' + id + '"]')).toBeVisible();
   }
-  await expect(save(form)).toBeDisabled();
   expect(puts).toBe(0);
-  await shot(form, info, '01-validation-labels-and-help.png');
-  await admission(form).fill('2027');
-  await graduation(form).fill('2026');
-  await expect(
-    form.getByText('卒業予定年度は入学年度と同じか、それより後にしてください。', { exact: true }),
-  ).toBeVisible();
-  await expect(save(form)).toBeDisabled();
-  await admission(form).fill('2026');
-  await graduation(form).fill('2026');
-  await expect(save(form)).toBeEnabled();
+  await shot(form, info, '01-choices-only-valid.png');
+  await graduation(form).selectOption('2026');
+  await expect(graduation(form).locator('option:checked')).toHaveText('2027年3月');
   await save(form).click();
-  await expect(form.getByRole('status')).toContainText('年度を保存しました。');
+  await expect(form.getByRole('status')).toHaveText('在学期間を保存しました。');
   expect(await stored(page)).toMatchObject({
     enrollment: { admissionYear: 2026, graduationYear: 2026, version: 1 },
   });
   expect(puts).toBe(1);
-  await expect(
-    form.getByText('登録した年度に基づく利用期間内です。年度はこの画面で訂正できます。', {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(form.getByRole('textbox')).toHaveCount(2);
+  await expect(form.getByRole('combobox')).toHaveCount(2);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await shot(form, info, '02-same-year-explicit-save.png');
@@ -91,10 +72,10 @@ test('independent same-session conceal and failed proof retain the exact unsaved
   page,
 }, info) => {
   const { form } = await open(page);
-  await admission(form).fill('2024');
-  await graduation(form).fill('2029');
+  await admission(form).selectOption('2024');
+  await graduation(form).selectOption('2029');
   await graduation(form).evaluate((element) => {
-    (element as HTMLInputElement & { __qaEnrollmentMarker?: boolean }).__qaEnrollmentMarker = true;
+    (element as unknown as { __qaEnrollmentMarker?: boolean }).__qaEnrollmentMarker = true;
   });
   let puts = 0;
   page.on('request', (request) => {
@@ -114,16 +95,14 @@ test('independent same-session conceal and failed proof retain the exact unsaved
   expect(
     await page.locator('.session-private').evaluate((element) => (element as HTMLElement).inert),
   ).toBe(true);
-  expect(await page.locator('.account-enrollment input').count()).toBe(2);
+  expect(await page.locator('.account-enrollment select').count()).toBe(2);
   release();
   await expect(graduation(form)).toBeVisible();
   await expect(admission(form)).toHaveValue('2024');
   await expect(graduation(form)).toHaveValue('2029');
   expect(
     await graduation(form).evaluate((element) =>
-      Boolean(
-        (element as HTMLInputElement & { __qaEnrollmentMarker?: boolean }).__qaEnrollmentMarker,
-      ),
+      Boolean((element as unknown as { __qaEnrollmentMarker?: boolean }).__qaEnrollmentMarker),
     ),
   ).toBe(true);
   await page.unroute('**/api/private/session');
@@ -139,7 +118,7 @@ test('independent same-session conceal and failed proof retain the exact unsaved
     page.getByText(/手元の編集はこのページのメモリ内に保持したまま隠しています/),
   ).toBeVisible();
   await expect(page.locator('.session-private')).toBeHidden();
-  expect(await page.locator('.account-enrollment input').count()).toBe(2);
+  expect(await page.locator('.account-enrollment select').count()).toBe(2);
   await shot(
     page.locator('.session-account-lab'),
     info,
@@ -152,9 +131,7 @@ test('independent same-session conceal and failed proof retain the exact unsaved
   await expect(graduation(form)).toHaveValue('2029');
   expect(
     await graduation(form).evaluate((element) =>
-      Boolean(
-        (element as HTMLInputElement & { __qaEnrollmentMarker?: boolean }).__qaEnrollmentMarker,
-      ),
+      Boolean((element as unknown as { __qaEnrollmentMarker?: boolean }).__qaEnrollmentMarker),
     ),
   ).toBe(true);
   await expect(save(form)).toBeEnabled();
@@ -172,10 +149,8 @@ test('independent delayed old-session enrollment read cannot reveal old years af
     data: { admissionYear: 2024, graduationYear: 2028, expectedVersion: 0 },
   });
   expect(response.status()).toBe(200);
-  await form.getByRole('button', { name: '保存状態を確認', exact: true }).click();
-  await expect(
-    form.getByRole('button', { name: '確認した保存版を基準にする', exact: true }),
-  ).toBeVisible();
+  // Without a manual check button, the page reads back after an unclear save: hold that read.
+  await admission(form).selectOption('2025');
   let release!: () => void, arrived!: () => void;
   const held = new Promise<void>((resolve) => {
       release = resolve;
@@ -184,7 +159,8 @@ test('independent delayed old-session enrollment read cannot reveal old years af
       arrived = resolve;
     });
   await page.route(endpoint, async (route) => {
-    if (route.request().method() !== 'GET') return route.continue();
+    if (route.request().method() === 'PUT')
+      return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
     const old = await route.fetch();
     expect(old.status()).toBe(200);
     expect(await old.json()).toMatchObject({
@@ -196,7 +172,7 @@ test('independent delayed old-session enrollment read cannot reveal old years af
       await route.fulfill({ response: old });
     } catch {}
   });
-  await form.getByRole('button', { name: '保存状態を確認', exact: true }).click();
+  await save(form).click();
   await ready;
   await seed(page);
   release();
@@ -218,7 +194,7 @@ test('independent delayed old-session enrollment read cannot reveal old years af
   await page.getByRole('button', { name: '確認したセッションで編集を開く', exact: true }).click();
   await expect(admission(region(page))).toHaveValue('');
   await expect(graduation(region(page))).toHaveValue('');
-  await expect(save(region(page))).toBeDisabled();
+  await expect(save(region(page))).toHaveCount(0);
   expect(await stored(page)).toEqual({ enrollment: null, participation: 'missing' });
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

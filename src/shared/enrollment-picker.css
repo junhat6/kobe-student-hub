@@ -1,0 +1,54 @@
+.enrollment-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+.enrollment-picker-field {
+  display: grid;
+  gap: 4px;
+}
+.enrollment-picker-field label {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink-soft, #46525f);
+}
+.enrollment-picker select {
+  font: inherit;
+  font-size: 16px;
+  min-height: 44px;
+  min-width: 9.5em;
+  padding: 6px 30px 6px 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23636d79' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  border: 1px solid #c4ceda;
+  border-radius: 10px;
+  background-color: var(--surface, #fff);
+  color: var(--ink, #141a22);
+  font-variant-numeric: tabular-nums;
+}
+.enrollment-picker select:disabled {
+  opacity: 0.6;
+}
+.enrollment-picker-arrow {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-muted, #636d79);
+}
+@media (max-width: 650px) {
+  .enrollment-picker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+  .enrollment-picker select {
+    min-width: 0;
+    width: 100%;
+  }
+  .enrollment-picker > :nth-child(n + 4) {
+    grid-column: 1 / -1;
+  }
+}

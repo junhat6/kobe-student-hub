@@ -1,5 +1,6 @@
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
+import { createProfileOnAccount, ensureProfileByApi } from './helpers/profile';
 
 // C20 / #171: an expired session keeps unsaved project input in page memory only, and
 // gives it back to the same project only after the server opens it for the new session.
@@ -34,10 +35,11 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
   await page.goto('/signup');
-  await page.getByLabel('入学年度 必須', { exact: true }).fill('2026');
-  await page.getByLabel('卒業予定年度 必須', { exact: true }).fill('2028');
+  await page.getByLabel('入学', { exact: true }).selectOption('2026');
+  await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
+  await createProfileOnAccount(page);
   await page.unroute(provider);
   await page.goto('/works/new');
   await expect(projectTitle(page)).toBeEditable();
@@ -70,6 +72,7 @@ async function signInAgain(context: BrowserContext, actor = 'fictional-browser-b
   expect(
     (await completeGoogleFormPost(context.request, ORIGIN, { state, code: state })).status(),
   ).toBe(303);
+  await ensureProfileByApi(context.request, ORIGIN, '架空の別アカウント');
 }
 async function expire(context: BrowserContext) {
   expect((await context.request.get(ORIGIN + '/__control/expire')).status()).toBe(200);
