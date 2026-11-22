@@ -37,7 +37,11 @@ SECRET_PATTERNS = [
     (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}"), "[秘密を伏せました]"),
     (re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}"), "[秘密を伏せました]"),
     (re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"), "[秘密を伏せました]"),
-    (re.compile(r"(?i)\b(bearer|token|password|passwd|secret|api[_-]?key)(\s*[:=]\s*|\s+)['\"]?[^\s'\"]{8,}"), r"\1=[秘密を伏せました]"),
+    # NAME=value / "name": "value" where the name contains a secret word (DB_PASSWORD, AWS_SECRET_ACCESS_KEY).
+    (re.compile(r"(?i)([A-Za-z0-9_.-]*(?:token|password|passwd|pwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|credential)[A-Za-z0-9_.-]*)(['\"]?\s*[:=]\s*)['\"]?[^\s'\",;]{6,}"), r"\1\2[秘密を伏せました]"),
+    (re.compile(r"(?i)(?<![A-Za-z0-9])(bearer|token|password|passwd|secret|api[_-]?key)\s+['\"]?[^\s'\"]{8,}"), r"\1 [秘密を伏せました]"),
+    # Passwords inside URLs: scheme://user:password@host
+    (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"), r"\1[秘密を伏せました]@"),
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"), "[秘密鍵を伏せました]"),
     (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "[メールを伏せました]"),
 ]
@@ -52,7 +56,7 @@ def mask(text: str) -> str:
         # Claude Code names project folders after the path with every other character turned into "-".
         text = text.replace(re.sub(r"[^A-Za-z0-9]", "-", home), "~")
     name = HOME.name
-    if len(name) >= 3:
+    if len(name) >= 2:
         # Your user name on its own (e.g. a Gemini folder named after it), also in Claude Code's "-" form.
         for form in {name, re.sub(r"[^A-Za-z0-9]", "-", name)}:
             text = re.sub(r"(?i)(?<![A-Za-z0-9])" + re.escape(form) + r"(?![A-Za-z0-9])", "<you>", text)

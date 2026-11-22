@@ -282,7 +282,7 @@ describe('agent kit session_index.py with the home folder as the working place',
     }
   });
 
-  it('hides Stripe-style keys and the user name in other letter cases or in "-" form', () => {
+  it('hides Stripe-style keys, .env/JSON/URL secrets and the user name in other letter cases or in "-" form', () => {
     const dir = join(homeOnly, '.claude', 'projects', '-tmp-forms');
     mkdirSync(dir, { recursive: true });
     const stripe = 'sk_' + 'live_' + 'Fictional0123456789abcdef';
@@ -297,9 +297,35 @@ describe('agent kit session_index.py with the home folder as the working place',
         },
       }) + '\n',
     );
+    // .env lines, JSON and URL credentials, as people paste them into an agent.
+    const envSecrets = [
+      'dbFictional9pass',
+      'awsFictional9Secret',
+      'jsonFictional9pw',
+      'urlFictional9pw',
+    ];
+    writeFileSync(
+      join(dir, 'env.jsonl'),
+      JSON.stringify({
+        type: 'user',
+        timestamp: '2026-11-11T10:00:00Z',
+        cwd: '/tmp/forms',
+        message: {
+          content: [
+            `openshift の .env: DB_PASSWORD=${envSecrets[0]}`,
+            `AWS_SECRET_ACCESS_KEY=${envSecrets[1]}`,
+            `{"password": "${envSecrets[2]}"}`,
+            `postgres://app:${envSecrets[3]}@localhost:5432/db`,
+          ].join('\n'),
+        },
+      }) + '\n',
+    );
     const shown = runIn('show', join(dir, 'forms.jsonl'));
     expect(shown).toContain('openshift');
     expect(shown).not.toContain(stripe.slice(0, 12));
+    const env = runIn('show', join(dir, 'env.jsonl')) + runIn('index', '--grep', 'openshift');
+    expect(env).toContain('DB_PASSWORD=[秘密を伏せました]');
+    for (const secret of envSecrets) expect(env).not.toContain(secret);
     expect(shown.toLowerCase()).not.toContain('hanako');
   });
 
