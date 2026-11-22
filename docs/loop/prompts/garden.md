@@ -9,7 +9,8 @@
 4. **open な PR を空にする**：`gh pr list` の PR を1本ずつ main と照らす。
    - 取り込み済み（同じ内容・より新しい版が main にある）・前提が消えた（撤去済み機能など）→ 根拠の commit・ファイルを書いてクローズ。ブランチは残す
    - Draft でも main に足りない価値があれば、rebase して `npm run build && npm test` を通し、Ready にしてマージ
-   - Dependabot：patch/minor で `npm run build && npm test` が通るものはマージ。major や `.github/workflows/` の更新は main に重ねた `rc/<sha7>` で full CI を走らせ、失敗が main の既知の失敗（#192 など）と同じならマージ。新しい失敗が出たら `loop:garden` Issue に影響範囲を書く
+   - Dependabot：patch/minor は `dependabot-auto-merge.yml` が health を通してマージするので、open で残っているのは major・0.x・health 失敗だけ。人に回さず自分で片付ける。changelog・リリースノートで破壊的変更を読み、`rg` で使っている箇所を洗い、必要なら PR ブランチか main で呼び出し側を直す。main に重ねた `rc/<sha7>` で full CI を走らせ、green（または失敗が main の既知の失敗と同じ）ならマージ。Dependabot の PR に手を入れるより、main で同じ版に上げて直した方が早ければそうして PR は根拠を書いてクローズ
+   - マージしないのは、移行に R1 以上の設計変更が要る・本番データや認証の挙動が変わる、と判断したときだけ。PR は `@dependabot ignore this major version` などで止めず開いたまま、`loop:garden` Issue に理由・影響範囲・必要な移行を書く（オーナーへの報告はこれで足りる）
 5. **重複**：同じ処理が複数の場所にあれば、`loop:garden` Issue に統合案を書く（R1以上なので自分では直さない）
 
 ## 決まり

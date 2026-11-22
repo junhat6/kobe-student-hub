@@ -1,12 +1,42 @@
 name: Dependabot auto-merge
-# pull_request_target はDependabot PRでも書き込み可能なトークンを持つため、
-# PRのコードはcheckoutも実行もしない（メタデータの参照とauto-merge予約だけを行う）。
-on: pull_request_target
+# Dependabot の PR を人が1件ずつ見なくて済むようにする（オーナー方針 2026-11-22、docs/DECISIONS.md）。
+# 1. health: PR の head で main-health と同じ軽い確認をする。PR のコードを実行するので読み取り専用トークンだけ。
+# 2. merge: health が通り、patch/minor（0.x を除く）なら、確認した head のままのときだけ squash マージする。
+#    PR のコードは checkout も実行もしない。書き込み権限はこの job だけが持つ。
+# 対象外（major・0.x・health 失敗）は PR を開いたまま残し、garden がレビュー・修正・マージまで受け持つ。
+# main は必須CIを持たないため --auto は待ってくれない。だから health を needs で先に通す。
+on:
+  pull_request:
+    branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: dependabot-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
-  enable-auto-merge:
+  health:
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'junhat6/kobe-student-hub'
+    env:
+      HUSKY: '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run types
+      - run: git diff --exit-code -- worker-configuration.d.ts
+      - run: npm run build
+      - run: npm test
+
+  merge:
+    needs: health
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -16,18 +46,29 @@ jobs:
       - name: Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
-      # 対象はnpmのパッチ更新のみ。0.xはパッチでも破壊的変更がありうるため人が確認する。
-      # main は必須CIを持たない（CIはリリース時だけ必須）。auto-mergeの予約が不要な状態なら即mergeする。
-      # 壊れた更新は main-health が赤で知らせ、release昇格時のCI（verify）で本番には入らない。
-      - name: Enable auto-merge for npm patch updates
-        if: steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' && steps.metadata.outputs.update-type == 'version-update:semver-patch'
+      # npm と GitHub Actions の patch/minor が対象。0.x はパッチでも破壊的変更がありうる、
+      # 前の版が読めないものは差分の大きさが分からない、という理由でどちらも garden に回す。
+      - name: Merge patch and minor updates
+        if: >-
+          (steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' || steps.metadata.outputs.package-ecosystem == 'github_actions') &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor')
         env:
           DEPS_JSON: ${{ steps.metadata.outputs.updated-dependencies-json }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           if jq -e 'any(.[]; ((.prevVersion // "") | test("^v?0\\.")) or ((.prevVersion // "") == ""))' <<<"$DEPS_JSON" >/dev/null; then
-            echo "0.x or unknown previous version found; leaving this PR for manual review."
+            echo "0.x or unknown previous version; leaving this PR for garden." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          gh pr merge --auto --squash "$PR_URL" || gh pr merge --squash "$PR_URL"
+          # health が確かめた head から動いていれば（Dependabot の rebase など）マージしない。次の run が拾う。
+          gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL"
+      - name: Report skipped updates
+        if: >-
+          !((steps.metadata.outputs.package-ecosystem == 'npm_and_yarn' || steps.metadata.outputs.package-ecosystem == 'github_actions') &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'))
+        env:
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+        run: echo "Not auto-merged ($ECOSYSTEM, $UPDATE_TYPE); garden reviews it." | tee -a "$GITHUB_STEP_SUMMARY"

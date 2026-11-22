@@ -2,6 +2,17 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-22 — Dependabot の PR は人が見ない前提で回す（オーナー決定）
+
+オーナー（服部）の指示：Dependabot は人間が管理する手間をなくすための仕組みなので、PR を人が1件ずつ見る前提にしない。agent がレビュー・影響確認・必要な修正をしてマージまで進め、パッチ更新などは自動マージに寄せる。破壊的で影響が大きいものだけ、無理にマージせず理由と一緒に報告する。
+
+1. npm と GitHub Actions の patch/minor（0.x を除く）は `.github/workflows/dependabot-auto-merge.yml` が PR の head で main-health と同じ確認（format・types・build・unit test）を通し、確認した head のまま squash マージする。以前は npm patch だけを確認なしで即マージしていた（main に必須CIがないため `--auto` が待たない）。壊れた版が main に入ってから気づく形をやめ、入る前に止める。
+2. PR のコードを走らせる job は読み取り専用トークン、マージする job は PR のコードを checkout しない。`pull_request_target` で PR のコードを動かす形（pwn request）を避けるため。
+3. major・0.x・health 失敗は garden が人に回さずに片付ける：changelog を読み、使っている箇所を直し、`rc/<sha7>` の full CI を見てマージ（[garden.md](loop/prompts/garden.md) の 4）。
+4. マージしないのは、移行に R1 以上の設計変更が要る・本番データや認証の挙動が変わるときだけ。`loop:garden` Issue に理由・影響範囲を書いて報告とする。`needs-human` にはしない（人の判断が要るのは課金・資格情報・実利用者だけ、という 2026-11-21 の線引きのまま）。
+5. 採らなかったもの：全更新の自動マージ。major は API が変わり unit test だけでは足りないことが多く、release の full CI で初めて赤になると列車が止まる。main の全 push に必須 CI を掛ける案も、agent の直接 push を止めるので採らない。
+6. 残るすき間：GITHUB_TOKEN のマージは main-health を起こさないので、別々に green だった2本が重なって壊れる場合は release の verify で初めて見つかる。cooldown と週1のまとめ（group）で同時に入る本数が少ないため、今は許容する。
+
 ## 2026-11-22 — open な PR を溜めず、マージかクローズまで持っていく（オーナー決定）
 
 オーナー（服部）の指示：「自分が出している PR は溜めずに、どんどんマージしていってほしい」。これを受けて、open な PR（オーナーの Draft・Dependabot を含む）は agent が main と照らして、マージかクローズのどちらかに必ず片付ける。毎周の確認は garden が受け持つ（[garden.md](loop/prompts/garden.md) の 4）。

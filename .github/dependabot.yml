@@ -1,5 +1,5 @@
 # 依存更新はDependabotで行う（GitHub標準機能のため外部Appへの書き込み権限付与が不要）。
-# パッチ更新の自動マージは .github/workflows/dependabot-auto-merge.yml を参照。
+# patch/minor は .github/workflows/dependabot-auto-merge.yml が軽い確認の後に自動マージする。major・0.x は garden が見る。
 version: 2
 updates:
   - package-ecosystem: npm
