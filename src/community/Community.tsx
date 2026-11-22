@@ -18,6 +18,7 @@ import PublicArticleCard from '../editor/PublicArticleCard';
 import ArticleLikeButton from './ArticleLikeButton';
 import OrdinaryArticleReport from './OrdinaryArticleReport';
 import ArticleHandoff from '../agent/ArticleHandoff';
+import EditorialReview from './EditorialReview';
 import { createPublicLikesClient } from '../editor/public-likes-client';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
@@ -168,6 +169,7 @@ function StudentArticle({ id }: { id: string }) {
             <span aria-hidden="true">→</span>
           </Link>
         </div>
+        <EditorialReview key={`editorial-${entry.id}`} contentId={entry.id} />
         <OrdinaryArticleReport
           key={`report-${entry.id}`}
           contentId={entry.id}

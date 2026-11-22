@@ -15,6 +15,8 @@ import { createPrivateProfileReportHandler } from './profile-reports-http';
 import { createMediaHandler } from './media-http';
 import { createProfileAvatarHandler } from './profile-avatars-http';
 import { createOrdinaryDiscoveryHandler } from './ordinary-discovery-http';
+import { createEditorialReviewHandler } from './editorial-reviews-http';
+import { EDITORIAL_REVIEW_RELEASE_ENABLED } from '../src/shared/editorial-review';
 
 /** Ordinary authoring and publication composition. Runtime bindings alone never enable it.
  * The entry also requires the independently reviewed OAuth release gate.
@@ -23,7 +25,7 @@ import { createOrdinaryDiscoveryHandler } from './ordinary-discovery-http';
 export function createOrdinaryDraftHandler(
   db: D1Database,
   origin: string,
-  options: { enabled?: boolean; operatorIds?: readonly string[] } = {},
+  options: { enabled?: boolean; operatorIds?: readonly string[]; editorialReviews?: boolean } = {},
   clock: () => number = Date.now,
 ) {
   if (options.enabled !== true) return async (_request: Request): Promise<Response | null> => null;
@@ -56,8 +58,18 @@ export function createOrdinaryDraftHandler(
     clock,
   );
   const avatars = createProfileAvatarHandler(db, origin, clock);
+  const editorial = createEditorialReviewHandler(
+    db,
+    origin,
+    {
+      enabled: options.editorialReviews ?? EDITORIAL_REVIEW_RELEASE_ENABLED,
+      operatorIds: options.operatorIds ?? [],
+    },
+    clock,
+  );
   return async (request: Request): Promise<Response | null> => {
     const path = new URL(request.url).pathname;
+    if (path.startsWith('/api/private/editorial-reviews/')) return editorial(request);
     if (path.startsWith('/api/private/profile-avatar') || path.startsWith('/api/profile-avatars'))
       return avatars(request);
     // The private profile handler owns /api/private/profile*, so route these first.
