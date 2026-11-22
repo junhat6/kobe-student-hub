@@ -12,6 +12,8 @@
 | [SESSIONS.md](SESSIONS.md) | セッションの分け方、並行作業の衝突回避、引き継ぎ |
 | [completion.json](completion.json) | 「完成」の定義（完成台帳）。完成ループの北極星 |
 | [ux-rubric.md](ux-rubric.md) | UX巡回ループの採点基準と利用者の旅（journey） |
+| [ORCA.md](ORCA.md) | Orca の automation を残し bots に移らない判断、worktree の後片付け（`ksh tidy`） |
+| [ORCA-BOTS-PHILOSOPHY.md](ORCA-BOTS-PHILOSOPHY.md) | Orca bots と自作ループの思想の違い、bots から借りるもの |
 | [prompts/](prompts/) | 各ループが毎回読む指示書（ループ1周＝この1ファイルを読んで1仕事） |
 | [../RELEASE.md](../RELEASE.md) | リリースの具体手順（loop-infra セッションが管理） |
 

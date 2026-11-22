@@ -47,4 +47,5 @@
 
 - 「まだ実装されていない」と決めつける前に `rg` で探す。このリポジトリには似た部品（`src/editor/*Lab.tsx` と本番用コンポーネント）が並存している。
 - e2e で送信ヘッダを確かめるとき `request.allHeaders()` を待たない。CDP の ExtraInfo 到着順しだいで永久に解決せず CI だけ flaky になる（#134）。`tests/helpers/sent-headers.ts` の `recordSentHeaders`（route 中の `request.headers()` は Cookie/Origin を含む。route なしだと Cookie が出ず「cookie なし」検査が空振りする）を使い、route が見ないリダイレクト先は `recordRedirectHops` で読む（#135）。
+- automation の worktree は run 後も Orca が消さない。片付けは `ksh tidy`（`scripts/loop/prune-worktrees.mjs`）が毎時行う。手で消すときもこのスクリプトを使い、`git worktree remove` を直接使わない（[ORCA.md](docs/loop/ORCA.md)）。
 - ボタン名に `.sr-only` の子要素を足すと、Chrome の名前計算で前に空白が入り `exact: true` の既存 spec が全部外れる。見える文言で始まる `aria-label` を使う（#163）。運営画面は focus が外れると内容を隠すので、Tab 検査の後は見出しをクリックして「運営セッションを確認」で再開する。

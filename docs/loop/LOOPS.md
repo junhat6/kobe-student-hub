@@ -192,5 +192,8 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh garden` | `0 5 * * *` | `garden-log` Issue 最新コメントの sha 以降に main への commit | prompts/garden.md |
 | `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
 | `ksh release` | 9〜24時に3時間ごと | 未リリースcommitあり・main-health 非赤・リリースCI非実行・open P0 なし | `.claude/skills/release/SKILL.md` |
+| `ksh tidy` | `45 * * * *` | precheck 自体が仕事：終わった run の worktree を安全確認つきで消し、必ず exit 1（agent は起こさない） | [ORCA.md](ORCA.md#3-後片付けksh-tidy-と-prune-worktreesmjs) |
 
 同時に走る builder（finish）は最大3。patrol と garden は builder と別 worktree で動かす。
+
+どの automation も run ごとに新しい worktree を作る（`new_per_run`）。Orca は run が終わっても消さないので、`ksh tidy` が片付ける。bots を使わない理由も含めて [ORCA.md](ORCA.md)。

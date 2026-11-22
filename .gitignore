@@ -39,3 +39,6 @@ test-results-retired-trial/
 
 # Local UI captures and mechanical review output; never publish implicitly
 .impeccable/review/
+
+# tsc -b の増分キャッシュ（worktree を汚して自動掃除を止めるため）
+*.tsbuildinfo
