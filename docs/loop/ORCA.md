@@ -11,6 +11,7 @@
 2. **Orca bots には移らない。** bot はリポジトリの worktree ではなく bot 自身のフォルダで動き、マージなどの最終判断を owner に戻す指示が、上書きできない形で入っているため（§2）。
 3. **足りなかったのは後片付けだけ。** run ごとに作られる worktree が消されず、2日で 66 個たまっていた。`ksh tidy`（precheck だけで動き、agent を起こさない automation）と `scripts/loop/prune-worktrees.mjs` を足して、毎時片付ける（§3）。
 4. **Orca 標準の掃除ルール（Settings の Workspace cleanup → automation runs）は使わない。** 安全確認の中身はこのルールに合わせたが、ルールそのものは使わない理由が3つある（§3.2）。
+5. **automation の agent を Antigravity に替えない（2026-11-23）。** 画像・動画を見る所だけを `npm run look:review`（`agy` を CLI で1回）に渡す。理由と見直す条件は [LOOK.md](LOOK.md#antigravity-を係にしない理由)。
 
 ## 1. 現状の仕組みと、実際に起きていたこと
 

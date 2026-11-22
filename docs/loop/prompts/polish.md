@@ -25,7 +25,7 @@ patrol（巡回）は「旅を最後まで行けるか」を採点して Issue �
 11. 利用ルール `/guide` とエラー・空状態（存在しないURL、0件）
 
 ## 2. 見る（作った人の説明を信用しない）
-- 架空アカウントで、その画面を PC(1280×800) とモバイル(390×844) で実際に操作し、スクリーンショットを撮る（before）。HTTPS fixture（`scripts/session-browser-preview.mjs`）か `npm run editor:preview`
+- 架空アカウントで、その画面を PC(1280×800) とモバイル(390×844) で実際に操作し、`npm run look -- --base editor <path>` でスクリーンショットを撮る（before）。書き出しの前に `npm run look:review` で Antigravity の所見も取り、確かめたものだけ下の一覧に足す（[LOOK.md](../LOOK.md)）。HTTPS fixture（`scripts/session-browser-preview.mjs`）か `npm run editor:preview`
 - 画面の文字を全部読み上げるつもりで数え、次を書き出す（最大10件）
   - 消しても誰も困らない文・ボタン（原則1・4）
   - アイコンに置き換えられる文字（原則2）

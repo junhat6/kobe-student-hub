@@ -51,7 +51,7 @@ Closes #142
 | 段階 | main へ push する前に自分で回すもの |
 | --- | --- |
 | R0 | `npm run format:check`（staged hookが整形）、`npm run build`、変更箇所に近い `vitest`/`playwright` の該当spec |
-| R1 | 上記＋`npm test`＋`npm run test:e2e`＋ブラウザで PC(1280) とモバイル(390) を自分で操作 |
+| R1 | 上記＋`npm test`＋`npm run test:e2e`＋ブラウザで PC(1280) とモバイル(390) を自分で操作（撮って見る手順は [LOOK.md](LOOK.md)） |
 | R2 | 上記＋`npm run test:auth-browser`／`test:editor` の該当系統＋**別contextの独立検証**（[SESSIONS.md](SESSIONS.md#独立検証の頼み方)） |
 
 full CI は `npm run release` の昇格時に必ず回ります。push 前に全系統を回さなくてよい代わりに、**main を壊したら最優先で直す**（壊した人が直す。15分で直せなければ revert）。壊したことは main への push ごとに走る軽い CI `main-health` が数分で知らせ、本人が直さなければ [mend ループ](#0-修理ループ-mendアンドン) が直します。

@@ -12,7 +12,7 @@
 
 ## 1. 歩く
 - J0〜J5 を PC(1280×800) とモバイル(390×844) で歩く。Playwright でもブラウザ操作でもよい
-- 各画面でスクリーンショット。迷った・止まった瞬間は必ず撮る
+- 各画面でスクリーンショット。迷った・止まった瞬間は必ず撮る。撮るのは `npm run look`（PC/モバイル同時、`--video --steps` で操作を録画）、見た目と動きの採点は `npm run look:review` で Antigravity に渡し、所見は確かめてから Issue にする（[LOOK.md](../LOOK.md)）
 - axe（@axe-core/playwright 等）で critical/serious を数える
 
 ## 2. 所見にする

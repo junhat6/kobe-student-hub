@@ -30,6 +30,8 @@
     "release:report": "node scripts/loop/release-log.mjs",
     "release:log": "node scripts/loop/release-log.mjs",
     "smoke": "node scripts/loop/smoke.mjs",
+    "look": "node scripts/loop/look.mjs",
+    "look:review": "node scripts/loop/look-review.mjs",
     "production:config": "node scripts/production-wrangler.mjs"
   },
   "dependencies": {

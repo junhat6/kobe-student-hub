@@ -39,6 +39,8 @@ test-results-retired-trial/
 
 # Local UI captures and mechanical review output; never publish implicitly
 .impeccable/review/
+# npm run look / look:review の撮影と所見（docs/loop/LOOK.md）
+.look/
 
 # tsc -b の増分キャッシュ（worktree を汚して自動掃除を止めるため）
 *.tsbuildinfo
