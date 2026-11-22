@@ -27,10 +27,13 @@ from pathlib import Path
 HOME = Path.home()
 
 SECRET_PATTERNS = [
-    # Private keys (PEM) first, whole: otherwise "PRIVATE_KEY=" below hides only "-----BEGIN" and
-    # prints the body. Covers real line breaks, one line joined by "\n", and a key cut off before
-    # its END line (then the base64 body after BEGIN is hidden).
-    (re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|(?:[A-Za-z0-9+/=:,\s-]|\\[nr])*)"), "[秘密鍵を伏せました]"),
+    # Private keys first, whole: otherwise "PRIVATE_KEY=" below hides only "-----BEGIN" and prints
+    # the body. A key cut off before its END line is hidden from BEGIN to the end of the message,
+    # since its body may be escaped ("\\n", "\/", "\t") or abridged ("...") in any way.
+    (re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|[\s\S]*)"), "[秘密鍵を伏せました]"),
+    (re.compile(r"---- BEGIN SSH2 [A-Z ]*PRIVATE KEY ----(?:[\s\S]*?---- END SSH2 [A-Z ]*PRIVATE KEY ----|[\s\S]*)"), "[秘密鍵を伏せました]"),
+    # PuTTY .ppk: the private part runs from "Private-Lines:" to "Private-MAC: <hex>".
+    (re.compile(r"Private-Lines:[\s\S]*?(?:Private-MAC:\s*[0-9A-Fa-f]+|$)"), "[秘密鍵を伏せました]"),
     (re.compile(r"\b(sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
     # A key glued to a word ("mykeysk-…"); a digit is required so "task-management-…" stays.
     (re.compile(r"(sk|rk|pk)-(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),

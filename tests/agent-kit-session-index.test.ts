@@ -342,6 +342,14 @@ describe('agent kit session_index.py with the home folder as the working place',
       `pemcheck ssh\n-----BEGIN OPENSSH PRIVATE KEY-----\n${body(4)}\n-----END OPENSSH PRIVATE KEY-----\nafter-ssh`,
       `pemcheck cut "private_key": "-----BEGIN PRIVATE KEY-----${esc}${body(5)}${esc}${body(15)}`,
       `pemcheck cut-lines\nkey: -----BEGIN EC PRIVATE KEY-----\n${body(6)}\n${body(16)}`,
+      // Cut off with headers or escapes the body may carry (#214 verifier 1).
+      `pemcheck pgp-cut\n-----BEGIN PGP PRIVATE KEY BLOCK-----\nComment: https://example.invalid/key.html\n\n${body(7)}`,
+      `pemcheck abridged -----BEGIN PRIVATE KEY-----\n${body(8)}\n...\n${body(18)}`,
+      `pemcheck nested {"inner": "{\\"private_key\\": \\"-----BEGIN PRIVATE KEY-----\\\\n${body(9)}\\\\n${body(19)}`,
+      `pemcheck slash "-----BEGIN PRIVATE KEY-----\\n${body(10).replace('+/', '+\\/')}\\n${body(20)}`,
+      `pemcheck tab "-----BEGIN RSA PRIVATE KEY-----\\n\\t${body(12)}\\n\\t${body(14)}`,
+      `pemcheck ssh2\n---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----\nComment: "fictional"\n${body(17)}\n---- END SSH2 ENCRYPTED PRIVATE KEY ----\nafter-ssh2`,
+      `pemcheck ppk\nPuTTY-User-Key-File-3: ssh-ed25519\nPrivate-Lines: 1\n${body(21)}\nPrivate-MAC: 0123abcdef\nafter-ppk`,
     ];
     const claudeDir = join(homeOnly, '.claude', 'projects', '-tmp-pem');
     const codexDir = join(homeOnly, '.codex', 'sessions', '2026', '11', '12');
@@ -355,7 +363,7 @@ describe('agent kit session_index.py with the home folder as the working place',
         [
           {
             type: 'user',
-            timestamp: `2026-11-12T1${i}:00:00Z`,
+            timestamp: `2026-11-12T${String(i).padStart(2, '0')}:00:00Z`,
             cwd: '/tmp/pem',
             message: { content: text },
           },
@@ -370,7 +378,10 @@ describe('agent kit session_index.py with the home folder as the working place',
         [
           {
             type: 'session_meta',
-            payload: { cwd: '/tmp/pem', timestamp: `2026-11-12T1${i}:30:00Z` },
+            payload: {
+              cwd: '/tmp/pem',
+              timestamp: `2026-11-12T${String(i).padStart(2, '0')}:30:00Z`,
+            },
           },
           {
             type: 'response_item',
@@ -391,16 +402,25 @@ describe('agent kit session_index.py with the home folder as the working place',
       files.push(claude, codex);
     });
     const index = runIn('index', '--grep', 'pemcheck');
-    expect(index.split('\n').filter((line) => /^\d{4}-\d{2}-\d{2}/.test(line))).toHaveLength(12);
+    expect(index.split('\n').filter((line) => /^\d{4}-\d{2}-\d{2}/.test(line))).toHaveLength(26);
     expect(index).toContain('[秘密鍵を伏せました]');
     const outputs = [index, ...files.map((file) => runIn('show', file))];
     for (const output of outputs) {
-      for (let n = 1; n <= 16; n++) expect(output).not.toContain(`FictionalPemBody${n}`);
+      for (let n = 1; n <= 21; n++) expect(output).not.toContain(`FictionalPemBody${n}AAAA`);
       expect(output).not.toContain('MIIEvQ');
-      expect(output).not.toMatch(/PRIVATE KEY-----|-----END|BEGIN [A-Z ]*PRIVATE/);
+      expect(output).not.toMatch(
+        /PRIVATE KEY|-----END|---- END|BEGIN [A-Z0-9 ]*PRIVATE|Private-(?:Lines|MAC)/,
+      );
     }
     const shown = outputs.slice(1).join('\n');
-    for (const rest of ['after-env', '"after": "json"', 'after: yaml', 'after-ssh']) {
+    for (const rest of [
+      'after-env',
+      '"after": "json"',
+      'after: yaml',
+      'after-ssh',
+      'after-ssh2',
+      'after-ppk',
+    ]) {
       expect(shown).toContain(rest);
     }
     expect(shown).toContain('## エージェント');
