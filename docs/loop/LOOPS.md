@@ -171,14 +171,14 @@ patrol は旅が最後まで行けるかを採点して Issue にするだけで
 | 項目 | 内容 |
 | --- | --- |
 | 担当 | release レーン（loop-infra が実装・運用） |
-| 起動 | Orca automation `ksh release`：**9〜24時に3時間ごと** の定時列車＋P0修正時の臨時便（`npm run release -- --deploy` を手で）。手順と判断は release skill（`.claude/skills/release/SKILL.md`） |
-| precheck | `node scripts/loop/precheck.mjs release`：未リリースの commit がある、main-health が赤でない、リリースCIが実行中でない。加えて open な `P0` Issue が無い（UX巡回の S1 で列車を止める）。R2 commit がある場合はその独立検証が Issue 上で済んでいる |
+| 起動 | Orca automation `ksh release`：**毎日 08:00 と 20:00（JST）の定時便**（`0 8,20 * * *`、窓は発車から2時間）。窓の外は緊急の修正などの臨時便だけ（`npm run release -- --deploy --hotfix "<理由>"`）。手順と判断は release skill（`.claude/skills/release/SKILL.md`） |
+| precheck | `node scripts/loop/precheck.mjs release` は常に通す（定時便は必ず起こし、見送りも記録する）。止める条件は `npm run release` が判定する：未リリースの commit が無い、main-health が赤、リリースCIが実行中、open な `P0` Issue がある（UX巡回の S1 で列車を止める。臨時便は除く）。R2 commit の独立検証が Issue 上で済んでいないなどの判断は agent が見て `--skip "<理由>"` で残す |
 | 手順 | `npm run release -- --deploy`：選んだSHA → `rc/<sha7>` → CI verify green → release へ fast-forward → tag → GitHub Release → D1 migration（ブックマーク記録後）→ 本番 deploy → smoke → 失敗なら直前の版へ戻す。CI 用 token があれば deploy は GitHub Actions が行い、release スクリプトがそれを見届ける（詳細は [RELEASE.md](../RELEASE.md)） |
-| 出力 | tag、GitHub Release（commit trailer から自動生成した変更点）、本番に対する patrol 1回の起動 |
+| 出力 | tag、GitHub Release（commit trailer から自動生成した変更点）、**Issue `release-log` への便ごとの記録**（いつ・版・含む commit と migration・CI・deploy・smoke・失敗の理由。集計は `npm run release:report`）、本番に対する patrol 1回の起動 |
 
 **D1 migration の扱い**：コードを戻してもDBは戻らないため、migration は「追加してから使う（expand → contract）」で書き、1つ前のコードでも動く形にする。本番への適用は release の deploy に含め、agent が判断して行う（2026-11-21 オーナー決定。以前は人の承認を得た別操作だった）。deploy は適用前に D1 Time Travel のブックマークを記録し、migration → Worker 切り替え → smoke の順に進む。失敗時は Worker だけ戻し、D1 を戻すかは agent が判断する（[RELEASE.md](../RELEASE.md)、release skill）。builder は migration に削除・改名・既存データの書き換えを混ぜず、必要なら contract を別の Issue に分ける。
 
-定時列車にした理由：毎commit出荷だと本番の smoke と巡回が追いつかず、逆に不定期だと「いつ出るか」を誰も約束できない。3時間ごとなら、並行セッションの成果がまとまって出て、巡回が1回挟まり、人は夜のレビューでその日の本番を見られる。
+定時列車にした理由：毎commit出荷だと本番の smoke と巡回が追いつかず、逆に不定期だと「いつ出るか」を誰も約束できない。1日2便（朝8時・夜20時、2026-11-22 オーナー決定。[DECISIONS.md](../DECISIONS.md)）なら、学生が使い始める前の朝と、その日の成果がまとまった夜に出て、便ごとの記録を後から集計できる。
 
 ## 6. 価値検証ループ (value，人が主役)
 
@@ -210,7 +210,7 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh polish` | `30 10-22/3 * * *` | main-health 非赤・open P0 なし・`polish-log` の最新コメントから2時間以上 | prompts/polish.md |
 | `ksh garden` | `0 5 * * *` | `garden-log` Issue 最新コメントの sha 以降に main への commit | prompts/garden.md |
 | `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
-| `ksh release` | 9〜24時に3時間ごと | 未リリースcommitあり・main-health 非赤・リリースCI非実行・open P0 なし | `.claude/skills/release/SKILL.md` |
+| `ksh release` | `0 8,20 * * *`（missed-run grace 100分） | 常に通す（止める条件は `npm run release` が判定して記録） | `.claude/skills/release/SKILL.md` |
 | `ksh tidy` | `45 * * * *` | precheck 自体が仕事：終わった run の worktree を安全確認つきで消し、必ず exit 1（agent は起こさない） | [ORCA.md](ORCA.md#3-後片付けksh-tidy-と-prune-worktreesmjs) |
 
 同時に走る builder（finish）は最大3。patrol と garden は builder と別 worktree で動かす。

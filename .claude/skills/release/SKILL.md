@@ -9,24 +9,38 @@ description: kobe-student-hub の本番リリースを1周回す。main の SHA 
 
 本番の運用（D1 migration・deploy・rollback・secret）は agent が自分で判断して進めてよい（2026-11-21 オーナー決定）。人に戻すのは、課金・契約、新しい資格情報の発行、実利用者への連絡だけ。
 
+## 便（いつ出すか）
+
+- 定時便は毎日 **08:00（朝便）と 20:00（夜便）JST**。窓は発車から 2 時間。`ksh release` automation が起こす（2026-11-22 オーナー決定、docs/DECISIONS.md）。
+- 窓の外で「リリースして」と頼まれたら、まず次の便に寄せる（`npm run release -- --plan` が次の便を出す）。寄せられない理由（本番が壊れている、P0 の修正、利用者に害が出ている）があるときだけ臨時便にし、`--hotfix "<理由>"` を付ける。理由は Issue 番号と症状を短く（例: `"#210 ログインできない"`）。理由の無い臨時便は `npm run release` が exit 5 で止める。
+- 臨時便は open な `P0` があっても出せる（P0 を直す便のため）。main-health が赤なら臨時便でも止まる。
+
+## 記録（毎便、自動）
+
+`npm run release`（`--plan` 以外）は、成功・見送り・失敗のどれで終わっても Issue `release-log` に 1 件コメントする。いつ・便・版（tag/SHA）・含む commit と migration・CI・deploy・smoke・理由が入る。agent が手で書く必要はない。
+
+- 自分の判断で見送る便は、黙って終えずに `npm run release -- --skip "<理由>"` で記録する。
+- `記録を Issue に残せませんでした` と出たら、表示された `npm run release:log -- --retry <file>` を実行する。
+- 集計・報告を頼まれたら `npm run release:report -- --days 7`（`--since YYYY-MM-DD`、`--json`）。「記録なし」の便は、Orca が起こせなかった（Mac が眠っていた等）便。
+
 ## 1周の手順
 
-1. 準備: `git fetch -q && npm ci`。`npm run release -- --plan` で昇格候補（release..main の commit）を見る。
-2. 列車を止める条件を確かめる（どれかに当たれば昇格しない。理由を残して終える）
-   - open な `P0` Issue がある
-   - main-health の最新が赤（`gh run list --workflow main-health.yml -L 1`）
+1. 準備: `git fetch -q && npm ci`。`npm run release -- --plan` で昇格候補（release..main の commit）と今の便を見る。
+2. 機械で判定できる止める条件（変更なし・open な `P0`・main-health 赤・別の rc の CI 実行中）は `npm run release` が見て、見送りとして記録する。agent が見るのは次の2つ。当たったら `npm run release -- --skip "<理由>"` で終える。止める commit より前の SHA だけを出せるなら `--sha <その SHA>` で一部を出してよい
    - 候補に R2（認証・権限・非公開データ・通報・ログ・migration）の commit があり、その独立検証が Issue 上でまだ済んでいない
    - 候補の migration が expand → contract になっていない（下の「migration の確認」）
-3. 実行: `npm run release -- --deploy`
+3. 実行: `npm run release -- --deploy`（臨時便なら `--hotfix "<理由>"` を足す）
    - full CI（`verify`）を `rc/<sha7>` で走らせて待つ。待っている間は `gh run watch` と同じ情報が `[release] CI verify: ...` で出る
    - green なら release へ fast-forward → `release.yml` がタグと GitHub Release を作る
    - deploy の担い手は自動で決まる。environment `production` に `CLOUDFLARE_API_TOKEN` があれば GitHub Actions（`release.yml` の deploy job）を見届け、無ければ手元で `scripts/deploy-production.mjs` を実行する
-4. 結果を残す: `docs/WORK.md` の本番行（最新 tag と SHA）を更新して main へ push。Orca の run なら `orca worktree set --worktree active --comment` に1行。
+4. 結果を残す: 便の記録は自動で Issue `release-log` に入る。本番が変わったときだけ `docs/WORK.md` の本番行（最新 tag と SHA）を更新して main へ push（見送り・失敗では WORK.md を触らない。記録だけの commit で main を進めないため）。Orca の run なら `orca worktree set --worktree active --comment` に1行（記録コメントの URL を添える）。
 
 ## 結果ごとの対応
 
 | 出たもの | 意味 | やること |
 | --- | --- | --- |
+| exit 5 `定時便の窓の外です` | 08:00/20:00 の窓の外で `--hotfix` が無い | 次の便に寄せる。緊急なら理由を書いて `--hotfix` |
+| `見送り:`（exit 0、記録は skipped） | 変更なし・P0・main-health 赤・rc 実行中 | そのまま終える。main-health 赤は mend、P0 は finish が受け持つ |
 | `CI が通りませんでした` | rc の full CI が赤 | `gh run view <id> --log-failed` で原因を特定し、最小の修正を main に push。昇格は次の列車 |
 | `release への push が拒否されました` | ruleset か fast-forward の問題 | `git log origin/release..origin/main` と ruleset を確かめる。force push はしない |
 | exit 3 | 本番設定の入力が無い | `~/.config/kobe-student-hub/production.json`（0600）か環境変数を用意する（docs/RELEASE.md「本番の設定」）。値は Cloudflare（`wrangler deployments list` / `versions view`）から読める |
@@ -49,7 +63,7 @@ CI 用 token が入るまでの手順。
 2. 未適用があれば、先に Time Travel のブックマークを取る（`GET /accounts/{account}/d1/database/{id}/time_travel/bookmark`）。結果を記録する。
 3. 未適用の SQL を番号順に、1ファイルずつ `POST .../query` で適用し、同じ呼び出しで `INSERT INTO d1_migrations (name) VALUES ('<file>')` を記録する。1つでも失敗したら止め、読み戻して状態を確かめる。
 4. readback: 期待する表・列・trigger があること（`sqlite_master`）、`PRAGMA foreign_key_check` が空、`d1_migrations` の件数。
-5. `npm run release -- --sha <release の SHA> --deploy --skip-migrations` で Worker だけ deploy する。
+5. `npm run release -- --sha <release の SHA> --deploy --skip-migrations` で Worker だけ deploy する（便の窓を過ぎていたら `--hotfix "<元の便> の続き（exit 4）"` を足す）。
 
 ## D1 を戻す判断
 

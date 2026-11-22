@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-// npm run release -- [--sha <sha>] [--deploy] [--plan]
+// npm run release -- [--sha <sha>] [--deploy] [--plan] [--hotfix "<理由>"] [--skip "<理由>"]
+//
+// 便: 昇格と deploy は 08:00 / 20:00 JST の定時便の窓（発車から 2 時間）でだけ行う。窓の外は
+//     --hotfix "<理由>" を付けた臨時便だけ（オーナー方針 2026-11-22。scripts/loop/release-log.mjs）。
+// 記録: --plan 以外は、成功・見送り・失敗のどれでも結果を release-log Issue に 1 件残す。
+//     --skip "<理由>" は、agent が判断で見送った便（R2 の独立検証待ちなど）を記録だけして終える。
 //
 // main の 1 つの SHA を「列車」に乗せて release へ昇格させる、唯一の入口。
 //   1. SHA が main の履歴にあり、release から fast-forward できることを確かめる
@@ -11,10 +16,11 @@
 //
 // CI は PR や main では必須にせず、ここでだけ必須にする。main を速く回し、本番に入るものだけを厳しく見るため。
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { smoke } from './loop/smoke.mjs';
+import { nextTrain, recordRelease, trainAt } from './loop/release-log.mjs';
 
 const REPO = process.env.KSH_REPO || 'junhat6/kobe-student-hub';
 const CHECK = 'verify';
@@ -22,9 +28,12 @@ const CI_TIMEOUT_MIN = Number(process.env.KSH_RELEASE_CI_TIMEOUT_MIN || 60);
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
+// 値を取るオプション。値が無い・次が別のオプションなら ''（付いているが空）を返す
 const opt = (name) => {
   const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : undefined;
+  if (i < 0) return undefined;
+  const v = args[i + 1];
+  return v && !v.startsWith('--') ? v : '';
 };
 
 const sh = (cmd, a, o = {}) =>
@@ -40,9 +49,31 @@ const tryGit = (...a) => {
 };
 const isAncestor = (a, b) => spawnSync('git', ['merge-base', '--is-ancestor', a, b]).status === 0;
 const log = (m) => console.log(`[release] ${m}`);
-const die = (m, code = 1) => {
-  console.error(`[release] 中止: ${m}`);
+
+// この列車の記録。終わり方（成功・見送り・失敗）にかかわらず finish() が 1 回だけ残す。
+const now = process.env.KSH_RELEASE_NOW ? new Date(process.env.KSH_RELEASE_NOW) : new Date();
+const hotfix = opt('--hotfix');
+const rec = {
+  v: 1,
+  startedAt: now.toISOString(),
+  train: hotfix !== undefined ? undefined : trainAt(now),
+  hotfix,
+  host: process.env.GITHUB_ACTIONS ? 'actions' : 'local',
+};
+let recording = false; // --plan と便の窓の外での拒否は記録しない（列車が走っていない）
+function finish(outcome, reason, code = 0) {
+  if (outcome === 'skipped') log(`見送り: ${reason}`);
+  if (recording) {
+    rec.outcome = outcome;
+    if (reason) rec.reason = String(reason).split('\n')[0].slice(0, 300);
+    rec.finishedAt = new Date().toISOString();
+    recordRelease(rec);
+  }
   process.exit(code);
+}
+const die = (m, code = 1, outcome = 'error') => {
+  console.error(`[release] 中止: ${m}`);
+  finish(outcome, m, code);
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -80,10 +111,12 @@ async function main() {
   const short = sha.slice(0, 7);
   const release = tryGit('rev-parse', '--verify', '--quiet', 'origin/release');
 
-  if (!isAncestor(sha, 'origin/main'))
-    die(`${short} は origin/main の履歴にありません。hotfix も main で直してから昇格させます。`);
-  if (release && !isAncestor(release, sha))
-    die(`release(${release.slice(0, 7)}) から ${short} へ fast-forward できません。`);
+  const problem = !isAncestor(sha, 'origin/main')
+    ? `${short} は origin/main の履歴にありません。hotfix も main で直してから昇格させます。`
+    : release && !isAncestor(release, sha)
+      ? `release(${release.slice(0, 7)}) から ${short} へ fast-forward できません。`
+      : undefined;
+  if (problem && flag('--plan')) die(problem);
   const pending = release
     ? sh('git', ['log', '--oneline', `${release}..${sha}`])
     : sh('git', ['log', '--oneline', '-20', sha]);
@@ -92,19 +125,57 @@ async function main() {
     log(
       `昇格候補 ${short}（release ${release ? release.slice(0, 7) : '(なし)'} から）:\n${pending}`,
     );
-  if (flag('--plan')) return;
+  if (flag('--plan')) {
+    const t = trainAt(now);
+    log(t ? `いまは${t.label}の窓です。` : `いまは定時便の窓の外です（次は${nextTrain(now)}）。`);
+    return;
+  }
+
+  // 便の窓の外は、理由つきの臨時便だけ
+  if (!rec.train && hotfix === undefined) {
+    console.error(
+      `[release] 中止: いまは定時便（08:00 / 20:00 JST、発車から 2 時間）の窓の外です。次は${nextTrain(now)}。` +
+        '緊急の修正なら --hotfix "<理由>" を付けて臨時便にしてください。',
+    );
+    process.exit(5);
+  }
+  if (hotfix === '')
+    die('--hotfix には理由を書いてください（例: --hotfix "#210 ログインできない"）。', 5);
+  if (opt('--skip') === '') die('--skip には見送る理由を書いてください。', 5);
+  recording = true;
+  if (problem) die(problem);
+  Object.assign(rec, { sha, short, from: release || undefined, tag: tagFor(sha) });
+  if (release !== sha) {
+    const list = pending ? pending.split('\n') : [];
+    const migrations = release
+      ? sh('git', ['diff', '--name-only', '--diff-filter=A', release, sha, '--', 'migrations/'])
+          .split('\n')
+          .filter(Boolean)
+          .map((f) => f.replace(/^migrations\//, ''))
+      : [];
+    rec.commits = { total: list.length, list: list.slice(0, 50) };
+    rec.migrations = migrations;
+  }
+
+  if (opt('--skip')) finish('skipped', opt('--skip'));
+  const gate = gates(release === sha);
+  if (gate) finish('skipped', gate);
 
   if (release !== sha) {
     let s = verifyState(sha);
+    rec.ci = { status: s.status, conclusion: s.conclusion, url: s.url, reused: true };
     if (!(s.status === 'completed' && s.conclusion === 'success')) {
       const rc = `rc/${short}`;
       log(`full CI を ${rc} で走らせます`);
       sh('git', ['push', '--quiet', 'origin', `${sha}:refs/heads/${rc}`]);
       s = await waitForCi(sha);
       tryGit('push', '--quiet', 'origin', '--delete', rc);
+      rec.ci = { status: s.status, conclusion: s.conclusion, url: s.url, reused: false };
       if (s.conclusion !== 'success')
         die(
-          `CI が通りませんでした（${s.status}/${s.conclusion ?? '-'}）。main で直してから再実行してください。${s.url ?? ''}`,
+          `CI が通りませんでした（${s.status}/${s.conclusion ?? '-'}${s.status === 'completed' ? `。${failedSteps(s.url)}` : ''}）。main で直してから再実行してください。${s.url ?? ''}`,
+          1,
+          'ci_failed',
         );
     } else log(`${short} は CI ${CHECK} 成功済みです`);
     const pushed = spawnSync('git', ['push', 'origin', `${sha}:refs/heads/release`], {
@@ -113,12 +184,142 @@ async function main() {
     if (pushed.status !== 0)
       die(
         `release への push が拒否されました（CI は成功済み）。ruleset・fast-forward・同名の release/* ブランチを確認してください。\n${pushed.stderr}`,
+        1,
+        'promote_failed',
       );
     log(`release を ${short} へ昇格しました。タグと GitHub Release は release.yml が作ります。`);
   }
 
-  if (flag('--deploy')) await deploy(sha, release !== sha);
-  else log('本番 deploy はしていません（--deploy で実行）。');
+  if (flag('--deploy')) {
+    await deploy(sha, release !== sha);
+    rec.tag = rec.tag || (await waitForTag(sha));
+    finish(release !== sha ? 'released' : 'redeployed');
+  }
+  log('本番 deploy はしていません（--deploy で実行）。');
+  rec.tag = rec.tag || (await waitForTag(sha));
+  finish(release !== sha ? 'promoted' : 'skipped', release !== sha ? undefined : '変更なし');
+}
+
+// 列車を止める条件のうち、機械で判定できるもの（R2 の独立検証・migration の形は agent が見て --skip で残す）
+function gates(nothingToShip) {
+  // 出すものが無い便は見送り。--sha で今の release を名指しした --deploy だけは「出し直し」として通す
+  if (nothingToShip && !(flag('--deploy') && opt('--sha')))
+    return '変更なし（release は main と同じ）';
+  const q = (a) => {
+    try {
+      return sh('gh', a);
+    } catch {
+      return '';
+    }
+  };
+  const [status, conclusion] = q([
+    'run',
+    'list',
+    '-R',
+    REPO,
+    '--workflow',
+    'main-health.yml',
+    '--branch',
+    'main',
+    '-L',
+    '1',
+    '--json',
+    'status,conclusion',
+    '-q',
+    '.[0] | "\\(.status) \\(.conclusion)"',
+  ]).split(' ');
+  if (status === 'completed' && conclusion === 'failure')
+    return 'main-health が赤（mend が直してから）';
+  const p0 = q([
+    'issue',
+    'list',
+    '-R',
+    REPO,
+    '--label',
+    'P0',
+    '--state',
+    'open',
+    '--json',
+    'number',
+    '-q',
+    'map(.number) | join(",")',
+  ]);
+  if (p0 && !hotfix) return `open な P0 Issue がある（#${p0.split(',').join(', #')}）`;
+  const rcRunning = q([
+    'run',
+    'list',
+    '-R',
+    REPO,
+    '--workflow',
+    'ci.yml',
+    '-L',
+    '20',
+    '--json',
+    'status,headBranch',
+    '-q',
+    '[.[] | select(.status != "completed" and (.headBranch | startswith("rc/")))] | length',
+  ]);
+  if (rcRunning && rcRunning !== '0') return '別の列車の full CI が実行中';
+  return undefined;
+}
+
+// release.yml が付けたタグ（rYYYY.MM.DD.N）。付くまで最長 3 分待つ
+function tagFor(sha) {
+  const out = tryGit('ls-remote', '--tags', 'origin', 'refs/tags/r*');
+  return out
+    .split('\n')
+    .filter((l) => l.startsWith(sha))
+    .map((l) => l.split('refs/tags/')[1])
+    .sort()
+    .pop();
+}
+async function waitForTag(sha) {
+  for (let i = 0; i < 18; i++) {
+    const t = tagFor(sha);
+    if (t) return t;
+    await sleep(10_000);
+  }
+  return undefined;
+}
+
+// CI の失敗した job/step の名前（記録の「理由」用。ログ本文は載せない）
+function failedSteps(url) {
+  const id = url?.match(/runs\/(\d+)/)?.[1];
+  if (!id) return '失敗箇所は不明';
+  try {
+    const names = sh('gh', [
+      'run',
+      'view',
+      id,
+      '-R',
+      REPO,
+      '--json',
+      'jobs',
+      '-q',
+      '[.jobs[] | . as $j | .steps[] | select(.conclusion == "failure") | "\\($j.name): \\(.name)"] | join(", ")',
+    ]);
+    return names ? `失敗: ${names}` : '失敗箇所は不明';
+  } catch {
+    return '失敗箇所は不明';
+  }
+}
+
+// deploy-production.mjs の終了コード → 記録の結果
+const DEPLOY_OUTCOME = { 2: 'smoke_failed', 3: 'config_missing', 4: 'd1_unreachable' };
+function applyDeployResult(result, via, url) {
+  rec.deploy = {
+    via,
+    url,
+    result: result ? (result.code === 0 ? 'success' : `exit ${result.code}`) : 'unknown',
+  };
+  if (result?.smoke) rec.smoke = result.smoke;
+  if (result?.bookmark) rec.bookmark = result.bookmark;
+  if (result?.migrations?.length) rec.migrationsApplied = result.migrations;
+  if (!result || result.code === 0) return;
+  const outcome = /rollback が失敗/.test(result.message)
+    ? 'rollback_failed'
+    : (DEPLOY_OUTCOME[result.code] ?? 'deploy_failed');
+  die(result.message, via === 'actions' ? 1 : result.code, outcome);
 }
 
 // 本番 deploy の担い手を決める。GitHub に CLOUDFLARE_API_TOKEN があれば GitHub Actions（release.yml の deploy job）、
@@ -191,14 +392,43 @@ async function deployViaActions(sha, promotedNow) {
     ['run', 'watch', String(run.databaseId), '--repo', REPO, '--exit-status', '--interval', '30'],
     { stdio: ['ignore', 'ignore', 'inherit'] },
   );
-  if (watched.status !== 0)
+  const result = actionsDeployResult(run.databaseId);
+  if (watched.status !== 0) {
+    if (result) applyDeployResult(result, 'actions', run.url);
+    rec.deploy = { via: 'actions', url: run.url, result: 'failure' };
     die(
       `release.yml が失敗しました。gh run view ${run.databaseId} --repo ${REPO} --log-failed で原因を確かめてください（deploy の終了コードの意味は scripts/deploy-production.mjs の先頭。rollback 済みとは限らない）。`,
+      1,
+      'deploy_failed',
     );
+  }
+  applyDeployResult(result ?? { code: 0, message: '' }, 'actions', run.url);
   const after = await smoke(process.env.KSH_PRODUCTION_ORIGIN || 'https://hub.junhat6.com');
+  rec.smoke = { ok: after.ok, failures: after.failures };
   if (!after.ok)
-    die(`Actions は成功しましたが本番 smoke が失敗しています: ${after.failures.join(', ')}`, 2);
+    die(
+      `Actions は成功しましたが本番 smoke が失敗しています: ${after.failures.join(', ')}`,
+      2,
+      'deploy_failed',
+    );
   log(`本番 deploy 成功（GitHub Actions）: ${run.url}`);
+}
+
+// Actions のログから deploy-production.mjs の結果行を読む
+function actionsDeployResult(id) {
+  try {
+    const out = sh('gh', ['run', 'view', String(id), '--repo', REPO, '--log'], {
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const line = out
+      .split('\n')
+      .map((l) => l.match(/\[deploy\] result (\{.*\})\s*$/)?.[1])
+      .filter(Boolean)
+      .pop();
+    return line ? JSON.parse(line) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function deployLocally(sha) {
@@ -206,6 +436,7 @@ function deployLocally(sha) {
   try {
     sh('git', ['worktree', 'add', '--detach', dir, sha], { stdio: 'inherit' });
     const inDir = { cwd: dir, stdio: 'inherit', env: { ...process.env, HUSKY: '0' } };
+    const resultFile = join(dir, '.ksh-deploy-result.json');
     sh('npm', ['ci'], inDir);
     sh('npm', ['run', 'build'], inDir);
     // 手順は今の main の deploy-production.mjs を使う（古い SHA にはまだ無いことがあるため）
@@ -219,9 +450,18 @@ function deployLocally(sha) {
         sha,
         ...(flag('--skip-migrations') ? ['--skip-migrations'] : []),
       ],
-      { stdio: 'inherit' },
+      { stdio: 'inherit', env: { ...process.env, KSH_DEPLOY_RESULT: resultFile } },
     );
-    if (r.status !== 0) process.exitCode = r.status ?? 1;
+    let result;
+    try {
+      result = JSON.parse(readFileSync(resultFile, 'utf8'));
+    } catch {
+      result =
+        r.status === 0
+          ? undefined
+          : { code: r.status ?? 1, message: 'deploy が結果を残さずに終わりました' };
+    }
+    return result;
   } finally {
     tryGit('worktree', 'remove', '--force', dir);
     rmSync(dir, { recursive: true, force: true });
@@ -231,7 +471,17 @@ function deployLocally(sha) {
 async function deploy(sha, promotedNow) {
   if (actionsDeployEnabled()) return deployViaActions(sha, promotedNow);
   log('CI 用 token が無いので、手元の wrangler で本番 deploy します。');
-  deployLocally(sha);
+  let result;
+  try {
+    result = deployLocally(sha);
+  } catch (e) {
+    die(`手元での build か deploy の準備に失敗しました: ${e.message}`, 1, 'deploy_failed');
+  }
+  applyDeployResult(result, 'local');
 }
 
-await main();
+try {
+  await main();
+} catch (e) {
+  die(e.message ?? String(e));
+}

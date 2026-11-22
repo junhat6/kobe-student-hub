@@ -21,7 +21,7 @@
 - main は開発の幹。直接 commit・push してよい（push 前に `git fetch && git rebase origin/main`）。PR と PR の CI は任意。
 - open な PR を溜めない。オーナーの PR・Dependabot を含め、main と照らして取り込めるものはマージ、取り込み済み・古くなったものは理由を書いてクローズする。garden が毎周見る（[DECISIONS](docs/DECISIONS.md)）。
 - main を壊したら最優先で直す。15分で直せなければ revert。
-- release への昇格と本番反映は `npm run release -- --deploy` で行う。full CI（verify）は昇格時に必須。手順と失敗時の判断は release skill（[.claude/skills/release/SKILL.md](.claude/skills/release/SKILL.md)）。
+- release への昇格と本番反映は `npm run release -- --deploy` で行う。定時便は毎日 08:00 / 20:00 JST（窓は 2 時間）。窓の外は `--hotfix "<理由>"` の臨時便だけ。結果は毎回 Issue `release-log` に自動で残り、`npm run release:report` で集計する。full CI（verify）は昇格時に必須。手順と失敗時の判断は release skill（[.claude/skills/release/SKILL.md](.claude/skills/release/SKILL.md)）。
 - hook の定義は `.claude/settings.json` と `scripts/loop/`。release への直接 push・force push・素の stash は hook で拒否する。本番の運用（deploy・rollback・secret・リモート D1）は止めない。Codex など hook の無い環境でも同じ決まりを守る。
 - migration は expand → contract（1つ前の Worker でも動く形）で書く。本番への適用は release の deploy が Time Travel ブックマークを残してから行う。
 - 本番の wrangler 設定は `scripts/production-wrangler.mjs` が生成する。ID・宛先はリポジトリに置かない（`~/.config/kobe-student-hub/production.json` か environment `production` の secrets。[RELEASE.md](docs/RELEASE.md#本番の設定)）。

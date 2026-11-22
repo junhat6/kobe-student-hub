@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Orca automation の precheck。exit 0 のときだけ agent を起こす（無駄な起動と課金を避けるため）。
 // ループ名は docs/loop/LOOPS.md に揃える。
-//   release … main に未リリースの commit があり、main-health が赤でなく、open な P0 Issue が無く、リリース CI が実行中でない
+//   release … 常に起こす（定時便は見送りも含めて必ず記録する。止める条件は scripts/release.mjs が判定する）
 //   mend    … main の最新 main-health が失敗している（アンドン：最優先で直す）
 //   patrol  … 前回巡回の SHA 以降に src / worker / public の変更がある、または前回巡回の後に release が出た
 //   polish  … main-health が赤でなく、open な P0 が無く、polish-log の最新コメントから 2 時間以上たっている
@@ -49,42 +49,9 @@ const skip = (why) => {
 const mode = process.argv[2];
 
 if (mode === 'release') {
-  const main = head('main');
-  if (!main) skip('main を取得できない');
-  if (head('release') === main) skip('release は main と同じ');
-  const [status, conclusion] = health();
-  if (status === 'completed' && conclusion === 'failure')
-    skip('main-health が赤。先に mend が直す');
-  const p0 = gh(
-    'issue',
-    'list',
-    '-R',
-    REPO,
-    '--label',
-    'P0',
-    '--state',
-    'open',
-    '--json',
-    'number',
-    '-q',
-    'length',
-  );
-  if (p0 && p0 !== '0') skip(`open な P0 Issue が ${p0} 件。列車を止める`);
-  const rcRunning = gh(
-    'run',
-    'list',
-    '-R',
-    REPO,
-    '--workflow',
-    'ci.yml',
-    '-L',
-    '20',
-    '--json',
-    'status,headBranch',
-    '-q',
-    '[.[] | select(.status != "completed" and (.headBranch | startswith("rc/")))] | length',
-  );
-  if (rcRunning && rcRunning !== '0') skip('リリース CI が実行中');
+  // 定時便（08:00 / 20:00 JST）は必ず起こす。止める条件（変更なし・main-health 赤・open な P0・
+  // rc の CI 実行中）は scripts/release.mjs が判定し、「見送り」として release-log に記録する。
+  // ここで skip すると agent が起きず、その便の記録が残らないため（オーナー方針 2026-11-22）。
   process.exit(0);
 }
 

@@ -27,6 +27,8 @@
     "prepare": "node .husky/install.mjs",
     "lint:staged": "lint-staged",
     "release": "node scripts/release.mjs",
+    "release:report": "node scripts/loop/release-log.mjs",
+    "release:log": "node scripts/loop/release-log.mjs",
     "smoke": "node scripts/loop/smoke.mjs",
     "production:config": "node scripts/production-wrangler.mjs"
   },

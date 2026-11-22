@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest';
+import {
+  formatRecord,
+  formatReport,
+  nextTrain,
+  parseRecord,
+  summarize,
+  trainAt,
+  // @ts-expect-error plain ESM script without type declarations
+} from '../scripts/loop/release-log.mjs';
+
+const jst = (s: string) => new Date(`${s}+09:00`);
+
+describe('release trains (08:00 / 20:00 JST, 2h window)', () => {
+  it.each([
+    ['2026-11-22T08:00:00', 'morning'],
+    ['2026-11-22T09:59:00', 'morning'],
+    ['2026-11-22T20:00:00', 'evening'],
+    ['2026-11-22T21:30:00', 'evening'],
+  ])('%s is inside the %s window', (at, id) => {
+    expect(trainAt(jst(at))?.id).toBe(id);
+    expect(trainAt(jst(at))?.slot).toBe(`2026-11-22 ${id}`);
+  });
+
+  it.each([
+    '2026-11-22T07:59:00',
+    '2026-11-22T10:00:00',
+    '2026-11-22T15:00:00',
+    '2026-11-22T22:00:00',
+    '2026-11-22T03:00:00',
+  ])('%s is outside every window', (at) => expect(trainAt(jst(at))).toBeUndefined());
+
+  it('uses JST regardless of the host clock', () => {
+    // 2026-11-21T23:30Z = 2026-11-22 08:30 JST
+    expect(trainAt(new Date('2026-11-21T23:30:00Z'))?.slot).toBe('2026-11-22 morning');
+  });
+
+  it('names the next train', () => {
+    expect(nextTrain(jst('2026-11-22T12:00:00'))).toBe('夜便 20:00');
+    expect(nextTrain(jst('2026-11-22T22:00:00'))).toBe('朝便 08:00');
+  });
+});
+
+const record = {
+  v: 1,
+  startedAt: '2026-11-22T11:00:00.000Z',
+  finishedAt: '2026-11-22T11:25:00.000Z',
+  train: { id: 'evening', label: '夜便', hour: 20, day: '2026-11-22', slot: '2026-11-22 evening' },
+  sha: 'a'.repeat(40),
+  short: 'aaaaaaa',
+  from: 'b'.repeat(40),
+  tag: 'r2026.11.22.3',
+  commits: { total: 2, list: ['aaaaaaa feat: x | y', 'ccccccc fix: --> z'] },
+  migrations: ['0012_add.sql'],
+  ci: {
+    status: 'completed',
+    conclusion: 'success',
+    url: 'https://example.test/run/1',
+    reused: false,
+  },
+  deploy: { via: 'actions', result: 'success', url: 'https://example.test/run/2' },
+  smoke: { ok: true, failures: [] },
+  outcome: 'released',
+};
+
+describe('release record', () => {
+  it('round-trips through the Issue comment body', () => {
+    const body = formatRecord(record);
+    expect(body).toContain('夜便');
+    expect(body).toContain('r2026.11.22.3');
+    expect(body).toContain('0012_add.sql');
+    expect(body).toContain('- aaaaaaa feat: x | y');
+    expect(parseRecord(body)).toEqual(record);
+  });
+
+  it('ignores comments that are not records', () => {
+    expect(parseRecord('hello')).toBeUndefined();
+    expect(parseRecord(undefined)).toBeUndefined();
+  });
+
+  it('summarizes outcomes and finds trains without a record', () => {
+    const failed = {
+      ...record,
+      startedAt: '2026-11-21T23:05:00.000Z',
+      train: { ...record.train, id: 'morning', label: '朝便', slot: '2026-11-22 morning' },
+      outcome: 'ci_failed',
+      reason: 'CI が通りませんでした（失敗: verify: E2E）',
+      ci: { ...record.ci, conclusion: 'failure' },
+    };
+    const hotfix = {
+      ...record,
+      startedAt: '2026-11-22T06:00:00.000Z',
+      train: undefined,
+      hotfix: '#210 ログイン不可',
+    };
+    const s = summarize([record, failed, hotfix], {
+      from: jst('2026-11-21T00:00:00'),
+      to: jst('2026-11-22T23:00:00'),
+    });
+    expect(s.total).toBe(3);
+    expect(s.released).toBe(2);
+    expect(s.failed).toBe(1);
+    expect(s.hotfix).toBe(1);
+    expect(s.missedSlots).toEqual(['2026-11-21 朝便', '2026-11-21 夜便']);
+    const report = formatReport(s);
+    expect(report).toContain('記録なし 2 便');
+    expect(report).toContain('臨時便');
+    expect(report).toContain('CI が通りませんでした');
+  });
+
+  it('does not count a train whose window is still open as missed', () => {
+    const s = summarize([], { from: jst('2026-11-22T00:00:00'), to: jst('2026-11-22T20:30:00') });
+    expect(s.missedSlots).toEqual(['2026-11-22 朝便']);
+  });
+});

@@ -36,13 +36,26 @@
 
 PR に CI を付けない理由。いまはセッションの数だけ並行して変更が入り、PR ごとに 15〜25 分の E2E を待つと、ループの速度が CI の待ち時間で決まってしまう。壊れたものが本番に入らないことは昇格時の `verify` で守れる。main が壊れたことは `main-health` が数分で知らせる。
 
+## 便と記録（2026-11-22 オーナー決定）
+
+- **定時便**：毎日 **08:00（朝便）と 20:00（夜便）JST**。Orca automation `ksh release` が起こす。便の窓は発車から 2 時間（08:00〜09:59、20:00〜21:59）。
+- **臨時便**：窓の外の昇格・deploy は、`--hotfix "<理由>"` を付けたときだけ通る（緊急の修正、壊れた本番の復旧など）。付けなければ `npm run release` が exit 5 で止め、次の便を案内する。臨時便は open な `P0` があっても出せる。
+- **見送り**：変更なし・main-health 赤・open な `P0`・別の rc の CI 実行中は、`npm run release` が自分で見送る。R2 の独立検証待ちのような判断は agent が `npm run release -- --skip "<理由>"` で見送りとして残す。
+- **記録**：`npm run release`（`--plan` を除く）は、成功・見送り・失敗のどの終わり方でも、GitHub Issue（label `release-log`、タイトル「Release log（リリース列車の記録）」）へ 1 便 1 コメントを書く。中身は、開始・終了時刻、便（朝便／夜便／臨時便とその理由）、版（tag と SHA）、前の release、含む commit と新しい migration、CI verify の結果と URL（失敗した job・step 名）、deploy の担い手と結果、smoke の結果、D1 ブックマーク、結果の種類と理由。人が読む表と、集計用の 1 行 JSON を同じコメントに入れる（`scripts/loop/release-log.mjs`）。
+- **集計**：`npm run release:report -- --days 7`（または `--since 2026-11-22`、`--json`）。結果の内訳、失敗とその理由、記録の無い定時便を出す。Issue へ書けなかったときは、手元に残した JSON を `npm run release:log -- --retry <file>` で送り直す。
+
+記録をリポジトリのファイルでなく Issue に置く理由：記録の commit が main に入ると、main が常に「未リリース」になり、次の便が記録だけを出荷しに行く。GitHub Release は昇格した便にしかできず、見送りや CI 赤の理由を残せない。
+
 ## リリースの手順（人でも agent でも同じ）
 
 ```bash
 npm run release -- --plan            # 何が昇格するかを見るだけ
 npm run release                      # origin/main の先頭を昇格（CI を待つ）
 npm run release -- --sha <sha>       # main の特定の SHA を昇格
-npm run release -- --deploy          # 昇格 + 本番 deploy（migration → deploy → smoke、失敗時は自動 rollback）
+npm run release -- --deploy          # 昇格 + 本番 deploy（migration → deploy → smoke、失敗時は自動 rollback）。定時便の窓の中だけ
+npm run release -- --deploy --hotfix "#210 ログインできない"   # 窓の外の臨時便（理由は記録に残る）
+npm run release -- --skip "R2 #205 の独立検証待ち"             # 判断で見送った便を記録する
+npm run release:report -- --days 7   # 便ごとの記録を集計する
 npm run release -- --sha <release の SHA> --deploy --skip-migrations   # 昇格済みの版を Worker だけ出し直す
 npm run smoke -- https://hub.junhat6.com
 ```
@@ -62,7 +75,7 @@ npm run smoke -- https://hub.junhat6.com
 4. `wrangler deploy` で切り替える（独自ドメイン `hub.junhat6.com`・cron `*/15`・CPU 上限も設定どおりに揃う）。
 5. 本番 smoke（トップ・`/api/health`・`/api/catalog`・書き込み拒否・security header）。失敗したら `wrangler rollback` で直前の版に戻す。
 
-終了コード：0 成功／2 smoke 失敗で rollback 済み／3 設定の入力が無い／4 D1 に届かない／1 その他（rollback の失敗を含む）。`npm run release` は Actions の deploy が失敗したとき、理由を問わず 1 を返す（ログで確かめる）。
+終了コード：0 成功（見送りを含む）／2 smoke 失敗で rollback 済み／3 設定の入力が無い／4 D1 に届かない／5 定時便の窓の外（`--hotfix` が無い）・引数の不足／1 その他（rollback の失敗を含む）。`npm run release` は Actions の deploy が失敗したとき、理由を問わず 1 を返す（ログで確かめる）。
 
 **hotfix も main で直す。** release へ直接 commit したり cherry-pick したりしない。直した commit を main に push し、その SHA を昇格させる。
 
@@ -102,7 +115,7 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 
 | 名前 | 起動 | precheck（`node scripts/loop/precheck.mjs <mode>`） | 仕事 |
 | --- | --- | --- | --- |
-| `ksh release` | 3 時間ごと（9〜24 時） | `release`：未リリースの commit がある・main-health が赤でない・open な `P0` Issue が無い・rc の CI が実行中でない | release skill（`.claude/skills/release/SKILL.md`）に従って `npm run release -- --deploy` を回し、結果ごとに対応する |
+| `ksh release` | 毎日 08:00・20:00（`0 8,20 * * *`、missed-run grace 100 分） | `release`：常に通す（止める条件は `npm run release` が判定し、見送りとして記録する） | release skill（`.claude/skills/release/SKILL.md`）に従って `npm run release -- --deploy` を回し、結果ごとに対応する。結果は Issue `release-log` に自動で残る |
 | `ksh mend` | 毎時 | `mend`：main-health の最新が失敗 | 失敗の原因を直して main に push する（アンドン） |
 | `ksh patrol` | 3 時間ごと（`docs/loop/prompts/patrol.md`） | `patrol`：`patrol-log` Issue に記録した前回 SHA 以降に `src/`・`worker/`・`public/` の変更がある、または前回巡回の後に release が出た | 別 context で PC / モバイルの利用者の旅を歩き、UX の所見を Issue にする |
 | `ksh finish` | 30 分ごと | `finish`：未 claim の `P0`/`P1`（`loop:finish`/`loop:ux`）があり、claim 中が 3 件未満 | `docs/loop/prompts/finish.md` に従って Issue を 1 件閉じる |

@@ -9,13 +9,17 @@
 //   4. `wrangler deploy` で切り替える（cron・独自ドメインも設定どおりに揃う）
 //   5. 本番 smoke。失敗したら Worker を直前の版へ rollback する（D1 は自動では戻さない）
 //
+// 結果は最後に `[deploy] result {json}` の 1 行で出す（KSH_DEPLOY_RESULT があればそのファイルにも書く）。
+// scripts/release.mjs がこれを読んでリリース記録に載せる。json には自前の 1 行メッセージだけを入れ、
+// wrangler の生の出力は入れない（公開の記録に ID などが漏れないように）。
+//
 // 終了コード: 0 成功 / 2 smoke 失敗で rollback 済み / 3 設定の入力が無い / 4 D1 に届かない / 1 その他の失敗
 //
 // D1 を自動で戻さない理由: Time Travel の restore はブックマーク以降の書き込み（利用者の投稿など）も消す。
 // migration は expand → contract で「1つ前の Worker でも動く」形にする決まりなので、Worker の rollback だけで復旧できる。
 // D1 の restore が必要かどうかは、ログに残したブックマークを使って agent が個別に判断する（docs/RELEASE.md）。
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, readdirSync } from 'node:fs';
+import { appendFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { smoke } from './loop/smoke.mjs';
 import { ORIGIN, writeProductionConfig } from './production-wrangler.mjs';
@@ -36,9 +40,16 @@ const summary = (m) => {
   log(m);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${m}\n`);
 };
+const result = { migrations: [], bookmark: '', smoke: undefined };
+const finish = (code, message) => {
+  const line = JSON.stringify({ code, message: message.split('\n')[0].slice(0, 300), ...result });
+  console.log(`[deploy] result ${line}`);
+  if (process.env.KSH_DEPLOY_RESULT) writeFileSync(process.env.KSH_DEPLOY_RESULT, line);
+  process.exit(code);
+};
 const die = (m, code = 1) => {
   summary(`中止: ${m}`);
-  process.exit(code);
+  finish(code, m);
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -92,6 +103,7 @@ else {
   else {
     const tt = wrangler(['d1', 'time-travel', 'info', 'DB', '--json'], { capture: true });
     const bookmark = tt.ok ? jsonOut(tt.out).bookmark : '';
+    result.bookmark = bookmark;
     if (!bookmark)
       die(`Time Travel のブックマークを取れないので migration を適用しません。\n${tt.err}`);
     summary(`D1 migration 適用前のブックマーク: \`${bookmark}\`（適用: ${pending.join(', ')}）`);
@@ -99,6 +111,7 @@ else {
       die(
         `migration の適用に失敗しました。Worker は切り替えていません。D1 の状態を確かめ、必要ならブックマーク ${bookmark} へ restore するかを判断してください。`,
       );
+    result.migrations = pending;
     summary(`D1 migration を適用しました: ${pending.join(', ')}`);
   }
 }
@@ -115,9 +128,10 @@ for (let i = 0; i < 3 && !after.ok; i++) {
   await sleep(5_000 * (i + 1));
   after = await smoke(origin);
 }
+result.smoke = { ok: after.ok, failures: after.failures };
 if (after.ok) {
   summary(`本番 deploy 成功: ${short} → ${origin}（smoke OK）`);
-  process.exit(0);
+  finish(0, 'deploy 成功（smoke OK）');
 }
 summary(`本番 smoke 失敗: ${after.failures.join(', ')}。直前の版へ rollback します。`);
 const rolledBack = wrangler(['rollback', '--message', `smoke failed for ${short}`, '--yes']).ok;
