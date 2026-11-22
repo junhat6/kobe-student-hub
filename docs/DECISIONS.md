@@ -2,6 +2,19 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-23 — オーナーの実機動画は Antigravity CLI の動画レビュー係が見る（オーナーの決定を受けた受け側）
+
+オーナー（服部）の決定：窓口は Muse（ヨッチ）に一本化し、オーナーはスマホで撮った動作確認の動画を Drive「hub動画ポスト」に上げて Muse に伝える。Muse が Mac mini の `~/video-inbox/` に置き、Antigravity CLI のレビューを起動し、結果を Muse がオーナーへ返す。受け側の詳細は任された。これを受けて次のように決める。
+
+1. **入口は1コマンド `ksh-video-review`。** Mac mini の `~/.local/bin` に置いたランチャ（元は `scripts/loop/ksh-video-review.sh`）が、origin/main の `scripts/loop/video-review.mjs`・[指示書](loop/prompts/video-review.md)・ux-rubric を一時ファイルに書き出して実行する。引数なしなら inbox のまだ見ていない動画を全部、パスを渡せば1本（inbox の外の動画は inbox に写す。Orca チャットの添付もそのまま渡せる）。理由：Muse の設定はこのリポジトリの外にあり、変わるたびに Muse を直さずに済むようにする。main の checkout は古いことがあるので、ksh tidy と同じく origin/main から読む。
+2. **観点は ux-rubric を正本にし、指示書には実機でしか出ないもの（キーボード・セーフエリア・タッチ・戻る・体感の待ち）と、非公開の情報が映ったら S1 だけを足す。** viewport で分かることは patrol・polish が拾うので、この係は深追いしない。
+3. **agy には、動画1本だけを置いた作業フォルダを見せ、読むことだけを許す**（`--sandbox`、`permissions.allow: read_file(*)`、`deny: command(*)`、`--json-schema` で所見を構造にする）。長辺 1280px 超・H.264 以外・40MB 超は 720px に縮める（agy は 1 ファイル 100MB で読むのを拒む）。モデルは gemini-4-argon-high、失敗したら gemini-3.8-flash-high。
+4. **結果は動画の隣の `<動画>.review.md`／`.review.json` に置き、標準出力の最後に Muse がそのまま返せる短い要約を出す。** 会話 ID を残すので、オーナーの追加の質問は `--ask` で同じ会話に答えさせる。メールアドレス・ホームのパスは出力の全部に1か所で伏せる。
+5. **公開 Issue にするのはオーナーが頼んだときだけ（`--issues`、`loop:ux`、S1→P0・S2→P1）。** 動画の読み取りには見間違いが混じり（実在しない誤字、ローカルの 503 を S1 にした例）、実機の画面には非公開の情報が写りうるため。Issue の本文には「直す前に画面で再現を確かめる」を付ける。
+6. **手元の動画は 30 日で消す**（レビュー済みのものだけ。元は Drive にある）。
+7. 採らない場合の影響：Muse に agy の呼び方・観点・保存先を持たせると、観点を直すたびにリポジトリの外を直すことになり、ループの学び（ux-rubric の較正）が動画レビューに届かない。自動で Issue にすると、見間違いと個人情報が公開リポジトリに出る。
+8. 区別：このレビューは AI による動画の読み取りであり、オーナーの確認（人の判断）でも学生による価値検証でもない。実機で撮られていても、AI が見た所見は再現を確かめるまで「起きた」と書かない。
+
 ## 2026-11-23 — 受け口は新しく作らない。スクショは Muse か Discord、動画は Drive「hub動画ポスト」→ Muse（オーナーの確認を受けて、直下の「メール1本」を取り消す）
 
 オーナー（服部）の確認：スクショとその画面への不満は、従来どおり Muse（ヨッチ）に直接投げるか Discord のテキストチャンネルに投稿して Muse が読みに行く形でよく、新しい仕組みは要らない。動画だけが Drive の「hub動画ポスト」経由の仕組みを使う。これを受けて次のように決める。
