@@ -17,14 +17,19 @@ const stamp = (n: number) =>
 export default function ProfileReportCases({
   fetcher,
   initialCaseId,
+  resumed = 0,
 }: {
   fetcher: typeof fetch;
   initialCaseId?: string | null;
+  /** Bumped by OperatorReadBoundary after a re-check on the same session. */
+  resumed?: number;
 }) {
   const client = useMemo(() => createProfileModerationClient(fetcher), [fetcher]);
   const session = useMemo(() => createModerationClient(fetcher), [fetcher]);
   const generation = useRef(0),
-    request = useRef<AbortController | null>(null);
+    request = useRef<AbortController | null>(null),
+    failed = useRef(false),
+    selectedRef = useRef<string | null>(null);
   const [cases, setCases] = useState<ProfileReportCaseSummary[] | null>(null),
     [selected, setSelected] = useState<string | null>(null),
     [detail, setDetail] = useState<ProfileReportCase | null>(null),
@@ -38,6 +43,7 @@ export default function ProfileReportCases({
     request.current = controller;
     setBusy(true);
     setSelected(id);
+    selectedRef.current = id;
     setDetail(null);
     setMessage(
       id ? '選択したプロフィールの通報を取得しています…' : '確認待ちの一覧を取得しています…',
@@ -48,6 +54,7 @@ export default function ProfileReportCases({
         id ? client.readCase(id, controller.signal) : Promise.resolve(null),
       ]);
       if (run !== generation.current) return;
+      failed.current = false;
       setCases(list);
       setDetail(one);
       setMessage(
@@ -59,6 +66,7 @@ export default function ProfileReportCases({
       );
     } catch {
       if (run !== generation.current) return;
+      failed.current = true;
       setCases(null);
       setDetail(null);
       setMessage(
@@ -97,6 +105,11 @@ export default function ProfileReportCases({
       request.current?.abort();
     };
   }, [client]);
+  // A session re-check aborts reads that were still in flight. Redo only a failed read, so a
+  // successful view and the typed removal reason stay as they are.
+  useEffect(() => {
+    if (resumed && failed.current) void load(selectedRef.current);
+  }, [resumed]);
   return (
     <>
       <p className="moderation-message" aria-live="polite" aria-atomic="true">

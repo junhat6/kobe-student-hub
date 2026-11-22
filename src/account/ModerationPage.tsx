@@ -71,9 +71,14 @@ export default function ModerationPage() {
             : '記事の通報と判断'}
       </h2>
       <OperatorReadBoundary decisions>
-        {(fetcher) =>
+        {(fetcher, resumed) =>
           kind === 'profile' ? (
-            <ProfileReportCases key={kind} fetcher={fetcher} initialCaseId={initialCaseId} />
+            <ProfileReportCases
+              key={kind}
+              fetcher={fetcher}
+              initialCaseId={initialCaseId}
+              resumed={resumed}
+            />
           ) : (
             <>
               <ModerationCases

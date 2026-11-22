@@ -21,7 +21,8 @@ export default function OperatorReadBoundary({
   children,
   decisions = false,
 }: {
-  children: (fetcher: typeof fetch) => ReactNode;
+  /** `resumed` counts re-checks that kept the same scope, so a child can redo an interrupted read. */
+  children: (fetcher: typeof fetch, resumed: number) => ReactNode;
   decisions?: boolean;
 }) {
   const client = useMemo(() => createSessionClient(), []),
@@ -38,6 +39,7 @@ export default function OperatorReadBoundary({
   const [scope, setScope] = useState<typeof scopeRef.current>(null),
     [concealed, setConcealed] = useState(true),
     [busy, setBusy] = useState(false),
+    [resumed, setResumed] = useState(0),
     [message, setMessage] = useState('既存のセッションを確認しています…');
   const guardedFetch = useCallback<typeof fetch>((input, init) => {
     const current = guard.current;
@@ -108,6 +110,9 @@ export default function OperatorReadBoundary({
         (decisions && document.visibilityState !== 'visible')
       )
         return;
+      // pause() aborts in-flight reads through the guard; a kept scope is not remounted, so
+      // tell it that it resumed instead of leaving an interrupted read as a stuck failure.
+      if (scopeRef.current) setResumed((n) => n + 1);
       const next = scopeRef.current ?? {
         fetcher: decisions ? guardedFetch : current.fetcher,
         generation: ++mountRevision.current,
@@ -191,7 +196,7 @@ export default function OperatorReadBoundary({
         hidden={!scope || concealed}
         inert={!scope || concealed}
       >
-        {scope && <div key={scope.generation}>{children(scope.fetcher)}</div>}
+        {scope && <div key={scope.generation}>{children(scope.fetcher, resumed)}</div>}
       </div>
     </>
   );

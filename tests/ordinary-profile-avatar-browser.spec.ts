@@ -96,8 +96,24 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     await operator.context.setExtraHTTPHeaders({ 'X-Test-Operator-Subject': operator.subject });
     const ops = await operator.context.newPage();
     await ops.setViewportSize(page.viewportSize()!);
+    // #208: hold the first case read so the explicit session re-check aborts it mid-flight, as a
+    // slow CI runner did. The view must re-read after resuming instead of staying failed.
+    let held = false;
+    let release = () => {};
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const reached = new Promise<void>((resolve) =>
+      ops.route('**/api/private/profile-moderation/cases/*', async (route) => {
+        if (held) return route.continue();
+        held = true;
+        resolve();
+        await released;
+        await route.continue().catch(() => {});
+      }),
+    );
     await ops.goto('/moderation?type=profile&case=' + author.profileId);
+    await reached;
     await ops.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
+    release();
     const detail = ops.getByRole('region', { name: '選択した通報内容' });
     await expect(detail.getByRole('img', { name: 'いまのアイコン画像' })).toBeVisible();
     await detail.getByLabel('外す理由（本人に届きます）').fill('架空の取り外し理由-' + key);
