@@ -15,6 +15,8 @@ const FAKE_EMAIL = 'fictional.student@st.example.ac.jp';
 
 let home: string;
 let sessionPath: string;
+// Claude Code turns every non-alphanumeric character of the path into "-".
+const encoded = (path: string) => path.replace(/[^A-Za-z0-9]/g, '-');
 
 function run(...args: string[]) {
   return execFileSync('python3', ['-I', SCRIPT, ...args], {
@@ -24,7 +26,8 @@ function run(...args: string[]) {
 }
 
 beforeAll(() => {
-  home = mkdtempSync(join(tmpdir(), 'ksh-kit-'));
+  // A user name with "_" and "-" so a partial mask would leave the surname visible.
+  home = join(mkdtempSync(join(tmpdir(), 'ksh-kit-')), 'fictional_taro-yamada');
   const dir = join(home, '.claude', 'projects', '-Users-fictionaluser-docker-notes');
   mkdirSync(dir, { recursive: true });
   sessionPath = join(dir, 'fictional-session.jsonl');
@@ -52,10 +55,7 @@ beforeAll(() => {
   writeFileSync(sessionPath, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
   // Sessions without a cwd fall back to Claude Code's folder name, which encodes the full path
   // (including the user name) with "/" turned into "-".
-  for (const folder of [
-    home.replace(/[/\\.:]/g, '-') + '-private-repo',
-    '-home-fictionaluser-linux-notes',
-  ]) {
+  for (const folder of [encoded(home) + '-private-repo', '-home-fictionaluser-linux-notes']) {
     const other = join(home, '.claude', 'projects', folder);
     mkdirSync(other, { recursive: true });
     writeFileSync(
@@ -67,9 +67,41 @@ beforeAll(() => {
       }) + '\n',
     );
   }
+  // index shortens titles; a secret or email that straddles the cut must still be hidden.
+  const codexDir = join(home, '.codex', 'sessions', '2026', '11', '03');
+  mkdirSync(codexDir, { recursive: true });
+  writeFileSync(
+    join(codexDir, 'rollout-fictional.jsonl'),
+    [
+      {
+        type: 'session_meta',
+        payload: { cwd: '/tmp/cut-notes', timestamp: '2026-11-03T10:00:00Z' },
+      },
+      {
+        type: 'response_item',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'docker ' + 'あ'.repeat(76) + ' ' + FAKE_KEY }],
+        },
+      },
+    ]
+      .map((l) => JSON.stringify(l))
+      .join('\n') + '\n',
+  );
+  const antigravity = join(home, '.gemini', 'antigravity-cli');
+  mkdirSync(antigravity, { recursive: true });
+  writeFileSync(
+    join(antigravity, 'history.jsonl'),
+    JSON.stringify({
+      display: 'docker ' + 'い'.repeat(24) + ' ' + FAKE_EMAIL,
+      timestamp: '2026-11-04T10:00:00Z',
+      workspace: '/tmp/cut-notes',
+    }) + '\n',
+  );
 });
 
-afterAll(() => rmSync(home, { recursive: true, force: true }));
+afterAll(() => rmSync(join(home, '..'), { recursive: true, force: true }));
 
 describe('agent kit session_index.py', () => {
   it('lists and shows a fictional session with secrets, emails and user paths masked', () => {
@@ -90,9 +122,12 @@ describe('agent kit session_index.py', () => {
       expect(output).not.toContain(FAKE_KEY);
       expect(output).not.toContain(FAKE_GH);
       expect(output).not.toContain(FAKE_EMAIL);
+      expect(output).not.toContain(FAKE_KEY.slice(0, 8));
+      expect(output).not.toContain('fictional.student');
       expect(output).not.toContain('fictionaluser');
       expect(output).not.toContain(home);
-      expect(output).not.toContain(home.replace(/[/\\.:]/g, '-'));
+      expect(output).not.toContain(encoded(home));
+      expect(output).not.toContain('yamada');
     }
   });
 

@@ -46,8 +46,8 @@ def mask(text: str) -> str:
     home = str(HOME)
     if home and home != "/":
         text = text.replace(home, "~")
-        # Claude Code names project folders after the path with "/" turned into "-".
-        text = text.replace(re.sub(r"[/\\.:]", "-", home), "~")
+        # Claude Code names project folders after the path with every other character turned into "-".
+        text = text.replace(re.sub(r"[^A-Za-z0-9]", "-", home), "~")
     text = re.sub(r"(/Users/|/home/|C:\\Users\\)[^/\\\s]+", r"\1<you>", text)
     return re.sub(r"(?i)(?<![A-Za-z0-9])(-Users-|-home-|C--Users-)[^-/\\\s]+", r"\1<you>", text)
 
@@ -213,7 +213,7 @@ def antigravity_sessions():
         days.setdefault(key, []).append(text)
     for (day, project), prompts in days.items():
         yield Session("antigravity", path, parse_time(day + "T00:00:00+00:00") if day else None, project,
-                      f"{len(prompts)}件の依頼: " + " / ".join(one_line(p, 40) for p in prompts[:3]))
+                      f"{len(prompts)}件の依頼: " + " / ".join(one_line(mask(p), 40) for p in prompts[:3]))
 
 
 def all_sessions():
@@ -246,7 +246,7 @@ def command_index(args):
     rows.sort(key=lambda s: s.started or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     for s in rows[: args.limit]:
         day = s.started.strftime("%Y-%m-%d") if s.started else "----------"
-        print(f"{day}  {s.tool:<11} {one_line(mask(s.project), 28):<28}  {mask(one_line(s.title, 90))}")
+        print(f"{day}  {s.tool:<11} {one_line(mask(s.project), 28):<28}  {one_line(mask(s.title), 90)}")
         print(f"            {mask(str(s.path))}")
     if not rows:
         print("該当するセッションが見つかりませんでした。--since や --grep を外して試してください。")
