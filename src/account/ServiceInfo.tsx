@@ -12,7 +12,7 @@ export default function ServiceInfo() {
   const { value, failed, retry } = usePublicRead('service-info', read);
   const { hash } = useLocation();
   useEffect(() => {
-    if (!['#rules', '#privacy', '#contact'].includes(hash)) return;
+    if (!['#rules', '#privacy', '#disclaimer', '#operator', '#contact'].includes(hash)) return;
     const heading = document.getElementById(hash.slice(1));
     heading?.focus({ preventScroll: true });
     heading?.scrollIntoView({ block: 'start' });
@@ -24,6 +24,8 @@ export default function ServiceInfo() {
       <nav className="service-info-links" aria-label="この案内の内容">
         <a href="#rules">利用ルール</a>
         <a href="#privacy">情報の扱い</a>
+        <a href="#disclaimer">免責事項</a>
+        <a href="#operator">運営者</a>
         <a href="#contact">問い合わせ</a>
       </nav>
       <section>
@@ -81,6 +83,56 @@ export default function ServiceInfo() {
         <p>
           公開停止すると新しい閲覧から外れます。停止はデータ全体の消去や、すでに読者に届いた内容の回収ではありません。
         </p>
+      </section>
+      <section aria-labelledby="disclaimer">
+        <h2 id="disclaimer" tabIndex={-1}>
+          免責事項
+        </h2>
+        <ul>
+          <li>
+            記事・作品は、それぞれの投稿者が自分の責任で公開したものです。運営は内容を事前に確認しておらず、正確性・完全性・最新性・有用性・安全性を保証しません。
+          </li>
+          <li>
+            手順・コード・授業や課題・進路・学校生活・お店などの情報を参考にするときは、自分の判断と責任で行い、学校の公式情報や先生・公式窓口などで確かめてください。
+          </li>
+          <li>
+            掲載内容は投稿者個人の考えであり、学校の公式見解ではなく、運営の見解を示すものでもありません。
+          </li>
+          <li>
+            外部サイトへのリンクや埋め込み（YouTube
+            など）の先の内容・サービスについて、運営は責任を負いません。
+          </li>
+          <li>
+            サイトの内容・機能は予告なく変更・一時停止・終了することがあります。投稿や画像の保存、サービスの継続を保証しないため、大切な文章や画像は手元にも残してください。
+          </li>
+          <li>
+            利用者どうしの間で生じたやり取りやトラブルは、当事者の間で解決してください。運営は、利用ルールに反する内容の通報への対応など、運営の判断で必要と考える範囲で対応します。
+          </li>
+          <li>
+            このサイトの利用、または利用できなかったことによって生じた損害について、運営は、法令上責任を負う場合を除き、責任を負いません。
+          </li>
+        </ul>
+        <p>
+          この免責事項と利用ルールは、必要に応じて変更することがあります。変更後の内容は、このページに掲載した時点から適用します。
+        </p>
+        <p className="service-info-updated">最終更新：2026年11月22日</p>
+      </section>
+      <section aria-labelledby="operator">
+        <h2 id="operator" tabIndex={-1}>
+          運営者
+        </h2>
+        <dl>
+          <dt>運営</dt>
+          <dd>Kobe Student Hub 運営委員会</dd>
+          <dt>位置づけ</dt>
+          <dd>
+            学生有志による非公式のサイトです。神戸電子専門学校が運営・監修・承認するものではありません。
+          </dd>
+          <dt>連絡先</dt>
+          <dd>
+            下の<a href="#contact">問い合わせ</a>から連絡してください。
+          </dd>
+        </dl>
       </section>
       <section aria-labelledby="contact">
         <h2 id="contact" tabIndex={-1}>

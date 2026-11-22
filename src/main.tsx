@@ -236,8 +236,12 @@ function App() {
             {authoringUiEnabled ? 'このサイトについて' : 'このプレビューについて'}
           </Link>
           {accountUiEnabled && <Link to="/guide">利用ルール・問い合わせ</Link>}
+          {accountUiEnabled && <Link to="/guide#disclaimer">免責事項</Link>}
         </nav>
-        <span>学校公式サービスではありません</span>
+        <span>
+          運営：Kobe Student Hub 運営委員会 · 学校公式サービスではありません ·
+          掲載内容は各投稿者によるもので、正確性を保証しません
+        </span>
       </footer>
     </>
   );
@@ -759,6 +763,12 @@ function About() {
         <h2>記事の通報</h2>
         <p>
           公開記事に問題がある場合は、記事末尾から理由を添えて通報できます。通報内容や通報者は一般の読者には表示されません。
+        </p>
+        <h2>運営と免責</h2>
+        <p>
+          Kobe Student Hub
+          運営委員会が運営する、学生有志による非公式のサイトです。記事・作品は各投稿者の責任で公開されたもので、運営は内容の正確性や、参考にした結果について保証しません。詳しくは
+          <Link to="/guide#disclaimer">免責事項</Link>を確認してください。
         </p>
         <p>
           <Link to="/guide">利用ルール・情報の扱い・問い合わせを見る</Link>

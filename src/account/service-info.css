@@ -18,7 +18,7 @@
   margin-top: 40px;
 }
 .service-info h2 {
-  scroll-margin-top: 24px;
+  scroll-margin-top: 88px; /* clears the sticky site header (64px) */
 }
 .service-info dt {
   margin-top: 16px;
@@ -29,4 +29,8 @@
 }
 .service-info-back {
   margin-top: 40px;
+}
+.service-info-updated {
+  color: var(--ink-muted);
+  font-size: 14px;
 }
