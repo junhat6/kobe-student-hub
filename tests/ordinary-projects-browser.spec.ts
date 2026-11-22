@@ -62,7 +62,12 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     return cards.filter((card) => card.project.title === title).length;
   };
   const before = await publicCount();
-  await page.getByRole('button', { name: '作品の公開準備・記録を確認', exact: true }).click();
+  // #216: an author with a profile sees it and can publish without pressing a check button.
+  await expect(page.getByText('公開する投稿者：架空の作品投稿者', { exact: false })).toBeVisible();
+  await expect(page.getByText('公開プロフィールがまだ', { exact: false })).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }),
+  ).toBeEnabled();
   // C10: an author without public articles can still publish the project on its own.
   await expect(
     page.getByText('公開中の自分の記事はまだありません。作品だけでも公開できます。', {

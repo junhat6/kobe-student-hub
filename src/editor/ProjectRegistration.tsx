@@ -139,6 +139,8 @@ export default function ProjectRegistration({
     [pubUnknown, setPubUnknown] = useState(false),
     [ready, setReady] = useState(false),
     [profile, setProfile] = useState<PublicProfile | null>(null),
+    // 'pending' until a preparation read returns, so the absence of a profile is never claimed early.
+    [profileState, setProfileState] = useState<'pending' | 'loaded' | 'failed'>('pending'),
     [receipt, setReceipt] = useState<ProjectReceipt['publication']>(null),
     [published, setPublished] = useState<{ id: string; version: number } | null>(null);
   // Ordinary surface only: own currently published articles that may be linked (null = not loaded / failed).
@@ -466,60 +468,140 @@ export default function ProjectRegistration({
         : '手元の入力は保持しています。次の保存は確認した版を置き換えます。',
     );
   }
+  const readPreparation = (source: ProjectDraft, signal: AbortSignal) =>
+    Promise.allSettled([
+      client.receipt(source.id, signal),
+      profiles.read(),
+      ordinary ? ownPublications.read(signal) : Promise.resolve(null),
+    ]);
   async function preparation() {
     if (!saved) return;
     const source = saved;
     await run(async (signal, g) => {
-      const [record, author, own] = await Promise.allSettled([
-        client.receipt(source.id, signal),
-        profiles.read(),
-        ordinary ? ownPublications.read(signal) : Promise.resolve(null),
-      ]);
-      if (!current(g)) return;
-      setReady(false);
-      const articles =
-        own.status === 'fulfilled' && own.value
-          ? own.value.publications
-              .filter((row) => row.kind === 'article' && row.status === 'published')
-              .map((row) => ({ id: row.publicId, title: row.title }))
-          : null;
-      setOwnArticles(articles);
-      setLinked((old) => old.filter((id) => articles?.some((a) => a.id === id)));
-      setProfile(author.status === 'fulfilled' ? author.value : null);
-      if (record.status !== 'fulfilled') {
-        setMessage('公開記録を確認できません。未公開とは判断せず、自動で再送しません。');
-        return;
-      }
-      setReceipt(record.value.publication);
-      if (record.value.publication) {
-        const p = record.value.publication;
-        const a = attempt.current;
-        setPubUnknown(false);
-        if (
-          a &&
-          p.sourceVersion === a.draft.version &&
-          sameProjectFields(p.project, a.draft) &&
-          p.author.id === a.profile.id &&
-          p.author.name === a.profile.displayName &&
-          p.author.department === a.profile.department &&
-          p.author.year === a.profile.yearLabel &&
-          p.author.bio === a.profile.bio &&
-          p.author.initials === a.profile.initials
-        ) {
-          setPublished({ id: p.projectId, version: p.sourceVersion });
-          setMessage('確認した保存版の公開を確認しました。手元の追加編集は含みません。');
-        } else setMessage('既存の公開記録を表示しました。上書きや再公開は行いません。');
-      } else {
-        setPubUnknown(false);
-        setReady(author.status === 'fulfilled' && author.value !== null);
-        setMessage(
-          author.status === 'fulfilled' && author.value
-            ? '保存版・公開URL・プロフィールを確認して、公開操作を選んでください。'
-            : '公開プロフィールが必要です。本人入力で準備してから、再び公開準備を確認してください。',
-        );
-      }
+      const result = await readPreparation(source, signal);
+      if (current(g)) applyPreparation(source, result, false);
     });
   }
+  function applyPreparation(
+    source: ProjectDraft,
+    [record, author, own]: Awaited<ReturnType<typeof readPreparation>>,
+    automatic: boolean,
+  ) {
+    setReady(false);
+    const articles =
+      own.status === 'fulfilled' && own.value
+        ? own.value.publications
+            .filter((row) => row.kind === 'article' && row.status === 'published')
+            .map((row) => ({ id: row.publicId, title: row.title }))
+        : null;
+    setOwnArticles(articles);
+    setLinked((old) => old.filter((id) => articles?.some((a) => a.id === id)));
+    setProfile(author.status === 'fulfilled' ? author.value : null);
+    setProfileState(author.status === 'fulfilled' ? 'loaded' : 'failed');
+    if (record.status !== 'fulfilled') {
+      setMessage('公開記録を確認できません。未公開とは判断せず、自動で再送しません。');
+      return;
+    }
+    setReceipt(record.value.publication);
+    if (record.value.publication) {
+      const p = record.value.publication;
+      const a = attempt.current;
+      setPubUnknown(false);
+      if (
+        a &&
+        p.sourceVersion === a.draft.version &&
+        sameProjectFields(p.project, a.draft) &&
+        p.author.id === a.profile.id &&
+        p.author.name === a.profile.displayName &&
+        p.author.department === a.profile.department &&
+        p.author.year === a.profile.yearLabel &&
+        p.author.bio === a.profile.bio &&
+        p.author.initials === a.profile.initials
+      ) {
+        setPublished({ id: p.projectId, version: p.sourceVersion });
+        setMessage('確認した保存版の公開を確認しました。手元の追加編集は含みません。');
+      } else if (!automatic)
+        setMessage('既存の公開記録を表示しました。上書きや再公開は行いません。');
+    } else {
+      setPubUnknown(false);
+      // Input typed while this read was in flight must not be frozen out of autosave by `ready`.
+      const typed = normalizeProjectFields(inputRef.current);
+      setReady(
+        author.status === 'fulfilled' &&
+          author.value !== null &&
+          Boolean(typed && sameProjectFields(source, typed)),
+      );
+      // The automatic read keeps the save announcement; the panel below shows the outcome.
+      if (automatic) return;
+      setMessage(
+        author.status === 'fulfilled' && author.value
+          ? '保存版・公開URL・プロフィールを確認して、公開操作を選んでください。'
+          : ordinary
+            ? '公開にはプロフィールが必要です。アカウントでプロフィールを作成してから戻ってください。'
+            : '公開プロフィールが必要です。本人入力で準備してから、再び公開準備を確認してください。',
+      );
+    }
+  }
+  // Ordinary authors should not have to press a check button to learn whether they can publish
+  // (#216): read the profile/receipt once per saved version, when the input matches it.
+  const autoPrepared = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !ordinary ||
+      !writable ||
+      !saved ||
+      dirty ||
+      busy ||
+      composing ||
+      ready ||
+      receipt ||
+      published ||
+      candidate ||
+      createUnknown ||
+      saveUnknown ||
+      pubUnknown ||
+      mediaUncertain
+    )
+      return;
+    const key = saved.id + ':' + saved.version;
+    if (autoPrepared.current === key) return;
+    autoPrepared.current = key;
+    // Not run through run(): holding the work lock would briefly disable media and save buttons.
+    // Never aborted: aborting a guarded request mid-check reads as an unverified session, so a
+    // superseded read is ignored instead.
+    const source = saved;
+    let stale = false,
+      done = false;
+    void readPreparation(source, new AbortController().signal).then((result) => {
+      done = true;
+      // Another action or edit owns the screen now; let the effect retry once it settles.
+      if (stale || !mounted.current || lock.current || savedRef.current !== source) {
+        if (autoPrepared.current === key) autoPrepared.current = null;
+        return;
+      }
+      applyPreparation(source, result, true);
+    });
+    return () => {
+      stale = true;
+      // A superseded read in flight may be retried by the next run of this effect.
+      if (!done && autoPrepared.current === key) autoPrepared.current = null;
+    };
+  }, [
+    ordinary,
+    writable,
+    saved,
+    dirty,
+    busy,
+    composing,
+    ready,
+    receipt,
+    published,
+    candidate,
+    createUnknown,
+    saveUnknown,
+    pubUnknown,
+    mediaUncertain,
+  ]);
   async function publish() {
     if (
       !saved ||
@@ -748,9 +830,10 @@ export default function ProjectRegistration({
               disabled={workBusy}
               onBusy={onMediaBusy}
               onUncertain={onMediaUncertain}
-              onInsert={(text) =>
-                setInput((old) => ({ ...old, description: old.description + text }))
-              }
+              onInsert={(text) => {
+                setInput((old) => ({ ...old, description: old.description + text }));
+                setReady(false);
+              }}
             />
           )}
           <MediaPublicationPreview
@@ -771,17 +854,22 @@ export default function ProjectRegistration({
               {profile.bio}
             </p>
           )}
-          {!profile && (
-            <p>
-              公開プロフィールがまだ確認できていません。
-              {surface === 'ordinary' ? (
+          {!profile &&
+            (!ordinary ? (
+              <p>
+                公開プロフィールがまだ確認できていません。この画面のプロフィール準備で本人入力を確認してください。
+              </p>
+            ) : profileState === 'loaded' ? (
+              <p>
+                公開にはプロフィールが必要です。
                 <a href="/account#profile">アカウントでプロフィールを作成</a>
-              ) : (
-                'この画面のプロフィール準備で本人入力を確認'
-              )}
-              してください。
-            </p>
-          )}
+                してから、この画面に戻ってください。
+              </p>
+            ) : profileState === 'failed' ? (
+              <p role="alert">
+                公開プロフィールを読み込めませんでした。「作品の公開準備・記録を確認」でもう一度確かめてください。
+              </p>
+            ) : null)}
           {ordinary && ready && !receipt && !published && (
             <fieldset className="project-article-links">
               <legend>この作品の記事（任意・3件まで）</legend>
