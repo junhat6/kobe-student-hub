@@ -130,9 +130,13 @@ button.primary:disabled {
 }
 .site-footer nav {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap; /* wider fallback fonts (Linux CI) must not squeeze a link onto two lines */
+  gap: 0 16px;
   font-size: 13px;
   font-weight: 500;
+}
+.site-footer nav a {
+  white-space: nowrap;
 }
 .site-footer nav a:hover {
   color: var(--ink);
