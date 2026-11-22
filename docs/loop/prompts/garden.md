@@ -4,6 +4,7 @@
 
 ## 対象（上から順に、時間の許す範囲で）
 0. **worktree の掃除の点検**（数分）：`orca automations runs --id 1dece025-27ea-46cb-850b-191ce797ef52 --limit 3`（`ksh tidy`）の最新が 3 時間以内か、`node scripts/loop/prune-worktrees.mjs`（表示だけ）に `要確認` や `failed` が無いかを見る。
+   - 同じ要領で `ksh inbox` の最新 run も見る（10分ごと。skipped_precheck で `skip: …inbox.json` や gog のエラーが続いていれば、受け口が止まっている。直せなければ `needs-human` に積む）
    - tidy が止まっている → `orca automations list` で有効か確かめ、off なら on に戻して garden log に書く
    - `要確認` → その worktree の未 commit・未 push の中身を読み、価値があれば main に入れるか Issue に書いてから、ターミナルを閉じて `node scripts/loop/prune-worktrees.mjs --apply` で消す。中身を捨てる判断も garden がしてよい（理由を garden log に1行）
 1. **文書と実装の食い違い**：README・AGENTS.md・DEPLOYMENT.md・docs/loop/ の記述が、今の main の振る舞い・コマンドと合っているか。合っていなければ直す

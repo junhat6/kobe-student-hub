@@ -9,6 +9,7 @@
 //   finish  … 未 claim の P0/P1（loop:finish / loop:ux）があり、claim 中の builder が上限未満
 //   replan  … 前回 replan 以降に Issue か completion.json が変わった、待ち行列が空、blocked が 3 件以上
 //   editor  … 材料の inbox に未処理のファイルがある、または editor-log の最新コメントから 20 時間以上たっている
+//   inbox   … ここではなく scripts/loop/inbox.mjs count が判定する（Gmail を読むため。docs/loop/INBOX.md）
 import { execFileSync } from 'node:child_process';
 
 const REPO = process.env.KSH_REPO || 'junhat6/kobe-student-hub';
