@@ -296,17 +296,28 @@ async function openReport(page: Page, articlePath: string) {
       !['/api/private/session', '/api/private/reading-history', '/api/private/profile'].includes(
         path,
       ) &&
-      !path.startsWith('/api/private/article-likes/')
+      !path.startsWith('/api/private/article-likes/') &&
+      // The operator-only editorial review asks once; a non-operator reader gets the same 404.
+      !path.startsWith('/api/private/editorial-reviews/')
     )
       privateReads++;
   };
+  const editorialStatuses: number[] = [];
+  const observeEditorial = (response: import('@playwright/test').Response) => {
+    if (new URL(response.url()).pathname.startsWith('/api/private/editorial-reviews/'))
+      editorialStatuses.push(response.status());
+  };
   page.on('request', observe);
+  page.on('response', observeEditorial);
   await page.goto(articlePath);
   await expect(page.locator('.prose')).toContainText('この文章は公開する保存版です。');
   expect(privateReads).toBe(0);
+  await expect.poll(() => editorialStatuses).toEqual([404]);
+  await expect(page.getByRole('region', { name: /編集レビュー/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
   await expect(reportReason(page)).toBeEditable();
   page.off('request', observe);
+  page.off('response', observeEditorial);
 }
 
 test('ordinary report retains same-session input while an unknown session stays concealed', async ({
