@@ -29,6 +29,7 @@
 - 画面に `/api/private/` の読み取りを足したら `tests/ordinary-publication-browser.spec.ts` の `openReport` の許可リストも見直す（足さないと通報3件が release CI で落ちる）
 - migration を足したら `scripts/session-browser-preview.mjs` の明示リストにも足す（足さないと HTTPS ブラウザー検査だけが古い schema で動く）
 - 新しい表を読む SQL は `scripts/editor-preview.mjs` の明示リストにもその migration が要る（無いと editor 系 spec だけ 404 で落ちる。0026 は表だけ作り自動非公開 trigger を外している）
+- vitest を1ファイルだけ回すときは、先に `npm run build`（dist）と `npx wrangler deploy --dry-run --outdir .worker && node scripts/build-test-fixtures.mjs` が要る（無いと全件 skipped で「.worker/…-test.js が無い」。worker を変えたら毎回やり直す）
 - `npm run test:editor` は先に `npm run editor:build` が要る（無いと「assets.directory … .editor-preview does not exist」で起動しない）
 - 認証つきの新しい Store を足したら `tests/auth-guard-inventory.test.ts` の inventory と件数を更新する。SQL はクラスのメソッド内に置く（クラス外の関数は「outside method」で落ちる）
 - 新しい画面や色を足したら axe 検査（`tests/accessibility.spec.ts`＝sample、`tests/ordinary-accessibility-browser.spec.ts`＝HTTPS fixture）にその画面を足して回す
