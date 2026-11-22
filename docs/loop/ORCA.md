@@ -64,6 +64,8 @@ ksh tidy（毎時 45 分、Orca automation）
 5. 未 commit の変更が無い（untracked も含む）。ignore 済みでも `.env*`・`.dev.vars*` があれば残す
 6. HEAD の commit がすべて origin/main に入っている（`git cherry` で patch 単位に確かめるので、rebase 後も判定できる）
 
+**止まった run の例外**（2026-11-22 追加）：3・4 を満たさなくても、最後の活動から 6 時間（`KSH_PRUNE_STALL_HOURS`）たったものは「止まった run」とみなして 5・6 に進み、通れば消します。API エラーやネットワーク切断で止まった Claude は、入力待ちのまま `working` と表示され続け、run も `dispatched` のまま残ります。Orca 自身も 6 時間で run を見るのをやめます（`runtime-terminal-run-observer.ts` の `OBSERVE_DEADLINE_MS`）。この例外が無いと、こうした worktree は永久に残ります（実例：patrol run 13・release run 8 が `API Error: ENOTFOUND` で止まり、15 時台から残っていた）。5・6 で残ったものは `要確認（止まった run）` と表示され、garden が毎日拾います（[garden.md](prompts/garden.md) の 0）。
+
 消すときは、残っている idle のターミナルを閉じてから `orca worktree rm --delete-branch` します。ブランチを消すのは Orca が「main に入っている」と証明できたものだけで、それ以外は残ります。1個消すのに 20〜30 秒かかり、precheck には 600 秒の上限（`MAX_AUTOMATION_PRECHECK_TIMEOUT_SECONDS`）があるため、1回に消すのは 20 個・420 秒まで（`KSH_PRUNE_MAX`・`KSH_PRUNE_BUDGET_SECONDS`）にして、残りは次の回に回します。
 
 手で確かめるとき：`node scripts/loop/prune-worktrees.mjs`（表示だけ）、`--apply`（実際に消す）。
@@ -94,3 +96,15 @@ automation が作った 66 個のうち 64 個を消しました（失敗 0）�
 | auto-ksh-release-run-6・auto-ksh-replan-run-8 | 初版がターミナル出力の時刻で「60 分たっていない」と判定していた（§3.1 の 4）。判定を直したので次の `ksh tidy` で消える |
 
 `~/orca/workspaces/kobe-student-hub/` 直下に release run が書いた `*.log`（e2e の起動ログ）が7個残っています。worktree ではないのでスクリプトの対象外です。
+
+## 5. 掃除の監視役は置かない（2026-11-22）
+
+掃除を見張る役は、専用の bot も automation も足しません。
+
+- **掃除そのもの**は `ksh tidy` が毎時行う。初回の一斉掃除のあとの 7 回（11:45〜17:45）で 10 個を消し、失敗は 0 件だった。
+- **掃除が漏れる形**は「止まった run」だけだった。これは tidy の判定（§3.1 の例外）で塞いだ。
+- **tidy 自体が止まる・消せないものが残る**ことは、garden が毎日1回点検する（[garden.md](prompts/garden.md) の 0）。tidy の最新の run が 3 時間より前なら、automation が off にされたか Orca が止まっている。`要確認` は、中身を main に入れるか Issue にしてから消す。
+
+**監視役を足さない理由**：見張りの役を増やすと、その役の worktree と run がまた増えるうえ、見張り役が止まったときに見張る役がさらに要る。点検は既にある日次の周にのせるほうが安く、壊れる場所も増えない。
+**見直す条件**：garden の点検で、同じ `要確認` や tidy の停止が 2 日続けて見つかったら、tidy の失敗を Issue に書き出す処理を足す。
+

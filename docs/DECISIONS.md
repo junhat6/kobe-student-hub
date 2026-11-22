@@ -2,6 +2,10 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-22 — worktree の掃除に監視役は置かず、止まった run も tidy で消す
+
+オーナー（服部）の問い「worktree の掃除を見張る役は要るか」への判断。要らない。`ksh tidy` が毎時片付けており、漏れていたのは API エラーで止まり `working` のまま残る run だけだった。これは 6 時間動きが無ければ安全確認に進む判定で塞いだ。tidy 自体の停止と消せない残りは garden が毎日点検する。理由と見直す条件は [ORCA.md](loop/ORCA.md#5-掃除の監視役は置かない2026-11-22)。
+
 ## 2026-11-22 — リリースは 08:00 / 20:00 の定時便に寄せ、毎回の結果を記録する（オーナー決定）
 
 オーナー（服部）の指示：リリースは毎日、朝8時と夜20時（JST）の2回必ず回す。それ以外の時間のリリースはこの2回に寄せる（緊急の修正など理由がある場合は除く）。各回の結果を後から集計・報告できるよう、「いつ・どのバージョンが・何を含んで・CI とスモークの結果はどうだったか（失敗なら理由）」を決まった場所に残す。

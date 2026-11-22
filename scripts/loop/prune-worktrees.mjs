@@ -13,6 +13,9 @@
 //   3. 作った run が終わっている（run が履歴に無いときは 24 時間以上動きが無い）
 //   4. そこにいる agent がすべて done で、最後の活動（workspace と agent の更新）から 60 分以上たっている（Orca 標準ルールの猶予と同じ）
 //      ターミナル出力の時刻は使わない。終わった Claude もステータス行を描き直すので、いつまでも新しく見えるため
+//      例外：agent が done でない・run が終わっていなくても、最後の活動から KSH_PRUNE_STALL_HOURS（既定 6）時間たったものは
+//      「止まった run」とみなし、5・6 の確認に進む（API エラーなどで止まった Claude は working のまま残り、Orca も 6 時間で見るのをやめるため）。
+//      5・6 で残ったものは「要確認」と表示し、garden が拾う
 //   5. 未 commit の変更が無い（untracked も含む。.gitignore 済みのものは数えない）
 //   6. HEAD の commit がすべて origin/main に入っている（git cherry で patch 単位に確かめる。squash・rebase 後も可）
 // 1回に消すのは KSH_PRUNE_MAX 個（既定 20）まで、持ち時間 KSH_PRUNE_BUDGET_SECONDS（既定 420 秒）まで。
@@ -25,6 +28,8 @@ import { existsSync } from 'node:fs';
 const REPO_NAME = process.env.KSH_REPO_NAME || 'kobe-student-hub';
 const QUIET_MS = 60 * 60 * 1000;
 const NO_RUN_QUIET_MS = 24 * 60 * 60 * 1000;
+// Orca の runtime-terminal-run-observer も 6 時間で run を見るのをやめる（OBSERVE_DEADLINE_MS）
+const STALL_MS = Number(process.env.KSH_PRUNE_STALL_HOURS || 6) * 60 * 60 * 1000;
 const MAX_REMOVALS = Number(process.env.KSH_PRUNE_MAX || 20);
 // precheck の上限は 600 秒（Orca の MAX_AUTOMATION_PRECHECK_TIMEOUT_SECONDS）。1個消すのに 20〜30 秒かかるので、持ち時間を超えたら次回に回す
 const BUDGET_MS = Number(process.env.KSH_PRUNE_BUDGET_SECONDS || 420) * 1000;
@@ -96,7 +101,8 @@ for (const w of worktrees) {
   if (w.repo !== REPO_NAME || w.workspaceKind !== 'git' || w.isMainWorktree) continue;
   if (!w.automationCreated) continue; // 常駐レーンと人の worktree には触らない
   const name = w.displayName;
-  const keep = (why) => kept.push({ name, why });
+  let stalled = false;
+  const keep = (why) => kept.push({ name, why: stalled ? `要確認（止まった run）: ${why}` : why });
 
   if (w.isPinned) {
     keep('ピン留め');
@@ -108,21 +114,24 @@ for (const w of worktrees) {
   }
   const here = agentsByWorkspace.get(w.worktreeId) ?? [];
   const busy = here.find((a) => a.state !== 'done');
-  if (busy) {
-    keep(`agent が動いている (${busy.state ?? '状態不明'})`);
-    continue;
-  }
   const r = runByWorkspace.get(w.worktreeId);
   const lastSeen = Math.max(
     w.lastActivityAt || 0,
     w.createdAt || 0,
     ...here.map((a) => a.updatedAt || 0),
   );
-  if (r) {
-    if (!FINAL.has(r.status)) {
-      keep(`run が終わっていない (${r.status})`);
+  const hoursQuiet = Math.floor((now - lastSeen) / 3_600_000);
+  if (busy || (r && !FINAL.has(r.status))) {
+    if (now - lastSeen < STALL_MS) {
+      keep(
+        busy
+          ? `agent が動いている (${busy.state ?? '状態不明'})`
+          : `run が終わっていない (${r.status})`,
+      );
       continue;
     }
+    stalled = true; // 長く動きが無い。中身を確かめて、安全なら消す
+  } else if (r) {
     if (now - lastSeen < QUIET_MS) {
       keep('最後の動きから 60 分たっていない');
       continue;
@@ -178,7 +187,15 @@ for (const w of worktrees) {
     keep(`main に入っていない commit ${unlanded} 件`);
     continue;
   }
-  removable.push({ w, name, note: r ? `run ${r.status}` : 'run 履歴なし・24h 以上静か' });
+  removable.push({
+    w,
+    name,
+    note: stalled
+      ? `止まった run・${hoursQuiet} 時間動きなし`
+      : r
+        ? `run ${r.status}`
+        : 'run 履歴なし・24h 以上静か',
+  });
 }
 
 const removed = [];
@@ -210,7 +227,8 @@ for (const item of removable.slice(0, apply ? MAX_REMOVALS : removable.length)) 
     ['worktree', 'rm', '--worktree', selector, '--delete-branch', '--json'],
     180_000,
   );
-  if (rm.ok) removed.push(item.name);
+  if (rm.ok)
+    removed.push(item.note.startsWith('止まった') ? `${item.name} (${item.note})` : item.name);
   else failed.push({ name: item.name, why: rm.out.split('\n')[0] });
 }
 
