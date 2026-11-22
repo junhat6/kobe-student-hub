@@ -42,3 +42,7 @@ test-results-retired-trial/
 
 # tsc -b の増分キャッシュ（worktree を汚して自動掃除を止めるため）
 *.tsbuildinfo
+
+# Python bytecode (e.g. from running the writing kit locally)
+__pycache__/
+*.pyc
