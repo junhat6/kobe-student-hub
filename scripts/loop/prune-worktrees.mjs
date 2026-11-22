@@ -11,7 +11,8 @@
 //   1. kobe-student-hub の、Orca automation が作った worktree（main worktree・常駐レーン・人の worktree は対象外）
 //   2. ピン留めされていない、いま画面で開かれていない
 //   3. 作った run が終わっている（run が履歴に無いときは 24 時間以上動きが無い）
-//   4. 最後の活動とターミナル出力から 60 分以上たっている（Orca 標準ルールの猶予と同じ）
+//   4. そこにいる agent がすべて done で、最後の活動（workspace と agent の更新）から 60 分以上たっている（Orca 標準ルールの猶予と同じ）
+//      ターミナル出力の時刻は使わない。終わった Claude もステータス行を描き直すので、いつまでも新しく見えるため
 //   5. 未 commit の変更が無い（untracked も含む。.gitignore 済みのものは数えない）
 //   6. HEAD の commit がすべて origin/main に入っている（git cherry で patch 単位に確かめる。squash・rebase 後も可）
 // 1回に消すのは KSH_PRUNE_MAX 個（既定 20）まで、持ち時間 KSH_PRUNE_BUDGET_SECONDS（既定 420 秒）まで。
@@ -68,15 +69,24 @@ const finish = (code) => process.exit(asPrecheck ? 1 : code);
 
 let worktrees;
 let runs;
+let agents;
 try {
   worktrees = orcaJson('worktree', 'ps').worktrees;
   runs = orcaJson('automations', 'runs', '--limit', '100').runs ?? [];
+  const listed = orcaJson('agent', 'list');
+  agents = Array.isArray(listed) ? listed : (listed.agents ?? []);
 } catch (error) {
   console.log(`prune: Orca に繋がらないので何もしない (${String(error.message).split('\n')[0]})`);
   finish(0);
 }
 const runByWorkspace = new Map();
 for (const r of runs) if (r.workspaceId) runByWorkspace.set(r.workspaceId, r);
+const agentsByWorkspace = new Map();
+for (const a of agents) {
+  if (!a.worktreeId) continue;
+  if (!agentsByWorkspace.has(a.worktreeId)) agentsByWorkspace.set(a.worktreeId, []);
+  agentsByWorkspace.get(a.worktreeId).push(a);
+}
 
 const now = Date.now();
 const kept = [];
@@ -96,8 +106,18 @@ for (const w of worktrees) {
     keep('いま画面で開いている');
     continue;
   }
+  const here = agentsByWorkspace.get(w.worktreeId) ?? [];
+  const busy = here.find((a) => a.state !== 'done');
+  if (busy) {
+    keep(`agent が動いている (${busy.state ?? '状態不明'})`);
+    continue;
+  }
   const r = runByWorkspace.get(w.worktreeId);
-  const lastSeen = Math.max(w.lastActivityAt || 0, w.lastOutputAt || 0, w.createdAt || 0);
+  const lastSeen = Math.max(
+    w.lastActivityAt || 0,
+    w.createdAt || 0,
+    ...here.map((a) => a.updatedAt || 0),
+  );
   if (r) {
     if (!FINAL.has(r.status)) {
       keep(`run が終わっていない (${r.status})`);

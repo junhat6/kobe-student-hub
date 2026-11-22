@@ -60,7 +60,7 @@ ksh tidy（毎時 45 分、Orca automation）
 1. kobe-student-hub の、automation が作った worktree（`orca worktree ps` の `automationCreated`）。main worktree・常駐レーン（app-dev・loop-design・loop-infra）・人の worktree には触らない
 2. ピン留めされていない、いま画面で開かれていない
 3. 作った run が終わっている。run が履歴（直近100件）に無いときは、24時間以上動きが無い
-4. 最後の活動とターミナル出力から 60 分以上たっている
+4. そこにいる agent（`orca agent list`）がすべて `done` で、最後の活動（workspace と agent の更新時刻）から 60 分以上たっている。ターミナル出力の時刻は使わない：終わった Claude もステータス行を描き直し続けるので、出力の時刻はいつまでも新しく見える（初版はこれを使っていて、終わった run を「60 分たっていない」と残し続けた）
 5. 未 commit の変更が無い（untracked も含む）。ignore 済みでも `.env*`・`.dev.vars*` があれば残す
 6. HEAD の commit がすべて origin/main に入っている（`git cherry` で patch 単位に確かめるので、rebase 後も判定できる）
 
@@ -91,6 +91,6 @@ automation が作った 66 個のうち 64 個を消しました（失敗 0）�
 | main（`~/ghq/.../kobe-student-hub`） | main worktree。automation の precheck もここで動く |
 | loop-infra・loop-design・app-dev | 常駐レーン（[SESSIONS.md](SESSIONS.md)） |
 | nginx-vuln-check（`fix/security-deps-2026-11`） | 人の作業用。中身は main に入っていてリモートのブランチも消えているので消してよいが、automation 以外の worktree は人が消す |
-| auto-ksh-release-run-6・auto-ksh-replan-run-8 | 最後の動きから 60 分たっていなかった。次の `ksh tidy` で消える |
+| auto-ksh-release-run-6・auto-ksh-replan-run-8 | 初版がターミナル出力の時刻で「60 分たっていない」と判定していた（§3.1 の 4）。判定を直したので次の `ksh tidy` で消える |
 
 `~/orca/workspaces/kobe-student-hub/` 直下に release run が書いた `*.log`（e2e の起動ログ）が7個残っています。worktree ではないのでスクリプトの対象外です。
