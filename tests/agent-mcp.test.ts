@@ -313,6 +313,43 @@ describe('authorization flow', () => {
     expect(wrong!.status).toBe(400);
     expect(wrong!.body).toContain('正しくありません');
   });
+  it('tells an https client to retry later, without a redirect or internals, when storing the request fails', async () => {
+    const reg = await http('/api/oauth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Claude', redirect_uris: ['https://claude.example/cb'] }),
+    });
+    const clientId = JSON.parse(reg!.body).client_id as string;
+    const db = await mf.getD1Database('DB');
+    // Fail only this client's inserts so the other tests keep a working table.
+    await db.exec(
+      `CREATE TRIGGER fail_agent_request BEFORE INSERT ON agent_oauth_requests WHEN NEW.client_id='${clientId}' BEGIN SELECT RAISE(ABORT,'internal detail'); END`,
+    );
+    try {
+      const challenge = b64(
+        createHash('sha256')
+          .update(b64(randomBytes(32)))
+          .digest(),
+      );
+      const failed = await http(
+        '/api/oauth/authorize?' +
+          new URLSearchParams({
+            response_type: 'code',
+            client_id: clientId,
+            redirect_uri: 'https://claude.example/cb',
+            code_challenge: challenge,
+            code_challenge_method: 'S256',
+          }),
+      );
+      expect(failed!.status).toBe(503);
+      expect(failed!.headers.location).toBeUndefined();
+      expect(failed!.body).toContain('接続の準備に失敗しました');
+      expect(failed!.body).not.toContain('正しくありません');
+      expect(failed!.body).not.toContain('internal detail');
+    } finally {
+      await db.exec('DROP TRIGGER fail_agent_request');
+    }
+  });
   it('needs a signed-in session to see or decide the consent request, and deny returns access_denied', async () => {
     const clientId = await registerClient();
     const { r } = await startAuthorization(clientId);
