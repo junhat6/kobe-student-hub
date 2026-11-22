@@ -30,6 +30,10 @@ describe('production wrangler config', () => {
       GOOGLE_CLIENT_ID: env.KSH_PROD_GOOGLE_CLIENT_ID,
     });
     expect(c.send_email[0].destination_address).toBe(env.KSH_PROD_MODERATION_EMAIL_TO);
+    // Private media bucket (#12): only the binding, never a public domain or credential.
+    expect(c.r2_buckets).toEqual([
+      { binding: 'MEDIA_BUCKET', bucket_name: 'kobe-student-hub-media' },
+    ]);
   });
 
   it('never carries secret values in vars', () => {

@@ -1,6 +1,7 @@
 import { SessionStore } from './auth/sessions';
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import { mediaId, MEDIA_MAX_BYTES } from '../src/shared/media';
+import { getMediaObject } from './media-objects';
 /** Separate operator projection; owner-private and anonymous media endpoints never fall back to it. */
 export class ModerationMediaStore {
   private sessions: SessionStore;
@@ -10,6 +11,7 @@ export class ModerationMediaStore {
     origin: string,
     operatorIds: readonly string[] = [],
     clock: () => number = Date.now,
+    private bucket?: R2Bucket,
   ) {
     this.sessions = new SessionStore(db, origin, clock);
     this.operators =
@@ -34,20 +36,29 @@ export class ModerationMediaStore {
         kind === 'articles'
           ? `EXISTS(SELECT 1 FROM article_publication_revisions revision JOIN json_each(revision.media_ids_json) map JOIN article_publications publication ON publication.content_id=revision.content_id JOIN content c ON c.id=publication.content_id AND c.author_id=publication.public_profile_id WHERE map.value=media_assets.id AND c.id=? AND c.kind='article' AND c.is_sample=0 AND c.status IN ('published','hidden','deleted') AND EXISTS(SELECT 1 FROM article_report_revisions reported WHERE reported.content_id=c.id AND reported.revision=revision.revision))`
           : `EXISTS(SELECT 1 FROM project_publication_media map JOIN project_publications publication ON publication.id=map.project_id WHERE map.media_id=media_assets.id AND publication.id=? AND publication.status IN ('published','hidden','deleted') AND EXISTS(SELECT 1 FROM project_reports WHERE project_id=publication.id))`;
-      const row = await this.db
-        .prepare(`SELECT mime,payload FROM media_assets WHERE id=? AND ${relation} AND ${live}`)
+      const meta = await this.db
+        .prepare(
+          `SELECT id,mime,sha256,length(payload) bytes FROM media_assets WHERE id=? AND ${relation} AND ${live}`,
+        )
         .bind(id, target, ...binds(p))
-        .first<{ mime: string; payload: number[] }>();
+        .first<{ id: string; mime: string; sha256: string; bytes: number }>();
+      if (!meta || !['image/png', 'image/jpeg'].includes(meta.mime)) return null;
+      const stored = await getMediaObject(this.bucket, meta);
+      if (stored) return { mime: meta.mime, bytes: stored };
+      // D1 fallback (expand stage) re-checks the same operator relation with the bytes.
+      const row = await this.db
+        .prepare(`SELECT payload FROM media_assets WHERE id=? AND ${relation} AND ${live}`)
+        .bind(id, target, ...binds(p))
+        .first<{ payload: number[] }>();
       if (
         !row ||
-        !['image/png', 'image/jpeg'].includes(row.mime) ||
         !Array.isArray(row.payload) ||
         !row.payload.length ||
         row.payload.length > MEDIA_MAX_BYTES ||
         row.payload.some((v) => !Number.isInteger(v) || v < 0 || v > 255)
       )
         return null;
-      return { mime: row.mime, bytes: Uint8Array.from(row.payload) };
+      return { mime: meta.mime, bytes: Uint8Array.from(row.payload) };
     } catch {
       return null;
     }

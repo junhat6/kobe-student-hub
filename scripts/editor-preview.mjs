@@ -26,13 +26,17 @@ for (const file of [
   'migrations/0026_project_report_threshold.sql',
   'migrations/0027_profile_reports.sql',
   'migrations/0028_profile_avatars.sql',
+  'migrations/0031_media_objects.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
     ? 'article_ids_json'
     : file.includes('0025')
       ? 'technologies'
-      : null;
+      : file.includes('0031')
+        ? 'object_stored_at_ms'
+        : null;
+  const columnTable = file.includes('0031') ? 'media_assets' : 'project_publications';
   // Initialization is idempotent: check the specific local table before applying its schema.
   const table = file.includes('0028')
     ? 'profile_avatars'
@@ -83,7 +87,7 @@ for (const file of [
       '.wrangler/editor-state',
       '--command',
       column
-        ? `SELECT name FROM pragma_table_info('project_publications') WHERE name='${column}'`
+        ? `SELECT name FROM pragma_table_info('${columnTable}') WHERE name='${column}'`
         : `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`,
       '--json',
     ],

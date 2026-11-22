@@ -25,13 +25,18 @@ import { EDITORIAL_REVIEW_RELEASE_ENABLED } from '../src/shared/editorial-review
 export function createOrdinaryDraftHandler(
   db: D1Database,
   origin: string,
-  options: { enabled?: boolean; operatorIds?: readonly string[]; editorialReviews?: boolean } = {},
+  options: {
+    enabled?: boolean;
+    operatorIds?: readonly string[];
+    editorialReviews?: boolean;
+    mediaBucket?: R2Bucket;
+  } = {},
   clock: () => number = Date.now,
 ) {
   if (options.enabled !== true) return async (_request: Request): Promise<Response | null> => null;
   const handlers = [
     createReadingHistoryHandler(db, origin, clock),
-    createMediaHandler(db, origin, clock),
+    createMediaHandler(db, origin, clock, options.mediaBucket),
     createOrdinaryDiscoveryHandler(db, origin, clock),
     createPublicStudentHandler(db, origin, clock),
     createPublicArticleHandler(db, origin, clock),
@@ -50,6 +55,7 @@ export function createOrdinaryDraftHandler(
     origin,
     options.operatorIds ?? [],
     clock,
+    options.mediaBucket,
   );
   const profileReports = createPrivateProfileReportHandler(
     db,

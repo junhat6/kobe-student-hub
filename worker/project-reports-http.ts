@@ -99,6 +99,7 @@ export function createPrivateProjectReportHandler(
   origin: string,
   operatorIds: readonly string[] = [],
   clock: () => number = Date.now,
+  mediaBucket?: R2Bucket,
 ) {
   const operators =
     Array.isArray(operatorIds) &&
@@ -109,7 +110,7 @@ export function createPrivateProjectReportHandler(
   const sessions = new SessionStore(db, origin, clock),
     store = new ProjectReportStore(db, origin, operators, clock),
     moderation = new ProjectModerationStore(db, origin, operators, clock),
-    media = new ModerationMediaStore(db, origin, operators, clock);
+    media = new ModerationMediaStore(db, origin, operators, clock, mediaBucket);
   return async (request: Request): Promise<Response | null> => {
     const u = new URL(request.url);
     if (

@@ -5,6 +5,7 @@ import {
   liveStudentSessionBindings as writerBinds,
 } from './auth/student-participation';
 import { mediaId, type MediaReceipt } from '../src/shared/media';
+import { deleteMediaObjects, getMediaObject, putMediaObject, sha256Hex } from './media-objects';
 
 type Kind = 'articles' | 'projects';
 type Proof = NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>;
@@ -14,6 +15,7 @@ type Row = {
   width: number;
   height: number;
   bytes: number;
+  sha256: string;
   payload?: number[];
 };
 const receipt = (r: Row): MediaReceipt => ({
@@ -23,12 +25,14 @@ const receipt = (r: Row): MediaReceipt => ({
   height: r.height,
   bytes: r.bytes,
 });
-const info = 'id,mime,width,height,length(payload) bytes';
+const info = 'id,mime,width,height,length(payload) bytes,sha256';
 const table = (kind: Kind) => (kind === 'articles' ? 'private_article_drafts' : 'project_drafts');
 const link = (kind: Kind) => (kind === 'articles' ? 'article_draft_id' : 'project_draft_id');
 const body = (kind: Kind) => (kind === 'articles' ? 'body' : 'description');
 const unpublished = `NOT EXISTS(SELECT 1 FROM article_publication_revisions revision,json_each(revision.media_ids_json) ref WHERE ref.value=media_assets.id) AND NOT EXISTS(SELECT 1 FROM article_publication_media WHERE media_id=media_assets.id) AND NOT EXISTS(SELECT 1 FROM project_publication_media WHERE media_id=media_assets.id)`;
 const unreferenced = `NOT EXISTS(SELECT 1 FROM private_article_drafts d WHERE d.id=media_assets.article_draft_id AND instr(d.body,'/api/media/'||media_assets.id)>0) AND NOT EXISTS(SELECT 1 FROM project_drafts d WHERE d.id=media_assets.project_draft_id AND instr(d.description,'/api/media/'||media_assets.id)>0)`;
+/** A current, unstopped publication grants anonymous reads. Checked on every read, including the D1 fallback. */
+const publicGrant = `(EXISTS(SELECT 1 FROM article_publication_revisions revision JOIN json_each(revision.media_ids_json) map JOIN article_publications publication ON publication.content_id=revision.content_id JOIN content c ON c.id=publication.content_id AND c.author_id=publication.public_profile_id WHERE map.value=media_assets.id AND revision.revision=(SELECT MAX(current.revision) FROM article_publication_revisions current WHERE current.content_id=publication.content_id) AND c.kind='article' AND c.is_sample=0 AND c.status='published' AND NOT EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=c.id)) OR EXISTS(SELECT 1 FROM project_publication_media map JOIN project_publications publication ON publication.id=map.project_id WHERE map.media_id=media_assets.id AND publication.status='published' AND NOT EXISTS(SELECT 1 FROM project_publication_stops WHERE project_id=publication.id)))`;
 /** Codec setup is shared; request bytes and identity are never cached in application state. */
 export const warmMediaCodec = () =>
   import('./media-codec').then(
@@ -42,6 +46,8 @@ export class MediaStore {
     private readonly db: D1Database,
     origin: string,
     private readonly clock: () => number = Date.now,
+    /** Optional private R2 bucket. Absent: bytes stay in D1 only (local preview, older config). */
+    private readonly bucket?: R2Bucket,
   ) {
     this.sessions = new SessionStore(db, origin, clock);
   }
@@ -91,46 +97,67 @@ export class MediaStore {
       const { normalizeMedia } = await import('./media-codec');
       const value = await normalizeMedia(bytes, mime);
       if (!value) return null;
-      const sha = Array.from(
-        new Uint8Array(await crypto.subtle.digest('SHA-256', value.bytes)),
-        (v) => v.toString(16).padStart(2, '0'),
-      ).join('');
+      const sha = await sha256Hex(value.bytes);
       const p = await this.proof(request);
       if (!p || p.nowMs > 253402300799999) return null;
       // Cleanup is bounded, only touches old unreferenced/private orphans, and never erases a snapshot.
       await this.cleanup(p);
-      await this.db
-        .prepare(
-          `INSERT INTO media_assets(id,owner_account_id,article_draft_id,project_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,?,?,?,?,?,?,?,?,? FROM ${table(kind)} d WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND ${writer} AND NOT EXISTS(SELECT 1 FROM media_assets WHERE id=?)`,
-        )
-        .bind(
-          id,
-          p.accountId,
-          kind === 'articles' ? draftId : null,
-          kind === 'projects' ? draftId : null,
-          value.mime,
-          value.width,
-          value.height,
-          value.bytes,
-          sha,
-          p.nowMs,
-          draftId,
-          p.accountId,
-          version,
-          p.nowMs,
-          ...writerBinds(p),
-          id,
-        )
-        .run();
-      const r = await this.db
-        .prepare(
-          `SELECT ${info} FROM media_assets WHERE id=? AND owner_account_id=? AND ${link(kind)}=? AND sha256=? AND mime=? AND ${writer}`,
-        )
-        .bind(id, p.accountId, draftId, sha, mime, ...writerBinds(p))
-        .first<Row>();
+      // R2 first: if it refuses the bytes, no D1 row is created. If the D1 insert then fails, the
+      // object is removed below (or swept later), so it is never reachable without a D1 row.
+      // The key holds the sha256, so a repeated or colliding upload never replaces other bytes.
+      if (this.bucket)
+        await putMediaObject(this.bucket, { id, sha256: sha }, value.bytes, value.mime);
+      let r: Row | null = null;
+      try {
+        await this.db
+          .prepare(
+            `INSERT INTO media_assets(id,owner_account_id,article_draft_id,project_draft_id,mime,width,height,payload,sha256,created_at_ms,object_stored_at_ms) SELECT ?,?,?,?,?,?,?,?,?,?,? FROM ${table(kind)} d WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND ${writer} AND NOT EXISTS(SELECT 1 FROM media_assets WHERE id=?)`,
+          )
+          .bind(
+            id,
+            p.accountId,
+            kind === 'articles' ? draftId : null,
+            kind === 'projects' ? draftId : null,
+            value.mime,
+            value.width,
+            value.height,
+            value.bytes,
+            sha,
+            p.nowMs,
+            this.bucket ? p.nowMs : null,
+            draftId,
+            p.accountId,
+            version,
+            p.nowMs,
+            ...writerBinds(p),
+            id,
+          )
+          .run();
+        r = await this.db
+          .prepare(
+            `SELECT ${info} FROM media_assets WHERE id=? AND owner_account_id=? AND ${link(kind)}=? AND sha256=? AND mime=? AND ${writer}`,
+          )
+          .bind(id, p.accountId, draftId, sha, mime, ...writerBinds(p))
+          .first<Row>();
+      } finally {
+        if (!r) await this.dropUnclaimedObject(id, sha);
+      }
       return r ? receipt(r) : null;
     } catch {
       return null;
+    }
+  }
+  /** Removes an object written for a failed upload, unless a D1 row with the same id+sha owns it. */
+  private async dropUnclaimedObject(id: string, sha256: string) {
+    if (!this.bucket) return;
+    try {
+      const owned = await this.db
+        .prepare('SELECT 1 FROM media_assets WHERE id=? AND sha256=?')
+        .bind(id, sha256)
+        .first();
+      if (!owned) await deleteMediaObjects(this.bucket, [{ id, sha256 }]);
+    } catch {
+      // Swept later.
     }
   }
   async list(request: Request, kind: Kind, id: string): Promise<MediaReceipt[] | null> {
@@ -163,12 +190,20 @@ export class MediaStore {
       const p = await this.proof(request);
       if (!p) return null;
       const r = await this.db
+        .prepare(`SELECT ${info} FROM media_assets WHERE id=? AND owner_account_id=? AND ${live}`)
+        .bind(id, p.accountId, ...binds(p))
+        .first<Row>();
+      if (!r) return null;
+      const stored = await getMediaObject(this.bucket, r);
+      if (stored) return { receipt: receipt(r), bytes: stored };
+      // D1 fallback (expand stage) re-checks the same authorization with the bytes.
+      const full = await this.db
         .prepare(
           `SELECT ${info},payload FROM media_assets WHERE id=? AND owner_account_id=? AND ${live}`,
         )
         .bind(id, p.accountId, ...binds(p))
         .first<Row>();
-      return r ? this.decoded(r) : null;
+      return full ? this.decoded(full) : null;
     } catch {
       return null;
     }
@@ -179,12 +214,17 @@ export class MediaStore {
     if (!mediaId(id)) return null;
     try {
       const r = await this.db
-        .prepare(
-          `SELECT ${info},payload FROM media_assets WHERE id=? AND (EXISTS(SELECT 1 FROM article_publication_revisions revision JOIN json_each(revision.media_ids_json) map JOIN article_publications publication ON publication.content_id=revision.content_id JOIN content c ON c.id=publication.content_id AND c.author_id=publication.public_profile_id WHERE map.value=media_assets.id AND revision.revision=(SELECT MAX(current.revision) FROM article_publication_revisions current WHERE current.content_id=publication.content_id) AND c.kind='article' AND c.is_sample=0 AND c.status='published' AND NOT EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=c.id)) OR EXISTS(SELECT 1 FROM project_publication_media map JOIN project_publications publication ON publication.id=map.project_id WHERE map.media_id=media_assets.id AND publication.status='published' AND NOT EXISTS(SELECT 1 FROM project_publication_stops WHERE project_id=publication.id)))`,
-        )
+        .prepare(`SELECT ${info} FROM media_assets WHERE id=? AND ${publicGrant}`)
         .bind(id)
         .first<Row>();
-      return r ? this.decoded(r) : null;
+      if (!r) return null;
+      const stored = await getMediaObject(this.bucket, r);
+      if (stored) return { receipt: receipt(r), bytes: stored };
+      const full = await this.db
+        .prepare(`SELECT ${info},payload FROM media_assets WHERE id=? AND ${publicGrant}`)
+        .bind(id)
+        .first<Row>();
+      return full ? this.decoded(full) : null;
     } catch {
       return null;
     }
@@ -205,22 +245,25 @@ export class MediaStore {
     try {
       const p = await this.proof(request);
       if (!p) return false;
-      return !!(await this.db
+      const deleted = await this.db
         .prepare(
-          `DELETE FROM media_assets WHERE id=? AND owner_account_id=? AND ${unpublished} AND ${unreferenced} AND ${live} RETURNING id`,
+          `DELETE FROM media_assets WHERE id=? AND owner_account_id=? AND ${unpublished} AND ${unreferenced} AND ${live} RETURNING id,sha256`,
         )
         .bind(id, p.accountId, ...binds(p))
-        .first());
+        .first<{ id: string; sha256: string }>();
+      if (deleted) await deleteMediaObjects(this.bucket, [deleted]);
+      return !!deleted;
     } catch {
       return false;
     }
   }
   private async cleanup(p: Proof) {
-    await this.db
+    const deleted = await this.db
       .prepare(
-        `DELETE FROM media_assets WHERE id IN(SELECT id FROM media_assets WHERE owner_account_id=? AND created_at_ms<? AND ${unpublished} AND ${unreferenced} ORDER BY created_at_ms,id LIMIT 20) AND ${writer}`,
+        `DELETE FROM media_assets WHERE id IN(SELECT id FROM media_assets WHERE owner_account_id=? AND created_at_ms<? AND ${unpublished} AND ${unreferenced} ORDER BY created_at_ms,id LIMIT 20) AND ${writer} RETURNING id,sha256`,
       )
       .bind(p.accountId, p.nowMs - 86400000, ...writerBinds(p))
-      .run();
+      .all<{ id: string; sha256: string }>();
+    await deleteMediaObjects(this.bucket, deleted.results);
   }
 }

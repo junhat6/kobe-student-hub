@@ -6,8 +6,9 @@ import { ProjectStore } from '../../worker/projects';
 import { PrivateDraftStore } from '../../worker/drafts';
 import { ArticleModerationStore } from '../../worker/moderation';
 import { PublicationStopStore } from '../../worker/publication-stops';
+import { maintainMediaObjects } from '../../worker/media-objects';
 export default {
-  async fetch(request: Request, env: { DB: D1Database }) {
+  async fetch(request: Request, env: { DB: D1Database; MEDIA_BUCKET?: R2Bucket }) {
     const origin = 'https://app.example.invalid',
       url = new URL(request.url),
       now = Number(request.headers.get('X-Test-Now') ?? 1800000000000);
@@ -26,6 +27,15 @@ export default {
           })
         : new Response('unavailable', { status: 415 });
     }
+    if (url.pathname === '/fixture/maintain')
+      return Response.json(
+        await maintainMediaObjects(
+          env.DB,
+          env.MEDIA_BUCKET,
+          () => now,
+          request.headers.get('X-Test-Start') ?? undefined,
+        ),
+      );
     if (url.pathname === '/fixture/session')
       return Response.json(
         await createFixtureSession(env.DB, origin, () => now, {
@@ -131,10 +141,21 @@ export default {
           body: await request.arrayBuffer(),
         })
       : request;
+    // R2 failure injection: the put is refused after nothing was stored.
+    const bucket =
+      env.MEDIA_BUCKET && request.headers.has('X-Test-R2-Fail')
+        ? new Proxy(env.MEDIA_BUCKET, {
+            get(target, key) {
+              if (key === 'put') return async () => Promise.reject(Error('fixture r2 failure'));
+              const v = Reflect.get(target, key);
+              return typeof v === 'function' ? v.bind(target) : v;
+            },
+          })
+        : env.MEDIA_BUCKET;
     const result = await createOrdinaryDraftHandler(
       db,
       origin,
-      { enabled: !request.headers.has('X-Test-Closed') },
+      { enabled: !request.headers.has('X-Test-Closed'), mediaBucket: bucket },
       () => now,
     )(target);
     if (result) {

@@ -72,8 +72,13 @@ async function input(request: Request): Promise<Input> {
   }
 }
 /** Mounted only by the existing ordinary participation source gate. No URL proxy or cookie fallback. */
-export function createMediaHandler(db: D1Database, origin: string, clock: () => number = Date.now) {
-  const store = new MediaStore(db, origin, clock);
+export function createMediaHandler(
+  db: D1Database,
+  origin: string,
+  clock: () => number = Date.now,
+  bucket?: R2Bucket,
+) {
+  const store = new MediaStore(db, origin, clock, bucket);
   void warmMediaCodec();
   return async (request: Request): Promise<Response | null> => {
     const url = new URL(request.url),

@@ -8,6 +8,7 @@ import {
   type ModerationEmailBindings,
 } from './moderation-email';
 import { warmMediaCodec } from './media';
+import { maintainMediaObjects, mediaBucket } from './media-objects';
 import { createEnrollmentHandler } from './enrollment-http';
 import { parseModerationOperators, type ModerationBindings } from './moderation-http';
 import { createOAuthHttpHandler, type OAuthBindings } from './auth/oauth-http';
@@ -109,6 +110,7 @@ app.use('/api/*', async (c, next) => {
     const authoring = await createOrdinaryDraftHandler(c.env.DB, origin, {
       enabled: ORDINARY_DRAFT_HTTP_RELEASE_ENABLED,
       operatorIds: parseModerationOperators(c.env as Env & ModerationBindings),
+      mediaBucket: mediaBucket(c.env),
     })(c.req.raw);
     if (authoring) return authoring;
   }
@@ -195,6 +197,8 @@ export default {
     if (!OAUTH_HTTP_RELEASE_ENABLED || !ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) return;
     if (AGENT_MCP_RELEASE_ENABLED && event.cron === AUTH_MAINTENANCE_CRON)
       ctx.waitUntil(cleanupAgentConnections(env.DB).catch(() => {}));
+    if (event.cron === AUTH_MAINTENANCE_CRON && mediaBucket(env))
+      ctx.waitUntil(maintainMediaObjects(env.DB, mediaBucket(env)).catch(() => {}));
     if (!parseModerationOperators(env as Env & ModerationBindings).length) return;
     const options = moderationEmailOptions(
       env as Env & ModerationEmailBindings,

@@ -27,11 +27,13 @@ const inventory: Record<string, Inventory> = {
       authorizeUpload: ['student'],
       upload: ['student', 'student'],
       list: ['base', 'base'],
-      readOwn: ['base'],
+      readOwn: ['base', 'base'],
       remove: ['base'],
       cleanup: ['student'],
     },
-    public: { readPublic: 1 },
+    // dropUnclaimedObject only checks whether a D1 row (id + sha256) owns an R2 object before the
+    // failed upload's object is deleted; it returns nothing to the caller (#12).
+    public: { readPublic: 2, dropUnclaimedObject: 1 },
   },
   drafts: {
     className: 'PrivateDraftStore',
@@ -108,7 +110,7 @@ const inventory: Record<string, Inventory> = {
       ownNotifications: ['base'],
     },
   },
-  'moderation-media': { className: 'ModerationMediaStore', private: { read: ['base'] } },
+  'moderation-media': { className: 'ModerationMediaStore', private: { read: ['base', 'base'] } },
   'project-moderation': {
     className: 'ProjectModerationStore',
     private: { state: ['base'], queue: ['base'], receipt: ['base'], decide: ['base'] },
@@ -484,16 +486,16 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 82 private SQL sites (56 base, 25 student, one explicit choice) and 16 public sites', () => {
+  it('inventory is exactly 84 private SQL sites (58 base, 25 student, one explicit choice) and 18 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(82);
-    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(56);
+    expect(guards).toHaveLength(84);
+    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(58);
     expect(guards.filter((guard) => guard === 'student')).toHaveLength(25);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)
         .flatMap((item) => Object.values(item.public ?? {}))
         .reduce((a, b) => a + b, 0),
-    ).toBe(16);
+    ).toBe(18);
   });
 });

@@ -2,6 +2,17 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-22 — #12 の expand：R2 と D1 の両方に書き、読みは R2→D1、key に sha256 を含める
+
+オーナーが R2 を有効化した（#218）。agent が private bucket `kobe-student-hub-media`（APAC、r2.dev 無効・独自ドメインなし）を作り、本番設定に binding `MEDIA_BUCKET` を足した。
+
+1. **expand の間は両方に書く。** `media_assets.payload` は `NOT NULL` と CHECK 付きで、列の条件を変えるには表の作り直し（contract）が要る。いま D1 に書くのをやめると、1つ前の Worker へ rollback した時に R2 にしか無い画像が読めなくなる。R2 に先に書き、失敗したら D1 の行を作らない。D1 が拒んだら object を消し、取り残しは cron（15分ごと）で D1 に行が無く1時間以上たった object を掃除する。
+2. **読み出しの認可は D1 だけ。** D1 で所有者・公開状態を確かめた行の id と sha256 から key を作り、R2 の中身を sha256 で照合してから返す。R2 に無い・合わない時は、同じ認可の SQL を payload 付きでもう一度引く（認可を飛ばす経路を作らない）。
+3. **key は `media/<id>/<sha256>`。** id は利用者が決めるので、他人が同じ id で上げても別の key になり、既存の画像を上書きできない。
+4. 1つ前の Worker が書いた D1 だけの行は、新しい列 `object_stored_at_ms` が NULL のものを cron が R2 へ写す（0031 は列の追加だけ）。R2 の権限が無い deploy 用 token でも R2 binding 付きの deploy は通ることを使い捨て Worker で確かめた（token への権限追加は不要）。
+5. 次（contract）：本番でこの版が動き、全行の `object_stored_at_ms` が埋まったら、payload を書かない版と、payload を任意にする表の作り直しを別の列車で出す。#188・#195 の容量上限はその後に R2 の容量で決め直す。プロフィール画像（`profile_avatars`、1枚 64 KiB）は D1 のまま（容量の頭打ちに効かないため）。
+6. 採らない場合の影響：R2 だけに書く形にすると rollback で画像が欠け、key に sha256 を入れないと id を使い回した上書きで他人の画像を差し替えられる。
+
 ## 2026-11-22 — 続けたくなる体験：積み上がりが見え、届いた手応えがあり、出した瞬間が楽しい（オーナーの考えを受けた方針）
 
 オーナー（服部）の考え：継続して使うと達成感があり、「これからも使いたい」と思える体験にしたい。アプリをポップにして楽しくする方向のアプリもあり、そういう感じで使い続けたくなる体験に寄せたい。プロフィールの「草」もこの継続の達成感の一部として位置づける。具体的な仕掛けの設計は agent に任せる。これを受けて次のように決める。
