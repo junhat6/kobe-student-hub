@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { createLikesClient } from '../editor/likes-client';
 import { useViewer } from '../shell/viewer';
@@ -15,7 +15,14 @@ type State =
  * One-tap public like for signed-in readers. A failed change is never retried
  * automatically; the reader sees the last confirmed state and can try again.
  */
-export default function ArticleLikeButton({ contentId }: { contentId: string }) {
+export default function ArticleLikeButton({
+  contentId,
+  actions,
+}: {
+  contentId: string;
+  /** Controls shown right after the button, before the note (e.g. sharing, #227). */
+  actions?: ReactNode;
+}) {
   const { viewer, refresh } = useViewer();
   const csrf = viewer.status === 'signed-in' ? viewer.csrfToken : null;
   // Only a confirmed "no profile" blocks a like; an unreadable profile lets the server decide.
@@ -82,24 +89,27 @@ export default function ArticleLikeButton({ contentId }: { contentId: string }) 
   }
   return (
     <div className="article-like">
-      <button
-        type="button"
-        className={'like-toggle' + (liked ? ' is-liked' : '')}
-        aria-pressed={viewer.status === 'signed-in' && state.kind !== 'error' ? liked : undefined}
-        disabled={busy}
-        onClick={() => void toggle()}
-      >
-        <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24">
-          <path
-            d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.5 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.5 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"
-            fill={liked ? 'currentColor' : 'none'}
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-          />
-        </svg>
-        {state.kind === 'error' ? '状態を確認' : liked ? 'いいね済み' : 'いいね'}
-      </button>
+      <div className="article-like-row">
+        <button
+          type="button"
+          className={'like-toggle' + (liked ? ' is-liked' : '')}
+          aria-pressed={viewer.status === 'signed-in' && state.kind !== 'error' ? liked : undefined}
+          disabled={busy}
+          onClick={() => void toggle()}
+        >
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24">
+            <path
+              d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.5 4.5 7 4.5c2 0 3.6 1.1 5 3 1.4-1.9 3-3 5-3 3.5 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"
+              fill={liked ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            />
+          </svg>
+          {state.kind === 'error' ? '状態を確認' : liked ? 'いいね済み' : 'いいね'}
+        </button>
+        {actions}
+      </div>
       <p className="article-like-note" role="status" aria-live="polite">
         {state.kind === 'error'
           ? '保存できたか確認できませんでした。「状態を確認」を押すと、保存されている状態を読み直します。'

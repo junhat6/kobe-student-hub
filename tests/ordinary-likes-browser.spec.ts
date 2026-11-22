@@ -201,3 +201,57 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
     await Promise.all(contexts.map((context) => context.close()));
   }
 });
+
+// #227: after the body, any reader (signed out here) can post the article to X or copy its link.
+test('the article end shares to X and copies the article link', async ({ page, browser }, info) => {
+  const contexts: BrowserContext[] = [];
+  const key = 'share-' + info.project.name + '-' + Date.now().toString(36);
+  const title = '共有確認の記事 & #タグ-' + key;
+  try {
+    const owner = await actor(browser, contexts, '架空制作者-' + key);
+    const id = await article(owner, title);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async (text: string) => {
+            (window as any).__copied = text;
+          },
+        },
+      });
+    });
+    await page.goto('/articles/' + id);
+    await expect(page.getByRole('heading', { level: 1, name: title, exact: true })).toBeVisible();
+    const share = page.getByRole('group', { name: 'この記事を共有' });
+    const articleUrl = ORIGIN + '/articles/' + encodeURIComponent(id);
+
+    const x = share.getByRole('link', { name: 'Xで共有（新しいタブ）' });
+    await expect(x).toHaveAttribute('target', '_blank');
+    await expect(x).toHaveAttribute('rel', 'noopener noreferrer');
+    const href = new URL((await x.getAttribute('href'))!);
+    expect(href.origin + href.pathname).toBe('https://x.com/intent/post');
+    expect(href.searchParams.get('text')).toBe(title);
+    expect(href.searchParams.get('url')).toBe(articleUrl);
+
+    const copy = share.getByRole('button', { name: '記事のリンクをコピー' });
+    await copy.click();
+    await expect(share.getByRole('status')).toHaveText('コピーしました');
+    await expect(copy).toHaveAttribute('data-state', 'copied');
+    expect(await page.evaluate(() => (window as any).__copied)).toBe(articleUrl);
+
+    for (const control of [x, copy]) {
+      const box = (await control.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    const axe = await new AxeBuilder({ page }).include('.article-end').analyze();
+    expect(axe.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious')).toEqual(
+      [],
+    );
+    const width = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    await page.locator('.article-end').screenshot({ path: info.outputPath('article-end.png') });
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});

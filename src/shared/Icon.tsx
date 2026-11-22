@@ -104,6 +104,13 @@ const paths = {
   heart: (
     <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" />
   ),
+  // The X (formerly Twitter) mark drawn as strokes: a slanted bar and the crossing stroke.
+  xMark: (
+    <>
+      <path d="M4.5 4h4l11 16h-4z" />
+      <path d="M19.5 4l-6.3 7.2M10.8 12.8L4.5 20" />
+    </>
+  ),
   school: (
     <>
       <path d="M3 9l9-5 9 5-9 5z" />

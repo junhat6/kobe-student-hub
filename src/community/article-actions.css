@@ -111,3 +111,27 @@
     padding: 16px;
   }
 }
+.article-like-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.article-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.share-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink-soft, #46525f);
+}
+.share-link:hover {
+  color: var(--ink, #14202b);
+}

@@ -16,6 +16,7 @@ import { createPublicationClient } from '../editor/publication-client';
 import StudentProfile from './StudentProfile';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import ArticleLikeButton from './ArticleLikeButton';
+import ArticleShare from './ArticleShare';
 import OrdinaryArticleReport from './OrdinaryArticleReport';
 import ArticleHandoff from '../agent/ArticleHandoff';
 import EditorialReview from './EditorialReview';
@@ -156,7 +157,11 @@ function StudentArticle({ id }: { id: string }) {
           authorName={author.name}
         />
         <div className="article-end">
-          <ArticleLikeButton key={`like-${entry.id}`} contentId={entry.id} />
+          <ArticleLikeButton
+            key={`like-${entry.id}`}
+            contentId={entry.id}
+            actions={<ArticleShare id={entry.id} title={entry.title} />}
+          />
           <Link className="article-end-author" to={`/students/${author.id}`}>
             <span className="mini-avatar" aria-hidden="true">
               {author.initials}
