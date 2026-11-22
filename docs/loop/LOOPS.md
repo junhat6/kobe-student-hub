@@ -58,7 +58,7 @@ full CI は `npm run release` の昇格時に必ず回ります。push 前に全
 
 ### 止まり方
 
-- 同じ Issue で3周失敗 → `blocked` を付けて理由を書き、次の Issue へ。
+- 同じ Issue で3周失敗 → `blocked` を付けて理由を書き、次の Issue へ。毎回違う理由で落ちるなら2回で止め、実装でなく条件・設計の見直しを提案する（[DESIGN-PRINCIPLES.md](DESIGN-PRINCIPLES.md) の原則3）。
 - 待ち行列が空 → 再計画ループを1回起動して終わる。
 - 人の判断が要る → `needs-human` を付けて次へ。待たない。
 - 1回の automation 起動で扱うのは1件（finish）／所見10件まで（patrol）。暴走とコストの上限を兼ねる。
