@@ -46,7 +46,10 @@ def mask(text: str) -> str:
     home = str(HOME)
     if home and home != "/":
         text = text.replace(home, "~")
-    return re.sub(r"(/Users/|/home/|C:\\Users\\)[^/\\\s]+", r"\1<you>", text)
+        # Claude Code names project folders after the path with "/" turned into "-".
+        text = text.replace(re.sub(r"[/\\.:]", "-", home), "~")
+    text = re.sub(r"(/Users/|/home/|C:\\Users\\)[^/\\\s]+", r"\1<you>", text)
+    return re.sub(r"(?i)(?<![A-Za-z0-9])(-Users-|-home-|C--Users-)[^-/\\\s]+", r"\1<you>", text)
 
 
 def one_line(text: str, limit: int) -> str:
@@ -243,7 +246,7 @@ def command_index(args):
     rows.sort(key=lambda s: s.started or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     for s in rows[: args.limit]:
         day = s.started.strftime("%Y-%m-%d") if s.started else "----------"
-        print(f"{day}  {s.tool:<11} {one_line(s.project, 28):<28}  {mask(one_line(s.title, 90))}")
+        print(f"{day}  {s.tool:<11} {one_line(mask(s.project), 28):<28}  {mask(one_line(s.title, 90))}")
         print(f"            {mask(str(s.path))}")
     if not rows:
         print("該当するセッションが見つかりませんでした。--since や --grep を外して試してください。")

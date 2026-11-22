@@ -25,7 +25,7 @@ function run(...args: string[]) {
 
 beforeAll(() => {
   home = mkdtempSync(join(tmpdir(), 'ksh-kit-'));
-  const dir = join(home, '.claude', 'projects', '-Users-fictional-docker-notes');
+  const dir = join(home, '.claude', 'projects', '-Users-fictionaluser-docker-notes');
   mkdirSync(dir, { recursive: true });
   sessionPath = join(dir, 'fictional-session.jsonl');
   const lines = [
@@ -50,6 +50,23 @@ beforeAll(() => {
     },
   ];
   writeFileSync(sessionPath, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  // Sessions without a cwd fall back to Claude Code's folder name, which encodes the full path
+  // (including the user name) with "/" turned into "-".
+  for (const folder of [
+    home.replace(/[/\\.:]/g, '-') + '-private-repo',
+    '-home-fictionaluser-linux-notes',
+  ]) {
+    const other = join(home, '.claude', 'projects', folder);
+    mkdirSync(other, { recursive: true });
+    writeFileSync(
+      join(other, 'fictional-other.jsonl'),
+      JSON.stringify({
+        type: 'user',
+        timestamp: '2026-11-02T10:00:00Z',
+        message: { content: 'docker の別件' },
+      }) + '\n',
+    );
+  }
 });
 
 afterAll(() => rmSync(home, { recursive: true, force: true }));
@@ -59,6 +76,9 @@ describe('agent kit session_index.py', () => {
     const index = run('index', '--grep', 'docker');
     expect(index).toContain('claude');
     expect(index).toContain('docker-notes');
+    expect(index).toContain('~-private-repo');
+    expect(index).toContain('-home-<you>-linux-notes');
+    expect(index).toContain('-Users-<you>-docker-notes');
     const shown = run('show', sessionPath);
     expect(shown).toContain('## あなた');
     expect(shown).toContain('## エージェント');
@@ -72,6 +92,7 @@ describe('agent kit session_index.py', () => {
       expect(output).not.toContain(FAKE_EMAIL);
       expect(output).not.toContain('fictionaluser');
       expect(output).not.toContain(home);
+      expect(output).not.toContain(home.replace(/[/\\.:]/g, '-'));
     }
   });
 

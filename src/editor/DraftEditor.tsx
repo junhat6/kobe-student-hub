@@ -311,6 +311,8 @@ export default function DraftEditor({
     pendingFormat.current = null;
     setText({ title: beforeAgent.title, body: beforeAgent.body });
     setBeforeAgent(null);
+    // The undone output must not come back through 「AIの出力から入れる」 either.
+    setAgentMetadata(null);
     setStatus('AIの出力を反映する前の文章に戻しました。');
   }
   function open(value: EditorDraft) {
