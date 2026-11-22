@@ -49,4 +49,5 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            test-results-generation/
           retention-days: 14
