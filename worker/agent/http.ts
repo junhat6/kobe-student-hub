@@ -617,8 +617,16 @@ export function createAgentHandler(
         400,
       );
     const state = p.getAll('state').length <= 1 ? p.get('state') : null;
+    // Anyone can register an https redirect URI through DCR, so before the student has seen its
+    // host on the consent screen, errors go back only to this device's loopback app. Redirecting
+    // to an https URI here would make this origin an open redirector (RFC 9700 §4.11.2).
     const back = (error: string) => {
       const target = new URL(redirectUri);
+      if (!LOOPBACK.has(target.hostname))
+        return textPage(
+          '接続の依頼が正しくありません。AIエージェントの画面からもう一度接続してください。',
+          400,
+        );
       target.searchParams.set('error', error);
       if (state !== null) target.searchParams.set('state', state);
       target.searchParams.set('iss', origin);

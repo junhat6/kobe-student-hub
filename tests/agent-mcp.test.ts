@@ -246,6 +246,30 @@ describe('authorization flow', () => {
     const other = await startAuthorization(clientId, { resource: 'https://other.example/mcp' });
     expect(new URL(other.r.headers.location).searchParams.get('error')).toBe('invalid_target');
   });
+  it('never redirects to a self-registered https URI before the student decides (no open redirect)', async () => {
+    // Anyone can register a client through DCR, so an https redirect URI is not trusted
+    // until the student has seen its host on the consent screen (RFC 9700 §4.11.2).
+    const evil = 'https://evil.example/cb';
+    const reg = await http('/api/oauth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Claude Code', redirect_uris: [evil] }),
+    });
+    const clientId = JSON.parse(reg!.body).client_id as string;
+    const broken: Record<string, string>[] = [
+      { response_type: 'token' },
+      { code_challenge_method: 'plain' },
+      { resource: 'https://other.example/mcp' },
+      { scope: 'admin' },
+    ];
+    for (const extra of broken) {
+      const { r } = await startAuthorization(clientId, { redirect_uri: evil, ...extra });
+      expect(r.status).toBe(400);
+      expect(r.headers.location).toBeUndefined();
+    }
+    const ok = await startAuthorization(clientId, { redirect_uri: evil });
+    expect(new URL(ok.r.headers.location).origin).toBe(ORIGIN);
+  });
   it('needs a signed-in session to see or decide the consent request, and deny returns access_denied', async () => {
     const clientId = await registerClient();
     const { r } = await startAuthorization(clientId);
