@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
 import { createProfileModerationClient } from '../editor/profile-report-client';
+import { createModerationClient } from '../editor/moderation-client';
 import type { ProfileReportCase, ProfileReportCaseSummary } from '../profile-report-types';
 
 const stamp = (n: number) =>
@@ -12,7 +13,7 @@ const stamp = (n: number) =>
     minute: '2-digit',
   }).format(n);
 
-/** Operator read-only list of reported profiles. No decision is offered from this view yet. */
+/** Operator list of reported profiles. The only decision is taking down the icon image. */
 export default function ProfileReportCases({
   fetcher,
   initialCaseId,
@@ -21,12 +22,14 @@ export default function ProfileReportCases({
   initialCaseId?: string | null;
 }) {
   const client = useMemo(() => createProfileModerationClient(fetcher), [fetcher]);
+  const session = useMemo(() => createModerationClient(fetcher), [fetcher]);
   const generation = useRef(0),
     request = useRef<AbortController | null>(null);
   const [cases, setCases] = useState<ProfileReportCaseSummary[] | null>(null),
     [selected, setSelected] = useState<string | null>(null),
     [detail, setDetail] = useState<ProfileReportCase | null>(null),
     [busy, setBusy] = useState(false),
+    [reason, setReason] = useState(''),
     [message, setMessage] = useState('確認待ちの一覧を取得しています…');
   async function load(id: string | null) {
     const run = ++generation.current;
@@ -49,7 +52,7 @@ export default function ProfileReportCases({
       setDetail(one);
       setMessage(
         one
-          ? '通報内容を表示しました。この画面からはまだ判断を送信できません。'
+          ? '通報内容を表示しました。'
           : list.length
             ? '対象を選ぶと、通報内容と通報時のプロフィールを確認できます。'
             : '確認待ちの通報はありません。',
@@ -63,6 +66,24 @@ export default function ProfileReportCases({
       );
     } finally {
       if (run === generation.current) setBusy(false);
+    }
+  }
+  async function removeAvatar(id: string, avatar: string) {
+    const version = avatar.slice(-16);
+    setBusy(true);
+    setMessage('アイコン画像を外しています…');
+    try {
+      const csrf = await session.session();
+      await client.removeAvatar(id, { avatar: version, reason }, csrf);
+      setReason('');
+      await load(id);
+      setMessage('アイコン画像を外しました。本人のお知らせに理由が届きます。');
+    } catch {
+      // Unknown outcome: re-read instead of resending, so a second removal is never sent blindly.
+      await load(id);
+      setMessage(
+        '外せたか確認できませんでした。表示を読み直しました。画像が残っていれば、もう一度判断してください。',
+      );
     }
   }
   useEffect(() => {
@@ -123,6 +144,32 @@ export default function ProfileReportCases({
               <div className="moderation-notification">
                 プロフィールは通報の件数で自動的に非公開になりません。通報時の表示名・紹介文も記録しています。
               </div>
+              {detail.avatar ? (
+                <form
+                  className="moderation-avatar"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (reason.trim()) void removeAvatar(detail.profile.id, detail.avatar!);
+                  }}
+                >
+                  <img src={detail.avatar} alt="いまのアイコン画像" width={96} height={96} />
+                  <label>
+                    外す理由（本人に届きます）
+                    <textarea
+                      value={reason}
+                      maxLength={1000}
+                      required
+                      disabled={busy}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                  </label>
+                  <Button type="submit" disabled={busy || !reason.trim()}>
+                    アイコン画像を外す
+                  </Button>
+                </form>
+              ) : (
+                <p className="moderation-plain-text">アイコン画像は設定されていません。</p>
+              )}
               <ol className="moderation-reports">
                 {detail.reports.map((report, index) => (
                   <li key={index}>

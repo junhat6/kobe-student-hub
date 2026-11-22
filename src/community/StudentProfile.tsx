@@ -30,7 +30,7 @@ export default function StudentProfile({
         投稿者を読み込んでいます…
       </p>
     );
-  const { author, entries, projects } = value;
+  const { author, avatar, entries, projects } = value;
   const articles = view === 'articles';
   return (
     <section className="shell profile-page">
@@ -38,7 +38,9 @@ export default function StudentProfile({
         {articles ? '← 記事一覧へ' : '← 作品一覧へ'}
       </Link>
       <div className="profile-header">
-        <span className="avatar large">{author.initials}</span>
+        <span className={'avatar large' + (avatar ? ' has-image' : '')}>
+          {avatar ? <img src={avatar} alt="" width={64} height={64} /> : author.initials}
+        </span>
         <div>
           <h1>{author.name}</h1>
           <p className="profile-meta">

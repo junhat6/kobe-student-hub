@@ -79,7 +79,8 @@ async function student(index: number) {
     expect(response.headers.get(key)).toBe(value);
   expect(response.headers.has('Set-Cookie')).toBe(false);
   const value = (await response.json()) as PublicStudent;
-  expect(Object.keys(value).sort()).toEqual(['author', 'entries', 'projects']);
+  expect(Object.keys(value).sort()).toEqual(['author', 'avatar', 'entries', 'projects']);
+  expect(value.avatar).toBeNull();
   expect(Object.keys(value.author).sort()).toEqual([
     'bio',
     'department',

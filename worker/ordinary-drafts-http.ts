@@ -13,6 +13,7 @@ import { createPrivateProjectHandler } from './projects-http';
 import { createPrivateProjectReportHandler } from './project-reports-http';
 import { createPrivateProfileReportHandler } from './profile-reports-http';
 import { createMediaHandler } from './media-http';
+import { createProfileAvatarHandler } from './profile-avatars-http';
 import { createOrdinaryDiscoveryHandler } from './ordinary-discovery-http';
 
 /** Ordinary authoring and publication composition. Runtime bindings alone never enable it.
@@ -54,8 +55,11 @@ export function createOrdinaryDraftHandler(
     options.operatorIds ?? [],
     clock,
   );
+  const avatars = createProfileAvatarHandler(db, origin, clock);
   return async (request: Request): Promise<Response | null> => {
     const path = new URL(request.url).pathname;
+    if (path.startsWith('/api/private/profile-avatar') || path.startsWith('/api/profile-avatars'))
+      return avatars(request);
     // The private profile handler owns /api/private/profile*, so route these first.
     if (
       path.startsWith('/api/private/profile-reports') ||

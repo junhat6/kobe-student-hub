@@ -9,6 +9,7 @@ const label = {
   temporarily_hidden: '記事が一時非公開になりました',
   restored: '記事が復元されました',
   deleted: '記事が公開表示から削除されました',
+  avatar_removed: 'プロフィールのアイコン画像が外されました',
 };
 /** Loads by itself and stays out of the way when there is nothing to tell. */
 export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch }) {
@@ -56,7 +57,9 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
                   {new Date(item.createdAt).toLocaleDateString('ja-JP')}
                 </time>
                 <p className="notification-reason">{item.reason}</p>
-                <a href="#publications">自分の公開記録を確認する</a>
+                {item.kind !== 'avatar_removed' && (
+                  <a href="#publications">自分の公開記録を確認する</a>
+                )}
               </li>
             ))}
           </ul>

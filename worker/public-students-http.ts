@@ -1,5 +1,6 @@
 import { ArticlePublicationStore } from './publication';
 import { ProjectStore } from './projects';
+import { ProfileAvatarStore } from './profile-avatars';
 import type { PublicStudent } from '../src/public-student-types';
 
 const path = /^\/api\/students\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})$/;
@@ -21,6 +22,7 @@ export function createPublicStudentHandler(
 ) {
   const articles = new ArticlePublicationStore(db, origin, clock);
   const projects = new ProjectStore(db, origin, clock);
+  const avatars = new ProfileAvatarStore(db, origin, clock);
   return async (request: Request): Promise<Response | null> => {
     const url = new URL(request.url);
     if (url.pathname !== '/api/students' && !url.pathname.startsWith('/api/students/')) return null;
@@ -48,7 +50,8 @@ export function createPublicStudentHandler(
       if (!author || (!a.entries.length && !p.projects.length)) return error(404);
       if (a.author && p.author && JSON.stringify(a.author) !== JSON.stringify(p.author))
         return error(503);
-      const value: PublicStudent = { author, entries: a.entries, projects: p.projects };
+      const avatar = await avatars.readPublicPath(author.id);
+      const value: PublicStudent = { author, avatar, entries: a.entries, projects: p.projects };
       const body = JSON.stringify(value);
       if (new TextEncoder().encode(body).byteLength > 262144) return error(503);
       return new Response(body, { headers });

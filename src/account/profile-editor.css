@@ -178,3 +178,27 @@
     flex: 1;
   }
 }
+.profile-editor-avatar-wrap {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 160px;
+}
+.profile-editor-avatar {
+  overflow: hidden;
+}
+.profile-editor-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.profile-avatar-tools {
+  display: flex;
+  gap: 4px;
+}
+.profile-avatar-error {
+  margin: 0;
+  font-size: 13px;
+}

@@ -478,16 +478,18 @@ export class ArticleModerationStore {
         UNION ALL SELECT 'decision.'||o.decision_id,o.content_id,CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE NULL END,o.event,CASE WHEN length(d.reason)<=1000 AND length(CAST(d.reason AS BLOB))<=4000 THEN d.reason ELSE NULL END,o.created_at_ms FROM article_moderation_outbox o JOIN article_moderation_decisions d ON d.id=o.decision_id JOIN article_publications a ON a.content_id=o.content_id JOIN content c ON c.id=o.content_id WHERE a.owner_account_id=?
         UNION ALL SELECT 'project-report.'||o.id,o.project_id,CASE WHEN length(a.title)<=200 AND length(CAST(a.title AS BLOB))<=800 THEN a.title ELSE NULL END,'temporarily_hidden','異なる3人からの通報により、一時非公開になりました。運営が内容を確認します。',o.created_at_ms FROM project_report_outbox o JOIN project_publications a ON a.id=o.project_id WHERE a.owner_account_id=? AND o.event='temporarily_hidden'
         UNION ALL SELECT 'project.'||o.decision_id,o.project_id,CASE WHEN length(a.title)<=200 AND length(CAST(a.title AS BLOB))<=800 THEN a.title ELSE NULL END,o.event,CASE WHEN length(d.reason)<=1000 AND length(CAST(d.reason AS BLOB))<=4000 THEN d.reason ELSE NULL END,o.created_at_ms FROM project_moderation_outbox o JOIN project_moderation_decisions d ON d.id=o.decision_id JOIN project_publications a ON a.id=o.project_id WHERE a.owner_account_id=?
+        UNION ALL SELECT 'avatar.'||r.id,r.public_profile_id,CASE WHEN length(p.display_name)<=80 AND length(CAST(p.display_name AS BLOB))<=320 THEN p.display_name ELSE NULL END,'avatar_removed',CASE WHEN length(r.reason)<=1000 AND length(CAST(r.reason AS BLOB))<=4000 THEN r.reason ELSE NULL END,r.decided_at_ms FROM profile_avatar_removals r JOIN public_profiles p ON p.id=r.public_profile_id WHERE r.owner_account_id=?
         ) SELECT id,contentId,title,kind,reason,createdAt FROM notices WHERE ${live} ORDER BY createdAt DESC,id DESC LIMIT 20`,
         )
-        .bind(p.accountId, p.accountId, p.accountId, p.accountId, ...bindings(p))
+        .bind(p.accountId, p.accountId, p.accountId, p.accountId, p.accountId, ...bindings(p))
         .all<OwnModerationNotice>();
       const valid = result.results.every(
         (row) =>
-          /^(?:report|decision|project|project-report)\.[0-9a-f-]{36}$/.test(row.id) &&
+          /^(?:report|decision|project|project-report|avatar)\.[0-9a-f-]{36}$/.test(row.id) &&
           idValid(row.contentId) &&
           text(row.title, 200) &&
-          ['temporarily_hidden', 'restored', 'deleted'].includes(row.kind) &&
+          ['temporarily_hidden', 'restored', 'deleted', 'avatar_removed'].includes(row.kind) &&
+          (row.kind === 'avatar_removed') === row.id.startsWith('avatar.') &&
           text(row.reason, 1000) &&
           Number.isSafeInteger(row.createdAt) &&
           row.createdAt >= 0 &&

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
@@ -9,6 +10,8 @@ import {
   type PublicProfile,
 } from '../editor/profile-client';
 import Icon from '../shared/Icon';
+import { ownAvatarPath } from '../shared/avatar';
+import ProfileAvatarTools from './ProfileAvatarTools';
 import './profile-editor.css';
 
 const empty: ProfileInput = { displayName: '', department: '', yearLabel: '', bio: '' };
@@ -37,13 +40,30 @@ function problem(v: ProfileInput) {
 export type ProfileState = 'loading' | 'none' | 'exists' | 'unknown';
 
 /** The public face shown next to articles. The card itself is the preview: what you see is published. */
-function Card({ value, initials }: { value: ProfileInput; initials?: string }) {
+function Card({
+  value,
+  initials,
+  avatar,
+  tools,
+}: {
+  value: ProfileInput;
+  initials?: string;
+  avatar?: string | null;
+  tools?: ReactNode;
+}) {
   const mark = initials ?? (Array.from(value.displayName.trim())[0] || '');
   return (
     <div className="profile-editor-card">
-      <span className="profile-editor-avatar" aria-hidden="true">
-        {mark || <Icon name="user" size={28} />}
-      </span>
+      <div className="profile-editor-avatar-wrap">
+        <span className="profile-editor-avatar" aria-hidden="true">
+          {avatar ? (
+            <img src={ownAvatarPath(avatar)} alt="" width={72} height={72} />
+          ) : (
+            mark || <Icon name="user" size={28} />
+          )}
+        </span>
+        {tools}
+      </div>
       <div className="profile-editor-card-text">
         <strong>{value.displayName || ' '}</strong>
         {(value.department || value.yearLabel) && (
@@ -92,6 +112,7 @@ export default function ProfileEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [avatar, setAvatar] = useState<string | null>(null);
   const creating = state === 'none';
   const open = creating || editing;
   const dirty = open && !sameProfileInput(text, profile ? editable(profile) : empty);
@@ -275,7 +296,20 @@ export default function ProfileEditor({
         </div>
       )}
       {state === 'exists' && profile && !editing && (
-        <Card value={editable(profile)} initials={profile.initials} />
+        <Card
+          value={editable(profile)}
+          initials={profile.initials}
+          avatar={avatar}
+          tools={
+            <ProfileAvatarTools
+              csrfToken={csrfToken}
+              fetcher={fetcher}
+              avatar={avatar}
+              onChange={setAvatar}
+              onMessage={setMessage}
+            />
+          }
+        />
       )}
       {open && (
         <form
@@ -287,7 +321,7 @@ export default function ProfileEditor({
           }}
         >
           <div className="profile-editor-preview">
-            <Card value={text} />
+            <Card value={text} avatar={avatar} />
           </div>
           <fieldset disabled={busy}>
             <legend className="sr-only">プロフィールの内容</legend>

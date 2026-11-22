@@ -1,4 +1,5 @@
 import type {
+  ProfileAvatarRemovalInput,
   ProfileReportCase,
   ProfileReportCaseSummary,
   ProfileReportInput,
@@ -10,6 +11,8 @@ import {
   validProjectReportInput,
 } from './project-report-client';
 import { publicKeys, publicText } from './public-author-client';
+import { avatarVersion, validPublicAvatar } from '../shared/avatar';
+import type { ProjectReportInput } from '../project-report-types';
 
 export const validProfileReportInput = (v: unknown): v is ProfileReportInput =>
   validProjectReportInput(v);
@@ -57,11 +60,12 @@ function profileText(v: unknown) {
   );
 }
 function caseDto(v: unknown): v is ProfileReportCase {
-  if (!publicKeys(v, ['profile', 'reports', 'reportsTruncated'])) return false;
+  if (!publicKeys(v, ['profile', 'avatar', 'reports', 'reportsTruncated'])) return false;
   const p = v.profile;
   return (
     publicKeys(p, ['id', 'name', 'department', 'year', 'bio', 'initials']) &&
     slug(p.id) &&
+    validPublicAvatar(v.avatar, p.id) &&
     profileText({ name: p.name, department: p.department, year: p.year, bio: p.bio }) &&
     publicText(p.initials, 8) &&
     typeof v.reportsTruncated === 'boolean' &&
@@ -112,6 +116,30 @@ export function createProfileModerationClient(fetcher: typeof fetch) {
       );
       if (!caseDto(v) || v.profile.id !== id) throw new ProjectReportClientError();
       return v;
+    },
+    /** One explicit operator decision; never retried automatically. */
+    async removeAvatar(
+      id: string,
+      input: ProfileAvatarRemovalInput,
+      csrf: string,
+      signal?: AbortSignal,
+    ): Promise<void> {
+      if (
+        !slug(id) ||
+        !avatarVersion(input.avatar) ||
+        !publicText(input.reason, 1000) ||
+        !input.reason.trim() ||
+        !/^[A-Za-z0-9_-]{43}$/.test(csrf)
+      )
+        throw new ProjectReportClientError();
+      const v = await projectReportRequest(
+        '/api/private/profile-moderation/cases/' + id + '/avatar-removal',
+        fetcher,
+        signal,
+        { avatar: input.avatar, reason: input.reason } as unknown as ProjectReportInput,
+        csrf,
+      );
+      if (!publicKeys(v, ['removed']) || v.removed !== true) throw new ProjectReportClientError();
     },
   };
 }

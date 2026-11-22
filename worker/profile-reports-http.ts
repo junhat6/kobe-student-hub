@@ -92,7 +92,9 @@ async function input(request: Request): Promise<Body> {
   }
 }
 const slug = '[A-Za-z0-9][A-Za-z0-9_-]{0,127}';
-const route = new RegExp(`^/api/private/profile-(reports|moderation/cases)(?:/(${slug}))?$`);
+const route = new RegExp(
+  `^/api/private/profile-(reports|moderation/cases)(?:/(${slug}))?(/avatar-removal)?$`,
+);
 /** Profile report intake and operator read-only review; the allowlist is checked on every read. */
 export function createPrivateProfileReportHandler(
   db: D1Database,
@@ -111,9 +113,11 @@ export function createPrivateProfileReportHandler(
       return null;
     if (!canonicalOrigin(origin)) return error(503, 'profile_report_unavailable');
     const m = route.exec(u.pathname);
-    if (!m || u.search || u.hash || (m[1] === 'reports' && !m[2])) return unavailable();
-    const report = m[1] === 'reports';
-    const allowed = report ? ['GET', 'POST'] : ['GET'];
+    if (!m || u.search || u.hash || (m[1] === 'reports' && (!m[2] || m[3])) || (m[3] && !m[2]))
+      return unavailable();
+    const report = m[1] === 'reports',
+      removal = Boolean(m[3]);
+    const allowed = report ? ['GET', 'POST'] : removal ? ['POST'] : ['GET'];
     if (!allowed.includes(request.method)) {
       const r = error(405, 'method_not_allowed');
       r.headers.set('Allow', allowed.join(', '));
@@ -126,6 +130,12 @@ export function createPrivateProfileReportHandler(
           : await sessions.authorizeMutation(request);
       if (!auth) return error(401, 'authentication_required');
       let result: unknown;
+      if (removal) {
+        const body = await input(request);
+        if (!body.ok) return error(body.status, 'invalid_request');
+        result = await store.removeAvatar(request, m[2], body.value);
+        return result === null ? unavailable() : json(result, 201);
+      }
       if (report && request.method === 'POST') {
         const body = await input(request);
         if (!body.ok) return error(body.status, 'invalid_request');

@@ -505,3 +505,25 @@
     padding: 18px;
   }
 }
+.moderation-avatar {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin: 12px 0;
+}
+.moderation-avatar img {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.moderation-avatar label {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+}
+.moderation-avatar textarea {
+  min-height: 72px;
+  width: 100%;
+  box-sizing: border-box;
+}

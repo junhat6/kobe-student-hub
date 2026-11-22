@@ -216,8 +216,8 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
   };
 }
 const MEDIA_SOURCE_MAX_BYTES = 12 * 1024 * 1024;
-/** Native decode/resize strips metadata; the server independently bounds and decodes every output pixel. */
-export async function prepareImage(file: File): Promise<Blob> {
+/** Bounded source checks shared by article images and profile icons; returns a decoded bitmap. */
+export async function openImageSource(file: File): Promise<ImageBitmap> {
   // Each refusal names its own reason so the author knows what to change before choosing again.
   if (!['image/png', 'image/jpeg'].includes(file.type))
     throw new Error(
@@ -265,15 +265,22 @@ export async function prepareImage(file: File): Promise<Blob> {
       `画像の画素数が大きすぎます（${width} × ${height}）。1600万画素以内の画像を選んでください。`,
     );
   const image = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  if (
+    !image.width ||
+    !image.height ||
+    image.width * image.height > 16000000 ||
+    image.width > 16384 ||
+    image.height > 16384
+  ) {
+    image.close();
+    throw new Error('元画像は1600万画素以内にしてください。');
+  }
+  return image;
+}
+/** Native decode/resize strips metadata; the server independently bounds and decodes every output pixel. */
+export async function prepareImage(file: File): Promise<Blob> {
+  const image = await openImageSource(file);
   try {
-    if (
-      !image.width ||
-      !image.height ||
-      image.width * image.height > 16000000 ||
-      image.width > 16384 ||
-      image.height > 16384
-    )
-      throw new Error('元画像は1600万画素以内にしてください。');
     const pixels = file.type === 'image/jpeg' ? JPEG_MAX_PIXELS : MEDIA_MAX_PIXELS;
     let scale = Math.min(
       1,

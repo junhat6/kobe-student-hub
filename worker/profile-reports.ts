@@ -5,6 +5,7 @@ import {
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
 import { decodePublicProfile, publicProfileSqlBounds } from './publication';
+import { avatarVersion, publicAvatarPath } from '../src/shared/avatar';
 import type {
   ProfileReportCase,
   ProfileReportCaseSummary,
@@ -51,6 +52,7 @@ type CaseRow = {
   reported_bio: string;
   created_at_ms: number;
   report_count: number;
+  avatar_version: string | null;
 };
 /** Private profile report intake and operator read-only review. No automatic hide. */
 export class ProfileReportStore {
@@ -167,7 +169,7 @@ export class ProfileReportStore {
       if (!p) return null;
       const rs = await this.db
         .prepare(
-          `SELECT ${cols},CASE WHEN length(CAST(q.reason AS BLOB))<=800 THEN q.reason ELSE NULL END reason,CASE WHEN length(CAST(q.detail AS BLOB))<=8000 THEN q.detail ELSE NULL END detail,q.display_name reported_name,q.department reported_department,q.year_label reported_year,q.bio reported_bio,q.created_at_ms,(SELECT COUNT(*) FROM profile_reports total WHERE total.public_profile_id=p.id) report_count FROM public_profiles p JOIN profile_reports q ON q.public_profile_id=p.id WHERE p.id=? AND ${profile} AND ${live} ORDER BY q.created_at_ms DESC,q.id ASC LIMIT 20`,
+          `SELECT ${cols},CASE WHEN length(CAST(q.reason AS BLOB))<=800 THEN q.reason ELSE NULL END reason,CASE WHEN length(CAST(q.detail AS BLOB))<=8000 THEN q.detail ELSE NULL END detail,q.display_name reported_name,q.department reported_department,q.year_label reported_year,q.bio reported_bio,q.created_at_ms,(SELECT COUNT(*) FROM profile_reports total WHERE total.public_profile_id=p.id) report_count,(SELECT substr(a.sha256,1,16) FROM profile_avatars a WHERE a.public_profile_id=p.id) avatar_version FROM public_profiles p JOIN profile_reports q ON q.public_profile_id=p.id WHERE p.id=? AND ${profile} AND ${live} ORDER BY q.created_at_ms DESC,q.id ASC LIMIT 20`,
         )
         .bind(id, ...binds(p))
         .all<CaseRow>();
@@ -187,12 +189,16 @@ export class ProfileReportStore {
             !Number.isSafeInteger(r.created_at_ms) ||
             r.created_at_ms < 0 ||
             r.created_at_ms > p.nowMs ||
-            r.report_count !== rs.results[0].report_count,
+            r.report_count !== rs.results[0].report_count ||
+            r.avatar_version !== rs.results[0].avatar_version,
         )
       )
         return null;
+      const version = rs.results[0].avatar_version;
+      if (version !== null && !avatarVersion(version)) return null;
       const result: ProfileReportCase = {
         profile: author,
+        avatar: version === null ? null : publicAvatarPath(author.id, version),
         reports: rs.results.map((r) => ({
           reason: r.reason!,
           detail: r.detail!,
@@ -207,6 +213,34 @@ export class ProfileReportStore {
         reportsTruncated: rs.results[0].report_count > rs.results.length,
       };
       return new TextEncoder().encode(JSON.stringify(result)).length <= 262144 ? result : null;
+    } catch {
+      return null;
+    }
+  }
+  /** Operator takes down the exact icon they reviewed; the reason reaches the owner's notices. */
+  async removeAvatar(req: Request, id: unknown, value: unknown): Promise<{ removed: true } | null> {
+    if (req.method !== 'POST' || !slug(id) || !this.operators.length) return null;
+    if (!value || typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype)
+      return null;
+    const v = value as Record<string, unknown>;
+    if (
+      Reflect.ownKeys(v).length !== 2 ||
+      !avatarVersion(v.avatar) ||
+      !text(v.reason, 1000) ||
+      !v.reason.trim() ||
+      new TextEncoder().encode(v.reason).length > 4000
+    )
+      return null;
+    try {
+      const p = await this.sessions.storageAuthorization(req);
+      if (!p || !this.operators.includes(p.accountId)) return null;
+      const row = await this.db
+        .prepare(
+          `INSERT INTO profile_avatar_removals(id,public_profile_id,owner_account_id,operator_account_id,sha256,reason,decided_at_ms) SELECT ?,a.public_profile_id,m.owner_account_id,?,a.sha256,?,? FROM profile_avatars a JOIN account_public_profiles m ON m.public_profile_id=a.public_profile_id WHERE a.public_profile_id=? AND substr(a.sha256,1,16)=? AND EXISTS(SELECT 1 FROM profile_reports q WHERE q.public_profile_id=a.public_profile_id) AND ${live} RETURNING id`,
+        )
+        .bind(crypto.randomUUID(), p.accountId, v.reason, p.nowMs, id, v.avatar, ...binds(p))
+        .first();
+      return row ? { removed: true } : null;
     } catch {
       return null;
     }

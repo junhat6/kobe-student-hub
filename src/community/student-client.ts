@@ -6,6 +6,7 @@ import {
   validPublicSummary,
 } from '../editor/public-author-client';
 import { validProjectAuthor } from '../editor/project-client';
+import { validPublicAvatar } from '../shared/avatar';
 import type { PublicStudent } from '../public-student-types';
 
 export class PublicStudentClientError extends Error {
@@ -19,8 +20,9 @@ export class PublicStudentClientError extends Error {
 }
 function valid(value: unknown, id: string): value is PublicStudent {
   if (
-    !publicKeys(value, ['author', 'entries', 'projects']) ||
+    !publicKeys(value, ['author', 'avatar', 'entries', 'projects']) ||
     !validPublicProfile(value.author, id) ||
+    !validPublicAvatar(value.avatar, id) ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.projects) ||
     value.entries.length > 20 ||

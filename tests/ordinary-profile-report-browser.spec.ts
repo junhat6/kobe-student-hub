@@ -45,7 +45,12 @@ test('a student reports a public profile and an operator reads it with the repor
       page.getByRole('heading', { name: '架空の通報される投稿者-' + key }),
     ).toBeVisible();
     await reportButton(page).click();
-    await expect(page.getByRole('link', { name: 'ログイン', exact: true })).toBeVisible();
+    // Scoped: the mobile header can also carry its own ログイン link.
+    await expect(
+      page
+        .getByRole('region', { name: 'プロフィールの通報' })
+        .getByRole('link', { name: 'ログイン', exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel('プロフィールの通報理由（必須）')).toHaveCount(0);
 
     // The author's own page has no report form.

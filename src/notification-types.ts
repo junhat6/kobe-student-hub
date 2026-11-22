@@ -14,7 +14,7 @@ export interface OwnModerationNotice {
   id: string;
   contentId: string;
   title: string;
-  kind: 'temporarily_hidden' | 'restored' | 'deleted';
+  kind: 'temporarily_hidden' | 'restored' | 'deleted' | 'avatar_removed';
   reason: string;
   createdAt: number;
 }

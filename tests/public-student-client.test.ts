@@ -34,9 +34,14 @@ function client(value: unknown) {
 describe('ordinary combined public student transport', () => {
   it('accepts genuine one-sided emptiness and both activities with anonymous bounded transport', async () => {
     for (const v of [
-      { author, entries: [entry], projects: [] },
-      { author, entries: [], projects: [project] },
-      { author, entries: [entry], projects: [project] },
+      { author, avatar: null, entries: [entry], projects: [] },
+      { author, avatar: null, entries: [], projects: [project] },
+      {
+        author,
+        avatar: `/api/profile-avatars/${author.id}/0123456789abcdef`,
+        entries: [entry],
+        projects: [project],
+      },
     ]) {
       const c = client(v);
       expect(await c.client.read(author.id)).toEqual(v);
@@ -49,6 +54,14 @@ describe('ordinary combined public student transport', () => {
   it('rejects orphan, duplicate, private-field and malformed-side payloads without inventing an empty list', async () => {
     for (const value of [
       { author, entries: [], projects: [] },
+      { author, entries: [entry], projects: [] },
+      { author, avatar: 'https://evil.example/a.png', entries: [entry], projects: [] },
+      {
+        author,
+        avatar: '/api/profile-avatars/other/0123456789abcdef',
+        entries: [entry],
+        projects: [],
+      },
       { author: { ...author, google_subject: 'private' }, entries: [entry], projects: [] },
       { author, entries: [{ ...entry, body: 'not a summary' }], projects: [project] },
       { author, entries: [entry], projects: [{ ...project, githubUrl: 'javascript:bad' }] },

@@ -215,11 +215,12 @@ function ownNotice(v: unknown): v is OwnModerationNotice {
   return (
     keys(v, ['id', 'contentId', 'title', 'kind', 'reason', 'createdAt']) &&
     typeof v.id === 'string' &&
-    /^(?:report|decision|project|project-report)\.[0-9a-f-]{36}$/.test(v.id) &&
+    /^(?:report|decision|project|project-report|avatar)\.[0-9a-f-]{36}$/.test(v.id) &&
     id(v.contentId) &&
     text(v.title, 200) &&
     typeof v.kind === 'string' &&
-    ['temporarily_hidden', 'restored', 'deleted'].includes(v.kind) &&
+    ['temporarily_hidden', 'restored', 'deleted', 'avatar_removed'].includes(v.kind) &&
+    (v.kind === 'avatar_removed') === v.id.startsWith('avatar.') &&
     text(v.reason, 1000) &&
     time(v.createdAt)
   );
