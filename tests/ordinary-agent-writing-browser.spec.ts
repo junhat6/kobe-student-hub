@@ -155,6 +155,15 @@ test('the agents guide and the writing kit are public', async ({ page }, info) =
   await expect(page.getByLabel('エージェントへの依頼文', { exact: true })).toContainText(
     ORIGIN + '/agent-kit/ksh-article/SKILL.md',
   );
+  // #214: the four-point disclaimer comes before the request that lets an agent read history.
+  const caution = page.getByRole('note', { name: '履歴を使う前に' });
+  await expect(caution.getByRole('listitem')).toHaveCount(4);
+  await expect(caution).toContainText('すり抜けがあります');
+  const [cautionBox, askBox] = await Promise.all([
+    caution.boundingBox(),
+    page.getByLabel('エージェントへの依頼文', { exact: true }).boundingBox(),
+  ]);
+  expect(cautionBox!.y).toBeLessThan(askBox!.y);
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.screenshot({ path: info.outputPath('agents-page.png'), fullPage: true });
   for (const path of [

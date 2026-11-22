@@ -472,6 +472,84 @@ describe('agent kit session_index.py with the home folder as the working place',
     expect(shown).toContain('## エージェント');
   });
 
+  // #214 (2026-11-22 owner decision): masking is a best effort, so it must stay fast and must
+  // not hide ordinary prose; the four-point disclaimer comes before any session content.
+  it('masks long dash, list and blank runs in time close to linear', () => {
+    const timing = execFileSync(
+      'python3',
+      [
+        '-I',
+        '-c',
+        [
+          'import importlib.util, json, sys, time',
+          'spec = importlib.util.spec_from_file_location("kit", sys.argv[1])',
+          'kit = importlib.util.module_from_spec(spec); spec.loader.exec_module(kit)',
+          'out = {}',
+          'for name, text in [("dash", "-" * 20000), ("list", "- " * 10000), ("blank", " " * 20000), ("lines", "\\n" * 20000), ("assign", "a=" * 10000), ("word", "a" * 20000)]:',
+          '    start = time.perf_counter(); kit.mask(text); out[name] = time.perf_counter() - start',
+          'print(json.dumps(out))',
+        ].join('\n'),
+        SCRIPT,
+      ],
+      { env: { PATH: process.env.PATH ?? '', HOME: homeOnly }, encoding: 'utf-8' },
+    );
+    for (const [name, seconds] of Object.entries(JSON.parse(timing) as Record<string, number>)) {
+      expect(seconds, name).toBeLessThan(1);
+    }
+  });
+
+  it('keeps Markdown list items that mention beginning or ending a private key', () => {
+    const dir = join(homeOnly, '.claude', 'projects', '-tmp-bullets');
+    mkdirSync(dir, { recursive: true });
+    const text = [
+      'listcheck before-list',
+      '- Begin by generating a private key with openssl',
+      '- after-begin-item',
+      '- End of the private key section',
+      'after-end-item',
+    ].join('\n');
+    const file = join(dir, 'bullets.jsonl');
+    writeFileSync(
+      file,
+      [
+        {
+          type: 'user',
+          timestamp: '2026-11-14T10:00:00Z',
+          cwd: '/tmp/bullets',
+          message: { content: text },
+        },
+        { type: 'assistant', message: { content: [{ type: 'text', text }] } },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join('\n') + '\n',
+    );
+    const shown = runIn('show', file);
+    for (const line of text.split('\n')) {
+      expect(shown.split(line).length - 1, line).toBe(2);
+    }
+    expect(shown).not.toContain('[秘密鍵を伏せました]');
+  });
+
+  it('prints the four-point disclaimer before any session content and in --help', () => {
+    const points = [
+      'その提供元のサービスに渡ります',
+      'パスワード・API キー・秘密鍵・メール・他の人の情報',
+      '伏せ字の補助は完全ではなく、すり抜けがあります',
+      '記事に何を載せるかは本人が決めます',
+    ];
+    const index = runIn('index', '--grep', 'kubernetes');
+    const shown = runIn(
+      'show',
+      join(homeOnly, '.claude', 'projects', encoded(homeOnly), 'fictional-home.jsonl'),
+    );
+    const help = runIn('--help');
+    for (const output of [index, shown, help]) {
+      for (const point of points) expect(output).toContain(point);
+    }
+    expect(index.indexOf(points[3])).toBeLessThan(index.search(/^\d{4}-\d{2}-\d{2}/m));
+    expect(shown.indexOf(points[3])).toBeLessThan(shown.indexOf('## あなた'));
+  });
+
   it('keeps ordinary words that merely contain "sk-"', () => {
     const dir = join(homeOnly, '.claude', 'projects', '-tmp-plain');
     mkdirSync(dir, { recursive: true });

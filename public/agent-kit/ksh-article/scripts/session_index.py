@@ -7,8 +7,8 @@ Antigravity CLI keep on this computer, and prints:
   index  one line per session: date, tool, project, title or first request
   show   one session as a short transcript (your requests + the agent's replies, no tool output)
 
-Secrets and personal paths are masked in what this prints, but always read the result yourself
-before putting anything in an article.
+Secrets and personal paths are masked in what this prints as a best effort: some will slip
+through. Always read the result yourself before putting anything in an article.
 
   python3 session_index.py index --since 2026-10-01 --grep docker
   python3 session_index.py show <path printed by index> --max-chars 20000
@@ -26,21 +26,94 @@ from pathlib import Path
 
 HOME = Path.home()
 
-# A private-key header ("-----BEGIN RSA PRIVATE KEY-----") as people paste it: any number of
-# dashes (also "\-", "\u002d", Unicode dashes), any letter case, spaces or a line break inside.
-# At least one dash is required before BEGIN/END so prose like "send the private key" stays.
-_DASH = r"\s*(?:[-\u2010-\u2015\u2212\uff0d]|\\-|\\u002[dD])"
-_KEY_LINE = r"\s+[A-Za-z0-9\s]{0,40}?PRIVATE\s+KEY(?:\s+BLOCK)?(?:" + _DASH + r")*"
-_BEGIN_KEY = r"(?:" + _DASH + r")+\s*BEGIN" + _KEY_LINE
-_END_KEY = r"(?:" + _DASH + r")+\s*END" + _KEY_LINE
+# Printed before any session content (index, show and --help), so the student decides with these
+# in mind whether to let an agent read past sessions at all.
+DISCLAIMER = """\
+※ 過去セッションを材料にする前に
+  1. ここに出る中身は、このスクリプトを動かした AI エージェントと、その提供元のサービスに渡ります。
+  2. セッションには、パスワード・API キー・秘密鍵・メール・他の人の情報などが含まれることがあります。
+  3. 伏せ字の補助は完全ではなく、すり抜けがあります。
+  4. 参照するかどうか、記事に何を載せるかは本人が決めます（公開前に全文を読んでください）。"""
+
+# A private-key header ("-----BEGIN RSA PRIVATE KEY-----") as people paste it: dashes on both
+# sides (any number, also "\-", "\u002d" and Unicode dashes), any letter case, spaces or a line
+# break inside. Dashes are required after KEY too, so a Markdown list item such as
+# "- Begin by generating a private key with openssl" is left alone.
+# Headers are found from the BEGIN/END word and the dashes around it are checked by hand: a regex
+# with dashes and spaces repeated in a loop takes time growing with the square of a long "-----"
+# or blank run (#214: 20,000 dashes took 18 seconds).
+_KEY_WORDS = re.compile(r"(?i)(BEGIN|END)\s+(?:[A-Za-z0-9]+\s+){0,4}?PRIVATE\s+KEY(?:\s+BLOCK)?")
+_DASHES = "-\u2010\u2011\u2012\u2013\u2014\u2015\u2212\uff0d"
+_HEADER_REACH = 200  # how far a header's dashes and spaces are looked for on each side
+
+
+def _dashes_before(text: str, start: int) -> int:
+    """Start of the dashes (and spaces) just before a BEGIN/END word, or -1 if there is none."""
+    i, found, limit = start, -1, max(0, start - _HEADER_REACH)
+    while i > limit:
+        if text[i - 1].isspace():
+            i -= 1
+        elif text[max(0, i - 6):i].lower() == "\\u002d":
+            i, found = i - 6, i - 6
+        elif text[i - 1] in _DASHES:
+            i, found = i - 1, i - 1
+            if i > 0 and text[i - 1] == "\\":
+                i, found = i - 1, i - 1
+        else:
+            break
+    return found
+
+
+def _dashes_after(text: str, end: int) -> int:
+    """End of the dashes just after "PRIVATE KEY", or -1 if there is none."""
+    i, found, limit = end, -1, min(len(text), end + _HEADER_REACH)
+    while i < limit:
+        if text[i].isspace() and found < 0:
+            i += 1
+        elif text[i] == "\\" and text[i + 1:i + 2] == "-":
+            i, found = i + 2, i + 2
+        elif text[i:i + 6].lower() == "\\u002d":
+            i, found = i + 6, i + 6
+        elif text[i] in _DASHES:
+            i, found = i + 1, i + 1
+        else:
+            break
+    return found
+
+
+def hide_private_keys(text: str) -> str:
+    """Hide private keys whole: header, body and END line.
+
+    A key cut off before its END line is hidden from BEGIN to the end of the message (its body may
+    be escaped or abridged in any way), and the second half of a key pasted in another message is
+    hidden from the start of the message to its END line.
+    """
+    spans, opened, done = [], -1, 0
+    for m in _KEY_WORDS.finditer(text):
+        start, end = _dashes_before(text, m.start()), _dashes_after(text, m.end())
+        if start < 0 or end < 0:
+            continue
+        if m.group(1).lower() == "begin":
+            if opened < 0:
+                opened = start
+        elif opened >= 0:
+            spans.append((opened, end))
+            opened, done = -1, end
+        else:
+            spans.append((done, end))
+            done = end
+    if opened >= 0:
+        spans.append((opened, len(text)))
+    out, kept = [], 0
+    for start, end in spans:
+        out.append(text[kept:start] + "[秘密鍵を伏せました]")
+        kept = end
+    return "".join(out) + text[kept:]
+
 
 SECRET_PATTERNS = [
-    # Private keys first, whole: otherwise "PRIVATE_KEY=" below hides only "-----BEGIN" and prints
-    # the body. A key cut off before its END line is hidden from BEGIN to the end of the message,
-    # since its body may be escaped ("\\n", "\/", "\t") or abridged ("...") in any way.
-    (re.compile(r"(?i)" + _BEGIN_KEY + r"(?:[\s\S]*?" + _END_KEY + r"|[\s\S]*)"), "[秘密鍵を伏せました]"),
-    # The second half of a key pasted in another message: from the start of the message to END.
-    (re.compile(r"(?i)\A[\s\S]*" + _END_KEY), "[秘密鍵を伏せました]"),
+    # Private keys are hidden first by hide_private_keys(): otherwise "PRIVATE_KEY=" below hides
+    # only "-----BEGIN" and prints the body.
     # A middle part with neither BEGIN nor END: a long base64 run with upper, lower case and digits
     # (one PEM line is 64 characters; hex hashes and ordinary words are left alone).
     (re.compile(r"(?<![A-Za-z0-9+/])(?=[A-Za-z0-9+/]*[A-Z])(?=[A-Za-z0-9+/]*[a-z])(?=[A-Za-z0-9+/]*[0-9])[A-Za-z0-9+/]{56,}={0,2}"), "[秘密鍵を伏せました]"),
@@ -48,7 +121,7 @@ SECRET_PATTERNS = [
     (re.compile(r"Private-Lines:[\s\S]*?(?:Private-MAC:\s*[0-9A-Fa-f]+|$)"), "[秘密鍵を伏せました]"),
     (re.compile(r"\b(sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
     # A key glued to a word ("mykeysk-…"); a digit is required so "task-management-…" stays.
-    (re.compile(r"(sk|rk|pk)-(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
+    (re.compile(r"(sk|rk|pk)-(?=[A-Za-z0-9_-]{0,200}[0-9])[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
     (re.compile(r"\b(sk|rk|pk)_(live|test)_[A-Za-z0-9]{16,}"), "[秘密を伏せました]"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "[秘密を伏せました]"),
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"), "[秘密を伏せました]"),
@@ -56,16 +129,37 @@ SECRET_PATTERNS = [
     (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}"), "[秘密を伏せました]"),
     (re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}"), "[秘密を伏せました]"),
     (re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"), "[秘密を伏せました]"),
-    # NAME=value / "name": "value" where the name contains a secret word (DB_PASSWORD, AWS_SECRET_ACCESS_KEY).
-    (re.compile(r"(?i)([A-Za-z0-9_.-]*(?:token|password|passwd|pwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|credential)[A-Za-z0-9_.-]*)(['\"]?\s*[:=]\s*)['\"]?[^\s'\",;]{6,}"), r"\1\2[秘密を伏せました]"),
     (re.compile(r"(?i)(?<![A-Za-z0-9])(bearer|token|password|passwd|secret|api[_-]?key)\s+['\"]?[^\s'\"]{8,}"), r"\1 [秘密を伏せました]"),
     # Passwords inside URLs: scheme://user:password@host
-    (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"), r"\1[秘密を伏せました]@"),
-    (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "[メールを伏せました]"),
+    (re.compile(r"(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"), r"\1[秘密を伏せました]@"),
+    (re.compile(r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "[メールを伏せました]"),
 ]
 
 
+# NAME=value / "name": "value" where the name contains a secret word (DB_PASSWORD, AWS_SECRET_ACCESS_KEY).
+# The whole name is taken first and checked for the word afterwards; searching for the word inside
+# a repeated name pattern takes time growing with the square of a long run of letters or dashes.
+_ASSIGNMENT = re.compile(r"(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)(['\"]?\s*[:=]\s*['\"]?)(?=[^\s'\",;]{6})")
+_VALUE = re.compile(r"[^\s'\",;]+")
+_SECRET_NAME = re.compile(r"(?i)token|password|passwd|pwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|credential")
+
+
+def hide_assignments(text: str) -> str:
+    out, kept, start = [], 0, 0
+    while True:
+        m = _ASSIGNMENT.search(text, start)
+        if not m:
+            break
+        if _SECRET_NAME.search(m.group(1)):
+            out.append(text[kept:m.end()] + "[秘密を伏せました]")
+            kept = start = _VALUE.match(text, m.end()).end()
+        else:
+            start = m.end()  # the value itself may be another NAME=value
+    return "".join(out) + text[kept:]
+
+
 def mask(text: str) -> str:
+    text = hide_assignments(hide_private_keys(text))
     for pattern, replacement in SECRET_PATTERNS:
         text = pattern.sub(replacement, text)
     home = str(HOME)
@@ -286,6 +380,7 @@ def command_index(args):
         if args.grep and not mentions(s, args.grep.lower()):
             continue
         rows.append(s)
+    print(DISCLAIMER + "\n")
     rows.sort(key=lambda s: s.started or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     for s in rows[: args.limit]:
         # Every column is masked here, in one place, before it is shortened.
@@ -320,6 +415,7 @@ def command_show(args):
         messages = gemini_messages(path)
     else:
         sys.exit("この形式は show に対応していません（Antigravity は index に出る依頼文を使ってください）。")
+    print(DISCLAIMER)
     used = 0
     for who, text, _ in messages:
         limit = args.agent_chars if who == "agent" else args.you_chars
@@ -332,7 +428,7 @@ def command_show(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(description=DISCLAIMER + "\n\n" + __doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     index = sub.add_parser("index", help="セッションの一覧")
     index.add_argument("--since", help="この日以降 (YYYY-MM-DD)")

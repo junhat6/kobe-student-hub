@@ -76,6 +76,9 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     await check(page, '/students/' + owner.profileId, () =>
       expect(page.getByRole('heading', { name: '架空の読みやすさ投稿者-' + key })).toBeVisible(),
     );
+    await check(page, '/agents', () =>
+      expect(page.getByRole('note', { name: '履歴を使う前に' })).toBeVisible(),
+    );
     await check(page, '/login', () =>
       expect(page.getByRole('button', { name: '学校Googleでログイン', exact: true })).toBeEnabled(),
     );
