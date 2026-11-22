@@ -141,10 +141,11 @@
 .draft-editor--ordinary .publication-composer > details > summary {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   min-height: 64px;
-  padding: 0 24px;
+  padding: 12px 24px;
   list-style: none;
   cursor: pointer;
   font-size: 17px;
@@ -156,6 +157,9 @@
 }
 .draft-editor--ordinary .publication-composer > details > summary::after {
   content: '公開設定を開く →';
+  /* On a narrow screen the button moves to its own line instead of
+     splitting the heading or dropping the arrow alone (#190). */
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 700;
   padding: 8px 14px;
@@ -171,6 +175,14 @@
 }
 .draft-editor--ordinary .publication-composer .publication-content {
   padding: 0 24px 24px;
+}
+@media (max-width: 480px) {
+  .draft-editor--ordinary .publication-composer > details > summary {
+    padding: 12px 16px;
+  }
+  .draft-editor--ordinary .publication-composer .publication-content {
+    padding: 0 16px 16px;
+  }
 }
 .draft-editor--ordinary .editor-draft-management {
   margin-top: 40px;

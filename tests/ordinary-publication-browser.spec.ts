@@ -115,6 +115,19 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   const articlePath = await publicLink.getAttribute('href');
   expect(articlePath).toMatch(/^\/articles\/[0-9a-f-]{36}$/);
   expect(await publicIds()).toContain(articlePath!.slice('/articles/'.length));
+  // #190: on a 390px phone the published heading must not split mid-word ("更新す／る");
+  // the open/close pill moves to its own line instead.
+  const summary = composer.locator('details > summary').first();
+  await expect(summary).toHaveText('記事を公開・更新する');
+  await summary.click(); // closed: the pill is the longer 「公開設定を開く →」
+  const headingLines = await summary.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+  });
+  expect(headingLines).toBe(1);
+  await summary.click();
+  await expect(publicLink).toBeVisible();
   return articlePath!;
 }
 
