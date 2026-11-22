@@ -4,6 +4,7 @@ import { Button } from '@base-ui/react/button';
 import { createRegistrationClient, RegistrationClientError } from './registration-client';
 import { canonicalEnrollmentYears } from '../shared/enrollment';
 import EnrollmentYearsPicker from '../shared/EnrollmentYearsPicker';
+import Icon from '../shared/Icon';
 import './account.css';
 
 type Phase = 'checking' | 'ready' | 'starting' | 'unknown' | 'leaving';
@@ -151,14 +152,17 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
   return (
     <section className="account-entry" aria-labelledby={id + 'heading'}>
       <h1 id={id + 'heading'}>{signup ? '学生として登録する' : 'ログインする'}</h1>
-      <p className="account-intro">
-        {signup
-          ? 'いつからいつまで在学するかを選んで、学校のGoogleアカウントで登録します。'
-          : '学校のGoogleアカウントで続けます。'}
-      </p>
       <p className="account-privacy">
-        <Link to="/guide" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
-          利用ルールと情報の扱い（別のタブ）
+        <Link
+          to="/guide"
+          target="_blank"
+          rel="noopener noreferrer"
+          referrerPolicy="no-referrer"
+          aria-label="利用ルールと情報の扱い（別のタブ）"
+          title="別のタブで開く"
+        >
+          利用ルールと情報の扱い
+          <Icon name="external" size={16} />
         </Link>
       </p>
       <p className="account-message" role="status" aria-live="polite" aria-atomic="true">

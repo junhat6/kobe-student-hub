@@ -16,7 +16,6 @@
   letter-spacing: 0;
   text-wrap: balance;
 }
-.account-intro,
 .account-privacy,
 .account-message,
 .session-account p {
@@ -24,12 +23,14 @@
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
-.account-intro {
-  margin: 0 0 16px;
-}
 .account-privacy {
   margin: 0 0 24px;
   color: #596e7d;
+}
+.account-privacy > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .account-message {
   margin: 24px 0;
@@ -147,6 +148,11 @@
 .account-switch a,
 .account-signed-out a {
   text-decoration: underline;
+}
+.account-switch > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .account-read-link {
   font-size: 15px;
