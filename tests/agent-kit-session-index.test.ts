@@ -265,6 +265,44 @@ describe('agent kit session_index.py with the home folder as the working place',
     }
   });
 
+  it('opens every session with the masked path that index printed (the SKILL.md flow)', () => {
+    const index = runIn('index', '--grep', 'kubernetes');
+    const paths = index
+      .split('\n')
+      .filter((line) => /^\s{12}\S/.test(line))
+      .map((line) => line.trim())
+      .filter((path) => !path.endsWith('history.jsonl'));
+    expect(paths.length).toBe(4);
+    expect(paths.some((path) => path.startsWith('~/.claude/projects/~/'))).toBe(true);
+    for (const path of paths) {
+      const shown = runIn('show', path);
+      expect(shown, path).toContain('## あなた');
+      expect(shown, path).toContain('kubernetes');
+      expect(shown, path).not.toContain(NAME);
+    }
+  });
+
+  it('hides Stripe-style keys and the user name in other letter cases or in "-" form', () => {
+    const dir = join(homeOnly, '.claude', 'projects', '-tmp-forms');
+    mkdirSync(dir, { recursive: true });
+    const stripe = 'sk_' + 'live_' + 'Fictional0123456789abcdef';
+    writeFileSync(
+      join(dir, 'forms.jsonl'),
+      JSON.stringify({
+        type: 'user',
+        timestamp: '2026-11-10T10:00:00Z',
+        cwd: '/tmp/forms',
+        message: {
+          content: `openshift ${stripe} ${NAME.toUpperCase()} /srv/${NAME.replace(/[^A-Za-z0-9]/g, '-')}`,
+        },
+      }) + '\n',
+    );
+    const shown = runIn('show', join(dir, 'forms.jsonl'));
+    expect(shown).toContain('openshift');
+    expect(shown).not.toContain(stripe.slice(0, 12));
+    expect(shown.toLowerCase()).not.toContain('hanako');
+  });
+
   it('keeps ordinary words that merely contain "sk-"', () => {
     const dir = join(homeOnly, '.claude', 'projects', '-tmp-plain');
     mkdirSync(dir, { recursive: true });

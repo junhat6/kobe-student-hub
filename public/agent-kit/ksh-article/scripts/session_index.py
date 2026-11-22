@@ -30,6 +30,7 @@ SECRET_PATTERNS = [
     (re.compile(r"\b(sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
     # A key glued to a word ("mykeysk-…"); a digit is required so "task-management-…" stays.
     (re.compile(r"(sk|rk|pk)-(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
+    (re.compile(r"\b(sk|rk|pk)_(live|test)_[A-Za-z0-9]{16,}"), "[秘密を伏せました]"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "[秘密を伏せました]"),
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"), "[秘密を伏せました]"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "[秘密を伏せました]"),
@@ -52,8 +53,9 @@ def mask(text: str) -> str:
         text = text.replace(re.sub(r"[^A-Za-z0-9]", "-", home), "~")
     name = HOME.name
     if len(name) >= 3:
-        # Your user name on its own, e.g. a Gemini folder named after it.
-        text = re.sub(r"(?<![A-Za-z0-9])" + re.escape(name) + r"(?![A-Za-z0-9])", "<you>", text)
+        # Your user name on its own (e.g. a Gemini folder named after it), also in Claude Code's "-" form.
+        for form in {name, re.sub(r"[^A-Za-z0-9]", "-", name)}:
+            text = re.sub(r"(?i)(?<![A-Za-z0-9])" + re.escape(form) + r"(?![A-Za-z0-9])", "<you>", text)
     text = re.sub(r"(/Users/|/home/|C:\\Users\\)[^/\\\s]+", r"\1<you>", text)
     return re.sub(r"(?i)(?<![A-Za-z0-9])(-Users-|-home-|C--Users-)[^-/\\\s]+", r"\1<you>", text)
 
@@ -273,10 +275,21 @@ def command_index(args):
         print("該当するセッションが見つかりませんでした。--since や --grep を外して試してください。")
 
 
+def find_session_file(shown: str) -> Path | None:
+    """index prints masked paths; find the file whose masked path is exactly what you passed."""
+    path = Path(os.path.expanduser(shown))
+    if path.is_file():
+        return path
+    for s in all_sessions():
+        if mask(str(s.path)) == shown:
+            return s.path
+    return None
+
+
 def command_show(args):
-    path = Path(os.path.expanduser(args.path))
-    if not path.exists():
-        sys.exit("ファイルが見つかりません: " + mask(str(path)))
+    path = find_session_file(args.path.strip())
+    if path is None:
+        sys.exit("ファイルが見つかりません: " + mask(args.path))
     if ".claude" in path.parts:
         messages = claude_messages(path)
     elif ".codex" in path.parts:
