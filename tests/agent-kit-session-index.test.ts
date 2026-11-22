@@ -152,3 +152,131 @@ describe('agent kit session_index.py', () => {
     expect(source).not.toMatch(/urllib|http\.client|\bsocket\b|subprocess|https?:\/\//);
   });
 });
+
+// #209: an agent started in the home folder itself (a common way to run one) must not print the
+// user name as the project. Separate fictional HOME so the cases above stay as they are.
+describe('agent kit session_index.py with the home folder as the working place', () => {
+  let homeOnly: string;
+  const NAME = 'fictional_hanako-suzuki';
+  const GLUED_KEY = 'mykey' + 'sk-' + 'gluedFictional0123456789';
+
+  function runIn(...args: string[]) {
+    return execFileSync('python3', ['-I', SCRIPT, ...args], {
+      env: { PATH: process.env.PATH ?? '', HOME: homeOnly, PYTHONIOENCODING: 'utf-8' },
+      encoding: 'utf-8',
+    });
+  }
+
+  beforeAll(() => {
+    homeOnly = join(mkdtempSync(join(tmpdir(), 'ksh-kit-home-')), NAME);
+    const claudeDir = join(homeOnly, '.claude', 'projects', encoded(homeOnly));
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(
+      join(claudeDir, 'fictional-home.jsonl'),
+      JSON.stringify({
+        type: 'user',
+        timestamp: '2026-11-05T10:00:00Z',
+        cwd: homeOnly,
+        message: { content: `kubernetes をホームで試した ${GLUED_KEY}` },
+      }) + '\n',
+    );
+    // A different absolute path whose last folder has the same name as the home folder.
+    const codexDir = join(homeOnly, '.codex', 'sessions', '2026', '11', '06');
+    mkdirSync(codexDir, { recursive: true });
+    writeFileSync(
+      join(codexDir, 'rollout-home.jsonl'),
+      [
+        { type: 'session_meta', payload: { cwd: homeOnly, timestamp: '2026-11-06T10:00:00Z' } },
+        {
+          type: 'response_item',
+          payload: {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: 'kubernetes のメモ' }],
+          },
+        },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join('\n') + '\n',
+    );
+    writeFileSync(
+      join(codexDir, 'rollout-same-name.jsonl'),
+      [
+        {
+          type: 'session_meta',
+          payload: { cwd: `/srv/${NAME}`, timestamp: '2026-11-06T11:00:00Z' },
+        },
+        {
+          type: 'response_item',
+          payload: {
+            type: 'message',
+            role: 'user',
+            content: [{ type: 'input_text', text: 'kubernetes の別メモ' }],
+          },
+        },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join('\n') + '\n',
+    );
+    // Gemini CLI may name its tmp folder after the user name instead of a hash.
+    const geminiDir = join(homeOnly, '.gemini', 'tmp', NAME, 'chats');
+    mkdirSync(geminiDir, { recursive: true });
+    writeFileSync(
+      join(geminiDir, 'session-fictional.json'),
+      JSON.stringify({
+        messages: [
+          { type: 'user', timestamp: '2026-11-07T10:00:00Z', content: 'kubernetes を gemini で' },
+        ],
+      }),
+    );
+    const antigravity = join(homeOnly, '.gemini', 'antigravity-cli');
+    mkdirSync(antigravity, { recursive: true });
+    writeFileSync(
+      join(antigravity, 'history.jsonl'),
+      JSON.stringify({
+        display: 'kubernetes を antigravity で',
+        timestamp: '2026-11-08T10:00:00Z',
+        workspace: homeOnly,
+      }) + '\n',
+    );
+  });
+
+  afterAll(() => rmSync(join(homeOnly, '..'), { recursive: true, force: true }));
+
+  it('shows "~" as the project and never prints the user name or a glued key', () => {
+    const index = runIn('index', '--grep', 'kubernetes');
+    const rows = index.split('\n').filter((line) => /^\d{4}-\d{2}-\d{2}/.test(line));
+    expect(rows).toHaveLength(5);
+    for (const tool of ['claude', 'codex', 'gemini', 'antigravity']) {
+      const row = rows.find((line) => line.includes(` ${tool} `));
+      expect(row, tool).toBeDefined();
+      expect(row!.split(/\s+/)[2], tool).toBe('~');
+    }
+    expect(index).toContain('~/.gemini/tmp/<you>/chats');
+    const shown = runIn(
+      'show',
+      join(homeOnly, '.claude', 'projects', encoded(homeOnly), 'fictional-home.jsonl'),
+    );
+    expect(shown).toContain('[秘密を伏せました]');
+    for (const output of [index, shown]) {
+      expect(output).not.toContain(NAME);
+      expect(output).not.toContain('suzuki');
+      expect(output).not.toContain(GLUED_KEY.slice(5, 16));
+    }
+  });
+
+  it('keeps ordinary words that merely contain "sk-"', () => {
+    const dir = join(homeOnly, '.claude', 'projects', '-tmp-plain');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'plain.jsonl'),
+      JSON.stringify({
+        type: 'user',
+        timestamp: '2026-11-09T10:00:00Z',
+        cwd: '/tmp/plain',
+        message: { content: 'kubernetes の task-management-dashboard を作る' },
+      }) + '\n',
+    );
+    expect(runIn('index', '--grep', 'task-management')).toContain('task-management-dashboard');
+  });
+});

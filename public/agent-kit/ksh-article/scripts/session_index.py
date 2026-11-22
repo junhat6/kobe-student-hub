@@ -28,6 +28,8 @@ HOME = Path.home()
 
 SECRET_PATTERNS = [
     (re.compile(r"\b(sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
+    # A key glued to a word ("mykeysk-…"); a digit is required so "task-management-…" stays.
+    (re.compile(r"(sk|rk|pk)-(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "[秘密を伏せました]"),
     (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"), "[秘密を伏せました]"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "[秘密を伏せました]"),
@@ -48,8 +50,25 @@ def mask(text: str) -> str:
         text = text.replace(home, "~")
         # Claude Code names project folders after the path with every other character turned into "-".
         text = text.replace(re.sub(r"[^A-Za-z0-9]", "-", home), "~")
+    name = HOME.name
+    if len(name) >= 3:
+        # Your user name on its own, e.g. a Gemini folder named after it.
+        text = re.sub(r"(?<![A-Za-z0-9])" + re.escape(name) + r"(?![A-Za-z0-9])", "<you>", text)
     text = re.sub(r"(/Users/|/home/|C:\\Users\\)[^/\\\s]+", r"\1<you>", text)
     return re.sub(r"(?i)(?<![A-Za-z0-9])(-Users-|-home-|C--Users-)[^-/\\\s]+", r"\1<you>", text)
+
+
+def project_name(folder: str) -> str:
+    """The last folder of a working directory; your home folder itself is shown as "~"."""
+    if not folder:
+        return ""
+    path = Path(folder)
+    try:
+        if path.is_absolute() and path.resolve() == HOME.resolve():
+            return "~"
+    except (OSError, RuntimeError):
+        pass
+    return "~" if path.name == HOME.name else path.name
 
 
 def one_line(text: str, limit: int) -> str:
@@ -146,7 +165,7 @@ def claude_sessions():
             if title and first:
                 break
         if first:
-            yield Session("claude", path, started, Path(cwd).name if cwd else path.parent.name, title or first)
+            yield Session("claude", path, started, project_name(cwd) if cwd else path.parent.name, title or first)
 
 
 # ---- Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl
@@ -176,7 +195,7 @@ def codex_sessions():
                     first = text
                     break
         if first:
-            yield Session("codex", path, started, Path(cwd).name if cwd else "", first)
+            yield Session("codex", path, started, project_name(cwd), first)
 
 
 # ---- Gemini CLI: ~/.gemini/tmp/<project>/chats/session-*.json
@@ -196,7 +215,7 @@ def gemini_messages(path: Path):
 def gemini_sessions():
     for path in (HOME / ".gemini" / "tmp").glob("*/chats/session-*.json"):
         for _, text, m in gemini_messages(path):
-            yield Session("gemini", path, parse_time(m.get("timestamp")), path.parent.parent.name, text)
+            yield Session("gemini", path, parse_time(m.get("timestamp")), project_name(path.parent.parent.name), text)
             break
 
 
@@ -209,7 +228,7 @@ def antigravity_sessions():
         if o.get("type") == "slash_command" or noise(text):
             continue
         when = parse_time(o.get("timestamp"))
-        key = (when.strftime("%Y-%m-%d") if when else "", Path(str(o.get("workspace", ""))).name)
+        key = (when.strftime("%Y-%m-%d") if when else "", project_name(str(o.get("workspace", ""))))
         days.setdefault(key, []).append(text)
     for (day, project), prompts in days.items():
         yield Session("antigravity", path, parse_time(day + "T00:00:00+00:00") if day else None, project,
@@ -245,9 +264,11 @@ def command_index(args):
         rows.append(s)
     rows.sort(key=lambda s: s.started or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     for s in rows[: args.limit]:
+        # Every column is masked here, in one place, before it is shortened.
+        project, title, path = (mask(value) for value in (s.project, s.title, str(s.path)))
         day = s.started.strftime("%Y-%m-%d") if s.started else "----------"
-        print(f"{day}  {s.tool:<11} {one_line(mask(s.project), 28):<28}  {one_line(mask(s.title), 90)}")
-        print(f"            {mask(str(s.path))}")
+        print(f"{day}  {s.tool:<11} {one_line(project, 28):<28}  {one_line(title, 90)}")
+        print(f"            {path}")
     if not rows:
         print("該当するセッションが見つかりませんでした。--since や --grep を外して試してください。")
 
