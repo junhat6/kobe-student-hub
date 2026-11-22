@@ -344,7 +344,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "closed",
-      "evidence": "2026-11-22 DECISIONS「オーナーのレビューを蓄積し、次の執筆に活かす」で追加。条件1は #220 で別 context の独立検証に合格（Issue #220 コメント 7080666931：一般学生・本人・未ログイン・停止・期限切れ・CSRF・下書き/サンプル/非公開対象・不正入力で 404 かつ保存なし、公開 API に出ない）し、flag を true に。tests/editorial-reviews.test.ts 5 passed、tests/ordinary-editorial-review-browser.spec.ts（PC1280/モバイル390、運営者だけ欄が出て記録→再読み込みで復元、本人・未ログインは欄なし＋404）2 passed。本番は次の release で反映。条件2は tests/editorial-taste.test.ts 2 passed。条件4：下書き3本を ~/ksh-drafts に用意済み（アプリの取り込み処理で警告0件）、オーナーの取り込み待ち（本番は未ログインの Chrome しかなく、Google ログインは agent が代行しない）。"
+      "evidence": "2026-11-22 DECISIONS「オーナーのレビューを蓄積し、次の執筆に活かす」で追加。条件1は #220 で別 context の独立検証に合格（Issue #220 コメント 7080666931：一般学生・本人・未ログイン・停止・期限切れ・CSRF・下書き/サンプル/非公開対象・不正入力で 404 かつ保存なし、公開 API に出ない）し、flag を true に。tests/editorial-reviews.test.ts 5 passed、tests/ordinary-editorial-review-browser.spec.ts（PC1280/モバイル390、運営者だけ欄が出て記録→再読み込みで復元、本人・未ログインは欄なし＋404）2 passed。本番は次の release で反映。条件2は #233 で別 context が確認（2026-11-23）：3経路（下書き画面の依頼文〔下書きあり/なし〕・MCP get_writing_guide・SKILL.md）の台帳節が EDITORIAL_TASTE と完全一致し節は各1つ、4行とも根拠と日付つきでひとこと・記事名・人名なし。tests/editorial-taste.test.ts を含む→一致に強め、SKILL.md に古い行を残すと落ちることを確認（2 passed）。条件3：Orca automation「ksh editor」は登録・有効（15 9,21 * * *、precheck editor）だが自動実行の履歴はまだ0件（初回は手動 #221）。最初の自動実行と editor log の記録を見てから判定する。条件4：下書き3本を ~/ksh-drafts に用意済み（アプリの取り込み処理で警告0件）、オーナーの取り込み待ち（本番は未ログインの Chrome しかなく、Google ログインは agent が代行しない）。"
     }
   ]
 }
