@@ -28,6 +28,7 @@
 - migration を足したら `scripts/session-browser-preview.mjs` の明示リストにも足す（足さないと HTTPS ブラウザー検査だけが古い schema で動く）
 - 新しい表を読む SQL は `scripts/editor-preview.mjs` の明示リストにもその migration が要る（無いと editor 系 spec だけ 404 で落ちる。0026 は表だけ作り自動非公開 trigger を外している）
 - `npm run test:editor` は先に `npm run editor:build` が要る（無いと「assets.directory … .editor-preview does not exist」で起動しない）
+- 認証つきの新しい Store を足したら `tests/auth-guard-inventory.test.ts` の inventory と件数を更新する。SQL はクラスのメソッド内に置く（クラス外の関数は「outside method」で落ちる）
 - 新しい画面や色を足したら axe 検査（`tests/accessibility.spec.ts`＝sample、`tests/ordinary-accessibility-browser.spec.ts`＝HTTPS fixture）にその画面を足して回す
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 
