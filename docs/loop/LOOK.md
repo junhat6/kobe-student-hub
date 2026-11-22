@@ -46,7 +46,7 @@ npm run look:review -- .look/<時刻> --focus "公開ボタンを押した後"
 ## 人が渡すとき
 
 - **スマホで撮った hub の動画**：Drive の「hub動画ポスト」へ。Muse（ヨッチ）が `~/video-inbox/` に置き、`ksh-video-review` が見て、結果は Muse から返る（[prompts/video-review.md](prompts/video-review.md)）。Drive を経るので Muse の添付の容量制限（20〜25MB）に当たらない。
-- **MacBook Air から**：Orca でエージェントのチャットに動画をそのまま添付する。添付は Mac mini の `~/Library/Application Support/orca/agent-session-attachments/<セッション>/` に原寸で置かれるので、エージェントはそのパスで `ksh-video-review <パス> --note "…"`（hub）か `npm run look:review -- <パス> --kind reference`（参考アプリ）を呼ぶ。
+- **MacBook Air から**：Orca でエージェントのチャットに動画をそのまま添付する。添付は Mac mini の `~/Library/Application Support/orca/agent-session-attachments/<セッション>/` に原寸で置かれるので、エージェントはそのパスで `ksh-video-review <パス> --note "…"`（hub）か `npm run look:review -- <パス> --kind reference`（参考アプリ）を呼ぶ。`ksh-video-review` は添付を `~/video-inbox/` に写してから見て、結果（`.review.md`・`.review.json`）もそこにだけ置く。添付フォルダには書かない。
 - 一言（何を確かめたかったか）を添えてもらうと、`--note` / `--focus` に入れて最優先で見させる。
 - 人が撮ったものには実在の人・非公開の情報が映りうる。メディアも所見の原文も公開 Issue に貼らない。
 
