@@ -116,7 +116,9 @@ function view(row: Row | null): EditorialReviewView | null {
 
 /**
  * Operator-only editorial reviews of published articles. Anyone else (signed out, a student, a
- * suspended operator) gets the same 404 as an unknown path, so the feature is not discoverable.
+ * suspended operator) gets the same 404 as an unknown article, so no review data is readable.
+ * Transport checks (405 method, 413/415/400 body) run before the session check and reveal only
+ * that the path exists, never any review or operator identity (same as the likes API).
  * Every final statement re-checks the live session; the allowlist is server configuration only.
  */
 export class EditorialReviewStore {

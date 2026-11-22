@@ -6,7 +6,7 @@
  * R2 (operator-only private data + migration 0030). Flip only after an independent verification
  * in a separate context. The Worker and the UI read the same constant.
  */
-export const EDITORIAL_REVIEW_RELEASE_ENABLED = false;
+export const EDITORIAL_REVIEW_RELEASE_ENABLED = true;
 
 export const EDITORIAL_VERDICTS = ['good', 'ok', 'bad'] as const;
 export type EditorialVerdict = (typeof EDITORIAL_VERDICTS)[number];
