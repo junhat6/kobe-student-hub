@@ -103,8 +103,8 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   await expect(snapshot).toContainText('この文章は公開する保存版です。');
   const submit = composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true });
   await expect(submit).toBeDisabled();
-  // Other tests publish the same title in parallel and the feed is the newest 20, so a
-  // same-title count races; instead the article just published must be in the anonymous feed.
+  // Earlier tests leave same-title articles and the feed is the newest 20, so a same-title
+  // count can drop an old one; instead the article just published must be in the anonymous feed.
   const publicIds = async () => {
     const response = await page.request.get('/api/articles');
     expect(response.status()).toBe(200);
