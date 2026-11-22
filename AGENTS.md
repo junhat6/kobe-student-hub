@@ -19,6 +19,7 @@
 ## ブランチ・リリース（詳細は [docs/RELEASE.md](docs/RELEASE.md)）
 
 - main は開発の幹。直接 commit・push してよい（push 前に `git fetch && git rebase origin/main`）。PR と PR の CI は任意。
+- open な PR を溜めない。オーナーの PR・Dependabot を含め、main と照らして取り込めるものはマージ、取り込み済み・古くなったものは理由を書いてクローズする。garden が毎周見る（[DECISIONS](docs/DECISIONS.md)）。
 - main を壊したら最優先で直す。15分で直せなければ revert。
 - release への昇格と本番反映は `npm run release -- --deploy` で行う。full CI（verify）は昇格時に必須。手順と失敗時の判断は release skill（[.claude/skills/release/SKILL.md](.claude/skills/release/SKILL.md)）。
 - hook の定義は `.claude/settings.json` と `scripts/loop/`。release への直接 push・force push・素の stash は hook で拒否する。本番の運用（deploy・rollback・secret・リモート D1）は止めない。Codex など hook の無い環境でも同じ決まりを守る。

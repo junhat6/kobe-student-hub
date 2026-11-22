@@ -2,6 +2,17 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-22 — open な PR を溜めず、マージかクローズまで持っていく（オーナー決定）
+
+オーナー（服部）の指示：「自分が出している PR は溜めずに、どんどんマージしていってほしい」。これを受けて、open な PR（オーナーの Draft・Dependabot を含む）は agent が main と照らして、マージかクローズのどちらかに必ず片付ける。毎周の確認は garden が受け持つ（[garden.md](loop/prompts/garden.md) の 4）。
+
+1. main に同じ内容・より新しい版が入っているもの、前提の機能が撤去されたものは、根拠を PR に書いてクローズする。ブランチは履歴として残す。マージすると古い状態を書き戻すため。
+2. main に足りない価値があるものは、Draft でも rebase と backpressure を通してマージする。
+3. CI 設定・major の依存更新は、main に重ねた `rc/<sha7>` で full CI を見てからマージする。release の `verify` が同じ workflow を使うので、壊すと列車が止まる。
+4. 採らなかったもの：PR を開いたまま人の確認を待つ運用。日常の判断を人に戻さない方針（2026-11-21）と合わず、溜まった PR は main から離れていくほど片付けにくくなる。
+
+初回（2026-11-22）：#84・#85 は #86 と `docs/archive/` に取り込み済み、#96 は試用機能の撤去で前提が消えたためクローズ。#128 は rc で full CI を見て判断。
+
 ## 2026-11-22 — 利用者が自分の AI エージェントで書き・読めるようにする（オーナーの考えを受けた方針）
 
 オーナー（服部）の考え：利用者はみな AI エージェントのサブスクを持っている。記事をたくさん集めたいので、利用者が自分の AI エージェントで記事を書けるようにしたい。執筆に限らず、利用者の AI エージェントとこのアプリの距離を近くしたい。これを受けて次のように決める。
