@@ -38,6 +38,7 @@ const ModerationPage = React.lazy(() => import('./account/ModerationPage'));
 const ServiceInfo = React.lazy(() => import('./account/ServiceInfo'));
 const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
 const Community = React.lazy(() => import('./community/Community'));
+const AgentsPage = React.lazy(() => import('./agent/AgentsPage'));
 class BodyBoundary extends React.Component<
   { children: React.ReactNode; purpose?: 'account' | 'drafts' },
   { failed: boolean }
@@ -81,7 +82,9 @@ function App() {
   const projectWritePath = isProjectWriteRoute(location.pathname);
   const moderationPath = authoringUiEnabled && location.pathname === '/moderation';
   const historyPath = authoringUiEnabled && location.pathname === '/history';
-  const serviceInfoPath = accountUiEnabled && location.pathname === '/guide';
+  const serviceInfoPath =
+    (accountUiEnabled && location.pathname === '/guide') ||
+    (authoringUiEnabled && location.pathname === '/agents');
   const accountPath =
     isAccountRoute(location.pathname) ||
     draftPath ||
@@ -196,7 +199,7 @@ function App() {
                 </p>
               }
             >
-              <ServiceInfo />
+              {location.pathname === '/agents' ? <AgentsPage /> : <ServiceInfo />}
             </React.Suspense>
           </BodyBoundary>
         ) : location.pathname === '/about' ? (
@@ -237,6 +240,7 @@ function App() {
           </Link>
           {accountUiEnabled && <Link to="/guide">利用ルール・問い合わせ</Link>}
           {accountUiEnabled && <Link to="/guide#disclaimer">免責事項</Link>}
+          {authoringUiEnabled && <Link to="/agents">自分のAIエージェントと使う</Link>}
         </nav>
         <span>
           運営：Kobe Student Hub 運営委員会 · 学校公式サービスではありません ·

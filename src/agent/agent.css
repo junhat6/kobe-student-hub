@@ -1,0 +1,236 @@
+/* "自分のAIエージェントと書く" panel in the draft editor, and the article hand-off button. */
+.agent-panel {
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.agent-panel > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-height: 44px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+}
+.agent-panel > summary small {
+  font-weight: 400;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.agent-panel-mark {
+  color: var(--accent-strong);
+}
+.agent-panel-body {
+  padding: 0 20px 20px;
+}
+.agent-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: agent-step;
+  display: grid;
+  gap: 20px;
+}
+.agent-steps > li {
+  counter-increment: agent-step;
+  position: relative;
+  padding-left: 36px;
+  min-width: 0;
+}
+.agent-steps > li::before {
+  content: counter(agent-step);
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 24px;
+}
+.agent-steps h3,
+.agent-check h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.agent-steps p {
+  margin: 0 0 10px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.agent-steps p a {
+  margin-left: 4px;
+  white-space: nowrap;
+}
+.agent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.agent-button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 650;
+  font-size: 14px;
+  cursor: pointer;
+}
+.agent-button:hover:not(:disabled) {
+  background: var(--tint);
+}
+.agent-button--primary {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  color: #fff;
+}
+.agent-button--primary:hover:not(:disabled) {
+  background: var(--accent-deep);
+}
+.agent-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.agent-inline-status {
+  margin-left: 10px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.agent-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+.agent-textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font:
+    13px/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  resize: vertical;
+}
+.agent-file {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.agent-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.agent-file:focus-within {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+.agent-check {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--tint);
+}
+.agent-check dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 8px 0;
+  font-size: 14px;
+}
+.agent-check dt {
+  color: var(--ink-muted);
+}
+.agent-check dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.agent-check q {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.agent-warnings,
+.agent-warning {
+  margin: 8px 0;
+  color: #8a4b00;
+  font-size: 13px;
+}
+.agent-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.agent-undo {
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+.agent-link {
+  min-height: 44px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font-weight: 650;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.agent-suggestion {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 14px;
+}
+.agent-suggestion p {
+  margin: 0 0 8px;
+}
+.agent-handoff {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 32px 0 0;
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+@media (max-width: 640px) {
+  .agent-panel-body {
+    padding: 0 14px 16px;
+  }
+  .agent-steps > li {
+    padding-left: 32px;
+  }
+  .agent-check dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

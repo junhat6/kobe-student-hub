@@ -82,6 +82,10 @@ export default {
         '/guide',
         '/about',
         '/lab/account',
+        '/agents',
+        '/llms.txt',
+        '/agent-kit/ksh-article/SKILL.md',
+        '/agent-kit/ksh-article/scripts/session_index.py',
       ].includes(u.pathname) ||
       /^\/(?:(?:articles|projects)\/[A-Za-z0-9_-]{1,128}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
         u.pathname,

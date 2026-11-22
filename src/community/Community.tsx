@@ -17,6 +17,7 @@ import StudentProfile from './StudentProfile';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import ArticleLikeButton from './ArticleLikeButton';
 import OrdinaryArticleReport from './OrdinaryArticleReport';
+import ArticleHandoff from '../agent/ArticleHandoff';
 import { createPublicLikesClient } from '../editor/public-likes-client';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
@@ -143,6 +144,17 @@ function StudentArticle({ id }: { id: string }) {
         <div className="prose">
           <MarkdownRenderer body={entry.body} />
         </div>
+        <ArticleHandoff
+          key={`handoff-${entry.id}`}
+          title={entry.title}
+          summary={entry.summary}
+          tags={entry.tags}
+          audience={entry.audience}
+          prerequisite={entry.prerequisite}
+          outcome={entry.outcome}
+          body={entry.body}
+          authorName={author.name}
+        />
         <div className="article-end">
           <ArticleLikeButton key={`like-${entry.id}`} contentId={entry.id} />
           <Link className="article-end-author" to={`/students/${author.id}`}>

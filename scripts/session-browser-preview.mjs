@@ -144,6 +144,7 @@ mf = new Miniflare(
                   '/moderation',
                   '/guide',
                   '/about',
+                  '/agents',
                 ].includes(u.pathname) ||
                 /^\/(?:(?:articles|projects)\/[A-Za-z0-9_-]{1,128}|students\/[A-Za-z0-9_-]{1,128}(?:\/(?:likes|works))?)$/.test(
                   u.pathname,
@@ -151,7 +152,7 @@ mf = new Miniflare(
               ? 'index.html'
               : u.pathname.slice(1);
         if (
-          !/^(?:index\.html|tests\/generation-editor\/index\.html|assets\/[A-Za-z0-9_.-]+)$/.test(
+          !/^(?:index\.html|tests\/generation-editor\/index\.html|assets\/[A-Za-z0-9_.-]+|llms\.txt|agent-kit\/ksh-article\/(?:SKILL\.md|scripts\/session_index\.py))$/.test(
             path,
           )
         )
@@ -163,7 +164,11 @@ mf = new Miniflare(
               ? 'text/javascript'
               : path.endsWith('.css')
                 ? 'text/css'
-                : 'text/html',
+                : path.endsWith('.md')
+                  ? 'text/markdown; charset=utf-8'
+                  : /\.(?:txt|py)$/.test(path)
+                    ? 'text/plain; charset=utf-8'
+                    : 'text/html',
           },
         });
       }

@@ -15,6 +15,7 @@ import './publication.css';
 import { referencedMediaIds } from '../shared/media';
 import MediaPublicationPreview from './MediaPublicationPreview';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
+import type { AgentArticleMetadata } from '../agent/article-format';
 interface Props {
   surface?: PublicSurface;
   fetcher?: typeof fetch;
@@ -25,6 +26,8 @@ interface Props {
   canStart: () => boolean;
   onPending: (value: boolean, mutating?: boolean) => void;
   onUnsavedPreparation: (value: boolean, uncertain?: boolean) => void;
+  /** Reader-facing fields an AI agent wrote for this draft; applied only when the author asks. */
+  suggested?: AgentArticleMetadata | null;
 }
 class SavedPreviewBoundary extends React.Component<
   { children: React.ReactNode },
@@ -53,6 +56,7 @@ export default function PublicationComposer({
   canStart,
   onPending,
   onUnsavedPreparation,
+  suggested = null,
 }: Props) {
   const ordinary = surface === 'ordinary';
   const [optionalOpen, setOptionalOpen] = useState(false);
@@ -294,6 +298,31 @@ export default function PublicationComposer({
     setFields((f) => ({ ...f, [key]: value }));
     setConfirmed(false);
   }
+  function applySuggestion() {
+    if (!suggested) return;
+    onUnsavedPreparation(true);
+    setFields((f) => ({
+      summary: suggested.summary || f.summary,
+      tags: suggested.tags.length ? suggested.tags.join(', ') : f.tags,
+      minutes: suggested.minutes ? String(suggested.minutes) : f.minutes,
+      audience: suggested.audience || f.audience,
+      prerequisite: suggested.prerequisite || f.prerequisite,
+      outcome: suggested.outcome || f.outcome,
+    }));
+    setSuggestionUsed(suggested);
+    setConfirmed(false);
+  }
+  const [suggestionUsed, setSuggestionUsed] = useState<AgentArticleMetadata | null>(null);
+  const suggestionOffered = Boolean(
+    suggested &&
+    suggestionUsed !== suggested &&
+    (suggested.summary ||
+      suggested.tags.length ||
+      suggested.audience ||
+      suggested.prerequisite ||
+      suggested.outcome ||
+      suggested.minutes),
+  );
   const showForm =
     ordinary || !receipt || Boolean(attempt && !matchesPublication(receipt, attempt));
   const readOnly =
@@ -454,6 +483,16 @@ export default function PublicationComposer({
                         ? '手元に保持している公開情報（未反映）'
                         : '読者に表示する情報'}
                   </legend>
+                  {suggestionOffered && !readOnly && (
+                    <div className="agent-suggestion" role="note">
+                      <p>
+                        AIの出力に、概要・タグ・想定読者などが入っていました。入れてから、自分で読んで直してください。
+                      </p>
+                      <Button className="agent-button" onClick={applySuggestion}>
+                        AIの出力から入れる
+                      </Button>
+                    </div>
+                  )}
                   <label htmlFor="publication-summary">記事の概要（300文字以内）</label>
                   <textarea
                     id="publication-summary"

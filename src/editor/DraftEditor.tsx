@@ -6,6 +6,8 @@ import type { RescueChannel } from '../account/AccountSessionBoundary';
 import './editor.css';
 import PublicationComposer from './PublicationComposer';
 import MediaAttachments from './MediaAttachments';
+import AgentWritingPanel from '../agent/AgentWritingPanel';
+import type { AgentArticle, AgentArticleMetadata } from '../agent/article-format';
 import {
   formatMarkdown,
   textareaText,
@@ -109,6 +111,17 @@ export default function DraftEditor({
     }
   }, [ordinary, busy, draft]);
   const [composing, setComposing] = useState(false);
+  // Text before the last agent import and the publication fields the agent suggested. Both are
+  // kept only in memory for the open draft; the ordinary save remains the only write.
+  const [beforeAgent, setBeforeAgent] = useState<{
+    draftId: string;
+    title: string;
+    body: string;
+  } | null>(null);
+  const [agentMetadata, setAgentMetadata] = useState<{
+    draftId: string;
+    metadata: AgentArticleMetadata;
+  } | null>(null);
   const compositionRef = useRef(false);
   const pendingFormat = useRef<MarkdownFormat | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -282,8 +295,27 @@ export default function DraftEditor({
       )
     );
   }
+  function applyAgentArticle(article: AgentArticle) {
+    if (!draft || editingLocked || compositionRef.current) return;
+    cancelAutosave();
+    pendingFormat.current = null;
+    setBeforeAgent({ draftId: draft.id, ...currentText.current });
+    setAgentMetadata({ draftId: draft.id, metadata: article.metadata });
+    setText((t) => ({ title: article.title || t.title, body: article.body || t.body }));
+    setPreview(true);
+    setStatus('AIの出力を下書きに反映しました。プレビューで読み、違うところを直してください。');
+  }
+  function undoAgentArticle() {
+    if (!draft || !beforeAgent || beforeAgent.draftId !== draft.id || editingLocked) return;
+    cancelAutosave();
+    pendingFormat.current = null;
+    setText({ title: beforeAgent.title, body: beforeAgent.body });
+    setBeforeAgent(null);
+    setStatus('AIの出力を反映する前の文章に戻しました。');
+  }
   function open(value: EditorDraft) {
     pendingFormat.current = null;
+    setBeforeAgent(null);
     compositionRef.current = false;
     setComposing(false);
     setDraft(value);
@@ -782,6 +814,16 @@ export default function DraftEditor({
                 </div>
               </section>
               {ordinary && draft && writable && (
+                <AgentWritingPanel
+                  key={'agent-' + draft.id}
+                  current={text}
+                  disabled={editingLocked || composing || busy || publicationBusy}
+                  onApply={applyAgentArticle}
+                  canUndo={beforeAgent?.draftId === draft.id}
+                  onUndo={undoAgentArticle}
+                />
+              )}
+              {ordinary && draft && writable && (
                 <MediaAttachments
                   key={draft.id + csrfToken}
                   kind="articles"
@@ -846,6 +888,7 @@ export default function DraftEditor({
                   canStart={canPublishStart}
                   onPending={onPublicationPending}
                   onUnsavedPreparation={onUnsavedPreparation}
+                  suggested={agentMetadata?.draftId === draft.id ? agentMetadata.metadata : null}
                 />
               )}
               {problem && (
