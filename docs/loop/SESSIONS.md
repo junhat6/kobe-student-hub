@@ -22,6 +22,7 @@
 | 使い捨て | **patrol** | 1回の巡回で終わる | Issues のみ（コードは読むだけ） | patrol |
 | 使い捨て | **polish** | 1回で終わる | 選んだ1画面の src/・tests/（R0/R1 のみ）、polish log Issue | polish |
 | 使い捨て | **garden** | 1回で終わる | docs/、不要コードの削除 | garden |
+| 使い捨て | **editor** | 1回で終わる | `src/agent/editorial-taste.ts`・SKILL.md の同じ節、editor log Issue、非公開の材料・下書き（`~/.config/kobe-student-hub/`・`~/ksh-drafts/`） | editor |
 | 使い捨て | **verifier** | 1件の検証で終わる | Issue コメントのみ | R2 の独立検証 |
 
 2026-11-21 時点の対応：`loop-design`（このセッション）＝conductor の初期化、`loop-infra`＝infra、`app-dev`＝builder。

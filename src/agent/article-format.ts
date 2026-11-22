@@ -10,6 +10,8 @@
  * before anything is saved, and no new credential or write surface is created (R2 stays as is).
  */
 
+import { EDITORIAL_TASTE } from './editorial-taste';
+
 export const ARTICLE_LIMITS = {
   title: 200,
   bodyBytes: 262144,
@@ -261,6 +263,9 @@ export function buildWritingRequest(current: { title: string; body: string }, or
     '',
     '## 守ること',
     WRITING_RULES,
+    '',
+    '## 良いと感じられる記事（運営のレビューから更新）',
+    EDITORIAL_TASTE,
     '',
     '## 出力の形',
     '次の形の Markdown ファイル1つだけを、コードブロックで出力してください。私がそのままサイトの下書き画面に貼り付けます。',

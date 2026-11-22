@@ -1,5 +1,6 @@
 import { WRITING_RULES } from '../../src/agent/article-format';
 import { DAILY_AGENT_DRAFTS } from './connections';
+import { EDITORIAL_TASTE } from '../../src/agent/editorial-taste';
 
 /** Plain instructions only. The server never generates text; the student's own agent writes. */
 export function serverInstructions(origin: string) {
@@ -31,6 +32,9 @@ export function writingGuide(origin: string) {
     WRITING_RULES,
     '- 履歴の値を写さない。パスワード・API キー・トークン・秘密鍵・.env の値・メールアドレス・ユーザー名入りのパス（/Users/名前/ など）は、`<API_KEY>` `<EMAIL>` `~/project` のような置き換えにする。',
     '- サーバーは決まった形の検査で、秘密に見える箇所の種類と行番号を注意として返す（保存は止めない。検査は完全ではない）。注意が返ったら直して update_draft で送り直す。',
+    '',
+    '## 良いと感じられる記事（運営のレビューから更新）',
+    EDITORIAL_TASTE,
     '',
     '## 形',
     '- タイトルは200文字以内。本文は Markdown（見出しは ## から）、256KB 以内。front matter は付けない。',

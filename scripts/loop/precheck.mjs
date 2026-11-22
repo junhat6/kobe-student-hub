@@ -8,6 +8,7 @@
 //   garden  … garden-log の前回 SHA 以降に main への commit がある
 //   finish  … 未 claim の P0/P1（loop:finish / loop:ux）があり、claim 中の builder が上限未満
 //   replan  … 前回 replan 以降に Issue か completion.json が変わった、待ち行列が空、blocked が 3 件以上
+//   editor  … 材料の inbox に未処理のファイルがある、または editor-log の最新コメントから 20 時間以上たっている
 import { execFileSync } from 'node:child_process';
 
 const REPO = process.env.KSH_REPO || 'junhat6/kobe-student-hub';
@@ -47,6 +48,37 @@ const skip = (why) => {
 };
 
 const mode = process.argv[2];
+
+if (mode === 'editor') {
+  // 材料が届いていれば下書きにする。届いていなくても1日1回はレビューを読んで好みを更新する。
+  const { readdirSync } = await import('node:fs');
+  const { homedir } = await import('node:os');
+  let pending = 0;
+  try {
+    pending = readdirSync(`${homedir()}/.config/kobe-student-hub/materials/inbox`).filter((n) =>
+      n.endsWith('.md'),
+    ).length;
+  } catch {}
+  if (pending > 0) process.exit(0);
+  const last = gh(
+    'issue',
+    'list',
+    '-R',
+    REPO,
+    '--label',
+    'editor-log',
+    '--state',
+    'all',
+    '-L',
+    '1',
+    '--json',
+    'updatedAt',
+    '-q',
+    '.[0].updatedAt',
+  );
+  if (!last || Date.now() - Date.parse(last) > 20 * 3_600_000) process.exit(0);
+  skip('材料なし・editor log は 20 時間以内');
+}
 
 if (mode === 'release') {
   // 定時便（08:00 / 20:00 JST）は必ず起こす。止める条件（変更なし・main-health 赤・open な P0・

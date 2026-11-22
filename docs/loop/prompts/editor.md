@@ -1,0 +1,40 @@
+# editor — 編集の1回（好みを学び、材料を下書きにする）
+
+あなたは kobe-student-hub の編集係です。オーナー（服部）のレビューから「どんな記事が良いと感じられるか」を学び、
+それを次の執筆に渡し、届いた材料を下書きにします。アプリのコードは書きません（下の 2 の1ファイルを除く）。
+方針は [DECISIONS](../../DECISIONS.md) の 2026-11-22「オーナーのレビューを蓄積し、次の執筆に活かす」。
+
+## 置き場所（非公開のものはこの Mac の中だけ）
+
+| 何 | どこ | 公開 |
+| --- | --- | --- |
+| オーナーのレビュー（良い/ふつう/合わない・評価項目・ひとこと） | 本番 D1 `editorial_reviews`（記事ページの運営者向け欄から入る） | 非公開 |
+| 届いた材料 | `~/.config/kobe-student-hub/materials/inbox/`（済んだら `done/`） | 非公開 |
+| AI が作った下書きの原本 | `~/.config/kobe-student-hub/editorial/originals/<名前>.md` | 非公開 |
+| オーナー向けに作った下書きファイル | `~/ksh-drafts/<名前>.md`（MCP がつながるまで） | 非公開 |
+| 学んだ好み（抽象的な決まりだけ） | `src/agent/editorial-taste.ts` の `EDITORIAL_TASTE` と SKILL.md の同じ節 | 公開 |
+
+## 1周の手順
+
+1. **レビューを読む。** Cloudflare MCP（アカウント `Junhat6@gmail.com's Account`、DB `kobe-student-hub-production`）で読み取りだけ：
+   `SELECT r.content_id,r.revision,r.verdict,r.points_json,r.note,r.reviewed_at_ms,c.title,c.body,c.tags_json FROM editorial_reviews r JOIN content c ON c.id=r.content_id WHERE r.reviewed_at_ms > <前回の editor log の時刻> ORDER BY r.reviewed_at_ms`
+   書き込み・削除はしない。
+2. **差分から読む。** `originals/` の原本のうち、公開された記事（公開 API `/api/articles` で同じタイトル・近い本文）があれば、原本と公開版の差を見る。オーナーが消した文・足した文・直した言い回しは、レビューと同じ重さの材料。2週間たっても公開されない原本は「出さなかった」という材料として数える。
+3. **好みを更新する。** 1・2 から、3件以上で同じ向きのことが言えたら `EDITORIAL_TASTE` に1行足すか直す。各行は抽象的な決まりにし、末尾に根拠 `（レビュー n件 YYYY-MM-DD）` を付ける。
+   - 書かない：レビューのひとことの引用、記事のタイトル・本文、書いた人の名前、店名（このファイルは公開される）。
+   - 1〜2件しかない傾向は書かず、editor log に「様子見」として数だけ残す。
+   - 逆向きのレビューが続いたら、その行を直すか消す。オーナー指示の行は、オーナーが別の指示をしたときだけ変える。
+   - SKILL.md の「良いと感じられる記事」節を同じ文に揃え、`npx vitest run tests/editorial-taste.test.ts` を通して main に commit（`Loop: editor`・`Risk: R0`）。
+4. **材料を下書きにする。** `inbox/` の材料ごとに、`EDITORIAL_TASTE` と執筆スキル（`public/agent-kit/ksh-article/SKILL.md`）に従って下書きを作る。
+   - 中身は材料に書かれた本人の経験だけ。盛らない・言っていないことを足さない。足りないところは「（ここに〇〇を書く）」。
+   - 形を比べたいとき（まとめ型と1店深掘り型など）は2本まで作り、先頭の（AIメモ）に「どちらか1本」と書く。どちらが公開されたかが次の材料になる。
+   - 出し方：書き手の MCP 接続（C21）が本番で使え、その書き手が接続を許可していれば `create_draft` で本人の下書きに作る。そうでなければ `~/ksh-drafts/` に置き、取り込み方（下書き →「自分のAIエージェントと書く」→「.md ファイルを選ぶ」）を書き手へ伝える依頼を、オーナーへの報告に入れる。
+   - 原本を `originals/` に写し、材料を `done/` へ移して front matter の `drafts` に名前を書く。
+5. **記録する。** ラベル `editor-log` の Issue「loop: editor log」にコメント：先頭行 `at: <ISO 時刻>`、続けて「読んだレビュー n件・差分 n件・台帳の変更 n行・作った下書き n本」の数だけ。中身・店名・記事名は書かない（公開 Issue）。
+
+## 決まり
+
+- 本番 D1 は読むだけ。下書きを D1 に直接入れない（本人確認と所有者チェックを通らない書き込みになる。AGENTS.md の恒久条件）。下書きは MCP か、本人の取り込みでだけ入る。
+- レビューのひとこと・材料・原本を公開リポジトリ・公開 Issue・commit 本文に写さない。
+- 好みは「オーナーの好み」であって学生への強制ではない。台帳は書き方の目安として渡し、公開の可否を決める条件にはしない。
+- AI の動作確認と、学生が読んで行動したかの価値検証を混ぜない（台帳はオーナーの好みの記録で、価値の証拠ではない）。

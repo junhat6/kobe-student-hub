@@ -211,6 +211,7 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh garden` | `0 5 * * *` | `garden-log` Issue 最新コメントの sha 以降に main への commit | prompts/garden.md |
 | `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
 | `ksh release` | `0 8,20 * * *`（missed-run grace 100分） | 常に通す（止める条件は `npm run release` が判定して記録） | `.claude/skills/release/SKILL.md` |
+| `ksh editor` | `15 9,21 * * *` | 材料の inbox に未処理がある、または `editor-log` の最新から20時間以上 | prompts/editor.md（オーナーのレビュー → 好みの台帳 → 次の執筆。材料 → 下書き） |
 | `ksh tidy` | `45 * * * *` | precheck 自体が仕事：終わった run と 6 時間止まった run の worktree を安全確認つきで消し、必ず exit 1（agent は起こさない）。点検は garden | [ORCA.md](ORCA.md#3-後片付けksh-tidy-と-prune-worktreesmjs) |
 
 同時に走る builder（finish）は最大3。patrol と garden は builder と別 worktree で動かす。
