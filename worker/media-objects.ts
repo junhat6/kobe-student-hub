@@ -6,7 +6,8 @@
 //
 // Expand stage: new bytes go to R2 *and* D1 (payload). Reads prefer R2 and fall back to D1, so the
 // previous Worker (D1 only) keeps working after a rollback. A later contract stage stops writing the
-// payload once every row has object_stored_at_ms.
+// payload once every row's object is confirmed in R2 (head/get and sha256 against the row), not by
+// object_stored_at_ms alone: the column records a past copy, not that the object still exists.
 import { MEDIA_MAX_BYTES } from '../src/shared/media';
 
 export type MediaBindings = { MEDIA_BUCKET?: R2Bucket };
@@ -91,7 +92,7 @@ const BACKFILL_LIMIT = 8;
  *  1. copy D1-only rows (written by the previous Worker or before the bucket existed) to R2;
  *  2. delete objects whose D1 row (id + sha256) is gone, after a grace period that covers the
  *     put-then-insert window of an upload in flight.
- * The sweep starts at a random position so every object is eventually visited without stored state.
+ * Both start at a random id so every row and object is eventually visited without stored state.
  */
 export async function maintainMediaObjects(
   db: D1Database,
@@ -101,14 +102,23 @@ export async function maintainMediaObjects(
 ): Promise<{ copied: number; swept: number }> {
   const result = { copied: 0, swept: 0 };
   if (!bucket) return result;
+  const from = ID.test(start) ? start : '';
   try {
-    const rows = await db
-      .prepare(
-        'SELECT id,mime,sha256,payload FROM media_assets WHERE object_stored_at_ms IS NULL ORDER BY created_at_ms,id LIMIT ?',
-      )
-      .bind(BACKFILL_LIMIT)
-      .all<{ id: string; mime: string; sha256: string; payload: number[] }>();
-    for (const row of rows.results) {
+    // Start at the same random id as the sweep and wrap around once. A fixed order (oldest first)
+    // would let rows that can never be copied (payload not matching its sha256) fill every batch
+    // and stop the backfill for good; a random start reaches every pending row eventually.
+    type Pending = { id: string; mime: string; sha256: string; payload: number[] };
+    const pending = (where: string, limit: number) =>
+      db
+        .prepare(
+          `SELECT id,mime,sha256,payload FROM media_assets WHERE object_stored_at_ms IS NULL AND ${where} ORDER BY id LIMIT ?`,
+        )
+        .bind(from, limit)
+        .all<Pending>();
+    const rows = (await pending('id>?', BACKFILL_LIMIT)).results;
+    if (rows.length < BACKFILL_LIMIT && from)
+      rows.push(...(await pending('id<=?', BACKFILL_LIMIT - rows.length)).results);
+    for (const row of rows) {
       if (
         !Array.isArray(row.payload) ||
         !row.payload.length ||
@@ -136,15 +146,20 @@ export async function maintainMediaObjects(
     // Retried on the next run.
   }
   try {
-    const startAfter = ID.test(start) ? `media/${start}` : 'media/';
+    const startAfter = from ? `media/${from}` : 'media/';
     let listed = await bucket.list({ prefix: 'media/', startAfter, limit: SWEEP_LIMIT });
     // Wrap around once so a random start near the end still visits a full page.
+    // The head page can repeat keys already listed when the bucket holds fewer objects than a page.
     if (listed.objects.length < SWEEP_LIMIT && startAfter !== 'media/') {
       const head = await bucket.list({
         prefix: 'media/',
         limit: SWEEP_LIMIT - listed.objects.length,
       });
-      listed = { ...listed, objects: [...listed.objects, ...head.objects] };
+      const seen = new Set(listed.objects.map((o) => o.key));
+      listed = {
+        ...listed,
+        objects: [...listed.objects, ...head.objects.filter((o) => !seen.has(o.key))],
+      };
     }
     const cutoff = clock() - ORPHAN_GRACE_MS;
     const candidates = listed.objects

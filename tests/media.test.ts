@@ -844,9 +844,57 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     expect(new Uint8Array(await copied!.arrayBuffer())).toEqual(png);
     const second = await run(later);
     expect(second.copied).toBe(0);
-    expect(second.swept).toBeGreaterThanOrEqual(1);
+    // One orphan, counted once even though the wrap-around page lists the same keys again.
+    expect(second.swept).toBe(1);
     expect(await bucket.head(orphan)).toBeNull();
     expect(await bucket.head(await objectKey(source))).not.toBeNull();
     expect(await bucket.head(await objectKey(legacy))).not.toBeNull();
+  });
+  it.runIf(r2)('keeps copying when a full batch of older rows can never be copied', async () => {
+    const db = await mf.getD1Database('DB'),
+      source = id(),
+      good = 'f0000000-0000-4000-8000-000000000000';
+    const d = await draft(),
+      bad = await draft();
+    expect((await upload(d, source)).status).toBe(201);
+    // Eight older rows whose payload does not match its sha256 (a full batch), then one good row.
+    for (let i = 0; i < 8; i++)
+      await db
+        .prepare(
+          'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,?,mime,width,height,payload,?,? FROM media_assets WHERE id=?',
+        )
+        .bind(`0000000${i}-0000-4000-8000-000000000000`, bad.id, 'b'.repeat(64), NOW - 10, source)
+        .run();
+    await db
+      .prepare(
+        'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,article_draft_id,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
+      )
+      .bind(good, NOW, source)
+      .run();
+    const run = async (start: string) =>
+      (await (
+        await mf.dispatchFetch(O + '/fixture/maintain', {
+          headers: { 'X-Test-Now': String(Date.now()), 'X-Test-Start': start },
+        })
+      ).json()) as { copied: number; swept: number };
+    // Starting past every row wraps around to the broken ones: nothing to copy this run.
+    expect((await run('ffffffff-ffff-4fff-bfff-ffffffffffff')).copied).toBe(0);
+    expect((await stored(good)).object_stored_at_ms).toBeNull();
+    // Another start reaches the good row although the broken ones are older and fill a batch.
+    expect((await run('e0000000-0000-4000-8000-000000000000')).copied).toBe(1);
+    expect((await stored(good)).object_stored_at_ms).not.toBeNull();
+    const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+    expect(new Uint8Array(await (await bucket.get(await objectKey(good)))!.arrayBuffer())).toEqual(
+      png,
+    );
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT COUNT(*) n FROM media_assets WHERE id LIKE '0000000_-0000-4000-8000-000000000000' AND object_stored_at_ms IS NULL",
+          )
+          .first<{ n: number }>()
+      )?.n,
+    ).toBe(8);
   });
 });
