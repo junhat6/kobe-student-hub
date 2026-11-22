@@ -20,6 +20,7 @@
 | 常駐 | **builder** ×1〜3 | 周回ごとに context を捨てる（`/clear` か新セッション） | claim した Issue の範囲の src/ worker/ tests/ migrations/ | finish |
 | 常駐 | **infra** | 長い | .github/、scripts/、.claude/、docs/RELEASE.md、ruleset | release |
 | 使い捨て | **patrol** | 1回の巡回で終わる | Issues のみ（コードは読むだけ） | patrol |
+| 使い捨て | **polish** | 1回で終わる | 選んだ1画面の src/・tests/（R0/R1 のみ）、polish log Issue | polish |
 | 使い捨て | **garden** | 1回で終わる | docs/、不要コードの削除 | garden |
 | 使い捨て | **verifier** | 1件の検証で終わる | Issue コメントのみ | R2 の独立検証 |
 

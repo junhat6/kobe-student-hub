@@ -118,6 +118,24 @@ full CI は `npm run release` の昇格時に必ず回ります。push 前に全
 - 所見にはスクリーンショットと再現手順を必須にする。「なんとなく良くない」は所見にしない。
 - 人が定期的に採点を較正する（[価値検証ループ](#6-価値検証ループ-value人が主役)の「較正」）。
 
+## 2b. UI/UX 改善係 (polish)
+
+2026-11-22 オーナーの依頼で追加。「指摘待ちではなく、自律的に判断してどんどん良くしていく」ための係です。
+patrol は旅が最後まで行けるかを採点して Issue にするだけで、P2 の見た目・文言の所見は builder の precheck（P0/P1 のみ）に拾われず溜まっていました（2026-11-22 時点で `loop:ux` P2 が8件）。polish は **見る人と直す人を1周の中で兼ね**、R0/R1 に限って自分で直して main に出します。
+
+| 項目 | 内容 |
+| --- | --- |
+| 担当 | 毎回まっさらな polish セッション（builder と別 worktree） |
+| 起動 | Orca automation `ksh polish`：**10〜22時に3時間ごと**（`30 10-22/3 * * *`、1日5回） |
+| precheck | `node scripts/loop/precheck.mjs polish`：main-health が赤でない、open な P0 が無い、前回の polish log から 2 時間以上たっている |
+| 入力 | [ux-rubric.md の「情報設計の原則」](ux-rubric.md#情報設計の原則オーナー方針-2026-11-22)、画面の巡回順（指示書）、polish log Issue |
+| 出力 | 1周で 1〜3 件の R0/R1 の改善 commit（`Loop: polish`）、R2 の所見は `loop:ux` Issue、polish log Issue へのコメント（before/after） |
+| 指示書 | [prompts/polish.md](prompts/polish.md) |
+
+**自分の採点が甘くなる問題への対策**：polish は自分で直すので、評価の独立は patrol に残します。polish が出した変更は次の patrol が別 context で旅として歩き、悪くしていれば `loop:ux` に積みます。加えて polish log の before/after を人が見て、原則とずれていれば ux-rubric.md の「較正の記録」を直します（[価値検証ループ](#6-価値検証ループ-value人が主役)の較正）。
+
+**採らなかった案**：(a) patrol に直す権限を足す — 採点者が自分の直した所を採点することになり、独立した評価がなくなる。(b) P2 の `loop:ux` も finish が拾う — 機能の完成と見た目の磨き込みが同じ待ち行列で競い、どちらも遅れる。(c) オーナーの指摘を待つ — 依頼の趣旨（指摘待ちにしない）に反する。
+
 ## 3. 庭仕事ループ (garden)
 
 コードと文書の陳腐化を定期的に掃除する。OpenAI の harness engineering で、週の2割を「AIが残した散らかり」の掃除に費やしていた状態を、定期的な doc-gardening エージェントに置き換えた事例に倣います。
@@ -189,6 +207,7 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh mend` | 毎時 | main の最新 main-health が失敗 | （RELEASE.md） |
 | `ksh finish` | `*/30 * * * *` | 未claimの `P0`/`P1` の `loop:finish`/`loop:ux` があり、worktree が clean | prompts/finish.md |
 | `ksh patrol` | `0 */3 * * *`＋release後に本番1回 | `patrol-log` Issue 最新コメントの sha から origin/main までに src/worker/public の変更 | prompts/patrol.md |
+| `ksh polish` | `30 10-22/3 * * *` | main-health 非赤・open P0 なし・`polish-log` の最新コメントから2時間以上 | prompts/polish.md |
 | `ksh garden` | `0 5 * * *` | `garden-log` Issue 最新コメントの sha 以降に main への commit | prompts/garden.md |
 | `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
 | `ksh release` | 9〜24時に3時間ごと | 未リリースcommitあり・main-health 非赤・リリースCI非実行・open P0 なし | `.claude/skills/release/SKILL.md` |

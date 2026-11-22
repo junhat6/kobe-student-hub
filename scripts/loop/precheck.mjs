@@ -4,6 +4,7 @@
 //   release … main に未リリースの commit があり、main-health が赤でなく、open な P0 Issue が無く、リリース CI が実行中でない
 //   mend    … main の最新 main-health が失敗している（アンドン：最優先で直す）
 //   patrol  … 前回巡回の SHA 以降に src / worker / public の変更がある、または前回巡回の後に release が出た
+//   polish  … main-health が赤でなく、open な P0 が無く、polish-log の最新コメントから 2 時間以上たっている
 //   garden  … garden-log の前回 SHA 以降に main への commit がある
 //   finish  … 未 claim の P0/P1（loop:finish / loop:ux）があり、claim 中の builder が上限未満
 //   replan  … 前回 replan 以降に Issue か completion.json が変わった、待ち行列が空、blocked が 3 件以上
@@ -152,6 +153,31 @@ if (mode === 'patrol') {
   skip('前回巡回以降、利用者に見える変更もリリースも無い');
 }
 
+if (mode === 'polish') {
+  // UI/UX 改善係。壊れた main や止まった列車の上には積まない。続けて起きすぎないように間を空ける
+  const [status, conclusion] = health();
+  if (status === 'completed' && conclusion === 'failure') skip('main-health が赤。先に mend');
+  const p0 = gh(
+    'issue',
+    'list',
+    '-R',
+    REPO,
+    '--label',
+    'P0',
+    '--state',
+    'open',
+    '--json',
+    'number',
+    '-q',
+    'length',
+  );
+  if (p0 && p0 !== '0') skip(`open な P0 Issue が ${p0} 件`);
+  const { at } = lastLog('polish-log');
+  if (at && Date.now() - Date.parse(at) < 2 * 60 * 60 * 1000)
+    skip('前回の polish から 2 時間たっていない');
+  process.exit(0);
+}
+
 if (mode === 'garden') {
   const { sha } = lastLog('garden-log');
   if (!sha) process.exit(0);
@@ -236,5 +262,5 @@ if (mode === 'replan') {
   skip('前回 replan 以降に変化が無い');
 }
 
-console.error('usage: precheck.mjs release|mend|patrol|garden|finish|replan');
+console.error('usage: precheck.mjs release|mend|patrol|polish|garden|finish|replan');
 process.exit(2);

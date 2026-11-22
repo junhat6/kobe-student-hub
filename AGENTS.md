@@ -10,7 +10,7 @@
 ## 進め方（2026-11-21 から）
 
 - 進め方の正本は [docs/loop/](docs/loop/README.md)。まず README の「原則」と「リスク段階」を読む。
-- 自分の役の指示書を読んで1周1仕事：[finish](docs/loop/prompts/finish.md) / [patrol](docs/loop/prompts/patrol.md) / [garden](docs/loop/prompts/garden.md) / [replan](docs/loop/prompts/replan.md)。役の分け方は [SESSIONS.md](docs/loop/SESSIONS.md)。
+- 自分の役の指示書を読んで1周1仕事：[finish](docs/loop/prompts/finish.md) / [patrol](docs/loop/prompts/patrol.md) / [polish](docs/loop/prompts/polish.md) / [garden](docs/loop/prompts/garden.md) / [replan](docs/loop/prompts/replan.md)。役の分け方は [SESSIONS.md](docs/loop/SESSIONS.md)。
 - 完成の定義は [completion.json](docs/loop/completion.json)。builder は status/evidence/production だけ変えてよい。
 - 待ち行列は GitHub Issues（`loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
 - 現在地は [docs/WORK.md](docs/WORK.md)（5行）。機能ごとの設計メモ・QA文書は作らない。証拠は commit 本文・Issue コメント・CI artifact へ。
@@ -32,6 +32,10 @@
 `npm run format`（commit時は staged hook）、`npm run build`、`npm test`、`npm run test:e2e`、`npm run test:auth-browser`、`npm run editor:build && npm run test:editor`、`npm run deploy:check`。Wrangler binding を変えたら `npm run types`。リスク段階ごとにどこまで回すかは [LOOPS.md](docs/loop/LOOPS.md#backpressure内側の速いループ)。初回は `npx playwright install chromium`。
 
 ソースを手作業で圧縮しない。整形は Prettier に任せ、除外は `.prettierignore` に従う。
+
+## UI の決まり（オーナー方針 2026-11-22）
+
+- 文字は少なく、アイコンで言えることはアイコンで（名前は `aria-label`）。説明文が要ると感じたら設計を直す。意味のない操作（「保存状態を確認」「再読み込み」）は置かない。詳細は [ux-rubric.md](docs/loop/ux-rubric.md#情報設計の原則オーナー方針-2026-11-22)。
 
 ## 恒久条件（大胆に進めても変えない）
 
