@@ -25,6 +25,7 @@
 - 新しい worktree で `npm run test:e2e` がほぼ全滅し「記事・作品を読み込めませんでした」になるときは、ローカル D1 未初期化。`npm run db:local`（ローカルのみ）を1回実行してから回す
 - `test:auth-browser` 系（8790番）が「already used」で止まるのは別 worktree の検査中。相手のプロセスは止めず、空くまで待つ間に `npm test`・`npm run test:e2e` を先に回す
 - `test:e2e` は 8787 番に別 worktree の server があると黙ってそれを再利用し、ほぼ全滅する（`lsof -iTCP:8787 -sTCP:LISTEN` の cwd で確かめる）。相手は止めず、空くのを待つか、`playwright.config.ts` を継いだ一時 config で別ポート（例 8797）に向けて回す
+- `test:auth-browser` を 8790 以外のポートへ置き換えて回すと、publication の通報3件と project 通報しきい値1件は変更前の版でも落ちる（ポート固有）。比べるときは変更前の版も同じポートで回す
 - migration を足したら `scripts/session-browser-preview.mjs` の明示リストにも足す（足さないと HTTPS ブラウザー検査だけが古い schema で動く）
 - 新しい表を読む SQL は `scripts/editor-preview.mjs` の明示リストにもその migration が要る（無いと editor 系 spec だけ 404 で落ちる。0026 は表だけ作り自動非公開 trigger を外している）
 - `npm run test:editor` は先に `npm run editor:build` が要る（無いと「assets.directory … .editor-preview does not exist」で起動しない）
