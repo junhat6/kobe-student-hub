@@ -4,7 +4,7 @@ import { completeGoogleFormPost } from './google-form-post';
 // A fictional signed-in student with a public profile, created through the HTTPS fixture's API
 // so browser specs can start from published content without walking the whole sign-up flow.
 const ORIGIN = 'https://127.0.0.1:8790';
-export type Actor = { context: BrowserContext; csrf: string; profileId: string };
+export type Actor = { context: BrowserContext; csrf: string; profileId: string; subject: string };
 
 export async function actor(
   browser: Browser,
@@ -28,11 +28,11 @@ export async function actor(
   const authorization = new URL((await start.json()).authorizationUrl);
   const state = authorization.searchParams.get('state')!;
   const nonce = authorization.searchParams.get('nonce')!;
+  const subject = 'fictional-a11y-' + crypto.randomUUID();
   expect(
     (
       await context.request.get(
-        '/__control/token?' +
-          new URLSearchParams({ state, nonce, actor: 'fictional-a11y-' + crypto.randomUUID() }),
+        '/__control/token?' + new URLSearchParams({ state, nonce, actor: subject }),
       )
     ).status(),
   ).toBe(200);
@@ -50,7 +50,7 @@ export async function actor(
     },
   });
   expect(profile.status()).toBe(201);
-  return { context, csrf: csrfToken, profileId: (await profile.json()).profile.id };
+  return { context, csrf: csrfToken, profileId: (await profile.json()).profile.id, subject };
 }
 
 export async function write(owner: Actor, path: string, data: object) {

@@ -5,10 +5,12 @@ import OperatorReadBoundary from '../editor/OperatorReadBoundary';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import '../editor/moderation.css';
 import EmailNotifications from './EmailNotifications';
+import ProfileReportCases from './ProfileReportCases';
 
 export default function ModerationPage() {
   const { search } = useLocation();
-  const kind = new URLSearchParams(search).get('type') === 'project' ? 'project' : 'article';
+  const type = new URLSearchParams(search).get('type');
+  const kind = type === 'project' ? 'project' : type === 'profile' ? 'profile' : 'article';
   const initialCaseId = new URLSearchParams(search).get('case');
   const navigationRisk = useUnsavedNavigation(
     '未送信の判断理由、または結果不明の操作があります。画面を離れると手元の入力を失います。受け付けられた判断は取り消せません。移動しますか？',
@@ -56,25 +58,39 @@ export default function ModerationPage() {
         <Link to="/moderation?type=project" aria-current={kind === 'project' ? 'page' : undefined}>
           作品の通報
         </Link>
+        {' · '}
+        <Link to="/moderation?type=profile" aria-current={kind === 'profile' ? 'page' : undefined}>
+          プロフィールの通報
+        </Link>
       </nav>
-      <h2>{kind === 'project' ? '作品の通報と手動判断' : '記事の通報と判断'}</h2>
+      <h2>
+        {kind === 'project'
+          ? '作品の通報と手動判断'
+          : kind === 'profile'
+            ? 'プロフィールの通報'
+            : '記事の通報と判断'}
+      </h2>
       <OperatorReadBoundary decisions>
-        {(fetcher) => (
-          <>
-            <ModerationCases
-              key={kind}
-              kind={kind}
-              fetcher={fetcher}
-              decisions
-              notifications
-              initialCaseId={initialCaseId}
-              onRiskChange={onRiskChange}
-            />
-            {kind === 'article' && (
-              <EmailNotifications fetcher={fetcher} onRiskChange={onEmailRiskChange} />
-            )}
-          </>
-        )}
+        {(fetcher) =>
+          kind === 'profile' ? (
+            <ProfileReportCases key={kind} fetcher={fetcher} initialCaseId={initialCaseId} />
+          ) : (
+            <>
+              <ModerationCases
+                key={kind}
+                kind={kind}
+                fetcher={fetcher}
+                decisions
+                notifications
+                initialCaseId={initialCaseId}
+                onRiskChange={onRiskChange}
+              />
+              {kind === 'article' && (
+                <EmailNotifications fetcher={fetcher} onRiskChange={onEmailRiskChange} />
+              )}
+            </>
+          )
+        }
       </OperatorReadBoundary>
     </section>
   );

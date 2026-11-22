@@ -4,18 +4,24 @@ import { Button } from '@base-ui/react/button';
 import { createProjectReportClient, validProjectReportInput } from './project-report-client';
 import ProjectSessionScope from './ProjectSessionScope';
 import './project-report.css';
-function ProjectReportForm({
+type ReportClient = Pick<ReturnType<typeof createProjectReportClient>, 'received' | 'report'>;
+/** Shared intake form. `subject` names the target in every label, e.g. 作品 or プロフィール. */
+export function ReportForm({
   projectId,
   csrf,
   fetcher,
   onNavigationRiskChange,
+  subject = '作品',
+  createClient = createProjectReportClient,
 }: {
   projectId: string;
   csrf: string;
   fetcher: typeof fetch;
   onNavigationRiskChange?: (risk: boolean) => void;
+  subject?: string;
+  createClient?: (csrf: string, fetcher: typeof fetch) => ReportClient;
 }) {
-  const client = useMemo(() => createProjectReportClient(csrf, fetcher), [csrf, fetcher]);
+  const client = useMemo(() => createClient(csrf, fetcher), [createClient, csrf, fetcher]);
   const id = useId(),
     mounted = useRef(true),
     generation = useRef(0),
@@ -93,7 +99,7 @@ function ProjectReportForm({
         setKnown(false);
         setUncertain(true);
         setMessage(
-          '送信結果を確認できませんでした。入力は保持し、自動で再送しません。「作品通報の受付を確認」で確認してください。',
+          `送信結果を確認できませんでした。入力は保持し、自動で再送しません。「${subject}通報の受付を確認」で確認してください。`,
         );
       }
     } finally {
@@ -137,7 +143,7 @@ function ProjectReportForm({
         {message}
       </p>
       <Button disabled={busy} onClick={() => void check()}>
-        作品通報の受付を確認
+        {subject}通報の受付を確認
       </Button>
       <form
         onSubmit={(event) => {
@@ -147,7 +153,7 @@ function ProjectReportForm({
       >
         <fieldset disabled={busy}>
           <legend>運営確認用の非公開テキスト</legend>
-          <label htmlFor={id + 'reason'}>作品の通報理由（必須）</label>
+          <label htmlFor={id + 'reason'}>{subject}の通報理由（必須）</label>
           <textarea
             id={id + 'reason'}
             readOnly={received || uncertain}
@@ -156,7 +162,7 @@ function ProjectReportForm({
             onChange={(e) => change('reason', e.target.value)}
           />
           <small>{Array.from(input.reason).length}/200文字</small>
-          <label htmlFor={id + 'detail'}>作品の通報詳細（任意）</label>
+          <label htmlFor={id + 'detail'}>{subject}の通報詳細（任意）</label>
           <textarea
             id={id + 'detail'}
             readOnly={received || uncertain}
@@ -175,7 +181,7 @@ function ProjectReportForm({
             disabled={busy || !known || received || uncertain || !validProjectReportInput(input)}
             onChange={(e) => setConfirmed(e.target.checked)}
           />
-          <span>入力した理由・詳細を、この作品の通報として運営確認用に送信します</span>
+          <span>入力した理由・詳細を、この{subject}の通報として運営確認用に送信します</span>
         </label>
         <Button
           type="submit"
@@ -183,7 +189,7 @@ function ProjectReportForm({
             busy || !known || received || uncertain || !confirmed || !validProjectReportInput(input)
           }
         >
-          確認した作品通報を送信
+          確認した{subject}通報を送信
         </Button>
       </form>
       <p>
@@ -225,7 +231,7 @@ export default function ProjectReport({
         }
       >
         {(session) => (
-          <ProjectReportForm
+          <ReportForm
             projectId={projectId}
             csrf={session.csrf}
             fetcher={session.fetcher}

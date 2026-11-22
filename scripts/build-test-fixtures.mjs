@@ -14,6 +14,7 @@ await build({
     'publication-stops-test': 'tests/fixtures/publication-stops-worker.ts',
     'own-publications-test': 'tests/fixtures/own-publications-worker.ts',
     'project-reports-test': 'tests/fixtures/project-reports-worker.ts',
+    'profile-reports-test': 'tests/fixtures/profile-reports-worker.ts',
     'projects-test': 'tests/fixtures/projects-worker.ts',
     'auth-test': 'tests/fixtures/auth-worker.ts',
     'attempt-test': 'tests/fixtures/oauth-attempt-worker.ts',

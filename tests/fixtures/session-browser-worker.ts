@@ -43,9 +43,18 @@ export default {
         ? Response.json({ actor: s.actor.accountId, privateMarker: 'PRIVATE-' + s.actor.accountId })
         : Response.json({ error: 'authentication_required' }, { status: 401 });
     }
-    const ordinaryDraft = await createOrdinaryDraftHandler(env.DB, origin, { enabled: true })(
-      request,
-    );
+    // Test-only operator: a browser context names its fictional subject in a header, and the
+    // fixture resolves that to the account id the production allowlist would contain.
+    const operatorSubject = request.headers.get('X-Test-Operator-Subject');
+    const operator = operatorSubject
+      ? await env.DB.prepare('SELECT id FROM private_accounts WHERE google_subject=?')
+          .bind(operatorSubject)
+          .first<{ id: string }>()
+      : null;
+    const ordinaryDraft = await createOrdinaryDraftHandler(env.DB, origin, {
+      enabled: true,
+      ...(operator ? { operatorIds: [operator.id] } : {}),
+    })(request);
     if (ordinaryDraft) return ordinaryDraft;
     for (const handler of [
       createEnrollmentHandler,

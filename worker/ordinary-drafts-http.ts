@@ -11,6 +11,7 @@ import { createPublicProjectHandler } from './public-projects-http';
 import { createPublicStudentHandler } from './public-students-http';
 import { createPrivateProjectHandler } from './projects-http';
 import { createPrivateProjectReportHandler } from './project-reports-http';
+import { createPrivateProfileReportHandler } from './profile-reports-http';
 import { createMediaHandler } from './media-http';
 import { createOrdinaryDiscoveryHandler } from './ordinary-discovery-http';
 
@@ -47,8 +48,20 @@ export function createOrdinaryDraftHandler(
     options.operatorIds ?? [],
     clock,
   );
+  const profileReports = createPrivateProfileReportHandler(
+    db,
+    origin,
+    options.operatorIds ?? [],
+    clock,
+  );
   return async (request: Request): Promise<Response | null> => {
     const path = new URL(request.url).pathname;
+    // The private profile handler owns /api/private/profile*, so route these first.
+    if (
+      path.startsWith('/api/private/profile-reports') ||
+      path.startsWith('/api/private/profile-moderation')
+    )
+      return profileReports(request);
     // ProjectStore also owns the broader /api/private/project-* namespace.
     if (
       path.startsWith('/api/private/project-reports') ||

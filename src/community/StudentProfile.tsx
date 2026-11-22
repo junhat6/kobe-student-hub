@@ -4,6 +4,9 @@ import { createPublicStudentClient } from './student-client';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import PublicProjectCard from '../editor/PublicProjectCard';
+import ProfileReport from './ProfileReport';
+import { useViewer } from '../shell/viewer';
+import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 
 export default function StudentProfile({
   id,
@@ -15,6 +18,10 @@ export default function StudentProfile({
   const client = useMemo(() => createPublicStudentClient(), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
   const { value, failed, missing, retry } = usePublicRead(id, read);
+  const { viewer } = useViewer();
+  const reportRisk = useUnsavedNavigation(
+    '未送信の通報、または結果を確認中の操作があります。画面を離れると手元の入力は失われます。移動しますか？',
+  );
   if (missing) return <ReadMissing subject="投稿者" />;
   if (failed) return <ReadFailure subject="投稿者" retry={retry} />;
   if (!value)
@@ -68,6 +75,10 @@ export default function StudentProfile({
         </div>
       ) : (
         <p className="profile-empty">公開している作品はまだありません。</p>
+      )}
+      {/* Display-only hint: the server independently refuses reports on the reader's own profile. */}
+      {!(viewer.status === 'signed-in' && viewer.profile?.id === author.id) && (
+        <ProfileReport key={author.id} profileId={author.id} onNavigationRiskChange={reportRisk} />
       )}
     </section>
   );

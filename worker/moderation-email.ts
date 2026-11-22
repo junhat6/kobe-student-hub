@@ -51,7 +51,7 @@ interface Event {
   contentId: string;
   event: 'report_received' | 'temporarily_hidden';
 }
-type Source = 'article' | 'project';
+type Source = 'article' | 'project' | 'profile';
 const sources = {
   article: {
     deliveries: 'moderation_email_deliveries',
@@ -62,6 +62,11 @@ const sources = {
     deliveries: 'project_moderation_email_deliveries',
     outbox: 'project_report_outbox',
     target: 'project_id',
+  },
+  profile: {
+    deliveries: 'profile_moderation_email_deliveries',
+    outbox: 'profile_report_outbox',
+    target: 'public_profile_id',
   },
 } as const;
 /** Trusted internal spool only; no HTTP endpoint grants access to these operations. */
@@ -179,6 +184,12 @@ const mail = {
     body: '運営画面で作品と通報内容を確認できます。',
     path: '/moderation?type=project&case=',
   },
+  profile: {
+    hidden: 'プロフィールの通報が届いています',
+    received: 'プロフィールの通報が届いています',
+    body: '運営画面でプロフィールと通報内容を確認できます。',
+    path: '/moderation?type=profile&case=',
+  },
 } as const;
 type Summary = {
   enabled: boolean;
@@ -204,7 +215,7 @@ export async function dispatchModerationEmails(
   if (!options || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 10000)
     return summary;
   // Any doubt about a receipt stops the whole run, so the next source never masks it.
-  for (const source of ['article', 'project'] as const)
+  for (const source of ['article', 'project', 'profile'] as const)
     if (!(await dispatchSource(db, source, options, clock, timeoutMs, summary))) break;
   return summary;
 }
