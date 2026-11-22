@@ -28,7 +28,7 @@ export const EDITORIAL_POINTS = [
   { code: 'missing_facts', label: '時期・値段などが足りない', tone: 'minus' },
 ] as const;
 export type EditorialPoint = (typeof EDITORIAL_POINTS)[number]['code'];
-export const EDITORIAL_POINT_CODES: readonly string[] = EDITORIAL_POINTS.map((p) => p.code);
+const EDITORIAL_POINT_CODES: readonly string[] = EDITORIAL_POINTS.map((p) => p.code);
 export const EDITORIAL_NOTE_MAX = 500;
 
 export interface EditorialReviewInput {

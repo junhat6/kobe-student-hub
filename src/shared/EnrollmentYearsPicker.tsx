@@ -6,14 +6,14 @@ import type { ReactNode } from 'react';
 import './enrollment-picker.css';
 
 const JST = 9 * 60 * 60 * 1000;
-export function currentAcademicYear(nowMs = Date.now()) {
+function currentAcademicYear(nowMs = Date.now()) {
   const d = new Date(nowMs + JST);
   return d.getUTCFullYear() - (d.getUTCMonth() < 3 ? 1 : 0);
 }
-export const admissionLabel = (year: number) => `${year}年4月`;
-export const graduationLabel = (year: number) => `${year + 1}年3月`;
+const admissionLabel = (year: number) => `${year}年4月`;
+const graduationLabel = (year: number) => `${year + 1}年3月`;
 /** Default for a freshly chosen admission: a two-year course (most common here). */
-export const defaultGraduation = (admission: number) => admission + 1;
+const defaultGraduation = (admission: number) => admission + 1;
 
 function range(from: number, to: number, keep: number[]) {
   const set = new Set<number>();

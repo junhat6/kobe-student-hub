@@ -16,7 +16,7 @@ export type MediaObjectRef = { id: string; sha256: string; bytes: number };
 const HEX64 = /^[0-9a-f]{64}$/;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /** sha256 is part of the key: a colliding upload with another id/bytes never overwrites a stored object. */
-export const mediaObjectKey = (id: string, sha256: string) => `media/${id}/${sha256}`;
+const mediaObjectKey = (id: string, sha256: string) => `media/${id}/${sha256}`;
 const parseKey = (key: string) => {
   const m = /^media\/([0-9a-f-]{36})\/([0-9a-f]{64})$/.exec(key);
   return m && ID.test(m[1]) ? { id: m[1], sha256: m[2] } : null;

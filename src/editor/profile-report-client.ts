@@ -14,8 +14,7 @@ import { publicKeys, publicText } from './public-author-client';
 import { avatarVersion, validPublicAvatar } from '../shared/avatar';
 import type { ProjectReportInput } from '../project-report-types';
 
-export const validProfileReportInput = (v: unknown): v is ProfileReportInput =>
-  validProjectReportInput(v);
+const validProfileReportInput = (v: unknown): v is ProfileReportInput => validProjectReportInput(v);
 
 /** Same bounded transport and receipt contract as project reports; only the target differs. */
 export function createProfileReportClient(csrf: string, fetcher: typeof fetch = fetch) {

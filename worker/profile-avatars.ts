@@ -19,7 +19,7 @@ type Image = { mime: 'image/png' | 'image/jpeg'; bytes: Uint8Array<ArrayBuffer> 
 type Row = { mime: string; payload: unknown; sha256: string };
 /** Same anonymous eligibility as /api/students: a non-sample profile owned by an active
  * account with at least one published article or project. Hidden profiles serve nothing. */
-export const publicAvatarVisible = `a.public_profile_id=p.id AND p.is_sample=0 AND EXISTS(SELECT 1 FROM account_public_profiles m JOIN private_accounts owner ON owner.id=m.owner_account_id AND owner.status='active' WHERE m.public_profile_id=p.id) AND NOT EXISTS(SELECT 1 FROM private_accounts identity WHERE identity.id=p.id OR identity.google_subject=p.id) AND (EXISTS(SELECT 1 FROM content c WHERE c.author_id=p.id AND c.kind='article' AND c.status='published' AND c.is_sample=0) OR EXISTS(SELECT 1 FROM project_publications r WHERE r.public_profile_id=p.id AND r.status='published'))`;
+const publicAvatarVisible = `a.public_profile_id=p.id AND p.is_sample=0 AND EXISTS(SELECT 1 FROM account_public_profiles m JOIN private_accounts owner ON owner.id=m.owner_account_id AND owner.status='active' WHERE m.public_profile_id=p.id) AND NOT EXISTS(SELECT 1 FROM private_accounts identity WHERE identity.id=p.id OR identity.google_subject=p.id) AND (EXISTS(SELECT 1 FROM content c WHERE c.author_id=p.id AND c.kind='article' AND c.status='published' AND c.is_sample=0) OR EXISTS(SELECT 1 FROM project_publications r WHERE r.public_profile_id=p.id AND r.status='published'))`;
 function decoded(r: Row | null, version: string): Image | null {
   if (
     !r ||
