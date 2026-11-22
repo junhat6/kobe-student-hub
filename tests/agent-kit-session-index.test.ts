@@ -483,7 +483,8 @@ describe('agent kit session_index.py with the home folder as the working place',
         [
           'import importlib.util, json, sys, time',
           'spec = importlib.util.spec_from_file_location("kit", sys.argv[1])',
-          'kit = importlib.util.module_from_spec(spec); spec.loader.exec_module(kit)',
+          // Registered first: @dataclass looks the module up in sys.modules on older Pythons.
+          'kit = importlib.util.module_from_spec(spec); sys.modules["kit"] = kit; spec.loader.exec_module(kit)',
           'out = {}',
           'for name, text in [("dash", "-" * 20000), ("list", "- " * 10000), ("blank", " " * 20000), ("lines", "\\n" * 20000), ("assign", "a=" * 10000), ("word", "a" * 20000)]:',
           '    start = time.perf_counter(); kit.mask(text); out[name] = time.perf_counter() - start',
