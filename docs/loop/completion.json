@@ -22,8 +22,8 @@
       "journey": "J1",
       "risk": "R1",
       "status": "pass",
-      "production": "unknown",
-      "evidence": "tests/ordinary-home-browser.spec.ts（PC1280/モバイル390、匿名）：実投稿の記事・作品が新しい順（改稿は最新公開版の時刻で上がり、カードの日付が下に向かって増えない）、通常トップに架空サンプルが混ざらず、サンプル詳細は直接URLで常に「サンプル」と表示、カードから記事・投稿者・作品へ移動、横スクロールなし。tests/ordinary-discovery.test.ts「moves a revised article above newer first publications」。#145"
+      "production": "open",
+      "evidence": "tests/ordinary-home-browser.spec.ts（PC1280/モバイル390、匿名）：実投稿の記事・作品が新しい順（改稿は最新公開版の時刻で上がり、カードの日付が下に向かって増えない）、通常トップに架空サンプルが混ざらず、サンプル詳細は直接URLで常に「サンプル」と表示、カードから記事・投稿者・作品へ移動、横スクロールなし。tests/ordinary-discovery.test.ts「moves a revised article above newer first publications」。#145 本番（2026-11-22 r2026.11.22.3、未ログイン・Playwright で PC1280/モバイル390、#217）：トップは実投稿0件で「まだ記事がありません」と「最初の記事を書く」（→/signup）を出し、架空サンプルは混ざらない（/api/catalog の sample は通常トップでは読まない）。横スクロールなし。カードからの移動は投稿が無いため本番では未確認。"
     },
     {
       "id": "C02",
@@ -37,8 +37,8 @@
       "journey": "J1",
       "risk": "R1",
       "status": "pass",
-      "production": "unknown",
-      "evidence": "tests/ordinary-search-browser.spec.ts（PC1280/モバイル390、匿名、実D1投稿）：キーワード（NFKC・投稿者名含む）・記事タグ・種別で絞り込み、条件はURL（q/type/tag）に残り reload・戻る/進む・詳細から戻るで同じ結果に戻る。0件時は条件ごとの「外す」ボタン・全解除・ほかの言葉（記事タグ）を表示し、外した後に戻ると0件の条件へ戻る。#146"
+      "production": "open",
+      "evidence": "tests/ordinary-search-browser.spec.ts（PC1280/モバイル390、匿名、実D1投稿）：キーワード（NFKC・投稿者名含む）・記事タグ・種別で絞り込み、条件はURL（q/type/tag）に残り reload・戻る/進む・詳細から戻るで同じ結果に戻る。0件時は条件ごとの「外す」ボタン・全解除・ほかの言葉（記事タグ）を表示し、外した後に戻ると0件の条件へ戻る。#146 本番（2026-11-22 r2026.11.22.3、未ログイン・Playwright で PC1280/モバイル390、#217）：/search?q=a が「記事 0件 · 作品 0件」と条件を外すボタン・全解除を出し、/works は空状態と「作品を登録する」を出す。横スクロールなし。一致する投稿での絞り込みは投稿が無いため本番では未確認。"
     },
     {
       "id": "C03",
@@ -189,8 +189,8 @@
       "journey": "J2",
       "risk": "R2",
       "status": "pass",
-      "production": "unknown",
-      "evidence": "tests/ordinary-profile-self-entry-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）: 学校Googleで登録した直後の作成欄は4項目とも空で画像なし。fixture の Google token に入る氏名・写真の canary は、アカウント画面・公開プロフィール・すべての /api 応答に出ない。公開されるのは本人が入力した表示名・学科・学年の表示・自己紹介だけ。編集（学科を空にする含む）は、すでに公開プロフィールを開いている読者の再読み込みで即反映し、古い値は残らない（/api/students は no-store。no-store を外すと spec が落ちることを確認）。既存: ordinary-profile-edit（公開URL維持・受付不明/競合で入力保持）、ordinary-author-profile（匿名読者に私的情報なし）。R2 独立検証合格（#156、main 84b74f6：別アカウントの cookie/csrf 流用・id 差し替え・余分なキー・二重作成は 401/404/415、古い version は 409、HTML は文字のまま表示）"
+      "production": "open",
+      "evidence": "tests/ordinary-profile-self-entry-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）: 学校Googleで登録した直後の作成欄は4項目とも空で画像なし。fixture の Google token に入る氏名・写真の canary は、アカウント画面・公開プロフィール・すべての /api 応答に出ない。公開されるのは本人が入力した表示名・学科・学年の表示・自己紹介だけ。編集（学科を空にする含む）は、すでに公開プロフィールを開いている読者の再読み込みで即反映し、古い値は残らない（/api/students は no-store。no-store を外すと spec が落ちることを確認）。既存: ordinary-profile-edit（公開URL維持・受付不明/競合で入力保持）、ordinary-author-profile（匿名読者に私的情報なし）。R2 独立検証合格（#156、main 84b74f6：別アカウントの cookie/csrf 流用・id 差し替え・余分なキー・二重作成は 401/404/415、古い version は 409、HTML は文字のまま表示） 本番（2026-11-22 r2026.11.22.3、未ログイン・Playwright で PC1280/モバイル390、#217）：/account は未ログインで「ログインする」「初めての方は学生として登録する」を出す。ログイン後の作成・編集の本番確認はオーナーのレビュー（#217）。"
     },
     {
       "id": "C13",
@@ -219,8 +219,8 @@
       "journey": "J4",
       "risk": "R2",
       "status": "pass",
-      "production": "unknown",
-      "evidence": "tests/ordinary-history-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）: ログイン中に読んだ記事・作品が自分の履歴に出る、1件削除・全削除、記録停止後は recorded:false、停止は再読み込み後も保たれ明示的に再開できる。2人目のログイン中アカウントには1人目の履歴も停止設定も見えず、?owner= 等の指定は404、未ログインは履歴を見られず書き込みもしない。tests/reading-history.test.ts で他アカウントの GET・設定の分離、他アカウントの削除ができないことを確認。R2 独立検証（別context verifier, main ddc1165）合格: owner/accountId 指定・cookie/CSRF 入れ替え・停止中の直接PUT・ログアウト/期限切れ後の取得はいずれも拒否、履歴APIの全応答に Cache-Control: private, no-store と Vary: Cookie、公開API・公開プロフィールに漏れなし #158#issuecomment-7059426385。低優先の所見（本番Hono経路のヘッダー回帰テストがない）は #158 に記載"
+      "production": "open",
+      "evidence": "tests/ordinary-history-browser.spec.ts（HTTPS fixture、PC1280/モバイル390）: ログイン中に読んだ記事・作品が自分の履歴に出る、1件削除・全削除、記録停止後は recorded:false、停止は再読み込み後も保たれ明示的に再開できる。2人目のログイン中アカウントには1人目の履歴も停止設定も見えず、?owner= 等の指定は404、未ログインは履歴を見られず書き込みもしない。tests/reading-history.test.ts で他アカウントの GET・設定の分離、他アカウントの削除ができないことを確認。R2 独立検証（別context verifier, main ddc1165）合格: owner/accountId 指定・cookie/CSRF 入れ替え・停止中の直接PUT・ログアウト/期限切れ後の取得はいずれも拒否、履歴APIの全応答に Cache-Control: private, no-store と Vary: Cookie、公開API・公開プロフィールに漏れなし #158#issuecomment-7059426385。低優先の所見（本番Hono経路のヘッダー回帰テストがない）は #158 に記載 本番（2026-11-22 r2026.11.22.3、未ログイン・Playwright で PC1280/モバイル390、#217）：/history は未ログインで内容を出さず「ログインして履歴を見る」を出す。ログイン後の本番確認はオーナーのレビュー（#217）。"
     },
     {
       "id": "C15",
@@ -277,8 +277,8 @@
       "journey": "J1",
       "risk": "R0",
       "status": "pass",
-      "production": "unknown",
-      "evidence": "/guide（利用ルール・情報の扱い・問い合わせ）と /about（学校公式ではない旨）。tests/ordinary-service-info-browser.spec.ts「service explanation, rules and privacy stay readable while every API is down」で /api/** を全て503にしてもフッターから両ページへ進み本文が読め、問い合わせ先は再読み込みで回復（account-desktop 1280 / account-mobile 390）。問い合わせ先の安全な公開は同spec既存テスト、サンプル版の /about は tests/discovery.spec.ts"
+      "production": "open",
+      "evidence": "/guide（利用ルール・情報の扱い・問い合わせ）と /about（学校公式ではない旨）。tests/ordinary-service-info-browser.spec.ts「service explanation, rules and privacy stay readable while every API is down」で /api/** を全て503にしてもフッターから両ページへ進み本文が読め、問い合わせ先は再読み込みで回復（account-desktop 1280 / account-mobile 390）。問い合わせ先の安全な公開は同spec既存テスト、サンプル版の /about は tests/discovery.spec.ts 本番（2026-11-22 r2026.11.22.3、未ログイン・Playwright で PC1280/モバイル390、#217）：フッターの「このサイトについて」(/about、学校公式ではない旨)・「利用ルール・問い合わせ」(/guide、利用ルール・情報の扱い・免責・運営者・問い合わせ)が読める。/terms・/privacy・/contact という URL は無く「見つかりません」と戻り道になる（リンク元は無い）。"
     },
     {
       "id": "C19",
@@ -307,8 +307,8 @@
       "journey": "all",
       "risk": "R1",
       "status": "pass",
-      "production": "unknown",
-      "evidence": "受け入れ1・2: tests/ordinary-dead-end-browser.spec.ts（PC1280/モバイル390、HTTPS fixture は本番と同じ SPA fallback）で、未知URL・不正な%エンコード・存在しない記事/作品/投稿者が「〜が見つかりません」と戻り道を出し、戻り道で移動できる。/api 全停止時に ホーム・作品・検索・記事詳細・投稿者・未知URL・マイページ・下書き・作品登録・閲覧履歴・利用ルール が再試行ボタンを出し、復旧後に押すと元の内容へ戻る（セッション系は確認後に明示的に開く）。復旧後にヘッダーが「ログイン」のまま残る不具合を修正（公開画面でも、公開読み取りの成功・online で再確認する #176）。受け入れ3: 記事の下書きは tests/ordinary-drafts-browser.spec.ts「an expired session keeps unsaved text…」で独立検証合格(#137)。作品の書きかけは tests/ordinary-project-rescue-browser.spec.ts（PC1280/モバイル390）で、保存済み作品は同じアカウントの再ログインで同じ作品に戻り、別アカウントには適用されない。保存前の新規作品はコピー用に残すだけで自動適用しない(#171)。R2 独立検証合格(#171, main a03f2d5: ordinary-project-rescue 6 passed、ordinary-drafts 24 passed、別セッション置換・期限切れ直後の別アカウント・他人の作品id・rescue中の遷移/再読み込み・storage/URL/通信/console に出ないことを一時 spec 14 passed で確認 https://github.com/junhat6/kobe-student-hub/issues/171#issuecomment-7066271952)。本番：受け入れ1・2の実装は release(r2026.11.22.1)に載るが、受け入れ3の執筆画面は本番で閉じているため production は unknown のまま"
+      "production": "open",
+      "evidence": "受け入れ1・2: tests/ordinary-dead-end-browser.spec.ts（PC1280/モバイル390、HTTPS fixture は本番と同じ SPA fallback）で、未知URL・不正な%エンコード・存在しない記事/作品/投稿者が「〜が見つかりません」と戻り道を出し、戻り道で移動できる。/api 全停止時に ホーム・作品・検索・記事詳細・投稿者・未知URL・マイページ・下書き・作品登録・閲覧履歴・利用ルール が再試行ボタンを出し、復旧後に押すと元の内容へ戻る（セッション系は確認後に明示的に開く）。復旧後にヘッダーが「ログイン」のまま残る不具合を修正（公開画面でも、公開読み取りの成功・online で再確認する #176）。受け入れ3: 記事の下書きは tests/ordinary-drafts-browser.spec.ts「an expired session keeps unsaved text…」で独立検証合格(#137)。作品の書きかけは tests/ordinary-project-rescue-browser.spec.ts（PC1280/モバイル390）で、保存済み作品は同じアカウントの再ログインで同じ作品に戻り、別アカウントには適用されない。保存前の新規作品はコピー用に残すだけで自動適用しない(#171)。R2 独立検証合格(#171, main a03f2d5: ordinary-project-rescue 6 passed、ordinary-drafts 24 passed、別セッション置換・期限切れ直後の別アカウント・他人の作品id・rescue中の遷移/再読み込み・storage/URL/通信/console に出ないことを一時 spec 14 passed で確認 https://github.com/junhat6/kobe-student-hub/issues/171#issuecomment-7066271952)。本番：受け入れ1・2の実装は release(r2026.11.22.1)に載るが、受け入れ3の執筆画面は本番で閉じているため production は unknown のまま 本番（2026-11-22 r2026.11.22.3、未ログイン・Playwright で PC1280/モバイル390、#217）：存在しない記事・投稿者の URL が「〜が見つかりません」と戻り道を出す。/drafts・/works/new は未ログインでログインと登録へ案内する（本番で執筆が開いた：/api/health writesEnabled:true）。"
     },
     {
       "id": "C21",
