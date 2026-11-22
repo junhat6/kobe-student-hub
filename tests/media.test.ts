@@ -896,5 +896,41 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
           .first<{ n: number }>()
       )?.n,
     ).toBe(8);
+    // Broken rows are left as they were: no object under their id, payload untouched.
+    expect((await bucket.list({ prefix: 'media/0000000' })).objects).toHaveLength(0);
+    const payloads = await db
+      .prepare(
+        "SELECT a.payload=s.payload same FROM media_assets a, media_assets s WHERE a.id LIKE '0000000_-0000-4000-8000-000000000000' AND s.id=?",
+      )
+      .bind(source)
+      .all<{ same: number }>();
+    expect(payloads.results.map((r) => r.same)).toEqual(Array(8).fill(1));
+  });
+  it.runIf(r2)('wraps around once and copies every pending row exactly once', async () => {
+    const db = await mf.getD1Database('DB'),
+      source = id();
+    expect((await upload(await draft(), source)).status).toBe(201);
+    // Rows left pending by earlier tests (the broken ones) would take part of the batch.
+    await db
+      .prepare('UPDATE media_assets SET object_stored_at_ms=0 WHERE object_stored_at_ms IS NULL')
+      .run();
+    // Fewer than a batch, on both sides of the start, and one row equal to the start.
+    const ids = ['10', '30', '50', '70', '90'].map((p) => `${p}000000-0000-4000-8000-00000000000a`);
+    for (const row of ids)
+      await db
+        .prepare(
+          'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,article_draft_id,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
+        )
+        .bind(row, NOW, source)
+        .run();
+    const run = async (start: string) =>
+      (await (
+        await mf.dispatchFetch(O + '/fixture/maintain', {
+          headers: { 'X-Test-Now': String(Date.now()), 'X-Test-Start': start },
+        })
+      ).json()) as { copied: number; swept: number };
+    expect((await run(ids[2])).copied).toBe(ids.length);
+    for (const row of ids) expect((await stored(row)).object_stored_at_ms).not.toBeNull();
+    expect((await run(ids[2])).copied).toBe(0);
   });
 });
