@@ -506,6 +506,12 @@
 .account-home .own-publications-row a {
   text-decoration: none;
 }
+/* The title is the row's main link: give it a 44px tap height without growing the text. */
+.account-home .own-publications-row strong a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 .account-home .own-publications-empty a.primary {
   color: #fff;
   text-decoration: none;

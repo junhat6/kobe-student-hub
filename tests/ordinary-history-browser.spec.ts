@@ -185,6 +185,9 @@ test('history next/previous controls retain the requested page with bounded synt
   await page.goto('/history');
   const panel = page.getByRole('region', { name: '自分の閲覧履歴', exact: true });
   await expect(panel.getByRole('link', { name: '架空の履歴 0', exact: true })).toBeVisible();
+  // #185: the shared sign-in status must not announce the enrollment form on this page.
+  await expect(page.getByText('ログインしています。', { exact: true })).toHaveCount(1);
+  await expect(page.locator('main')).not.toContainText('年度');
   await expect(panel.getByRole('button', { name: '前の20件', exact: true })).toBeDisabled();
   await expect(panel.getByText('記事 · 架空サンプル', { exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: '次の20件', exact: true }).click();
