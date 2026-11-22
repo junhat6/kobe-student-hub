@@ -79,6 +79,10 @@ test('a student hands the draft to their own agent, imports its file, and publis
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(
     '自分で書き始めたタイトル',
   );
+  // #200: the hint names the entry the student actually sees below (「記事を公開する」).
+  await expect(check).toContainText('下の「記事を公開する」');
+  await expect(check).not.toContainText('「公開の準備」');
+  await expect(page.getByText('記事を公開する', { exact: true })).toBeVisible();
   await check.getByRole('button', { name: '下書きに反映', exact: true }).click();
   await expect(page.locator('.editor-preview')).toContainText('AGENT_IMPORTED_BODY');
   // The duplicated `# title` heading is dropped from the body.
@@ -155,6 +159,9 @@ test('the agents guide and the writing kit are public', async ({ page }, info) =
   await expect(page.getByLabel('エージェントへの依頼文', { exact: true })).toContainText(
     ORIGIN + '/agent-kit/ksh-article/SKILL.md',
   );
+  // #200: the guide names the real publish entry, not a 「公開の準備」 that the draft screen lacks.
+  await expect(page.getByRole('main')).toContainText('「記事を公開する」を開くと入れられます');
+  await expect(page.getByRole('main')).not.toContainText('「公開の準備」');
   // #214: the four-point disclaimer comes before the request that lets an agent read history.
   const caution = page.getByRole('note', { name: '履歴を使う前に' });
   await expect(caution.getByRole('listitem')).toHaveCount(4);

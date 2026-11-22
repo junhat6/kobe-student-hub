@@ -163,9 +163,9 @@ export default function AgentWritingPanel({
               </dd>
               {hasMetadata(checked.metadata) && (
                 <>
-                  <dt>公開の準備</dt>
+                  <dt>概要・タグなど</dt>
                   <dd>
-                    概要・タグ・想定読者などは、下の「公開の準備」で入れられます（自動では公開しません）。
+                    概要・タグ・想定読者などは、下の「記事を公開する」（公開済みの記事は「記事を公開・更新する」）を開くと入れられます（自動では公開しません）。
                   </dd>
                 </>
               )}
