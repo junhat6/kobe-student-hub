@@ -7,6 +7,8 @@ import { createPrivateProjectHandler } from '../../worker/projects-http';
 import { createPrivateOwnPublicationsHandler } from '../../worker/own-publications-http';
 import { createOAuthHttpHandler } from '../../worker/auth/oauth-http';
 import { SessionStore } from '../../worker/auth/sessions';
+import { createAgentHandler } from '../../worker/agent/http';
+import { AGENT_MCP_RELEASE_ENABLED } from '../../src/shared/agent-release';
 const origin = 'https://127.0.0.1:8790';
 export default {
   async fetch(request: Request, env: { DB: D1Database; MEDIA_BUCKET?: R2Bucket }) {
@@ -58,6 +60,11 @@ export default {
       ...(operator ? { operatorIds: [operator.id] } : {}),
     })(request);
     if (ordinaryDraft) return ordinaryDraft;
+    // Same gate as production: closed, these paths fall through to the generic 404 below.
+    const agent = await createAgentHandler(env.DB, origin, {
+      enabled: AGENT_MCP_RELEASE_ENABLED,
+    })(request);
+    if (agent) return agent;
     for (const handler of [
       createEnrollmentHandler,
       createPrivateProfileHandler,

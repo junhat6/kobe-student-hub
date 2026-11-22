@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
 import AccountSessionBoundary from '../account/AccountSessionBoundary';
 import { createAgentConnectionsClient, type ConsentRequest } from './connections-client';
+import '../account/account.css';
 import './agent.css';
 
 /**

@@ -218,6 +218,7 @@ for (const f of [
   '0026_project_report_threshold.sql',
   '0027_profile_reports.sql',
   '0028_profile_avatars.sql',
+  '0029_agent_connections.sql',
   '0030_editorial_reviews.sql',
   '0031_media_objects.sql',
 ]) {
