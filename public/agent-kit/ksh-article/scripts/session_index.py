@@ -26,12 +26,24 @@ from pathlib import Path
 
 HOME = Path.home()
 
+# A private-key header ("-----BEGIN RSA PRIVATE KEY-----") as people paste it: any number of
+# dashes (also "\-", "\u002d", Unicode dashes), any letter case, spaces or a line break inside.
+# At least one dash is required before BEGIN/END so prose like "send the private key" stays.
+_DASH = r"\s*(?:[-\u2010-\u2015\u2212\uff0d]|\\-|\\u002[dD])"
+_KEY_LINE = r"\s+[A-Za-z0-9\s]{0,40}?PRIVATE\s+KEY(?:\s+BLOCK)?(?:" + _DASH + r")*"
+_BEGIN_KEY = r"(?:" + _DASH + r")+\s*BEGIN" + _KEY_LINE
+_END_KEY = r"(?:" + _DASH + r")+\s*END" + _KEY_LINE
+
 SECRET_PATTERNS = [
     # Private keys first, whole: otherwise "PRIVATE_KEY=" below hides only "-----BEGIN" and prints
     # the body. A key cut off before its END line is hidden from BEGIN to the end of the message,
     # since its body may be escaped ("\\n", "\/", "\t") or abridged ("...") in any way.
-    (re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|[\s\S]*)"), "[秘密鍵を伏せました]"),
-    (re.compile(r"---- BEGIN SSH2 [A-Z ]*PRIVATE KEY ----(?:[\s\S]*?---- END SSH2 [A-Z ]*PRIVATE KEY ----|[\s\S]*)"), "[秘密鍵を伏せました]"),
+    (re.compile(r"(?i)" + _BEGIN_KEY + r"(?:[\s\S]*?" + _END_KEY + r"|[\s\S]*)"), "[秘密鍵を伏せました]"),
+    # The second half of a key pasted in another message: from the start of the message to END.
+    (re.compile(r"(?i)\A[\s\S]*" + _END_KEY), "[秘密鍵を伏せました]"),
+    # A middle part with neither BEGIN nor END: a long base64 run with upper, lower case and digits
+    # (one PEM line is 64 characters; hex hashes and ordinary words are left alone).
+    (re.compile(r"(?<![A-Za-z0-9+/])(?=[A-Za-z0-9+/]*[A-Z])(?=[A-Za-z0-9+/]*[a-z])(?=[A-Za-z0-9+/]*[0-9])[A-Za-z0-9+/]{56,}={0,2}"), "[秘密鍵を伏せました]"),
     # PuTTY .ppk: the private part runs from "Private-Lines:" to "Private-MAC: <hex>".
     (re.compile(r"Private-Lines:[\s\S]*?(?:Private-MAC:\s*[0-9A-Fa-f]+|$)"), "[秘密鍵を伏せました]"),
     (re.compile(r"\b(sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),

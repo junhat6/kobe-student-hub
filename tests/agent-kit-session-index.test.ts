@@ -334,6 +334,9 @@ describe('agent kit session_index.py with the home folder as the working place',
   // was cut off before its END line. Fictional key bodies only.
   it('hides whole private keys (PEM) from .env, JSON, YAML, OpenSSH and cut-off forms', () => {
     const body = (n: number) => `MIIEvQIBADANBgkqFictionalPemBody${n}AAAA+/=`;
+    // One full PEM line (64 characters) with no BEGIN or END around it.
+    const long = (n: number) =>
+      `MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7FictionalPemBody${n}AAAA`;
     const esc = '\\n';
     const forms = [
       `pemcheck env FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----${esc}${body(1)}${esc}${body(11)}${esc}-----END PRIVATE KEY-----${esc}" after-env`,
@@ -350,6 +353,17 @@ describe('agent kit session_index.py with the home folder as the working place',
       `pemcheck tab "-----BEGIN RSA PRIVATE KEY-----\\n\\t${body(12)}\\n\\t${body(14)}`,
       `pemcheck ssh2\n---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----\nComment: "fictional"\n${body(17)}\n---- END SSH2 ENCRYPTED PRIVATE KEY ----\nafter-ssh2`,
       `pemcheck ppk\nPuTTY-User-Key-File-3: ssh-ed25519\nPrivate-Lines: 1\n${body(21)}\nPrivate-MAC: 0123abcdef\nafter-ppk`,
+      // The end or the middle of a key pasted without its BEGIN line (#214 verifier 2).
+      `pemcheck tail\n${long(22)}\n${body(23)}\n-----END RSA PRIVATE KEY-----\nafter-tail`,
+      `pemcheck middle\n${long(24)}\n${long(25)}\nafter-middle`,
+      // Headers pasted in non-standard ways (#214 verifier 2).
+      `pemcheck four ----BEGIN RSA PRIVATE KEY----\n${body(26)}\n----END RSA PRIVATE KEY----\nafter-four`,
+      `pemcheck lower -----begin rsa private key-----\n${body(27)}\n-----end rsa private key-----\nafter-lower`,
+      `pemcheck spaced ----- BEGIN RSA PRIVATE KEY -----\n${body(28)}\n----- END RSA PRIVATE KEY -----\nafter-spaced`,
+      `pemcheck md \\-----BEGIN RSA PRIVATE KEY\\-----\n${body(29)}\n\\-----END RSA PRIVATE KEY\\-----\nafter-md`,
+      `pemcheck nbsp —————BEGIN RSA\u00a0PRIVATE KEY—————\n${body(30)}\n—————END RSA\u00a0PRIVATE KEY—————\nafter-nbsp`,
+      `pemcheck broken -----BEGIN OPENSSH PRIVATE\nKEY-----\n${body(31)}\n-----END OPENSSH PRIVATE\nKEY-----\nafter-broken`,
+      `pemcheck u002d ${'\\u002d'.repeat(5)}BEGIN PRIVATE KEY${'\\u002d'.repeat(5)}\\n${body(32)}`,
     ];
     const claudeDir = join(homeOnly, '.claude', 'projects', '-tmp-pem');
     const codexDir = join(homeOnly, '.codex', 'sessions', '2026', '11', '12');
@@ -401,12 +415,35 @@ describe('agent kit session_index.py with the home folder as the working place',
       );
       files.push(claude, codex);
     });
+    // One key pasted in two messages: BEGIN and part of the body, then the rest and END.
+    const split = join(claudeDir, 'pem-split.jsonl');
+    writeFileSync(
+      split,
+      [
+        {
+          type: 'user',
+          timestamp: '2026-11-13T10:00:00Z',
+          cwd: '/tmp/pem',
+          message: { content: `pemcheck split\n-----BEGIN RSA PRIVATE KEY-----\n${body(33)}` },
+        },
+        { type: 'assistant', message: { content: [{ type: 'text', text: '続きをどうぞ' }] } },
+        {
+          type: 'user',
+          message: {
+            content: `${body(34)}\n${body(35)}\n-----END RSA PRIVATE KEY-----\nafter-split`,
+          },
+        },
+      ]
+        .map((l) => JSON.stringify(l))
+        .join('\n') + '\n',
+    );
+    files.push(split);
     const index = runIn('index', '--grep', 'pemcheck');
-    expect(index.split('\n').filter((line) => /^\d{4}-\d{2}-\d{2}/.test(line))).toHaveLength(26);
+    expect(index.split('\n').filter((line) => /^\d{4}-\d{2}-\d{2}/.test(line))).toHaveLength(45);
     expect(index).toContain('[秘密鍵を伏せました]');
     const outputs = [index, ...files.map((file) => runIn('show', file))];
     for (const output of outputs) {
-      for (let n = 1; n <= 21; n++) expect(output).not.toContain(`FictionalPemBody${n}AAAA`);
+      for (let n = 1; n <= 35; n++) expect(output).not.toContain(`FictionalPemBody${n}AAAA`);
       expect(output).not.toContain('MIIEvQ');
       expect(output).not.toMatch(
         /PRIVATE KEY|-----END|---- END|BEGIN [A-Z0-9 ]*PRIVATE|Private-(?:Lines|MAC)/,
@@ -420,6 +457,15 @@ describe('agent kit session_index.py with the home folder as the working place',
       'after-ssh',
       'after-ssh2',
       'after-ppk',
+      'after-tail',
+      'after-middle',
+      'after-four',
+      'after-lower',
+      'after-spaced',
+      'after-md',
+      'after-nbsp',
+      'after-broken',
+      'after-split',
     ]) {
       expect(shown).toContain(rest);
     }
