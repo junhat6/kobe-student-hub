@@ -4,7 +4,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import { ArticlePublicationStore } from '../worker/publication';
 import { ProjectStore } from '../worker/projects';
-import type { PublicStudent } from '../src/public-student-types';
+import type { PublicStudent, PublicStudentActivity } from '../src/public-student-types';
 
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1800000000000;
@@ -173,6 +173,31 @@ describe('ordinary shared public student with actual Workers/D1', () => {
       ).results,
     ).toEqual(before);
   });
+  it('reads the public grass: public publications per Japan day only, nothing private', async () => {
+    const response = await request('/api/students/' + authors[2] + '/activity');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(response.headers.has('Set-Cookie')).toBe(false);
+    const value = (await response.json()) as PublicStudentActivity;
+    expect(Object.keys(value).sort()).toEqual(['days', 'from', 'to']);
+    const today = new Date(NOW + 9 * 3600000).toISOString().slice(0, 10);
+    expect(value.to).toBe(today);
+    expect(value.days).toEqual([{ date: today, count: 2 }]);
+    expect((Date.parse(value.to) - Date.parse(value.from)) / 86400000 + 1).toBe(182);
+    for (const id of [authors[3], 'shun', 'private-account-0', 'subject-0']) {
+      const missing = await request('/api/students/' + id + '/activity');
+      expect(missing.status).toBe(404);
+    }
+    const wrong = await request(
+      '/api/students/' + authors[2] + '/activity',
+      'POST',
+      undefined,
+      {},
+      { 'X-Test-Forbid-Db': '1' },
+    );
+    expect(wrong.status).toBe(405);
+    expect(wrong.headers.get('X-Fixture-Db-Calls')).toBe('0');
+  });
   it('fails the whole profile for an invalid selected article or project, instead of returning the other side', async () => {
     const db = await mf.getD1Database('DB');
     await db.prepare('UPDATE content SET body=? WHERE id=?').bind('\0', articles[2]).run();
@@ -215,6 +240,7 @@ describe('ordinary shared public student with actual Workers/D1', () => {
       expect(stopped.status).toBe(200);
     }
     expect((await request('/api/students/' + authors[2])).status).toBe(404);
+    expect((await request('/api/students/' + authors[2] + '/activity')).status).toBe(404);
   });
   it('bounds the selected snapshots at twenty per kind and the combined DTO at262144bytes', async () => {
     for (let i = 0; i < 21; i++) {

@@ -17,6 +17,7 @@ import MediaPublicationPreview from './MediaPublicationPreview';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
 import { describeFindings, scanDraft } from '../shared/secret-scan';
+import Celebration from '../shared/Celebration';
 interface Props {
   surface?: PublicSurface;
   fetcher?: typeof fetch;
@@ -76,6 +77,8 @@ export default function PublicationComposer({
   const [readError, setReadError] = useState(false);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [receipt, setReceipt] = useState<PublicationReceipt | null>(null);
+  /** Bumped on each confirmed publication; remounts the burst. */
+  const [celebration, setCelebration] = useState(0);
   const [attempt, setAttempt] = useState<PublicationAttempt | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const confirmedFor = useRef<{
@@ -279,6 +282,7 @@ export default function PublicationComposer({
         setKnown(true);
         setReadError(false);
         setUncertain(false);
+        if (matchesPublication(existing, snapshot)) setCelebration((n) => n + 1);
         setMessage(
           matchesPublication(existing, snapshot)
             ? `確認した保存済みの版 ${existing.sourceVersion} を${ordinary ? '' : 'ローカルで'}公開しました。手元の追加編集は公開していません。`
@@ -356,6 +360,7 @@ export default function PublicationComposer({
           <p className="publication-message" aria-live="polite" aria-atomic="true">
             {message}
           </p>
+          {ordinary && celebration > 0 && <Celebration key={celebration} />}
           <Button
             className={ordinary ? 'publication-recheck' : undefined}
             disabled={busy || parentBusy}

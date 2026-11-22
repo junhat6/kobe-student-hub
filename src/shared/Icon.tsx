@@ -94,6 +94,13 @@ const paths = {
       <path d="M12 10v4M12 17v.5" />
     </>
   ),
+  sprout: (
+    <>
+      <path d="M12 20v-8" />
+      <path d="M12 12C12 8 9 6 5 6c0 4 3 6 7 6z" />
+      <path d="M12 14c0-4 3-6 7-6 0 4-3 6-7 6z" />
+    </>
+  ),
 } as const;
 export type IconName = keyof typeof paths;
 export default function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

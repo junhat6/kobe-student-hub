@@ -8,3 +8,12 @@ export interface PublicStudent {
   entries: PublishedArticleSummary[];
   projects: PublicProjectSummary[];
 }
+
+/** Public activity per Japan calendar day. Only days with at least one public event are listed. */
+export interface PublicStudentActivity {
+  /** First day of the window, YYYY-MM-DD (Japan). */
+  from: string;
+  /** Today, YYYY-MM-DD (Japan). */
+  to: string;
+  days: { date: string; count: number }[];
+}

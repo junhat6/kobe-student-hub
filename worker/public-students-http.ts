@@ -1,9 +1,10 @@
 import { ArticlePublicationStore } from './publication';
 import { ProjectStore } from './projects';
 import { ProfileAvatarStore } from './profile-avatars';
+import { readPublicActivity } from './public-activity';
 import type { PublicStudent } from '../src/public-student-types';
 
-const path = /^\/api\/students\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})$/;
+const path = /^\/api\/students\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})(\/activity)?$/;
 const headers = {
   'Cache-Control': 'no-store',
   'Referrer-Policy': 'no-referrer',
@@ -40,6 +41,15 @@ export function createPublicStudentHandler(
         status: 405,
         headers: { ...headers, Allow: 'GET' },
       });
+    if (matched[2])
+      try {
+        const activity = await readPublicActivity(db, matched[1], clock());
+        if (activity === 'missing') return error(404);
+        if (activity === null) return error(503);
+        return new Response(JSON.stringify(activity), { headers });
+      } catch {
+        return error(503);
+      }
     try {
       const [a, p] = await Promise.all([
         articles.readPublishedAuthorSelection(matched[1]),

@@ -18,6 +18,7 @@ import MediaAttachments from './MediaAttachments';
 import MediaPublicationPreview from './MediaPublicationPreview';
 import { referencedMediaIds } from '../shared/media';
 import type { RescueChannel } from '../account/AccountSessionBoundary';
+import Celebration from '../shared/Celebration';
 const empty: ProjectFields = {
   title: '',
   description: '',
@@ -143,6 +144,8 @@ export default function ProjectRegistration({
     [profileState, setProfileState] = useState<'pending' | 'loaded' | 'failed'>('pending'),
     [receipt, setReceipt] = useState<ProjectReceipt['publication']>(null),
     [published, setPublished] = useState<{ id: string; version: number } | null>(null);
+  /** Bumped only by a publication made here, never by reading an existing record. */
+  const [celebration, setCelebration] = useState(0);
   // Ordinary surface only: own currently published articles that may be linked (null = not loaded / failed).
   const [ownArticles, setOwnArticles] = useState<{ id: string; title: string }[] | null>(null),
     [linked, setLinked] = useState<string[]>([]);
@@ -629,6 +632,7 @@ export default function ProjectRegistration({
         );
         if (current(g)) {
           setPublished({ id, version: source.version });
+          setCelebration((n) => n + 1);
           setPubUnknown(false);
           setMessage(
             surface === 'ordinary'
@@ -664,6 +668,7 @@ export default function ProjectRegistration({
       >
         {message}
       </p>
+      {ordinary && celebration > 0 && <Celebration key={celebration} />}
       <div className="project-actions">
         <Button disabled={busy} onClick={reset}>
           新しい作品の入力

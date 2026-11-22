@@ -12,6 +12,7 @@ import AgentConnections from '../agent/AgentConnections';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import { useViewer } from '../shell/viewer';
+import ActivityGrass from '../community/ActivityGrass';
 import { ParticipationNotice, writesClosed, type ParticipationState } from './participation';
 
 function AccountActions({ participation }: { participation: ParticipationState }) {
@@ -52,7 +53,8 @@ function AccountContent({
   profileRisk: (risk: boolean) => void;
   publicationRisk: (risk: boolean) => void;
 }) {
-  const { refresh } = useViewer();
+  const { refresh, viewer } = useViewer();
+  const ownProfileId = viewer.status === 'signed-in' ? viewer.profile?.id : undefined;
   // Follows the enrollment panel, so a correction there updates the page at once.
   const [participation, setParticipation] = useState<ParticipationState>('checking');
   const [profileState, setProfileState] = useState<ProfileState>('loading');
@@ -73,6 +75,7 @@ function AccountContent({
           />
         </div>
       )}
+      {authoringUiEnabled && ready && <ActivityGrass id={ownProfileId} own />}
       {authoringUiEnabled && ready && <AccountActions participation={participation} />}
       {authoringUiEnabled && <ParticipationNotice participation={participation} place="account" />}
       {authoringUiEnabled && ready && (
