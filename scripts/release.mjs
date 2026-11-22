@@ -77,14 +77,39 @@ const die = (m, code = 1, outcome = 'error') => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function verifyState(sha) {
+// gh の一時的な失敗（api.github.com に繋がらない等）は数回やり直す。CI を待つ間の 1 回の失敗で列車を
+// 落とすと、rc が置き去りになり記録も残らないため（#212）。やり直しても駄目なら GitHubUnreachable を投げ、
+// 最後の catch が github_unreachable として記録してから終える。
+const GH_RETRIES = Math.max(1, Number(process.env.KSH_RELEASE_GH_RETRIES || 5));
+const GH_RETRY_MS = Number(process.env.KSH_RELEASE_GH_RETRY_MS ?? 30_000);
+class GitHubUnreachable extends Error {}
+async function ghRetry(a, what) {
+  for (let i = 1; ; i++) {
+    try {
+      return sh('gh', a);
+    } catch (e) {
+      const first = String(e.stderr || e.message || e).split('\n')[0];
+      if (i >= GH_RETRIES)
+        throw new GitHubUnreachable(`GitHub API に繋がりません（${what}、${i} 回試行）: ${first}`);
+      log(
+        `gh が失敗しました（${what}、${i}/${GH_RETRIES}）。${GH_RETRY_MS / 1000} 秒後にやり直します`,
+      );
+      await sleep(GH_RETRY_MS);
+    }
+  }
+}
+
+async function verifyState(sha) {
   // CI workflow の verify job の、その SHA に対する最新結果
-  const out = sh('gh', [
-    'api',
-    `repos/${REPO}/commits/${sha}/check-runs?check_name=${CHECK}&per_page=20`,
-    '-q',
-    '.check_runs | sort_by(.started_at) | last | "\\(.status) \\(.conclusion) \\(.html_url)"',
-  ]);
+  const out = await ghRetry(
+    [
+      'api',
+      `repos/${REPO}/commits/${sha}/check-runs?check_name=${CHECK}&per_page=20`,
+      '-q',
+      '.check_runs | sort_by(.started_at) | last | "\\(.status) \\(.conclusion) \\(.html_url)"',
+    ],
+    'CI の結果の確認',
+  );
   if (!out || out === 'null null null') return { status: 'none' };
   const [status, conclusion, url] = out.split(' ');
   return { status, conclusion, url };
@@ -94,7 +119,7 @@ async function waitForCi(sha) {
   const deadline = Date.now() + CI_TIMEOUT_MIN * 60_000;
   let last = '';
   while (Date.now() < deadline) {
-    const s = verifyState(sha);
+    const s = await verifyState(sha);
     const now = `${s.status}/${s.conclusion ?? '-'}`;
     if (now !== last) log(`CI ${CHECK}: ${now}${s.url && s.url !== 'null' ? ` ${s.url}` : ''}`);
     last = now;
@@ -162,14 +187,18 @@ async function main() {
   if (gate) finish('skipped', gate);
 
   if (release !== sha) {
-    let s = verifyState(sha);
+    let s = await verifyState(sha);
     rec.ci = { status: s.status, conclusion: s.conclusion, url: s.url, reused: true };
     if (!(s.status === 'completed' && s.conclusion === 'success')) {
       const rc = `rc/${short}`;
       log(`full CI を ${rc} で走らせます`);
       sh('git', ['push', '--quiet', 'origin', `${sha}:refs/heads/${rc}`]);
-      s = await waitForCi(sha);
-      tryGit('push', '--quiet', 'origin', '--delete', rc);
+      try {
+        s = await waitForCi(sha);
+      } finally {
+        // 待つ途中で落ちても rc を置き去りにしない
+        tryGit('push', '--quiet', 'origin', '--delete', rc);
+      }
       rec.ci = { status: s.status, conclusion: s.conclusion, url: s.url, reused: false };
       if (s.conclusion !== 'success')
         die(
@@ -483,5 +512,7 @@ async function deploy(sha, promotedNow) {
 try {
   await main();
 } catch (e) {
-  die(e.message ?? String(e));
+  // どの例外でも、列車が走っていたなら（--plan でなく、便の窓か臨時便なら）記録を 1 件残してから終える
+  if (!flag('--plan') && (rec.train || hotfix)) recording = true;
+  die(e.message ?? String(e), 1, e instanceof GitHubUnreachable ? 'github_unreachable' : 'error');
 }

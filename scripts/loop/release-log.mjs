@@ -86,6 +86,7 @@ export const OUTCOMES = {
   deploy_failed: { ok: false, icon: '❌', text: 'deploy が失敗' },
   smoke_failed: { ok: false, icon: '↩️', text: 'smoke 失敗で rollback 済み' },
   rollback_failed: { ok: false, icon: '🚨', text: 'smoke 失敗・rollback も失敗' },
+  github_unreachable: { ok: false, icon: '📡', text: 'GitHub API に繋がらない' },
   error: { ok: false, icon: '❌', text: 'その他の失敗' },
 };
 
