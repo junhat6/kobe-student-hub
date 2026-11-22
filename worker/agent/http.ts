@@ -622,11 +622,23 @@ export function createAgentHandler(
     // to an https URI here would make this origin an open redirector (RFC 9700 §4.11.2).
     const back = (error: string) => {
       const target = new URL(redirectUri);
+      // The text page is what a student sees for https clients, so a busy or failing server must
+      // not read as the student's own mistake.
       if (!LOOPBACK.has(target.hostname))
-        return textPage(
-          '接続の依頼が正しくありません。AIエージェントの画面からもう一度接続してください。',
-          400,
-        );
+        return error === 'temporarily_unavailable'
+          ? textPage(
+              'いま接続の依頼が混み合っています。少し時間をおいてから、AIエージェントの画面でもう一度接続してください。',
+              503,
+            )
+          : error === 'server_error'
+            ? textPage(
+                '接続の準備に失敗しました。少し時間をおいてから、AIエージェントの画面でもう一度接続してください。',
+                503,
+              )
+            : textPage(
+                '接続の依頼が正しくありません。AIエージェントの画面からもう一度接続してください。',
+                400,
+              );
       target.searchParams.set('error', error);
       if (state !== null) target.searchParams.set('state', state);
       target.searchParams.set('iss', origin);

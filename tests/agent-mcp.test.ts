@@ -270,6 +270,49 @@ describe('authorization flow', () => {
     const ok = await startAuthorization(clientId, { redirect_uri: evil });
     expect(new URL(ok.r.headers.location).origin).toBe(ORIGIN);
   });
+  it('tells an https client the server is busy, not that the request is wrong, when requests run out', async () => {
+    const reg = await http('/api/oauth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Claude', redirect_uris: ['https://claude.example/cb'] }),
+    });
+    const clientId = JSON.parse(reg!.body).client_id as string;
+    // A window 10 hours earlier, so filling it does not touch the other tests' hour.
+    const past = NOW - 10 * 3_600_000;
+    const db = await mf.getD1Database('DB');
+    await db
+      .prepare(
+        `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<1000)
+         INSERT INTO agent_oauth_requests(request_hash,client_id,redirect_uri,state,code_challenge,created_at_ms,expires_at_ms)
+         SELECT printf('%064d',i),?,'https://claude.example/cb',NULL,printf('%043d',0),?,? FROM n`,
+      )
+      .bind(clientId, past, past + 600_000)
+      .run();
+    const challenge = b64(
+      createHash('sha256')
+        .update(b64(randomBytes(32)))
+        .digest(),
+    );
+    const query = (redirect: string) =>
+      '/api/oauth/authorize?' +
+      new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: redirect,
+        code_challenge: challenge,
+        code_challenge_method: 'S256',
+      });
+    const busy = await http(query('https://claude.example/cb'), { now: past + 1 });
+    expect(busy!.status).toBe(503);
+    expect(busy!.headers.location).toBeUndefined();
+    expect(busy!.body).toContain('混み合っています');
+    expect(busy!.body).not.toContain('正しくありません');
+    const wrong = await http(query('https://claude.example/cb').replace('S256', 'plain'), {
+      now: past + 1,
+    });
+    expect(wrong!.status).toBe(400);
+    expect(wrong!.body).toContain('正しくありません');
+  });
   it('needs a signed-in session to see or decide the consent request, and deny returns access_denied', async () => {
     const clientId = await registerClient();
     const { r } = await startAuthorization(clientId);
