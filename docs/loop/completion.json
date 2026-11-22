@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-21",
+  "updated": "2026-11-22",
   "definition": "全itemのstatusがpass、UX巡回でS1/S2が2回連続0件、かつreleaseに載っていれば「開発として完成」。学生にとっての価値は別（価値検証ループ）。",
   "rules": [
     "builder（finishループ）が変更してよいのは status と evidence と production だけ。capability と acceptance を変えてはいけない。",
@@ -309,6 +309,23 @@
       "status": "pass",
       "production": "unknown",
       "evidence": "受け入れ1・2: tests/ordinary-dead-end-browser.spec.ts（PC1280/モバイル390、HTTPS fixture は本番と同じ SPA fallback）で、未知URL・不正な%エンコード・存在しない記事/作品/投稿者が「〜が見つかりません」と戻り道を出し、戻り道で移動できる。/api 全停止時に ホーム・作品・検索・記事詳細・投稿者・未知URL・マイページ・下書き・作品登録・閲覧履歴・利用ルール が再試行ボタンを出し、復旧後に押すと元の内容へ戻る（セッション系は確認後に明示的に開く）。復旧後にヘッダーが「ログイン」のまま残る不具合を修正（公開画面でも、公開読み取りの成功・online で再確認する #176）。受け入れ3: 記事の下書きは tests/ordinary-drafts-browser.spec.ts「an expired session keeps unsaved text…」で独立検証合格(#137)。作品の書きかけは tests/ordinary-project-rescue-browser.spec.ts（PC1280/モバイル390）で、保存済み作品は同じアカウントの再ログインで同じ作品に戻り、別アカウントには適用されない。保存前の新規作品はコピー用に残すだけで自動適用しない(#171)。R2 独立検証合格(#171, main a03f2d5: ordinary-project-rescue 6 passed、ordinary-drafts 24 passed、別セッション置換・期限切れ直後の別アカウント・他人の作品id・rescue中の遷移/再読み込み・storage/URL/通信/console に出ないことを一時 spec 14 passed で確認 https://github.com/junhat6/kobe-student-hub/issues/171#issuecomment-7066271952)。本番：受け入れ1・2の実装は release(r2026.11.22.1)に載るが、受け入れ3の執筆画面は本番で閉じているため production は unknown のまま"
+    },
+    {
+      "id": "C21",
+      "area": "agent",
+      "capability": "自分のAIエージェントで記事を書き・読める",
+      "acceptance": [
+        "下書き画面の「自分のAIエージェントと書く」で、記事の形・守ること・いまの下書きを入れた依頼文をコピーできる",
+        "AI が書いた Markdown（front matter つき）を貼るか選ぶと、確認してから下書きに反映され、反映前に戻せる。保存は既存の下書き保存だけが行い、反映だけでは保存・公開されない",
+        "概要・タグ・想定読者などの公開情報は、「公開の準備」で本人が押したときだけ入る",
+        "記事ページの「AIに渡す」で、公開記事を出典 URL つき Markdown としてコピーでき、公開 DTO 以外（メール・下書き・非公開項目）を含まない",
+        "/agents・/llms.txt・執筆キット（/agent-kit/ksh-article/）がログインなしで読め、キットは履歴をサイトへ送らず、秘密・メール・ユーザー名入りのパスを伏せる"
+      ],
+      "journey": "J2",
+      "risk": "R1",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": ""
     }
   ]
 }
