@@ -30,6 +30,7 @@
 - `npm run test:editor` は先に `npm run editor:build` が要る（無いと「assets.directory … .editor-preview does not exist」で起動しない）
 - 認証つきの新しい Store を足したら `tests/auth-guard-inventory.test.ts` の inventory と件数を更新する。SQL はクラスのメソッド内に置く（クラス外の関数は「outside method」で落ちる）
 - 新しい画面や色を足したら axe 検査（`tests/accessibility.spec.ts`＝sample、`tests/ordinary-accessibility-browser.spec.ts`＝HTTPS fixture）にその画面を足して回す
+- テストから Python を importlib で読み込むときは `exec_module` の前に `sys.modules[...]` へ登録する（CI の Python では `@dataclass` が AttributeError で落ち、手元の新しい Python では通ってしまう）
 - 秘密の伏せ字のように「形を足すほど verifier が新しい形を見つける」仕事は、2回不合格の時点で正規表現の追加をやめ、丸ごと伏せる等の方針変更を Issue に提案する（#214 は形の後追いで3回不合格）
 - auth-browser が CI だけで赤く手元で再現しないときは、`gh workflow run ci.yml --ref main` で回し、artifact browser-evidence の `test-results-generation/` の trace（error-context.md と .network）を見る（#208 は通信の中断が原因で、順序依存ではなかった）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
