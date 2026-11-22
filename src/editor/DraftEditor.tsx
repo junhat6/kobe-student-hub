@@ -713,11 +713,15 @@ export default function DraftEditor({
           {draft ? (
             <>
               <section className="editor-writing-card" aria-label="下書きの編集">
-                <label className="editor-title-label" htmlFor="draft-title">
-                  タイトル
-                </label>
+                <div className="editor-title-head">
+                  <label className="editor-title-label" htmlFor="draft-title">
+                    タイトル
+                  </label>
+                  <small id="draft-title-count">{Array.from(text.title).length}/200文字</small>
+                </div>
                 <input
                   id="draft-title"
+                  aria-describedby="draft-title-count"
                   disabled={editingLocked}
                   ref={titleRef}
                   className="editor-title"
@@ -828,10 +832,7 @@ export default function DraftEditor({
                   </>
                 )}
                 <div className="editor-writing-footer">
-                  <span>
-                    {Array.from(text.title).length}/200文字 · 本文 {(bytes / 1024).toFixed(1)}/256
-                    KiB
-                  </span>
+                  <span>本文の容量 {(bytes / 1024).toFixed(1)}/256 KiB</span>
                   <span>{ordinary ? 'JPEG・PNG画像に対応' : '画像・Mermaidは未対応'}</span>
                 </div>
               </section>

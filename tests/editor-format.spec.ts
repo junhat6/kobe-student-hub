@@ -168,3 +168,20 @@ test('helper edits preserve all text when crossing the UTF8 save limit and never
   ).toEqual({ bytes: 262148, characters: 87380 });
   expect(saves).toBe(0);
 });
+test('the title counter sits beside the title and the body footer only shows the body size', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
+  const title = page.getByLabel('タイトル', { exact: true });
+  await title.fill('数える題名');
+  await expect(title).toHaveAccessibleDescription('5/200文字');
+  const counter = page.locator('#draft-title-count');
+  const titleBox = await title.boundingBox();
+  const counterBox = await counter.boundingBox();
+  expect(counterBox && titleBox && counterBox.y < titleBox.y).toBe(true);
+  await page.getByLabel('Markdown本文', { exact: true }).fill('本文');
+  const footer = page.locator('.editor-writing-footer');
+  await expect(footer).toContainText('本文の容量 0.0/256 KiB');
+  await expect(footer).not.toContainText('文字');
+});
