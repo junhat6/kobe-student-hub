@@ -329,6 +329,83 @@ describe('agent kit session_index.py with the home folder as the working place',
     expect(shown.toLowerCase()).not.toContain('hanako');
   });
 
+  // #214: a private key must be hidden whole — header, body and END line — in index and show,
+  // also when a "NAME=" rule could match first, when it is one line joined by "\n", or when it
+  // was cut off before its END line. Fictional key bodies only.
+  it('hides whole private keys (PEM) from .env, JSON, YAML, OpenSSH and cut-off forms', () => {
+    const body = (n: number) => `MIIEvQIBADANBgkqFictionalPemBody${n}AAAA+/=`;
+    const esc = '\\n';
+    const forms = [
+      `pemcheck env FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----${esc}${body(1)}${esc}${body(11)}${esc}-----END PRIVATE KEY-----${esc}" after-env`,
+      `pemcheck json {"type": "service_account", "private_key": "-----BEGIN PRIVATE KEY-----${esc}${body(2)}${esc}-----END PRIVATE KEY-----${esc}", "after": "json"}`,
+      `pemcheck yaml\nprivate_key: -----BEGIN RSA PRIVATE KEY-----\n${body(3)}\n${body(13)}\n-----END RSA PRIVATE KEY-----\nafter: yaml`,
+      `pemcheck ssh\n-----BEGIN OPENSSH PRIVATE KEY-----\n${body(4)}\n-----END OPENSSH PRIVATE KEY-----\nafter-ssh`,
+      `pemcheck cut "private_key": "-----BEGIN PRIVATE KEY-----${esc}${body(5)}${esc}${body(15)}`,
+      `pemcheck cut-lines\nkey: -----BEGIN EC PRIVATE KEY-----\n${body(6)}\n${body(16)}`,
+    ];
+    const claudeDir = join(homeOnly, '.claude', 'projects', '-tmp-pem');
+    const codexDir = join(homeOnly, '.codex', 'sessions', '2026', '11', '12');
+    mkdirSync(claudeDir, { recursive: true });
+    mkdirSync(codexDir, { recursive: true });
+    const files: string[] = [];
+    forms.forEach((text, i) => {
+      const claude = join(claudeDir, `pem-${i}.jsonl`);
+      writeFileSync(
+        claude,
+        [
+          {
+            type: 'user',
+            timestamp: `2026-11-12T1${i}:00:00Z`,
+            cwd: '/tmp/pem',
+            message: { content: text },
+          },
+          { type: 'assistant', message: { content: [{ type: 'text', text: `確認: ${text}` }] } },
+        ]
+          .map((l) => JSON.stringify(l))
+          .join('\n') + '\n',
+      );
+      const codex = join(codexDir, `rollout-pem-${i}.jsonl`);
+      writeFileSync(
+        codex,
+        [
+          {
+            type: 'session_meta',
+            payload: { cwd: '/tmp/pem', timestamp: `2026-11-12T1${i}:30:00Z` },
+          },
+          {
+            type: 'response_item',
+            payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+          },
+          {
+            type: 'response_item',
+            payload: {
+              type: 'message',
+              role: 'assistant',
+              content: [{ type: 'output_text', text: `確認: ${text}` }],
+            },
+          },
+        ]
+          .map((l) => JSON.stringify(l))
+          .join('\n') + '\n',
+      );
+      files.push(claude, codex);
+    });
+    const index = runIn('index', '--grep', 'pemcheck');
+    expect(index.split('\n').filter((line) => /^\d{4}-\d{2}-\d{2}/.test(line))).toHaveLength(12);
+    expect(index).toContain('[秘密鍵を伏せました]');
+    const outputs = [index, ...files.map((file) => runIn('show', file))];
+    for (const output of outputs) {
+      for (let n = 1; n <= 16; n++) expect(output).not.toContain(`FictionalPemBody${n}`);
+      expect(output).not.toContain('MIIEvQ');
+      expect(output).not.toMatch(/PRIVATE KEY-----|-----END|BEGIN [A-Z ]*PRIVATE/);
+    }
+    const shown = outputs.slice(1).join('\n');
+    for (const rest of ['after-env', '"after": "json"', 'after: yaml', 'after-ssh']) {
+      expect(shown).toContain(rest);
+    }
+    expect(shown).toContain('## エージェント');
+  });
+
   it('keeps ordinary words that merely contain "sk-"', () => {
     const dir = join(homeOnly, '.claude', 'projects', '-tmp-plain');
     mkdirSync(dir, { recursive: true });

@@ -27,6 +27,10 @@ from pathlib import Path
 HOME = Path.home()
 
 SECRET_PATTERNS = [
+    # Private keys (PEM) first, whole: otherwise "PRIVATE_KEY=" below hides only "-----BEGIN" and
+    # prints the body. Covers real line breaks, one line joined by "\n", and a key cut off before
+    # its END line (then the base64 body after BEGIN is hidden).
+    (re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----(?:[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY[A-Z ]*-----|(?:[A-Za-z0-9+/=:,\s-]|\\[nr])*)"), "[秘密鍵を伏せました]"),
     (re.compile(r"\b(sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
     # A key glued to a word ("mykeysk-…"); a digit is required so "task-management-…" stays.
     (re.compile(r"(sk|rk|pk)-(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]{16,}"), "[秘密を伏せました]"),
@@ -42,7 +46,6 @@ SECRET_PATTERNS = [
     (re.compile(r"(?i)(?<![A-Za-z0-9])(bearer|token|password|passwd|secret|api[_-]?key)\s+['\"]?[^\s'\"]{8,}"), r"\1 [秘密を伏せました]"),
     # Passwords inside URLs: scheme://user:password@host
     (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"), r"\1[秘密を伏せました]@"),
-    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"), "[秘密鍵を伏せました]"),
     (re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "[メールを伏せました]"),
 ]
 
