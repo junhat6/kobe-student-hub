@@ -178,7 +178,13 @@ test('ordinary signup asks for a profile first, then drafts save and reopen', as
   await expect(page.getByRole('heading', { name: '条件', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '編集', exact: true }).click();
   await save(page).click();
-  await expect(page.getByText('下書きを保存しました。', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('status').getByText('下書きを保存しました。', { exact: true }),
+  ).toBeAttached();
+  // Success is announced, not shown; the badge carries it and the routine notes are gone (原則1・6).
+  await expect(page.locator('.editor-status')).toHaveClass(/sr-only/);
+  await expect(page.getByText('入力を止めると', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('更新が新しい20件まで表示します。', { exact: true })).toHaveCount(0);
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
   await page.screenshot({
     path: info.outputPath('ordinary-drafts-saved.png'),
@@ -467,7 +473,9 @@ async function expireWhileTyping(page: Page, context: BrowserContext) {
   await create(page);
   await title(page).fill('期限切れの記事');
   await body(page).fill('一段落目');
-  await expect(page.getByText('下書きを保存しました。', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('status').getByText('下書きを保存しました。', { exact: true }),
+  ).toBeAttached();
   expect((await context.request.get(ORIGIN + '/__control/expire')).status()).toBe(200);
   await body(page).fill('一段落目\n\n期限切れ後に書いた二段落目');
   await expect(
@@ -497,7 +505,9 @@ test('an expired session keeps unsaved text and restores it to the same draft af
   await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
   await expect(body(page)).toHaveValue('一段落目\n\n期限切れ後に書いた二段落目');
   await expect(rescueBox(page)).toHaveCount(0);
-  await expect(page.getByText('下書きを保存しました。', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('status').getByText('下書きを保存しました。', { exact: true }),
+  ).toBeAttached();
   await page.reload();
   await page.getByRole('button', { name: '期限切れの記事', exact: true }).click();
   await expect(body(page)).toHaveValue('一段落目\n\n期限切れ後に書いた二段落目');

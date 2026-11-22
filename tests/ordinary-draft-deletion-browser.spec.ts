@@ -57,7 +57,9 @@ async function createSaved(page: Page, name: string) {
   await title(page).fill(name);
   await body(page).fill('## 架空の制作記録\n\n条件・判断・確認を残す。');
   await save(page).click();
-  await expect(page.getByText('下書きを保存しました。', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('status').getByText('下書きを保存しました。', { exact: true }),
+  ).toBeAttached();
 }
 async function assertPrivate(page: Page, expected: string) {
   await expect(title(page)).toHaveValue(expected);

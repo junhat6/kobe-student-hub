@@ -38,6 +38,15 @@ const stamp = (n: number) =>
     hour: '2-digit',
     minute: '2-digit',
   }).format(n);
+/** Routine progress and success are announced only; failures and warnings stay visible (原則6). */
+const QUIET_STATUS = new Set([
+  '下書きを読み込んでいます…',
+  '新しい下書きを作成しています…',
+  '送信した内容を保存しています…',
+  '下書きを保存しました。',
+  '保存済みの下書きを開きました。',
+  '下書きを作成しました。タイトルや本文を書いてみましょう。',
+]);
 export default function DraftEditor({
   csrfToken,
   fetcher = fetch,
@@ -665,7 +674,9 @@ export default function DraftEditor({
           {!list.length && !busy && !listError && (
             <p className="editor-list-empty">保存した下書きはまだありません。</p>
           )}
-          <p className="editor-list-limit">更新が新しい20件まで表示します。</p>
+          {(!ordinary || list.length >= 20) && (
+            <p className="editor-list-limit">更新が新しい20件まで表示します。</p>
+          )}
           <div className="editor-publish-note">
             <h2>公開について</h2>
             <p>
@@ -687,7 +698,11 @@ export default function DraftEditor({
               </span>
             )}
           </div>
-          <div className="editor-status" role="status" aria-live="polite">
+          <div
+            className={'editor-status' + (ordinary && QUIET_STATUS.has(status) ? ' sr-only' : '')}
+            role="status"
+            aria-live="polite"
+          >
             {status}
           </div>
           {draft ? (
@@ -847,21 +862,23 @@ export default function DraftEditor({
                 </p>
               )}
               <div className="editor-save-bar">
-                <p>
-                  {!writable
-                    ? '年度の登録により、いまは保存できません。'
-                    : ordinary
-                      ? autosavePaused
-                        ? '自動保存を停止しています。保存済みの版を確認してから、手動で保存してください。'
-                        : '入力を止めると、タイトルと本文を自動保存します。'
-                      : '自動保存はありません。変更後は保存してください。'}
-                  <br />
-                  <small>
-                    {ordinary
-                      ? '「保存済み」を確認してから閉じてください。保存できない場合は、手元の文章を残してお知らせします。'
-                      : '未保存の文章は、タブを閉じると失われる場合があります。'}
-                  </small>
-                </p>
+                {/* Autosave is the normal case and the 「保存済み」 badge already shows it, so the
+                    ordinary bar only speaks when saving stopped (原則1・6). */}
+                {!writable ? (
+                  <p>年度の登録により、いまは保存できません。</p>
+                ) : ordinary ? (
+                  autosavePaused && (
+                    <p>
+                      自動保存を停止しています。保存済みの版を確認してから、手動で保存してください。
+                    </p>
+                  )
+                ) : (
+                  <p>
+                    自動保存はありません。変更後は保存してください。
+                    <br />
+                    <small>未保存の文章は、タブを閉じると失われる場合があります。</small>
+                  </p>
+                )}
                 <Button
                   className="editor-primary"
                   disabled={

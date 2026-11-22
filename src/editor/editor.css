@@ -382,6 +382,7 @@
 .editor-save-bar > button {
   min-width: 155px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 .editor-error {
   padding: 12px 16px;
