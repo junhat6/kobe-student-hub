@@ -76,6 +76,14 @@ export function ProjectText({
     </div>
   );
 }
+/** Routine progress and success are announced only; failures and warnings stay visible (原則6). */
+const QUIET_STATUS = new Set([
+  '新しい作品の入力です。まだ保存していません。',
+  '作品を保存しています…',
+  '確認した入力を保存しました。後から入力した変更は保存結果と別に保持しています。',
+  '保存した作品を開いています…',
+  '保存した作品を開きました。続きを編集できます。',
+]);
 export default function ProjectRegistration({
   csrfToken,
   fetcher = fetch,
@@ -567,7 +575,11 @@ export default function ProjectRegistration({
           架空データによるローカル限定の試作です。実際の投稿利用ではありません。作品通報の受付・内容の読取確認はローカルで試せますが、実際の運営判断・連絡は未提供です。実サービスでの公開はできません。
         </p>
       )}
-      <p role="status" aria-live="polite">
+      <p
+        className={ordinary && QUIET_STATUS.has(message) ? 'sr-only' : undefined}
+        role="status"
+        aria-live="polite"
+      >
         {message}
       </p>
       <div className="project-actions">
@@ -582,11 +594,14 @@ export default function ProjectRegistration({
         <p role="alert">保存一覧を確認できません。入力や現在の保存版は残しています。</p>
       )}
       <h3>{ordinary ? '保存した作品' : 'この画面で確認した保存記録'}</h3>
-      <p>
-        {ordinary
-          ? '選ぶと、その作品の続きをすぐ編集できます。更新が新しい順に最大20件表示します。別の端末で保存した変更は「作品の保存一覧を更新」で読み込めます。'
-          : '一覧で取得した記録に、その後この画面で確認した保存版を反映し、更新時刻順に最大20件表示します。他の画面で保存した変更は「作品の保存一覧を更新」で確認してください。'}
-      </p>
+      {/* The 「続きを編集」 buttons explain themselves; the limit matters only once it is reached (原則1). */}
+      {ordinary ? (
+        list.length >= 20 && <p>更新が新しい20件まで表示します。</p>
+      ) : (
+        <p>
+          一覧で取得した記録に、その後この画面で確認した保存版を反映し、更新時刻順に最大20件表示します。他の画面で保存した変更は「作品の保存一覧を更新」で確認してください。
+        </p>
+      )}
       <ul className="project-draft-list" aria-label="確認済みの作品保存記録">
         {list.map((row) => (
           <li key={row.id} aria-current={ordinary && saved?.id === row.id ? 'true' : undefined}>
@@ -693,7 +708,7 @@ export default function ProjectRegistration({
                 ? '自動保存を停止しています。保存版を確認し、必要な変更を手動で保存してください。'
                 : candidate || ready || receipt || published
                   ? '保存版の比較・公開確認中は自動保存しません。'
-                  : '入力を止めると自動保存します。保存版との一致を確認してから閉じてください。'
+                  : '' /* Autosave is the normal case; speak only when it stops (原則1・3). */
               : '自動保存はありません。'}
         </p>
       </form>

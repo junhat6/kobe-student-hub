@@ -48,6 +48,11 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   await expect(
     page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
   ).toBeVisible();
+  // 原則1・6: routine save success is announced only, and autosave/list notes are gone.
+  const saveStatus = page.getByRole('status').filter({ hasText: '確認した入力を保存しました。' });
+  await expect(saveStatus).toHaveClass(/\bsr-only\b/);
+  await expect(page.getByText('入力を止めると自動保存します', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('選ぶと、その作品の続きを', { exact: false })).toHaveCount(0);
   // C10: a saved project is a private draft. Other runs in this shared preview may reuse the
   // title, so compare same-title public cards before and after the explicit publish.
   const publicCount = async () => {
