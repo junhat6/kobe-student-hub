@@ -374,10 +374,6 @@
 .account-settings {
   background: var(--tint, #f0f3f7);
 }
-.account-operator-link {
-  text-align: right;
-  font-size: 13px;
-}
 .text-button {
   min-height: 36px;
   padding: 0 12px !important;

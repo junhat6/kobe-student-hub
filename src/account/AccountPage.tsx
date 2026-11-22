@@ -157,11 +157,6 @@ export default function AccountPage() {
           />
         )}
       </AccountSessionBoundary>
-      {authoringUiEnabled && (
-        <p className="account-read-link account-operator-link">
-          <Link to="/moderation">運営者用画面</Link>
-        </p>
-      )}
     </section>
   );
 }

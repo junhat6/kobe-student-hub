@@ -31,7 +31,8 @@ test('ordinary moderation route keeps signed-out readers and ordinary students o
   await page.getByRole('button', { name: '運営セッションを確認', exact: true }).click();
   await expect(page.locator('.operator-read-private')).toBeHidden();
   await register(page, info);
-  await page.getByRole('link', { name: '運営者用画面', exact: true }).click();
+  await expect(page.getByRole('link', { name: '運営者用画面', exact: true })).toHaveCount(0);
+  await page.goto('/moderation');
   const denied = page.waitForResponse(
     (response) => new URL(response.url()).pathname === '/api/private/moderation/cases',
   );
