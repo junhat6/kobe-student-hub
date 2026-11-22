@@ -102,6 +102,13 @@ const control = async (r) => {
     );
     return new Response('ready');
   }
+  if (u.pathname === '/__control/media-object') {
+    // Test-only: whether the private bucket holds bytes for one image id (no bytes are returned).
+    const image = u.searchParams.get('id') ?? '';
+    if (!/^[0-9a-f-]{36}$/.test(image)) return new Response('bad id', { status: 400 });
+    const listed = await (await mf.getR2Bucket('MEDIA_BUCKET')).list({ prefix: `media/${image}/` });
+    return Response.json({ objects: listed.objects.length });
+  }
   if (u.pathname === '/__control/expire') {
     await (
       await mf.getD1Database('DB')
@@ -125,6 +132,8 @@ mf = new Miniflare(
     port: 8790,
     https: true,
     d1Databases: ['DB'],
+    // Production binds a private R2 bucket for image bytes (#12); browser checks use the same shape.
+    r2Buckets: ['MEDIA_BUCKET'],
     outboundService: async (r) => {
       const u = new URL(r.url);
       if (u.hostname === 'fixture-assets.invalid') {

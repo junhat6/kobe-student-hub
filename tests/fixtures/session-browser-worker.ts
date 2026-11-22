@@ -9,7 +9,7 @@ import { createOAuthHttpHandler } from '../../worker/auth/oauth-http';
 import { SessionStore } from '../../worker/auth/sessions';
 const origin = 'https://127.0.0.1:8790';
 export default {
-  async fetch(request: Request, env: { DB: D1Database }) {
+  async fetch(request: Request, env: { DB: D1Database; MEDIA_BUCKET?: R2Bucket }) {
     const u = new URL(request.url);
     if (u.pathname.startsWith('/__control/'))
       return fetch('https://fixture-control.invalid' + u.pathname + u.search, {
@@ -53,6 +53,8 @@ export default {
       : null;
     const ordinaryDraft = await createOrdinaryDraftHandler(env.DB, origin, {
       enabled: true,
+      // Same shape as production: new image bytes go to the private bucket (#12).
+      mediaBucket: env.MEDIA_BUCKET,
       ...(operator ? { operatorIds: [operator.id] } : {}),
     })(request);
     if (ordinaryDraft) return ordinaryDraft;

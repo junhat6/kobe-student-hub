@@ -144,6 +144,14 @@ test('article image stays private until explicit saved-version publication and f
   await article(page, info);
   const image = await attach(page, 'image/png', screen);
   expect(image.width * image.height).toBeLessThanOrEqual(1000000);
+  // The bytes are in the private bucket (#12), yet a draft image is still not public.
+  const objects = async () =>
+    (
+      (await (await page.request.get('/__control/media-object?id=' + image.id)).json()) as {
+        objects: number;
+      }
+    ).objects;
+  expect(await objects()).toBe(1);
   expect((await page.request.get('/api/media/' + image.id)).status()).toBe(404);
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
@@ -194,6 +202,8 @@ test('article image stays private until explicit saved-version publication and f
     await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
     await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
     expect((await guest.request.get('/api/media/' + image.id)).status()).toBe(404);
+    // Still stored: the denial comes from the D1 publication check, not from a missing object.
+    expect(await objects()).toBe(1);
   } finally {
     await guest.close();
   }
