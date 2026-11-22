@@ -41,8 +41,20 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
   await expect(page).toHaveURL(ORIGIN + '/account');
   await createProfileOnAccount(page);
   await page.unroute(provider);
+  // The form is editable before its first list read returns (#192). If a test expires the
+  // session while that read is in flight, the read finds the expiry first and closes the empty
+  // form, so every test waits for the read to settle before it touches the session.
+  const listed = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      new URL(response.url()).pathname === '/api/private/project-drafts',
+  );
   await page.goto('/works/new');
   await expect(projectTitle(page)).toBeEditable();
+  expect((await listed).status()).toBe(200);
+  await expect(
+    page.getByRole('button', { name: '作品の保存一覧を更新', exact: true }),
+  ).toBeEnabled();
   return actor;
 }
 // Signs the same browser context in again (as `actor`) without touching the observed page.
