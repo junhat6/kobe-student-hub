@@ -127,7 +127,7 @@ async function expectNoPrivateIdentity(page: Page, bodies: string[], owner: Acto
   for (const body of bodies)
     expect(body).not.toMatch(/admission|graduation|enrollment|google_subject|"email"/i);
   // No avatar image: the profile shows initials only, never a Google picture.
-  await expect(page.locator('.profile-header img, .detail-author img')).toHaveCount(0);
+  await expect(page.locator('.profile-side img, .detail-author img')).toHaveCount(0);
 }
 
 test('article and work lead an anonymous reader to the author profile without private identity', async ({

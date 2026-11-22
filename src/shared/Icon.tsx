@@ -101,6 +101,15 @@ const paths = {
       <path d="M12 14c0-4 3-6 7-6 0 4-3 6-7 6z" />
     </>
   ),
+  heart: (
+    <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" />
+  ),
+  school: (
+    <>
+      <path d="M3 9l9-5 9 5-9 5z" />
+      <path d="M7 11.5V16c0 1.5 2.2 3 5 3s5-1.5 5-3v-4.5M21 9v5" />
+    </>
+  ),
 } as const;
 export type IconName = keyof typeof paths;
 export default function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

@@ -85,6 +85,8 @@ test('explicit profile edit keeps its public author URL and exposes only confirm
     ).toBeVisible();
     await expect(reader.locator('main')).toContainText('更新した公開紹介');
     await expect(reader.locator('main')).not.toContainText('st.kobedenshi.ac.jp');
+    // Only the owner gets the GitHub-style edit button on the author page.
+    await expect(reader.getByRole('link', { name: 'プロフィールを編集' })).toHaveCount(0);
     expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -95,6 +97,13 @@ test('explicit profile edit keeps its public author URL and exposes only confirm
   } finally {
     await guest.close();
   }
+  // The owner edits from their own author page, as on GitHub: the button opens the form directly.
+  await page.goto('/students/' + id);
+  await page.getByRole('link', { name: 'プロフィールを編集', exact: true }).click();
+  await expect(page).toHaveURL(ORIGIN + '/account#profile');
+  await expect(editor(page).getByLabel('表示名', { exact: true })).toHaveValue(
+    '更新した架空の書き手',
+  );
 });
 test('an unclear save is re-read instead of resent, and a stale edit keeps the input', async ({
   page,

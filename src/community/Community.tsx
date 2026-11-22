@@ -7,7 +7,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import MarkdownRenderer from '../MarkdownRenderer';
-import type { Entry, Profile, PublicLikedArticles, PublishedArticleDetail } from '../types';
+import type { Entry, Profile, PublishedArticleDetail } from '../types';
 import { createOrdinaryDiscoveryClient } from './discovery-client';
 import RelatedReading from './RelatedReading';
 import { RecordReadingHistory } from '../history/RecordReadingHistory';
@@ -19,7 +19,6 @@ import ArticleLikeButton from './ArticleLikeButton';
 import OrdinaryArticleReport from './OrdinaryArticleReport';
 import ArticleHandoff from '../agent/ArticleHandoff';
 import EditorialReview from './EditorialReview';
-import { createPublicLikesClient } from '../editor/public-likes-client';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
 import './article.css';
@@ -199,38 +198,6 @@ function StudentArticle({ id }: { id: string }) {
   );
 }
 
-function PublicLikes({ id }: { id: string }) {
-  const client = useMemo(() => createPublicLikesClient(fetch, 'ordinary'), []);
-  const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
-  const { value, failed, missing, retry } = usePublicRead<PublicLikedArticles>(id, read);
-  if (missing) return <ReadMissing subject="公開いいね" />;
-  if (failed) return <ReadFailure subject="公開いいね" retry={retry} />;
-  if (!value)
-    return (
-      <p role="status" className="shell empty">
-        公開いいねを読み込んでいます…
-      </p>
-    );
-  return (
-    <section className="shell profile-page">
-      <Link className="back" to={`/students/${id}`}>
-        ← 投稿者へ
-      </Link>
-      <h1>{value.profile.name}の公開いいね</h1>
-      <p>新しい公開いいねを最大20件表示しています。</p>
-      {value.entries.length ? (
-        <div className="author-lab-cards">
-          {value.entries.map((entry) => (
-            <PublicArticleCard key={entry.id} entry={entry} surface="ordinary" />
-          ))}
-        </div>
-      ) : (
-        <p>公開いいねはまだありません。</p>
-      )}
-    </section>
-  );
-}
-
 export default function Community() {
   const { pathname } = useLocation();
   const [kind, id, section] = pathname.split('/').slice(1);
@@ -238,13 +205,11 @@ export default function Community() {
   if (kind === 'projects' || kind === 'works') return <Projects />;
   return kind === 'articles' && id ? (
     <StudentArticle key={id} id={id} />
-  ) : kind === 'students' && id && section === 'likes' ? (
-    <PublicLikes key={id} id={id} />
   ) : kind === 'students' && id ? (
     <StudentProfile
-      key={`${id}-${section ?? 'articles'}`}
+      key={id}
       id={id}
-      view={section === 'works' ? 'projects' : 'articles'}
+      view={section === 'works' ? 'projects' : section === 'likes' ? 'likes' : 'articles'}
     />
   ) : (
     <Home />

@@ -54,6 +54,9 @@ function AccountContent({
   publicationRisk: (risk: boolean) => void;
 }) {
   const { refresh, viewer } = useViewer();
+  // 「プロフィールを編集」 on the author page lands here with the form already open (as on GitHub).
+  const editProfile =
+    (useLocation().state as { editProfile?: unknown } | null)?.editProfile === true;
   const ownProfileId = viewer.status === 'signed-in' ? viewer.profile?.id : undefined;
   // Follows the enrollment panel, so a correction there updates the page at once.
   const [participation, setParticipation] = useState<ParticipationState>('checking');
@@ -72,6 +75,7 @@ function AccountContent({
             onStateChange={setProfileState}
             onSaved={refresh}
             onRiskChange={profileRisk}
+            startEditing={editProfile}
           />
         </div>
       )}

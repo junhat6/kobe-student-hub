@@ -294,78 +294,167 @@
     margin: 0 -8px;
   }
 }
-/* Student profile */
+/* Student profile: the person on the left, their activity in tabs on the right (as on GitHub). */
 .profile-page {
   padding-top: 32px;
 }
-.profile-page .profile-header {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin: 8px 0 24px;
-  padding: 28px;
-  border-radius: 20px;
-  background: radial-gradient(60% 120% at 100% 0%, #e2ecff 0%, transparent 60%), var(--surface);
-  border: 1px solid var(--line);
+.student-profile {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  gap: 40px;
+  align-items: start;
+  padding-top: 32px;
 }
-.profile-page .profile-header .avatar.large {
-  width: 88px;
-  height: 88px;
+.profile-side {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.profile-vcard {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.student-profile .profile-avatar {
+  width: 256px;
+  height: 256px;
   border-radius: 50%;
   display: grid;
   place-content: center;
-  flex-shrink: 0;
   background: var(--accent-strong);
   color: #fff;
-  font-size: 34px;
+  font-size: 96px;
   font-weight: 800;
+  box-shadow: 0 0 0 1px var(--line);
 }
-.profile-page .profile-header h1 {
+.profile-side h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 800;
-}
-.profile-meta {
-  margin: 2px 0 0;
-  color: var(--ink-muted);
-  font-size: 14px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 .profile-bio {
-  margin: 10px 0 0;
-  color: var(--ink-soft);
+  margin: 0;
+  color: var(--ink);
   font-size: 15px;
-  max-width: 40em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.profile-edit-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--tint);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.profile-edit-button:hover {
+  background: var(--line);
+}
+.profile-details {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.profile-details li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.profile-details .icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+/* Reporting stays a quiet link under the person, as GitHub's 「Block or report」 does. */
+.profile-report-slot {
+  grid-column: 1;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.profile-report-slot .profile-report-panel {
+  padding: 0;
+  background: none !important;
+}
+.profile-report-slot .profile-report-panel > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.profile-report-slot .profile-report-panel > button {
+  min-height: 32px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-decoration: underline;
+}
+.profile-report-slot .profile-report-panel > p:empty {
+  display: none;
+}
+.profile-main {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 0;
 }
 .profile-tabs {
   display: flex;
   gap: 4px;
   margin: 0 0 24px;
   border-bottom: 1px solid var(--line);
+  overflow-x: auto;
 }
 .profile-tabs a {
-  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 10px 14px;
   margin-bottom: -1px;
   border-bottom: 2px solid transparent;
   color: var(--ink-soft);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 15px;
+  text-decoration: none;
 }
-.profile-tabs a span {
-  margin-left: 4px;
-  padding: 0 7px;
+.profile-tabs a .icon {
+  color: var(--ink-muted);
+}
+.profile-tab-count {
+  min-width: 20px;
+  padding: 0 6px;
   border-radius: 999px;
   background: var(--tint);
+  color: var(--ink);
   font-size: 12px;
+  line-height: 20px;
+  text-align: center;
 }
 .profile-tabs a[aria-current='page'] {
   color: var(--ink);
-  border-bottom-color: var(--ink);
+  border-bottom-color: var(--accent-strong);
 }
-.profile-tabs a:last-child {
-  margin-left: auto;
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--accent-strong);
+.profile-main .author-lab-cards {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
 }
 .profile-empty {
   padding: 40px 0;
@@ -376,17 +465,33 @@
   margin: -8px 0 28px;
   color: var(--ink-soft);
 }
-@media (max-width: 720px) {
-  .profile-page .profile-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-    padding: 20px;
+@media (max-width: 860px) {
+  /* Phone layout as on GitHub: small avatar beside the name, then the rest stacked. */
+  .student-profile {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    gap: 24px;
+    padding-top: 20px;
   }
-  .profile-page .profile-header .avatar.large {
-    width: 64px;
-    height: 64px;
-    font-size: 26px;
+  .profile-main,
+  .profile-report-slot {
+    grid-column: auto;
+    grid-row: auto;
+  }
+  .profile-report-slot {
+    order: 1;
+  }
+  .profile-vcard {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+  .student-profile .profile-avatar {
+    width: 72px;
+    height: 72px;
+    font-size: 30px;
+  }
+  .profile-side h1 {
+    font-size: 22px;
   }
 }
 .detail-layout .reader-context .reader-context-missing {

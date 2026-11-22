@@ -39,41 +39,66 @@ function problem(v: ProfileInput) {
 }
 export type ProfileState = 'loading' | 'none' | 'exists' | 'unknown';
 
-/** The public face shown next to articles. The card itself is the preview: what you see is published. */
+/** The public face, shown the way the author page shows it (name, bio, then details with icons). */
 function Card({
   value,
   initials,
   avatar,
   tools,
+  actions,
 }: {
   value: ProfileInput;
   initials?: string;
   avatar?: string | null;
   tools?: ReactNode;
+  actions?: ReactNode;
 }) {
   const mark = initials ?? (Array.from(value.displayName.trim())[0] || '');
   return (
     <div className="profile-editor-card">
       <div className="profile-editor-avatar-wrap">
-        <span className="profile-editor-avatar" aria-hidden="true">
-          {avatar ? (
-            <img src={ownAvatarPath(avatar)} alt="" width={72} height={72} />
-          ) : (
-            mark || <Icon name="user" size={28} />
-          )}
-        </span>
+        <Avatar mark={mark} avatar={avatar} />
         {tools}
       </div>
       <div className="profile-editor-card-text">
-        <strong>{value.displayName || ' '}</strong>
-        {(value.department || value.yearLabel) && (
-          <span className="profile-editor-meta">
-            {[value.department, value.yearLabel].filter(Boolean).join(' · ')}
-          </span>
-        )}
+        <strong>{value.displayName || ' '}</strong>
         {value.bio && <p className="profile-editor-bio">{value.bio}</p>}
+        <Details value={value} />
       </div>
+      {actions}
     </div>
+  );
+}
+
+function Avatar({ mark, avatar }: { mark: string; avatar?: string | null }) {
+  return (
+    <span className="profile-editor-avatar" aria-hidden="true">
+      {avatar ? (
+        <img src={ownAvatarPath(avatar)} alt="" width={72} height={72} />
+      ) : (
+        mark || <Icon name="user" size={28} />
+      )}
+    </span>
+  );
+}
+
+function Details({ value }: { value: ProfileInput }) {
+  if (!value.department && !value.yearLabel) return null;
+  return (
+    <ul className="profile-editor-details">
+      {value.department && (
+        <li>
+          <Icon name="school" size={16} />
+          <span>{value.department}</span>
+        </li>
+      )}
+      {value.yearLabel && (
+        <li>
+          <Icon name="calendar" size={16} />
+          <span>{value.yearLabel}</span>
+        </li>
+      )}
+    </ul>
   );
 }
 
@@ -94,9 +119,12 @@ export default function ProfileEditor({
   onStateChange,
   onSaved,
   onRiskChange,
+  startEditing = false,
 }: {
   csrfToken: string;
   fetcher: typeof fetch;
+  /** Opened from 「プロフィールを編集」 on the author page: go straight to the form. */
+  startEditing?: boolean;
   onStateChange?: (state: ProfileState) => void;
   onSaved?: (profile: PublicProfile) => void;
   onRiskChange?: (risk: boolean) => void;
@@ -113,6 +141,7 @@ export default function ProfileEditor({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
+  const wantsEditing = useRef(startEditing);
   const creating = state === 'none';
   const open = creating || editing;
   const dirty = open && !sameProfileInput(text, profile ? editable(profile) : empty);
@@ -142,6 +171,8 @@ export default function ProfileEditor({
         setText(current ? editable(current) : empty);
         setState(current ? 'exists' : 'none');
         setError('');
+        if (current && wantsEditing.current) setEditing(true);
+        wantsEditing.current = false;
       } catch {
         if (mounted.current) setState('unknown');
       }
@@ -214,6 +245,15 @@ export default function ProfileEditor({
       }
     });
   }
+  const avatarTools = (
+    <ProfileAvatarTools
+      csrfToken={csrfToken}
+      fetcher={fetcher}
+      avatar={avatar}
+      onChange={setAvatar}
+      onMessage={setMessage}
+    />
+  );
   const field = (key: keyof ProfileInput, label: string, placeholder?: string) => (
     <div className="profile-editor-field">
       <div className="profile-editor-label">
@@ -257,30 +297,6 @@ export default function ProfileEditor({
         >
           <Icon name="globe" size={16} />
         </span>
-        {state === 'exists' && profile && !editing && (
-          <div className="profile-editor-tools">
-            <Link
-              className="icon-button"
-              to={`/students/${profile.id}`}
-              aria-label="公開プロフィールを見る"
-              title="公開プロフィールを見る"
-            >
-              <Icon name="eye" />
-            </Link>
-            <Button
-              className="icon-button"
-              aria-label="プロフィールを編集"
-              title="編集"
-              onClick={() => {
-                setText(editable(profile));
-                setEditing(true);
-                setMessage('');
-              }}
-            >
-              <Icon name="pencil" />
-            </Button>
-          </div>
-        )}
       </div>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {message}
@@ -300,14 +316,28 @@ export default function ProfileEditor({
           value={editable(profile)}
           initials={profile.initials}
           avatar={avatar}
-          tools={
-            <ProfileAvatarTools
-              csrfToken={csrfToken}
-              fetcher={fetcher}
-              avatar={avatar}
-              onChange={setAvatar}
-              onMessage={setMessage}
-            />
+          tools={avatarTools}
+          actions={
+            <div className="profile-editor-tools">
+              <Button
+                className="profile-editor-edit"
+                onClick={() => {
+                  setText(editable(profile));
+                  setEditing(true);
+                  setMessage('');
+                }}
+              >
+                プロフィールを編集
+              </Button>
+              <Link
+                className="icon-button"
+                to={`/students/${profile.id}`}
+                aria-label="公開プロフィールを見る"
+                title="公開プロフィールを見る"
+              >
+                <Icon name="eye" />
+              </Link>
+            </div>
           }
         />
       )}
@@ -320,18 +350,25 @@ export default function ProfileEditor({
             void submit();
           }}
         >
-          <div className="profile-editor-preview">
-            <Card value={text} avatar={avatar} />
-          </div>
-          <fieldset disabled={busy}>
-            <legend className="sr-only">プロフィールの内容</legend>
-            {field('displayName', '表示名', 'ニックネームでもOK')}
-            <div className="profile-editor-pair">
-              {field('department', '学科', '例：ゲーム開発')}
-              {field('yearLabel', '学年', '例：2年')}
+          <div className="profile-editor-columns">
+            <fieldset disabled={busy}>
+              <legend className="sr-only">プロフィールの内容</legend>
+              {field('displayName', '表示名', 'ニックネームでもOK')}
+              {field('bio', '自己紹介', 'つくっているもの・興味のあること')}
+              <div className="profile-editor-pair">
+                {field('department', '学科', '例：ゲーム開発')}
+                {field('yearLabel', '学年', '例：2年')}
+              </div>
+            </fieldset>
+            <div className="profile-editor-picture">
+              <Avatar
+                mark={profile?.initials ?? (Array.from(text.displayName.trim())[0] || '')}
+                avatar={avatar}
+              />
+              {/* An icon can be added once the profile exists. */}
+              {profile && avatarTools}
             </div>
-            {field('bio', '自己紹介', 'つくっているもの・興味のあること')}
-          </fieldset>
+          </div>
           {error && (
             <p className="profile-editor-error" role="alert">
               {error}
@@ -361,7 +398,7 @@ export default function ProfileEditor({
                   if (profile) setText(editable(profile));
                 }}
               >
-                やめる
+                キャンセル
               </Button>
             )}
           </div>

@@ -15,9 +15,67 @@
   color: var(--ink-muted, #636d79);
 }
 .profile-editor-tools {
-  margin-left: auto;
+  flex-basis: 100%;
   display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The same quiet full-width button GitHub puts under a profile. */
+.session-account button.profile-editor-edit,
+.profile-editor-edit {
+  white-space: nowrap;
+  flex: 1;
+  min-height: 44px;
+  padding: 6px 16px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 8px;
+  background: var(--tint, #f0f3f7);
+  color: var(--ink, #141a22);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.session-account button.profile-editor-edit:not(:disabled):hover,
+.profile-editor-edit:hover {
+  background: var(--line, #e2e7ee);
+}
+.profile-editor-details {
+  display: grid;
   gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  color: var(--ink-soft, #46525f);
+}
+.profile-editor-details li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.profile-editor-details .icon {
+  flex: none;
+  color: var(--ink-muted, #636d79);
+}
+/* Edit form laid out like GitHub's profile settings: fields, then the picture on the right. */
+.profile-editor-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 24px;
+  align-items: start;
+}
+.profile-editor-picture {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.profile-editor-picture .profile-editor-avatar {
+  width: 144px;
+  height: 144px;
+  font-size: 56px;
 }
 .icon-button {
   display: inline-flex;
@@ -42,6 +100,7 @@
 }
 .profile-editor-card {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 16px;
   min-width: 0;
@@ -66,6 +125,7 @@
   object-fit: cover;
 }
 .profile-editor-card-text {
+  flex: 1 1 0;
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -90,11 +150,6 @@
 .profile-editor-form {
   display: grid;
   gap: 20px;
-}
-.profile-editor-preview {
-  padding: 16px;
-  border-radius: 16px;
-  background: var(--tint, #f0f3f7);
 }
 .profile-editor-form fieldset {
   border: 0;
@@ -171,6 +226,17 @@
   font-size: 22px !important;
 }
 @media (max-width: 650px) {
+  .profile-editor-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-editor-picture {
+    order: -1;
+  }
+  .profile-editor-picture .profile-editor-avatar {
+    width: 96px;
+    height: 96px;
+    font-size: 40px;
+  }
   .profile-editor-pair {
     grid-template-columns: minmax(0, 1fr);
   }

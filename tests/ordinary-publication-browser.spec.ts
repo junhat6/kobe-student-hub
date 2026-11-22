@@ -172,10 +172,12 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
     await expect(
       reader.getByRole('link', { name: '架空のAI技術選定ノート', exact: true }),
     ).toBeVisible();
-    await reader.getByRole('link', { name: '公開いいねを見る', exact: true }).click();
-    await expect(
-      reader.getByRole('heading', { name: '架空の学生の公開いいね', exact: true }),
-    ).toBeVisible();
+    await reader
+      .getByRole('navigation', { name: '投稿者の活動' })
+      .getByRole('link', { name: 'いいね', exact: true })
+      .click();
+    await expect(reader).toHaveURL(/\/students\/[A-Za-z0-9_-]+\/likes$/);
+    await expect(reader.getByRole('heading', { name: '架空の学生', exact: true })).toBeVisible();
     await reader.goto('/');
     await reader.getByRole('searchbox').fill('AI技術選定');
     await reader.getByRole('button', { name: '検索', exact: true }).click();

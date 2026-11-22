@@ -80,8 +80,8 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     const profilePath = '/students/' + author.profileId;
     await page.goto(profilePath);
     await expect(page.getByRole('heading', { name: '架空のアイコン投稿者-' + key })).toBeVisible();
-    await loaded(page, '.profile-header .avatar img');
-    expect(await page.locator('.profile-header .avatar img').getAttribute('src')).toMatch(
+    await loaded(page, '.profile-side .avatar img');
+    expect(await page.locator('.profile-side .avatar img').getAttribute('src')).toMatch(
       new RegExp(`^/api/profile-avatars/${author.profileId}/[0-9a-f]{16}$`),
     );
     expect.soft(await seriousViolations(page)).toEqual([]);
@@ -127,8 +127,8 @@ test('a student sets an icon, readers see it, and an operator removes a reported
 
     // Readers get the initial again, and the owner reads the reason.
     await page.reload();
-    await expect(page.locator('.profile-header .avatar')).toHaveText('架');
-    await expect(page.locator('.profile-header .avatar img')).toHaveCount(0);
+    await expect(page.locator('.profile-side .avatar')).toHaveText('架');
+    await expect(page.locator('.profile-side .avatar img')).toHaveCount(0);
     await mine.reload();
     const notices = mine.getByRole('region', { name: '運営からのお知らせ' });
     await expect(notices).toContainText('プロフィールのアイコン画像が外されました');
@@ -144,7 +144,7 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     await expect(region.getByRole('status')).toHaveText('アイコン画像を消しました。');
     await expect(mine.locator('.profile-editor-avatar img')).toHaveCount(0);
     await page.reload();
-    await expect(page.locator('.profile-header .avatar')).toHaveText('架');
+    await expect(page.locator('.profile-side .avatar')).toHaveText('架');
     const text = await page.locator('body').innerText();
     for (const value of [author.subject, 'st.kobedenshi.ac.jp']) expect(text).not.toContain(value);
   } finally {

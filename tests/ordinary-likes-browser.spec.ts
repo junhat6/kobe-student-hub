@@ -170,9 +170,15 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
 
     // Public information: a signed-out visitor sees the like on the liker's public page.
     await page.goto(likesPath);
+    // The likes are a tab of the profile, as stars are on GitHub.
     await expect(
-      page.getByRole('heading', { name: '架空読者-' + key + 'の公開いいね', exact: true }),
+      page.getByRole('heading', { level: 1, name: '架空読者-' + key, exact: true }),
     ).toBeVisible();
+    await expect(
+      page
+        .getByRole('navigation', { name: '投稿者の活動' })
+        .getByRole('link', { name: 'いいね', exact: true }),
+    ).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible();
 
     // Unlike: the button returns to "いいね", it persists, and the public page drops it.
@@ -187,7 +193,7 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
       'false',
     );
     await page.goto(likesPath);
-    await expect(page.getByText('公開いいねはまだありません。', { exact: true })).toBeVisible();
+    await expect(page.getByText('いいねした記事はまだありません。', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: title, exact: true })).toHaveCount(0);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width).toBeLessThanOrEqual(page.viewportSize()!.width);
