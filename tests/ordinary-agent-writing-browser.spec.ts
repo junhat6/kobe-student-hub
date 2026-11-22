@@ -30,23 +30,24 @@ async function register(page: Page, info: TestInfo) {
 const noHorizontalScroll = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
-const AGENT_FILE = [
-  '---',
-  'title: 架空のエージェント記事',
-  'summary: AIエージェントが書いた架空の概要です。',
-  'tags: [AIエージェント, 架空]',
-  'audience: 架空の読者',
-  'prerequisite: なし',
-  'outcome: 読み込みの流れがわかる',
-  'minutes: 3',
-  '---',
-  '',
-  '# 架空のエージェント記事',
-  '',
-  '## 試したこと',
-  '',
-  'AGENT_IMPORTED_BODY',
-].join('\n');
+const agentFile = (key: string) =>
+  [
+    '---',
+    `title: 架空のエージェント記事-${key}`,
+    'summary: AIエージェントが書いた架空の概要です。',
+    'tags: [AIエージェント, 架空]',
+    'audience: 架空の読者',
+    'prerequisite: なし',
+    'outcome: 読み込みの流れがわかる',
+    'minutes: 3',
+    '---',
+    '',
+    `# 架空のエージェント記事-${key}`,
+    '',
+    '## 試したこと',
+    '',
+    'AGENT_IMPORTED_BODY',
+  ].join('\n');
 
 test('a student hands the draft to their own agent, imports its file, and publishes after review', async ({
   page,
@@ -54,6 +55,7 @@ test('a student hands the draft to their own agent, imports its file, and publis
 }, info) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: ORIGIN });
   await register(page, info);
+  const AGENT_FILE = agentFile(info.project.name);
   await page.goto('/drafts');
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill('自分で書き始めたタイトル');
@@ -96,12 +98,19 @@ test('a student hands the draft to their own agent, imports its file, and publis
   await check.getByRole('button', { name: '下書きに反映', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 15000 });
   await page.screenshot({ path: info.outputPath('agent-import.png'), fullPage: true });
+  // Applying and saving keep it a private draft: nothing reaches the public list.
+  const beforePublish = await page.request.get('/api/articles');
+  expect(beforePublish.status()).toBe(200);
+  expect(await beforePublish.text()).not.toContain('AGENT_IMPORTED_BODY');
+  expect(await beforePublish.text()).not.toContain('架空のエージェント記事-' + info.project.name);
 
   // 5. The reader-facing fields come from the file only when the student asks.
   await page.getByText('記事を公開する', { exact: true }).click();
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   const summary = composer.getByLabel('記事の概要（300文字以内）');
   await expect(summary).toHaveValue('');
+  await expect(composer.getByLabel('タグ（カンマ区切り、5件まで）')).toHaveValue('');
+  await expect(composer.getByLabel('想定読者（任意）')).toHaveValue('');
   await composer.getByRole('button', { name: 'AIの出力から入れる', exact: true }).click();
   await expect(summary).toHaveValue('AIエージェントが書いた架空の概要です。');
   await expect(composer.getByLabel('タグ（カンマ区切り、5件まで）')).toHaveValue(
@@ -115,6 +124,12 @@ test('a student hands the draft to their own agent, imports its file, and publis
   await expect(publicLink).toBeVisible();
   const articlePath = (await publicLink.getAttribute('href'))!;
 
+  // A later unpublished edit stays in the private draft and never reaches the reader's copy.
+  await page.getByRole('button', { name: '編集', exact: true }).click();
+  const body = page.getByLabel('Markdown本文', { exact: true });
+  await body.fill((await body.inputValue()) + '\n\nDRAFT_ONLY_AFTER_PUBLISH');
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 15000 });
+
   // 6. A reader can hand the published article to their own agent as Markdown with its source.
   await page.goto(articlePath);
   await page.getByRole('button', { name: /AIに渡す/ }).click();
@@ -124,6 +139,11 @@ test('a student hands the draft to their own agent, imports its file, and publis
   expect(handed).toContain(ORIGIN + articlePath);
   expect(handed).toContain('- 想定読者: 架空の読者');
   expect(handed).toContain('AGENT_IMPORTED_BODY');
+  // Only the public DTO: no draft-only text, school email, account id or enrollment years.
+  expect(handed).not.toContain('DRAFT_ONLY_AFTER_PUBLISH');
+  expect(handed).not.toContain('@');
+  expect(handed).not.toContain('fictional-agent-');
+  expect(handed.replace(ORIGIN + articlePath, '')).not.toMatch(/2026|2028/);
   expect(await noHorizontalScroll(page)).toBe(true);
 });
 
