@@ -179,3 +179,41 @@
     animation: none;
   }
 }
+.home-area {
+  margin-top: 32px;
+}
+.home-area-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  min-height: 44px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: linear-gradient(90deg, #fff4ec 0%, var(--surface) 70%);
+  color: var(--ink);
+  text-decoration: none;
+}
+.home-area-link:hover {
+  border-color: #f2c3a6;
+}
+.home-area-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.home-area-title {
+  font-size: 17px;
+  font-weight: 800;
+}
+.home-area-description {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.home-area-count {
+  flex: none;
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-weight: 700;
+}

@@ -7,6 +7,7 @@ import { createPublicWorksClient } from '../editor/public-works-client';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import PublicProjectCard from '../editor/PublicProjectCard';
 import { useViewer } from '../shell/viewer';
+import { AREA_ENTRANCE, areaEntranceCount, areaEntrancePath } from './area-entrance';
 import './home.css';
 
 type View = 'recent' | 'popular' | 'recommended';
@@ -78,6 +79,23 @@ function Hero() {
   );
 }
 
+function AreaEntrance({ count }: { count: number }) {
+  if (count < AREA_ENTRANCE.minimum) return null;
+  return (
+    <section className="shell home-area" aria-labelledby="home-area-title">
+      <Link className="home-area-link" to={areaEntrancePath}>
+        <span className="home-area-text">
+          <span id="home-area-title" className="home-area-title">
+            {AREA_ENTRANCE.title}
+          </span>
+          <span className="home-area-description">{AREA_ENTRANCE.description}</span>
+        </span>
+        <span className="home-area-count">{count}件 →</span>
+      </Link>
+    </section>
+  );
+}
+
 function LatestWorks() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(signal), [client]);
@@ -139,6 +157,7 @@ export default function Home() {
   return (
     <div className="home community-feed">
       <Hero />
+      {value && <AreaEntrance count={areaEntranceCount(value.recent)} />}
       <section className="shell home-section" aria-labelledby="home-articles-title">
         <div className="home-section-head">
           <h2 id="home-articles-title">記事</h2>
