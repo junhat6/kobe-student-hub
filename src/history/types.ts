@@ -12,6 +12,8 @@ export interface ReadingHistoryPage {
   entries: ReadingHistoryEntry[];
   enabled: boolean;
   nextOffset: number | null;
+  /** How many references the owner has in all, so the screen can warn before the cap. */
+  total: number;
   capacity: 500;
 }
 export function isReadingReference(value: unknown): value is ReadingReference {

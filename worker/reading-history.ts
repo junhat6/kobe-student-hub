@@ -82,14 +82,16 @@ export class ReadingHistoryStore {
           `WITH page AS MATERIALIZED(SELECT h.kind,h.content_id,h.last_viewed_at_ms FROM private_reading_history h
         WHERE h.owner_account_id=? ORDER BY h.last_viewed_at_ms DESC,h.kind,h.content_id LIMIT 21 OFFSET ?),
         requested AS MATERIALIZED(SELECT kind,content_id FROM page), ${targetCTE},
-        authorized AS MATERIALIZED(SELECT COALESCE((SELECT enabled FROM private_reading_history_settings WHERE owner_account_id=?),1) enabled WHERE ${live})
-        SELECT auth.enabled,page.*,v.title,v.is_sample FROM authorized auth LEFT JOIN page ON 1=1
+        authorized AS MATERIALIZED(SELECT COALESCE((SELECT enabled FROM private_reading_history_settings WHERE owner_account_id=?),1) enabled,
+          (SELECT COUNT(*) FROM private_reading_history WHERE owner_account_id=?) total WHERE ${live})
+        SELECT auth.enabled,auth.total,page.*,v.title,v.is_sample FROM authorized auth LEFT JOIN page ON 1=1
         LEFT JOIN visible_targets v ON v.kind=page.kind AND v.content_id=page.content_id
         ORDER BY page.last_viewed_at_ms DESC,page.kind,page.content_id`,
         )
-        .bind(p.accountId, offset, p.accountId, ...binds(p))
+        .bind(p.accountId, offset, p.accountId, p.accountId, ...binds(p))
         .all<{
           enabled: number;
+          total: number;
           kind: ReadingReference['kind'] | null;
           content_id: string | null;
           last_viewed_at_ms: number | null;
@@ -98,6 +100,9 @@ export class ReadingHistoryStore {
         }>();
       if (
         !rows.results.length ||
+        !Number.isInteger(rows.results[0].total) ||
+        rows.results[0].total < 0 ||
+        rows.results[0].total > 500 ||
         rows.results.some((r) => r.title !== null && r.is_sample !== 0 && r.is_sample !== 1)
       )
         return null;
@@ -127,6 +132,7 @@ export class ReadingHistoryStore {
         entries: entries.slice(0, 20),
         enabled: rows.results[0].enabled === 1,
         nextOffset: entries.length > 20 ? offset + 20 : null,
+        total: rows.results[0].total,
         capacity: 500,
       };
     } catch {

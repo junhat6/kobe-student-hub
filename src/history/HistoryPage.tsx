@@ -9,7 +9,7 @@ import '../account/account.css';
 import './history.css';
 
 const PAGE = 20;
-/** Show the cap only once the known count is this close to it (YouTube・Chrome never mention one). */
+/** Show the cap only once the owner's total is this close to it (YouTube・Chrome never mention one). */
 const NEAR_CAPACITY = 480;
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -106,7 +106,6 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
     );
   }
   const now = Date.now();
-  const known = value ? offset + value.entries.length : 0;
   return (
     <section aria-label="自分の閲覧履歴" className="reading-history">
       <div className="history-bar">
@@ -154,7 +153,7 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
           もう一度
         </Button>
       )}
-      {value && known >= NEAR_CAPACITY && (
+      {value && value.total >= NEAR_CAPACITY && (
         <p className="history-capacity">
           <Icon name="alert" size={16} />
           上限の{value.capacity}件に達すると、削除するまで新しい記事・作品を記録しません。

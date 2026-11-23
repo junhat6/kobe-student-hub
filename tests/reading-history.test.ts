@@ -136,7 +136,13 @@ describe('private reading history with native D1 final authority', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-store');
     expect(response.headers.get('Vary')).toBe('Cookie');
     expect(response.headers.has('Access-Control-Allow-Origin')).toBe(false);
-    expect(Object.keys(result).sort()).toEqual(['capacity', 'enabled', 'entries', 'nextOffset']);
+    expect(Object.keys(result).sort()).toEqual([
+      'capacity',
+      'enabled',
+      'entries',
+      'nextOffset',
+      'total',
+    ]);
     expect(Object.keys(result.entries[0]).sort()).toEqual([
       'contentId',
       'isSample',
@@ -377,6 +383,7 @@ describe('private reading history with native D1 final authority', () => {
     const first = await list();
     expect(first.entries).toHaveLength(20);
     expect(first.nextOffset).toBe(20);
+    expect(first.total).toBe(500);
     expect(first.entries.every((x) => x.title === null)).toBe(true);
     expect((await list(0, '?offset=480')).nextOffset).toBeNull();
     expect(

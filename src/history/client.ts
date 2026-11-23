@@ -12,11 +12,14 @@ const exact = (v: unknown, keys: string[]): v is Record<string, unknown> =>
   Object.keys(v).sort().join(',') === keys.sort().join(',');
 function validPage(v: unknown): v is ReadingHistoryPage {
   if (
-    !exact(v, ['entries', 'enabled', 'nextOffset', 'capacity']) ||
+    !exact(v, ['entries', 'enabled', 'nextOffset', 'total', 'capacity']) ||
     !Array.isArray(v.entries) ||
     v.entries.length > 20 ||
     typeof v.enabled !== 'boolean' ||
     v.capacity !== 500 ||
+    !Number.isInteger(v.total) ||
+    Number(v.total) < 0 ||
+    Number(v.total) > 500 ||
     !(
       v.nextOffset === null ||
       (Number.isInteger(v.nextOffset) && Number(v.nextOffset) >= 20 && Number(v.nextOffset) <= 500)

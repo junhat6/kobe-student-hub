@@ -181,6 +181,7 @@ test('history next/previous controls retain the requested page with bounded synt
       body: JSON.stringify({
         entries,
         enabled: true,
+        total: 21,
         capacity: 500,
         nextOffset: offset === 0 ? 20 : null,
       }),
@@ -265,7 +266,8 @@ test('history shows the cap only near 500 and offers もう一度 only after a f
   page,
 }, info) => {
   await register(page, info);
-  let failNext = true;
+  let failNext = true,
+    total = 479;
   await page.route('**/api/private/reading-history*', async (route) => {
     if (route.request().method() !== 'GET') return route.continue();
     if (failNext) {
@@ -286,8 +288,9 @@ test('history shows the cap only near 500 and offers もう一度 only after a f
       body: JSON.stringify({
         entries,
         enabled: true,
+        total,
         capacity: 500,
-        nextOffset: offset === 0 ? 480 : null,
+        nextOffset: offset === 0 ? 20 : null,
       }),
     });
   });
@@ -298,7 +301,9 @@ test('history shows the cap only near 500 and offers もう一度 only after a f
   await expect(panel.getByRole('link', { name: '架空の上限 0', exact: true })).toBeVisible();
   await expect(panel.getByRole('button', { name: 'もう一度', exact: true })).toHaveCount(0);
   await expect(panel).not.toContainText('上限の500件');
-  await panel.getByRole('button', { name: '次の20件', exact: true }).click();
-  await expect(panel.getByRole('link', { name: '架空の上限 480', exact: true })).toBeVisible();
+  // #229 verifier: the owner's total (not the page position) decides, so the first page warns.
+  total = 480;
+  await page.reload();
+  await expect(panel.getByRole('link', { name: '架空の上限 0', exact: true })).toBeVisible();
   await expect(panel.getByText('上限の500件に達すると', { exact: false })).toBeVisible();
 });

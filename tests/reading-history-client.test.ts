@@ -12,6 +12,7 @@ const page = {
   ],
   enabled: true,
   nextOffset: null,
+  total: 1,
   capacity: 500,
 };
 const reply = (v: unknown) =>
