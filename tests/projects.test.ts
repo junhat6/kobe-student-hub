@@ -135,6 +135,41 @@ it('accepts an optional one-line technologies text and always returns it', () =>
     expect(normalizeProjectFields({ ...f, technologies })).toBeNull();
   expect(normalizeProjectFields({ ...f, technologies: '', owner: 'x' })).toBeNull();
 });
+it('keeps one-line fields free of separators, bidi and invisible format characters on input only (#177)', () => {
+  const bad = [
+    '\u2028',
+    '\u2029',
+    '\u202e',
+    '\u202a',
+    '\u2066',
+    '\u200b',
+    '\u200e',
+    '\u2060',
+    '\ufeff',
+    '\u061c',
+  ];
+  for (const c of bad) {
+    expect(normalizeProjectFields({ ...f, technologies: 'React' + c + 'Hono' })).toBeNull();
+    expect(normalizeProjectFields({ ...f, title: 'Title' + c })).toBeNull();
+    // Rows saved before the rule still read back unchanged.
+    expect(
+      normalizeProjectFields({ ...f, title: 'Title' + c, technologies: 'a' + c }, 'stored'),
+    ).toMatchObject({ title: 'Title' + c, technologies: 'a' + c });
+  }
+  for (const title of ['a\nb', 'tab\there', 'del\u007f'])
+    expect(normalizeProjectFields({ ...f, title })).toBeNull();
+  // Emoji ZWJ sequences, ZWNJ and the description's own line breaks stay allowed.
+  expect(
+    normalizeProjectFields({
+      ...f,
+      title: '家族👨\u200d👩\u200d👧',
+      technologies: 'a\u200cb',
+      description: 'line1\nline2\u2028',
+    }),
+  ).not.toBeNull();
+  // The description is multi-line Markdown and is not a one-line field.
+  expect(normalizeProjectFields({ ...f, description: 'x\u202ey' })).not.toBeNull();
+});
 it('saves standalone drafts, enforces owner/CAS and lists metadata only', async () => {
   const d = await create();
   expect(d).toMatchObject({ ...f, githubUrl: 'https://github.com/', version: 1 });
@@ -555,4 +590,55 @@ it('stores technologies in the draft and the immutable published snapshot', asyn
   });
   expect(legacy.status).toBe(200);
   expect(((await legacy.json()) as ProjectDraft).technologies).toBe('');
+});
+it('refuses DELETE and INSERT OR REPLACE on published project snapshots (#177)', async () => {
+  const d = await create({ ...f, technologies: 'Snapshot' });
+  const r = await publish(d);
+  expect(r.status).toBe(201);
+  const { projectId } = (await r.json()) as { projectId: string };
+  const db = await mf.getD1Database('DB');
+  await expect(
+    db.prepare('DELETE FROM project_publications WHERE id=?').bind(projectId).run(),
+  ).rejects.toThrow(/immutable project snapshot/);
+  await expect(
+    db
+      .prepare(
+        "INSERT OR REPLACE INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,technologies,published_at_ms,status,media_ids_json,article_ids_json) SELECT id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,'Replaced',published_at_ms,status,media_ids_json,article_ids_json FROM project_publications WHERE id=?",
+      )
+      .bind(projectId)
+      .run(),
+  ).rejects.toThrow(/immutable project snapshot/);
+  expect((await publicRead(projectId))?.project.technologies).toBe('Snapshot');
+  // The ordinary repeated publication (ON CONFLICT(draft_id) DO NOTHING) still answers as before.
+  expect((await publish(d)).status).toBe(201);
+});
+it('saves no new invisible characters but still loads and publishes an older draft that has them (#177)', async () => {
+  expect(
+    (await req('/api/private/project-drafts', 'POST', { ...f, technologies: 'A\u202eB' })).status,
+  ).not.toBe(201);
+  const d = await create({ ...f, title: 'Older' });
+  const db = await mf.getD1Database('DB');
+  await db
+    .prepare('UPDATE project_drafts SET title=?,technologies=? WHERE id=?')
+    .bind('Older\u2028title', 'A\u200bB', d.id)
+    .run();
+  const read = (await (await req('/api/private/project-drafts/' + d.id)).json()) as ProjectDraft;
+  expect(read).toMatchObject({ title: 'Older\u2028title', technologies: 'A\u200bB' });
+  expect(
+    (
+      await req('/api/private/project-drafts/' + d.id, 'PUT', {
+        ...f,
+        title: 'Older\u2028title',
+        technologies: 'A\u200bB',
+        expectedVersion: read.version,
+      })
+    ).status,
+  ).not.toBe(200);
+  const fixed = await req('/api/private/project-drafts/' + d.id, 'PUT', {
+    ...f,
+    title: 'Older title',
+    technologies: 'AB',
+    expectedVersion: read.version,
+  });
+  expect(fixed.status).toBe(200);
 });

@@ -34,7 +34,8 @@ function validFields(value: Record<string, unknown>) {
     demoUrl: value.demoUrl,
     technologies: value.technologies,
   };
-  const normalized = normalizeProjectFields(input);
+  // Server responses may carry a draft saved before the one-line rule; it must still load.
+  const normalized = normalizeProjectFields(input, 'stored');
   return normalized !== null && sameProjectFields(normalized, input as ProjectFields);
 }
 function summary(v: unknown): v is ProjectDraftSummary {

@@ -12,6 +12,16 @@ type Proof = NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']
 const uuid = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v);
+/**
+ * A code span is the one inline Markdown form whose content is never parsed: no emphasis, HTML, entities,
+ * escapes, and no GFM automatic link (GFM finds those in text nodes, so escaping the source does not stop it).
+ * The fence is one backtick longer than any run inside, padded when the text touches a backtick or a space.
+ */
+export const markdownLiteral = (s: string) => {
+  const fence = '`'.repeat(Math.max(0, ...(s.match(/`+/g) ?? []).map((r) => r.length)) + 1);
+  const pad = /^[` ]|[` ]$/.test(s) ? ' ' : '';
+  return fence + pad + s + pad + fence;
+};
 function decisionInput(v: unknown): v is ModerationDecisionInput {
   if (!v || typeof v !== 'object' || Object.getPrototypeOf(v) !== Object.prototype) return false;
   const x = v as Record<string, unknown>,
@@ -140,9 +150,13 @@ export class ProjectModerationStore {
       status: row.status,
       reportCount: after.reportCount,
       latestReportAt: Math.max(...row.reports.map((r) => r.receivedAt)),
+      // Technologies are plain text on the public page, so they are shown literally here too (#177).
+      // URLs stay as before: validated https links that GFM turns into links for the operator.
       body:
         row.project.description +
-        (row.project.technologies ? '\n\n使った技術: ' + row.project.technologies : '') +
+        (row.project.technologies
+          ? '\n\n使った技術: ' + markdownLiteral(row.project.technologies)
+          : '') +
         (row.project.githubUrl ? '\n\nGitHub: ' + row.project.githubUrl : '') +
         (row.project.demoUrl ? '\n\nデモ: ' + row.project.demoUrl : ''),
       reports: row.reports.map((r) => ({

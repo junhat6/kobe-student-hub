@@ -78,13 +78,17 @@ export const publicProjectSqlBounds = `r.status='published' AND ${bounded} AND $
 const fields = (
   r: Pick<Row, 'title' | 'description' | 'github_url' | 'demo_url' | 'technologies'>,
 ) =>
-  normalizeProjectFields({
-    title: r.title,
-    description: r.description,
-    githubUrl: r.github_url,
-    demoUrl: r.demo_url,
-    technologies: r.technologies,
-  });
+  normalizeProjectFields(
+    {
+      title: r.title,
+      description: r.description,
+      githubUrl: r.github_url,
+      demoUrl: r.demo_url,
+      technologies: r.technologies,
+    },
+    // Rows saved before the one-line rule stay readable; new input is checked strictly on save.
+    'stored',
+  );
 const draft = (r: Row): ProjectDraft | null => {
   const f = fields(r);
   return f &&
