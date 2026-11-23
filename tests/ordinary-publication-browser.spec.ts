@@ -86,7 +86,7 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   await page.getByText('記事を公開する', { exact: true }).click();
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   await composer.getByLabel('記事の概要（300文字以内）').fill('条件・判断・確認の記録');
-  await composer.getByLabel('タグ（カンマ区切り、5件まで）').fill('AI');
+  await composer.getByLabel('タグ（5件まで）').fill('AI');
   await composer.getByText('読者向けの補足（任意）', { exact: true }).click();
   await composer.getByLabel('想定読者（任意）').fill('AIで制作している学生');
   await composer.getByLabel('前提知識（任意）').fill('特別な前提知識は不要');

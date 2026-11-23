@@ -18,6 +18,8 @@ import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
 import { describeFindings, scanDraft } from '../shared/secret-scan';
 import Celebration from '../shared/Celebration';
+import TagInput from './TagInput';
+import { createPublicDiscoveryClient } from './public-discovery-client';
 interface Props {
   surface?: PublicSurface;
   fetcher?: typeof fetch;
@@ -65,6 +67,27 @@ export default function PublicationComposer({
   const client = useMemo(() => createPublicationClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const profiles = useMemo(() => createProfileClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const [fields, setFields] = useState(empty);
+  const [tagCandidates, setTagCandidates] = useState<string[]>([]);
+  // Offer tags other students already use (public articles only); a failed read just offers none.
+  useEffect(() => {
+    if (!ordinary) return;
+    const controller = new AbortController();
+    createPublicDiscoveryClient(fetcher, 'ordinary')
+      .read(controller.signal)
+      .then(({ cards }) => {
+        const counts = new Map<string, number>();
+        for (const { entry } of cards)
+          for (const tag of new Set(entry.tags)) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+        setTagCandidates(
+          [...counts]
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja'))
+            .map(([tag]) => tag)
+            .slice(0, 30),
+        );
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [fetcher, ordinary]);
   // Keep the optional reader notes open whenever one of them already has text.
   const optionalFilled = Boolean(fields.audience || fields.prerequisite || fields.outcome);
   useEffect(() => {
@@ -527,30 +550,19 @@ export default function PublicationComposer({
                     onChange={(event) => change('summary', event.target.value)}
                   />
                   <small>{Array.from(fields.summary).length}/300文字</small>
-                  <label htmlFor="publication-tags">タグ（カンマ区切り、5件まで）</label>
-                  <input
+                  <label htmlFor="publication-tags">タグ（5件まで）</label>
+                  <TagInput
                     id="publication-tags"
-                    readOnly={readOnly}
                     value={fields.tags}
-                    maxLength={644}
-                    onChange={(event) => change('tags', event.target.value)}
+                    readOnly={readOnly}
+                    candidates={tagCandidates}
+                    onChange={(value) => change('tags', value)}
                   />
-                  <small>
-                    {ordinary
-                      ? '各24文字以内・重複なし。全角・半角は自動で整えます。'
-                      : 'タグは全角・半角を整え、前後の空白を除いて並べます。各24文字以内で、重複はできません。'}
-                  </small>
-                  <div className="publication-tags" aria-label="公開されるタグ">
-                    {tags?.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                    {tags?.length === 0 && <span>タグなし</span>}
-                    {!tags && (
-                      <p className="publication-warning">
-                        タグの文字数・件数・重複を確認してください。
-                      </p>
-                    )}
-                  </div>
+                  {!tags && (
+                    <p className="publication-warning">
+                      タグの文字数・件数・重複を確認してください。
+                    </p>
+                  )}
                   <label htmlFor="publication-minutes">読了時間の目安（分）</label>
                   <input
                     id="publication-minutes"

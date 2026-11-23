@@ -64,7 +64,7 @@ async function prepare(page: Page, summary = '公開する記事の概要') {
   const region = composer(page);
   await region.getByText('公開前の確認（ローカル専用）', { exact: true }).click();
   await region.getByLabel('記事の概要（300文字以内）', { exact: true }).fill(summary);
-  await region.getByLabel('タグ（カンマ区切り、5件まで）', { exact: true }).fill(' Ｇｉｔ, 学び ');
+  await region.getByLabel('タグ（5件まで）', { exact: true }).fill(' Ｇｉｔ, 学び ');
   await region.getByLabel('読了時間の目安（分）', { exact: true }).fill('5');
   return region;
 }
@@ -82,6 +82,45 @@ async function id(page: Page) {
     return rows[0].id;
   });
 }
+test('tags become chips with Enter or a comma, × and Backspace remove them, and five close the field', async ({
+  page,
+}, info) => {
+  await open(page);
+  await draft(page);
+  const region = composer(page);
+  await region.getByText('公開前の確認（ローカル専用）', { exact: true }).click();
+  const field = region.getByLabel('タグ（5件まで）', { exact: true });
+  const chips = region.getByLabel('公開されるタグ');
+  await field.fill('Ｇｉｔ');
+  await field.press('Enter');
+  await expect(field).toHaveValue('');
+  await expect(chips.getByRole('listitem')).toHaveText(['Git']);
+  await field.pressSequentially('学び、');
+  await expect(chips.getByRole('listitem')).toHaveText(['Git', '学び']);
+  await region
+    .locator('fieldset')
+    .first()
+    .screenshot({ path: info.outputPath('tag-chips-two.png') });
+  // A duplicate stays in the field with the reason; nothing is added.
+  await field.fill('git');
+  await field.fill('Git');
+  await field.press('Enter');
+  await expect(region.getByRole('alert')).toHaveText('「Git」はもう入っています。');
+  await expect(field).toHaveValue('Git');
+  await expect(chips.getByRole('listitem')).toHaveCount(2);
+  await field.fill('');
+  await field.press('Backspace');
+  await expect(chips.getByRole('listitem')).toHaveText(['Git']);
+  await region.getByRole('button', { name: 'Gitを外す', exact: true }).click();
+  await expect(chips.getByRole('listitem')).toHaveCount(0);
+  await field.fill('A, B, C, D, E');
+  await expect(chips.getByRole('listitem')).toHaveText(['A', 'B', 'C', 'D', 'E']);
+  await expect(region.getByLabel('タグ（5件まで）', { exact: true })).toHaveCount(0);
+  await expect(region.getByText('タグは5件までです。外すと足せます。')).toBeVisible();
+  await region.locator('.tag-input').screenshot({ path: info.outputPath('tag-chips-full.png') });
+  await region.getByRole('button', { name: 'Cを外す', exact: true }).click();
+  await expect(region.getByLabel('タグ（5件まで）', { exact: true })).toBeVisible();
+});
 test('saved preview and explicit confirmation publish the snapshot to a cookie-free local reader', async ({
   page,
   browser,

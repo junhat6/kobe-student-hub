@@ -64,7 +64,7 @@ async function prepare(page: Page, summary = '公開する記事の概要') {
   const region = composer(page);
   await region.getByText('公開前の確認（ローカル専用）', { exact: true }).click();
   await region.getByLabel('記事の概要（300文字以内）', { exact: true }).fill(summary);
-  await region.getByLabel('タグ（カンマ区切り、5件まで）', { exact: true }).fill(' Ｇｉｔ, 学び ');
+  await region.getByLabel('タグ（5件まで）', { exact: true }).fill(' Ｇｉｔ, 学び ');
   await region.getByLabel('読了時間の目安（分）', { exact: true }).fill('5');
   return region;
 }

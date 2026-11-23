@@ -151,7 +151,7 @@ test('a student allows their own agent, sees its draft marked, uses its suggesti
   await expect(summary).toHaveValue('');
   await composer.getByRole('button', { name: 'AIの出力から入れる', exact: true }).click();
   await expect(summary).toHaveValue('エージェントが提案した架空の概要です。');
-  await expect(composer.getByLabel('タグ（カンマ区切り、5件まで）')).toHaveValue('MCP, 架空');
+  await expect(composer.getByLabel('公開されるタグ')).toHaveText('MCP架空');
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.screenshot({ path: info.outputPath('drafts-suggestion.png'), fullPage: true });
 

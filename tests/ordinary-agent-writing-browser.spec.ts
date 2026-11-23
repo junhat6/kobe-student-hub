@@ -113,13 +113,11 @@ test('a student hands the draft to their own agent, imports its file, and publis
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   const summary = composer.getByLabel('記事の概要（300文字以内）');
   await expect(summary).toHaveValue('');
-  await expect(composer.getByLabel('タグ（カンマ区切り、5件まで）')).toHaveValue('');
+  await expect(composer.getByLabel('タグ（5件まで）')).toHaveValue('');
   await expect(composer.getByLabel('想定読者（任意）')).toHaveValue('');
   await composer.getByRole('button', { name: 'AIの出力から入れる', exact: true }).click();
   await expect(summary).toHaveValue('AIエージェントが書いた架空の概要です。');
-  await expect(composer.getByLabel('タグ（カンマ区切り、5件まで）')).toHaveValue(
-    'AIエージェント, 架空',
-  );
+  await expect(composer.getByLabel('公開されるタグ')).toHaveText('AIエージェント架空');
   await expect(composer.getByLabel('想定読者（任意）')).toHaveValue('架空の読者');
   await expect(composer.getByLabel('読了時間の目安（分）')).toHaveValue('3');
   await composer.getByRole('checkbox').check();
