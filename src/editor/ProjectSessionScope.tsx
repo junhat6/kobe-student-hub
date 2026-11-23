@@ -20,11 +20,14 @@ export default function ProjectSessionScope({
   initial = false,
   label,
   signedOutMessage = '現在ログインしていません。前の入力・通報内容は閉じています。このローカル検証では学校Googleログインは利用できません。',
+  signedInMessage = '有効な既存セッションを確認しました。この画面からログイン・権限付与は行いません。',
 }: {
   children: (session: { csrf: string; fetcher: typeof fetch }) => ReactNode;
   initial?: boolean;
   label: string;
   signedOutMessage?: ReactNode;
+  /** Shown when an existing session opens the panel; student pages pass '' (the form speaks for itself). */
+  signedInMessage?: ReactNode;
 }) {
   const client = useMemo(() => createSessionClient(), []);
   const guard = useRef<AuthorSessionGuard | null>(null),
@@ -145,9 +148,7 @@ export default function ProjectSessionScope({
       } else {
         install(csrf);
         reveal();
-        setMessage(
-          '有効な既存セッションを確認しました。この画面からログイン・権限付与は行いません。',
-        );
+        setMessage(signedInMessage);
       }
     } catch (error) {
       if (canReveal() && run === revision.current) {

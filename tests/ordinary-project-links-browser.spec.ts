@@ -59,11 +59,9 @@ test('owner links own article to a project; readers move both ways directly', as
 
   await page.goto('/works/new');
   await page.getByLabel('作品タイトル', { exact: true }).fill(projectTitle);
-  await page.getByLabel('作品説明（プレーンテキスト）', { exact: true }).fill('架空の作品説明');
+  await page.getByLabel('作品の説明', { exact: true }).fill('架空の作品説明');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: '作品の公開準備・記録を確認', exact: true }).click();
   const links = page.getByRole('group', { name: 'この作品の記事（任意・3件まで）' });
   await expect(links).toBeVisible();

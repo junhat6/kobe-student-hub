@@ -8,8 +8,7 @@ const title = (page: Page) => page.getByLabel('タイトル', { exact: true });
 const body = (page: Page) => page.getByLabel('Markdown本文', { exact: true });
 const save = (page: Page) => page.getByRole('button', { name: '下書きを保存', exact: true });
 const projectTitle = (page: Page) => page.getByLabel('作品タイトル', { exact: true });
-const projectBody = (page: Page) =>
-  page.getByLabel('作品説明（プレーンテキスト）', { exact: true });
+const projectBody = (page: Page) => page.getByLabel('作品の説明', { exact: true });
 const latch = () => {
   let release!: () => void;
   const promise = new Promise<void>((resolve) => (release = resolve));
@@ -370,9 +369,7 @@ test('ordinary project input autosaves, resumes after reload and never publishes
   });
   await projectTitle(page).fill('架空の自動保存作品');
   await projectBody(page).fill('作品説明を保存して、別の日に再開する。');
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible({ timeout: 7000 });
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible({ timeout: 7000 });
   expect(saves).toBe(1);
   await image(page, info, 'project-autosaved');
   await page.reload();

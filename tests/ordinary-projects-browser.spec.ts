@@ -40,14 +40,12 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   await page.getByRole('link', { name: '作品を登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/works/new');
   await page.getByLabel('作品タイトル', { exact: true }).fill(title);
-  await page.getByLabel('作品説明（プレーンテキスト）', { exact: true }).fill(description);
+  await page.getByLabel('作品の説明', { exact: true }).fill(description);
   await page
     .getByLabel('GitHub URL（任意）', { exact: true })
     .fill('https://github.com/example/fictional-project');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   // 原則1・6: routine save success is announced only, and autosave/list notes are gone.
   const saveStatus = page.getByRole('status').filter({ hasText: '確認した入力を保存しました。' });
   await expect(saveStatus).toHaveClass(/\bsr-only\b/);
@@ -81,13 +79,9 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   const path = await link.getAttribute('href');
   expect(path).toMatch(/^\/projects\/[0-9a-f-]{36}$/);
   expect(await publicCount()).toBe(before + 1);
-  await page
-    .getByLabel('作品説明（プレーンテキスト）', { exact: true })
-    .fill('PRIVATE_PROJECT_CONTINUATION');
+  await page.getByLabel('作品の説明', { exact: true }).fill('PRIVATE_PROJECT_CONTINUATION');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   const guest = await browser.newContext({
     baseURL: ORIGIN,
     ignoreHTTPSErrors: true,

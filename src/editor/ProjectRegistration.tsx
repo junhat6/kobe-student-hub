@@ -538,7 +538,9 @@ export default function ProjectRegistration({
       if (automatic) return;
       setMessage(
         author.status === 'fulfilled' && author.value
-          ? '保存版・公開URL・プロフィールを確認して、公開操作を選んでください。'
+          ? ordinary
+            ? '公開の準備ができました。内容を確かめて公開してください。'
+            : '保存版・公開URL・プロフィールを確認して、公開操作を選んでください。'
           : ordinary
             ? '公開にはプロフィールが必要です。アカウントでプロフィールを作成してから戻ってください。'
             : '公開プロフィールが必要です。本人入力で準備してから、再び公開準備を確認してください。',
@@ -678,7 +680,11 @@ export default function ProjectRegistration({
         </Button>
       </div>
       {listFailed && (
-        <p role="alert">保存一覧を確認できません。入力や現在の保存版は残しています。</p>
+        <p role="alert">
+          {ordinary
+            ? '保存した作品の一覧を読み込めませんでした。入力中の内容は残っています。'
+            : '保存一覧を確認できません。入力や現在の保存版は残しています。'}
+        </p>
       )}
       <h3>{ordinary ? '保存した作品' : 'この画面で確認した保存記録'}</h3>
       {/* The 「続きを編集」 buttons explain themselves; the limit matters only once it is reached (原則1). */}
@@ -729,7 +735,9 @@ export default function ProjectRegistration({
               {key === 'title'
                 ? '作品タイトル'
                 : key === 'description'
-                  ? '作品説明（プレーンテキスト）'
+                  ? ordinary
+                    ? '作品の説明'
+                    : '作品説明（プレーンテキスト）'
                   : key === 'technologies'
                     ? '使った技術（任意・読点かカンマ区切り・100文字まで）'
                     : key === 'githubUrl'
@@ -786,15 +794,21 @@ export default function ProjectRegistration({
           {dirty
             ? '手元に未保存の作品情報があります。'
             : saved
-              ? '手元の入力と保存版は一致しています。'
-              : '保存版はまだ選んでいません。'}{' '}
+              ? ordinary
+                ? '保存済みです。'
+                : '手元の入力と保存版は一致しています。'
+              : ordinary
+                ? 'まだ保存していません。'
+                : '保存版はまだ選んでいません。'}{' '}
           {!writable
             ? '年度の登録により、いまは保存できません。'
             : ordinary
               ? autosavePaused || createUnknown || saveUnknown || pubUnknown
-                ? '自動保存を停止しています。保存版を確認し、必要な変更を手動で保存してください。'
+                ? '自動保存を停止しています。内容を確かめて「作品を保存」で保存してください。'
                 : candidate || ready || receipt || published
-                  ? '保存版の比較・公開確認中は自動保存しません。'
+                  ? candidate
+                    ? '以前の保存と見比べている間は自動保存しません。'
+                    : '公開の確認中は自動保存しません。'
                   : '' /* Autosave is the normal case; speak only when it stops (原則1・3). */
               : '自動保存はありません。'}
         </p>
@@ -819,7 +833,7 @@ export default function ProjectRegistration({
       )}
       {saved && (
         <section className="project-saved" aria-label="公開前の作品保存版">
-          <h3>現在の保存版 {saved.version}</h3>
+          <h3>{ordinary ? '保存した内容' : '現在の保存版 ' + saved.version}</h3>
           <ProjectText
             value={saved}
             surface={surface}
@@ -918,11 +932,13 @@ export default function ProjectRegistration({
           )}
           <p>公開には空白だけではないタイトルと説明が必要です。</p>
           <p>
-            保存した説明と上のURL、確認済みプロフィールが匿名の読者にも見える操作です。公開後の本文更新・削除・再公開は未提供です。
             {surface === 'ordinary' ? (
-              <a href="/account#publications">自分の公開記録から公開停止を確認できます。</a>
+              <>
+                保存した説明とURL、プロフィールが誰でも見られるようになります。公開した後は内容を直せません。
+                <a href="/account#publications">マイページから公開を止められます。</a>
+              </>
             ) : (
-              '「自分の公開記録」から、現在の公開を停止するローカル試作を利用できます。'
+              '保存した説明と上のURL、確認済みプロフィールが匿名の読者にも見える操作です。公開後の本文更新・削除・再公開は未提供です。「自分の公開記録」から、現在の公開を停止するローカル試作を利用できます。'
             )}
           </p>
           <Button

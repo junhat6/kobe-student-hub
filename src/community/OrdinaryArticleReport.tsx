@@ -14,6 +14,7 @@ export default function OrdinaryArticleReport({
     <section className="report-panel" aria-label="記事の通報">
       <h2>記事の通報</h2>
       <ProjectSessionScope
+        signedInMessage=""
         label="この記事を通報する"
         signedOutMessage={
           <>

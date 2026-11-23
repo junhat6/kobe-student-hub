@@ -16,6 +16,7 @@ export default function ProfileReport({
     <section className="project-report-panel profile-report-panel" aria-label="プロフィールの通報">
       <h2>プロフィールの通報</h2>
       <ProjectSessionScope
+        signedInMessage=""
         label="このプロフィールを通報する"
         signedOutMessage={
           <>

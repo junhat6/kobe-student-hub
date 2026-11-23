@@ -41,15 +41,13 @@ test('project detail shows summary, technologies, author and a consent-gated You
   await page.goto('/works/new');
   await page.getByLabel('作品タイトル', { exact: true }).fill(title);
   await page
-    .getByLabel('作品説明（プレーンテキスト）', { exact: true })
+    .getByLabel('作品の説明', { exact: true })
     .fill('授業の課題で作った架空の作品です。\n\n[架空の紹介動画](https://youtu.be/AbCdEf12345)');
   await page
     .getByLabel('使った技術（任意・読点かカンマ区切り・100文字まで）', { exact: true })
     .fill('React、TypeScript, Cloudflare Workers');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: '作品の公開準備・記録を確認', exact: true }).click();
   await page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }).click();
   const open = page.getByRole('link', { name: 'ログインなしで作品を見る' });

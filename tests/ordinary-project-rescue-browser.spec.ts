@@ -7,16 +7,14 @@ import { createProfileOnAccount, ensureProfileByApi } from './helpers/profile';
 const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
 const projectTitle = (page: Page) => page.getByLabel('作品タイトル', { exact: true });
-const description = (page: Page) =>
-  page.getByLabel('作品説明（プレーンテキスト）', { exact: true });
+const description = (page: Page) => page.getByLabel('作品の説明', { exact: true });
 const technologies = (page: Page) =>
   page.getByLabel('使った技術（任意・読点かカンマ区切り・100文字まで）', { exact: true });
 const rescueBox = (page: Page) =>
   page.getByRole('textbox', { name: '保存できなかった作品の入力の内容', exact: true });
 const reopen = (page: Page) =>
   page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true });
-const inSync = (page: Page) =>
-  page.getByText('手元の入力と保存版は一致しています。', { exact: false });
+const inSync = (page: Page) => page.getByText('保存済みです。', { exact: false });
 
 async function register(page: Page, info: TestInfo, suffix = 'a') {
   const actor =

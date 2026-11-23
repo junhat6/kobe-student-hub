@@ -43,11 +43,9 @@ test('three different accounts temporarily hide a project without deleting it', 
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '作品を登録', exact: true }).click();
   await page.getByLabel('作品タイトル', { exact: true }).fill(title);
-  await page.getByLabel('作品説明（プレーンテキスト）', { exact: true }).fill('架空の作品説明');
+  await page.getByLabel('作品の説明', { exact: true }).fill('架空の作品説明');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: '作品の公開準備・記録を確認', exact: true }).click();
   await page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }).click();
   const link = page.getByRole('link', { name: 'ログインなしで作品を見る' });

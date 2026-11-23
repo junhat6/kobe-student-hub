@@ -292,21 +292,15 @@ test('project JPEG is resized, privately previewed, explicitly published and the
   await register(page, info);
   await page.getByRole('link', { name: '作品を登録', exact: true }).click();
   await page.getByLabel('作品タイトル', { exact: true }).fill('架空の画像作品');
-  await page
-    .getByLabel('作品説明（プレーンテキスト）', { exact: true })
-    .fill('画面の制作意図を説明します。');
+  await page.getByLabel('作品の説明', { exact: true }).fill('画面の制作意図を説明します。');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   const image = await attach(page, 'image/jpeg', photo);
   expect(image.width * image.height).toBeLessThanOrEqual(524288);
   expect(image.width).toBeLessThan(1200);
   expect((await page.request.get('/api/media/' + image.id)).status()).toBe(404);
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
-  await expect(
-    page.getByText('手元の入力と保存版は一致しています。', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: '作品の公開準備・記録を確認', exact: true }).click();
   await page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }).click();
   const link = page.getByRole('link', { name: 'ログインなしで作品を見る' });
