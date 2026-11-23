@@ -489,3 +489,27 @@ test('the image panel reads its own list, shows only a short private label, and 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await panel.screenshot({ path: info.outputPath('image-panel-after-retry.png') });
 });
+test('the picker waits for the first image list so a slow list cannot overwrite a just-saved image', async ({
+  page,
+}, info) => {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let first = true;
+  await page.route('**/api/private/media/articles/*', async (route) => {
+    if (route.request().method() === 'GET' && first) {
+      first = false;
+      await gate;
+    }
+    return route.continue();
+  });
+  await article(page, info);
+  const panel = page.locator('.media-attachments'),
+    input = page.getByLabel('下書きへ画像を追加', { exact: true });
+  await expect(panel).toHaveAttribute('aria-busy', 'true');
+  await expect(input).toBeDisabled();
+  release();
+  await expect(panel).toHaveAttribute('aria-busy', 'false');
+  await expect(input).toBeEnabled();
+  await attach(page, 'image/png', screen);
+  await expect(panel.locator('.media-grid figure')).toHaveCount(1);
+});

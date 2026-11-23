@@ -160,7 +160,7 @@ export default function MediaAttachments({
         <label
           className={
             'media-pick' +
-            (disabled || busy || Boolean(pending) || images.length >= MEDIA_PER_DRAFT
+            (disabled || !loaded || busy || Boolean(pending) || images.length >= MEDIA_PER_DRAFT
               ? ' is-disabled'
               : '')
           }
@@ -172,7 +172,9 @@ export default function MediaAttachments({
             type="file"
             accept="image/jpeg,image/png"
             aria-label="下書きへ画像を追加"
-            disabled={disabled || busy || Boolean(pending) || images.length >= MEDIA_PER_DRAFT}
+            disabled={
+              disabled || !loaded || busy || Boolean(pending) || images.length >= MEDIA_PER_DRAFT
+            }
             onChange={(e) => {
               const selected = e.target.files?.[0];
               if (selected) void select(selected);
