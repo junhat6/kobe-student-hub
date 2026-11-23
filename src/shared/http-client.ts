@@ -34,6 +34,8 @@ export interface BoundedJsonRequest {
   maxBytes: number;
   /** Upper bound on stream chunks (default min(maxBytes, 65536)). */
   maxChunks?: number;
+  /** When the server sent Content-Length, require the streamed size to equal it. */
+  exactLength?: boolean;
   signal?: AbortSignal;
   /** Called once the server answered at all, before the status is checked. */
   onResponse?: () => void;
@@ -139,6 +141,8 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
         bytes.set(next.value, size);
         size += next.value.byteLength;
       }
+      if (request.exactLength && length !== null && Number(length) !== size)
+        throw new BoundedReadError();
       return JSON.parse(
         new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
       ) as unknown;

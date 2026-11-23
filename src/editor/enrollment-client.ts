@@ -1,5 +1,5 @@
 import type { OwnEnrollmentResult } from '../shared/enrollment';
-import { proofAuthorization } from '../shared/auth-proof';
+import { readBoundedJson } from '../shared/http-client';
 
 export interface EnrollmentInput {
   admissionYear: number;
@@ -56,109 +56,30 @@ export function createEnrollmentClient(csrfToken: string, fetcher: typeof fetch 
     value?: EnrollmentInput,
     signal?: AbortSignal,
   ): Promise<OwnEnrollmentResult> {
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let expired = false;
-    let rejectAbort: (error: EnrollmentClientError) => void = () => {};
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const aborted = new Promise<never>((_, reject) => {
-      rejectAbort = reject;
-    });
-    const externalAbort = () => {
-      cancel();
-      rejectAbort(new EnrollmentClientError());
-    };
-    signal?.addEventListener('abort', externalAbort, { once: true });
-    if (signal?.aborted) externalAbort();
-    const operation = (async () => {
-      if (controller.signal.aborted) throw new EnrollmentClientError();
-      const response = await fetcher('/api/private/enrollment', {
-        method: value ? 'PUT' : 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers: value
-          ? {
-              Accept: 'application/json',
-              'Content-Type': 'application/json; charset=utf-8',
-              Authorization: proofAuthorization('csrf', csrfToken),
-            }
-          : { Accept: 'application/json' },
-        ...(value ? { body: JSON.stringify(value) } : {}),
-      });
-      if (
-        expired ||
-        controller.signal.aborted ||
-        response.status !== 200 ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        throw new EnrollmentClientError();
-      }
-      const length = response.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > LIMIT)
-      ) {
-        void response.body.cancel().catch(() => {});
-        throw new EnrollmentClientError();
-      }
-      reader = response.body.getReader();
-      const bytes = new Uint8Array(LIMIT);
-      let size = 0,
-        count = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (expired || controller.signal.aborted) throw new EnrollmentClientError();
-          if (next.done) break;
-          if (++count > LIMIT || size + next.value.byteLength > LIMIT)
-            throw new EnrollmentClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        if (length !== null && Number(length) !== size) throw new EnrollmentClientError();
-        const parsed: unknown = JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        );
-        if (
-          !result(parsed) ||
-          (value &&
-            (!parsed.enrollment ||
-              parsed.enrollment.admissionYear !== value.admissionYear ||
-              parsed.enrollment.graduationYear !== value.graduationYear ||
-              parsed.enrollment.version !== value.expectedVersion + 1))
-        )
-          throw new EnrollmentClientError();
-        return parsed;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new EnrollmentClientError());
-      }, 10000);
-    });
+    let parsed: unknown;
     try {
-      return await Promise.race([operation, deadline, aborted]);
+      parsed = await readBoundedJson('/api/private/enrollment', {
+        fetcher,
+        credentials: 'same-origin',
+        method: value ? 'PUT' : 'GET',
+        maxBytes: LIMIT,
+        exactLength: true,
+        signal,
+        ...(value ? { body: value, csrf: csrfToken } : {}),
+      });
     } catch {
       throw new EnrollmentClientError();
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', externalAbort);
-      cancel();
     }
+    if (
+      !result(parsed) ||
+      (value &&
+        (!parsed.enrollment ||
+          parsed.enrollment.admissionYear !== value.admissionYear ||
+          parsed.enrollment.graduationYear !== value.graduationYear ||
+          parsed.enrollment.version !== value.expectedVersion + 1))
+    )
+      throw new EnrollmentClientError();
+    return parsed;
   }
   return {
     read: (signal?: AbortSignal) => request(undefined, signal),

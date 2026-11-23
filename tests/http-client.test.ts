@@ -155,6 +155,43 @@ describe('readBoundedJson — the one bounded transport', () => {
     ).toBe(1);
   });
 
+  it('requires the streamed size to equal Content-Length only when exactLength is asked', async () => {
+    const short = () => json('{"a":1}', { headers: { 'Content-Length': '64' } });
+    const read = (exactLength?: boolean) =>
+      readBoundedJson('/api/x', {
+        fetcher: (async () => short()) as typeof fetch,
+        credentials: 'omit',
+        maxBytes: 64,
+        exactLength,
+      });
+    expect(await read()).toEqual({ a: 1 });
+    expect(
+      await failure('/api/x', {
+        fetcher: (async () => short()) as typeof fetch,
+        credentials: 'omit',
+        maxBytes: 64,
+        exactLength: true,
+      }),
+    ).toBe('unavailable');
+    expect(
+      await readBoundedJson('/api/x', {
+        fetcher: (async () =>
+          json('{"a":1}', { headers: { 'Content-Length': '7' } })) as typeof fetch,
+        credentials: 'omit',
+        maxBytes: 64,
+        exactLength: true,
+      }),
+    ).toEqual({ a: 1 });
+    expect(
+      await readBoundedJson('/api/x', {
+        fetcher: (async () => streamed([new TextEncoder().encode('{"a":1}')])) as typeof fetch,
+        credentials: 'omit',
+        maxBytes: 64,
+        exactLength: true,
+      }),
+    ).toEqual({ a: 1 });
+  });
+
   it('stops at the deadline and on caller abort, as unavailable rather than missing', async () => {
     vi.useFakeTimers();
     const hang = (() => new Promise<Response>(() => {})) as typeof fetch;

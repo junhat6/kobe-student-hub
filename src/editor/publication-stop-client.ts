@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { readBoundedJson } from '../shared/http-client';
 import type { PublicationStopState } from '../publication-stop-types';
 import type { OwnPublicationSummary } from '../own-publication-types';
 import { publicKeys } from './public-author-client';
@@ -38,111 +38,28 @@ export function createPublicationStopClient(fetcher: typeof fetch = fetch) {
           !/^[A-Za-z0-9_-]{43}$/.test(csrf)))
     )
       throw new PublicationStopClientError();
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let expired = false;
-    let rejectAbort: (error: PublicationStopClientError) => void = () => {};
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const aborted = new Promise<never>((_, reject) => {
-      rejectAbort = reject;
-    });
-    const externalAbort = () => {
-      cancel();
-      rejectAbort(new PublicationStopClientError());
-    };
-    signal?.addEventListener('abort', externalAbort, { once: true });
-    if (signal?.aborted) externalAbort();
-    const operation = (async () => {
-      if (controller.signal.aborted) throw new PublicationStopClientError();
-      const response = await fetcher('/api/private/publication-stops/' + kind + '/' + publicId, {
-        method: expectedVersion === undefined ? 'GET' : 'POST',
+    let result: unknown;
+    try {
+      result = await readBoundedJson('/api/private/publication-stops/' + kind + '/' + publicId, {
+        fetcher,
         credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers:
-          expectedVersion === undefined
-            ? { Accept: 'application/json' }
-            : {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                Authorization: proofAuthorization('csrf', csrf),
-              },
+        method: expectedVersion === undefined ? 'GET' : 'POST',
+        maxBytes: 65536,
+        signal,
         ...(expectedVersion === undefined
           ? {}
-          : {
-              body: JSON.stringify({ expectedSourceVersion: expectedVersion, confirmStop: true }),
-            }),
+          : { csrf, body: { expectedSourceVersion: expectedVersion, confirmStop: true } }),
       });
-      if (
-        expired ||
-        controller.signal.aborted ||
-        response.status !== 200 ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        throw new PublicationStopClientError();
-      }
-      const length = response.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 65536)
-      ) {
-        void response.body.cancel().catch(() => {});
-        throw new PublicationStopClientError();
-      }
-      reader = response.body.getReader();
-      const bytes = new Uint8Array(65536);
-      let size = 0,
-        count = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (expired || controller.signal.aborted) throw new PublicationStopClientError();
-          if (next.done) break;
-          if (++count > 65536 || size + next.value.byteLength > bytes.length)
-            throw new PublicationStopClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        return JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ) as unknown;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new PublicationStopClientError());
-      }, 10000);
-    });
-    try {
-      const result = await Promise.race([operation, deadline, aborted]);
-      if (
-        !valid(result, kind, publicId) ||
-        (expectedVersion !== undefined &&
-          (!result.stopped || result.sourceVersion !== expectedVersion))
-      )
-        throw new PublicationStopClientError();
-      return result;
-    } catch (error) {
-      if (error instanceof PublicationStopClientError) throw error;
+    } catch {
       throw new PublicationStopClientError();
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', externalAbort);
-      cancel();
     }
+    if (
+      !valid(result, kind, publicId) ||
+      (expectedVersion !== undefined &&
+        (!result.stopped || result.sourceVersion !== expectedVersion))
+    )
+      throw new PublicationStopClientError();
+    return result;
   }
   return {
     read: (kind: OwnPublicationSummary['kind'], id: string, signal?: AbortSignal) =>

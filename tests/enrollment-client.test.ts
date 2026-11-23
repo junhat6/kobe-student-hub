@@ -164,6 +164,10 @@ describe('private account enrollment client', () => {
         new Response('{}', {
           headers: { 'Content-Type': 'application/json', 'Content-Length': 'NaN' },
         }),
+      () =>
+        new Response(JSON.stringify(value), {
+          headers: { 'Content-Type': 'application/json', 'Content-Length': '4096' },
+        }),
     ])
       await expect(
         createEnrollmentClient(csrf, (async () => make()) as typeof fetch).read(),
