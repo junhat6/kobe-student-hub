@@ -8,6 +8,7 @@
 //   3. 未適用の D1 migration があれば、適用前の Time Travel ブックマークを記録してから適用する
 //   4. `wrangler deploy` で切り替える（cron・独自ドメインも設定どおりに揃う）
 //   5. 本番 smoke。失敗したら Worker を直前の版へ rollback する（D1 は自動では戻さない）
+//   6. smoke が通ったら、media 行と R2 の照合の数（Worker の定時処理が残した最新）を読み取りだけで読む（#249）
 //
 // 結果は最後に `[deploy] result {json}` の 1 行で出す（KSH_DEPLOY_RESULT があればそのファイルにも書く）。
 // scripts/release.mjs がこれを読んでリリース記録に載せる。json には自前の 1 行メッセージだけを入れ、
@@ -21,6 +22,7 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { MEDIA_AUDIT_SQL, parseMediaAudit } from './loop/media-audit.mjs';
 import { smoke } from './loop/smoke.mjs';
 import { ORIGIN, writeProductionConfig } from './production-wrangler.mjs';
 
@@ -130,6 +132,19 @@ for (let i = 0; i < 3 && !after.ok; i++) {
 }
 result.smoke = { ok: after.ok, failures: after.failures };
 if (after.ok) {
+  // 6. media 行と R2 の照合の数を読む（#249）。読み取りだけで、失敗しても deploy は成功のまま。
+  const audit = wrangler(
+    ['d1', 'execute', 'DB', '--remote', '--json', '--command', MEDIA_AUDIT_SQL],
+    { capture: true },
+  );
+  try {
+    result.mediaAudit = audit.ok
+      ? parseMediaAudit(jsonOut(audit.out))
+      : { error: '本番 D1 に届きません' };
+  } catch {
+    result.mediaAudit = { error: '照合の記録を読めません' };
+  }
+  log(`media 照合: ${JSON.stringify(result.mediaAudit)}`);
   summary(`本番 deploy 成功: ${short} → ${origin}（smoke OK）`);
   finish(0, 'deploy 成功（smoke OK）');
 }

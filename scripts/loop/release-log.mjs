@@ -17,6 +17,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { formatMediaAudit } from './media-audit.mjs';
 
 export const REPO = process.env.KSH_REPO || 'junhat6/kobe-student-hub';
 export const LOG_LABEL = 'release-log';
@@ -126,6 +127,7 @@ export function formatRecord(r) {
     ['deploy', r.deploy ? link(`${r.deploy.via}: ${r.deploy.result}`, r.deploy.url) : '—'],
     ['smoke', r.smoke ? (r.smoke.ok ? 'OK' : `失敗: ${r.smoke.failures.join(', ')}`) : '—'],
     ['D1 ブックマーク', r.bookmark ? `\`${r.bookmark}\`` : '—'],
+    ['media 照合', formatMediaAudit(r.mediaAudit)],
   ].filter(([k, v]) => v !== undefined && !(k === '理由' && !v));
   const commits = r.commits?.list?.length
     ? [

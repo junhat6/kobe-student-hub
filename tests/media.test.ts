@@ -1215,6 +1215,181 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
   });
 });
 
+// #249: the read-only D1↔R2 audit that release trains report before the contract stage of #12.
+describe('media object audit', () => {
+  beforeAll(() => boot(true));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  type Audit = {
+    total: number;
+    pending: number;
+    checked: number;
+    missing: number;
+    mismatched: number;
+    complete: boolean;
+  };
+  const audit = async () => {
+    const r = await mf.dispatchFetch(O + '/fixture/audit');
+    expect(r.status).toBe(200);
+    const text = await r.text();
+    return { text, value: JSON.parse(text) as Audit & { error?: string } };
+  };
+  const row = async (image: string) =>
+    (await (
+      await mf.getD1Database('DB')
+    )
+      .prepare(
+        'SELECT sha256,length(payload) bytes,owner_account_id,article_draft_id FROM media_assets WHERE id=?',
+      )
+      .bind(image)
+      .first<{
+        sha256: string;
+        bytes: number;
+        owner_account_id: string;
+        article_draft_id: string;
+      }>())!;
+  const ok = { pending: 0, missing: 0, mismatched: 0, complete: true };
+  const images: string[] = [];
+  let d: PrivateDraft;
+
+  it('refuses every write in the read-only views it runs on', async () => {
+    expect(await (await mf.dispatchFetch(O + '/fixture/audit-guards')).json()).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+  });
+  it('counts every row as matching when D1 and R2 agree', async () => {
+    d = await draft();
+    for (let i = 0; i < 3; i++) {
+      const image = id();
+      expect((await upload(d, image)).status).toBe(201);
+      images.push(image);
+    }
+    expect((await audit()).value).toEqual({ total: 3, checked: 3, ...ok });
+  });
+  it('counts a copied row whose object is gone from R2 as missing', async () => {
+    const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+    await bucket.delete(`media/${images[0]}/${(await row(images[0])).sha256}`);
+    expect((await audit()).value).toEqual({ total: 3, checked: 3, ...ok, missing: 1 });
+  });
+  it('counts an object with the same size but other bytes as mismatched, with or without a stored checksum', async () => {
+    const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+    const { sha256, bytes } = await row(images[1]);
+    // Same length, other bytes, no checksum: the audit has to hash the object itself.
+    await bucket.put(`media/${images[1]}/${sha256}`, new Uint8Array(bytes).fill(7));
+    expect((await audit()).value).toEqual({
+      total: 3,
+      checked: 3,
+      ...ok,
+      missing: 1,
+      mismatched: 1,
+    });
+    // The right bytes without a stored checksum still count as matching.
+    const good = await row(images[2]);
+    const key = `media/${images[2]}/${good.sha256}`;
+    const original = new Uint8Array(await (await bucket.get(key))!.arrayBuffer());
+    await bucket.put(key, original);
+    expect((await audit()).value).toEqual({
+      total: 3,
+      checked: 3,
+      ...ok,
+      missing: 1,
+      mismatched: 1,
+    });
+  });
+  it('counts a row whose bytes are only in D1 as pending, and leaves no id, key, owner or bytes in the output', async () => {
+    const db = await mf.getD1Database('DB'),
+      legacy = id();
+    await db
+      .prepare(
+        'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,article_draft_id,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
+      )
+      .bind(legacy, NOW, images[2])
+      .run();
+    const { text, value } = await audit();
+    expect(value).toEqual({ total: 4, checked: 3, ...ok, pending: 1, missing: 1, mismatched: 1 });
+    const canaries = [legacy, ...images];
+    for (const image of [legacy, ...images]) {
+      const r = await row(image);
+      canaries.push(r.sha256, r.owner_account_id, r.article_draft_id);
+    }
+    canaries.push(
+      'media/',
+      'account-',
+      d.id,
+      'image/png',
+      [...png.slice(0, 8)].map(String).join(','),
+    );
+    for (const canary of canaries) expect(text).not.toContain(canary);
+    expect(Object.keys(value).sort()).toEqual([
+      'checked',
+      'complete',
+      'mismatched',
+      'missing',
+      'pending',
+      'total',
+    ]);
+  });
+  it('throws instead of reporting zeros when R2 fails', async () => {
+    const r = await mf.dispatchFetch(O + '/fixture/audit', { headers: { 'X-Test-R2-Fail': '1' } });
+    expect(Object.keys((await r.json()) as object)).toEqual(['error']);
+  });
+  it('never changes a row or an object', async () => {
+    const db = await mf.getD1Database('DB');
+    const before = await db
+      .prepare('SELECT id,sha256,object_stored_at_ms,hex(payload) p FROM media_assets ORDER BY id')
+      .all();
+    const objects = (
+      await (await mf.getR2Bucket('MEDIA_BUCKET')).list({ prefix: 'media/' })
+    ).objects
+      .map((o) => o.key)
+      .sort();
+    await audit();
+    expect(
+      (
+        await db
+          .prepare(
+            'SELECT id,sha256,object_stored_at_ms,hex(payload) p FROM media_assets ORDER BY id',
+          )
+          .all()
+      ).results,
+    ).toEqual(before.results);
+    expect(
+      (await (await mf.getR2Bucket('MEDIA_BUCKET')).list({ prefix: 'media/' })).objects
+        .map((o) => o.key)
+        .sort(),
+    ).toEqual(objects);
+  });
+  it('records counts at most once per interval and keeps only the latest records', async () => {
+    const db = await mf.getD1Database('DB');
+    const due = async (at: number) =>
+      (await (
+        await mf.dispatchFetch(O + '/fixture/audit-if-due', {
+          headers: { 'X-Test-Now': String(at) },
+        })
+      ).json()) as boolean;
+    expect(await due(NOW)).toBe(true);
+    expect(await due(NOW + 30 * 60 * 1000)).toBe(false);
+    expect(
+      await db
+        .prepare(
+          'SELECT total,pending,checked,missing,mismatched,complete FROM media_object_audits',
+        )
+        .all(),
+    ).toMatchObject({
+      results: [{ total: 4, pending: 1, checked: 3, missing: 1, mismatched: 1, complete: 1 }],
+    });
+    for (let i = 1; i <= 20; i++) expect(await due(NOW + i * 60 * 60 * 1000)).toBe(true);
+    const kept = await db
+      .prepare('SELECT MIN(measured_at_ms) first, COUNT(*) n FROM media_object_audits')
+      .first<{ first: number; n: number }>();
+    expect(kept).toEqual({ first: NOW + 7 * 60 * 60 * 1000, n: 14 });
+  });
+});
+
 describe('migration 0032 on a database that already has published images', () => {
   const db = () => mf.getD1Database('DB');
   const apply = async (file: string) => {

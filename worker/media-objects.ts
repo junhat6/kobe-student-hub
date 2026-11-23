@@ -191,3 +191,133 @@ export async function maintainMediaObjects(
   }
   return result;
 }
+
+export type MediaObjectAudit = {
+  /** Every media row in D1. */
+  total: number;
+  /** Rows whose bytes are still only in D1 (object_stored_at_ms IS NULL). */
+  pending: number;
+  /** Copied rows whose object was looked up in R2 this run. */
+  checked: number;
+  /** Copied rows with no object in R2. */
+  missing: number;
+  /** Copied rows whose object differs from the row in size or sha256. */
+  mismatched: number;
+  /** True when every copied row was checked (the run was not cut at AUDIT_LIMIT). */
+  complete: boolean;
+};
+
+const AUDIT_LIMIT = 500;
+const AUDIT_INTERVAL_MS = 55 * 60 * 1000;
+const AUDITS_KEPT = 14;
+const hex = (b: ArrayBuffer) =>
+  Array.from(new Uint8Array(b), (v) => v.toString(16).padStart(2, '0')).join('');
+
+/**
+ * Read-only reconciliation of D1 media rows against R2 (#249), the precondition for the contract
+ * stage of #12. It only runs SELECT and R2 head/get, never put/delete or an UPDATE, and returns
+ * counts only: no id, key, owner or bytes leave this function. R2 failures throw so the caller
+ * records "could not audit" instead of a misleading zero.
+ */
+export async function auditMediaObjects(
+  db: D1Database,
+  bucket: R2Bucket,
+  limit = AUDIT_LIMIT,
+): Promise<MediaObjectAudit> {
+  const counts = await db
+    .prepare(
+      'SELECT COUNT(*) total, COALESCE(SUM(object_stored_at_ms IS NULL),0) pending FROM media_assets',
+    )
+    .first<{ total: number; pending: number }>();
+  const total = counts?.total ?? 0,
+    pending = counts?.pending ?? 0;
+  const rows = (
+    await db
+      .prepare(
+        'SELECT id,sha256,length(payload) bytes FROM media_assets WHERE object_stored_at_ms IS NOT NULL ORDER BY id LIMIT ?',
+      )
+      .bind(limit)
+      .all<MediaObjectRef>()
+  ).results;
+  let missing = 0,
+    mismatched = 0;
+  for (const row of rows) {
+    const key = mediaObjectKey(row.id, row.sha256);
+    const head = await bucket.head(key);
+    if (!head) {
+      missing++;
+      continue;
+    }
+    if (head.size !== row.bytes) {
+      mismatched++;
+      continue;
+    }
+    // putMediaObject stores the sha256 checksum; objects without one are hashed from their bytes.
+    let digest = head.checksums?.sha256 ? hex(head.checksums.sha256) : '';
+    if (!digest) {
+      const object = await bucket.get(key);
+      digest = object ? await sha256Hex(new Uint8Array(await object.arrayBuffer())) : '';
+      if (!object) {
+        missing++;
+        continue;
+      }
+    }
+    if (digest !== row.sha256) mismatched++;
+  }
+  return {
+    total,
+    pending,
+    checked: rows.length,
+    missing,
+    mismatched,
+    complete: rows.length === total - pending,
+  };
+}
+
+/** Stores the counts of one audit and keeps only the latest AUDITS_KEPT rows. */
+export async function recordMediaAudit(
+  db: D1Database,
+  audit: MediaObjectAudit,
+  now: number,
+): Promise<void> {
+  await db.batch([
+    db
+      .prepare(
+        'INSERT OR REPLACE INTO media_object_audits(measured_at_ms,total,pending,checked,missing,mismatched,complete) VALUES(?,?,?,?,?,?,?)',
+      )
+      .bind(
+        now,
+        audit.total,
+        audit.pending,
+        audit.checked,
+        audit.missing,
+        audit.mismatched,
+        audit.complete ? 1 : 0,
+      ),
+    db
+      .prepare(
+        'DELETE FROM media_object_audits WHERE measured_at_ms NOT IN (SELECT measured_at_ms FROM media_object_audits ORDER BY measured_at_ms DESC LIMIT ?)',
+      )
+      .bind(AUDITS_KEPT),
+  ]);
+}
+
+/** Scheduled entry: audits at most once per AUDIT_INTERVAL_MS. Failures are retried next run. */
+export async function auditMediaObjectsIfDue(
+  db: D1Database,
+  bucket: R2Bucket | undefined,
+  clock: () => number = Date.now,
+): Promise<boolean> {
+  if (!bucket) return false;
+  try {
+    const now = clock();
+    const last = await db
+      .prepare('SELECT MAX(measured_at_ms) at FROM media_object_audits')
+      .first<{ at: number | null }>();
+    if (last?.at != null && now - last.at < AUDIT_INTERVAL_MS) return false;
+    await recordMediaAudit(db, await auditMediaObjects(db, bucket), now);
+    return true;
+  } catch {
+    return false;
+  }
+}

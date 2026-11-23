@@ -8,7 +8,7 @@ import {
   type ModerationEmailBindings,
 } from './moderation-email';
 import { warmMediaCodec } from './media';
-import { maintainMediaObjects, mediaBucket } from './media-objects';
+import { auditMediaObjectsIfDue, maintainMediaObjects, mediaBucket } from './media-objects';
 import { createEnrollmentHandler } from './enrollment-http';
 import { parseModerationOperators, type ModerationBindings } from './moderation-http';
 import { createOAuthHttpHandler, type OAuthBindings } from './auth/oauth-http';
@@ -200,8 +200,13 @@ export default {
     if (!OAUTH_HTTP_RELEASE_ENABLED || !ORDINARY_DRAFT_HTTP_RELEASE_ENABLED) return;
     if (AGENT_MCP_RELEASE_ENABLED && event.cron === AUTH_MAINTENANCE_CRON)
       ctx.waitUntil(cleanupAgentConnections(env.DB).catch(() => {}));
+    // The audit runs after the backfill so it counts what this run copied (#249).
     if (event.cron === AUTH_MAINTENANCE_CRON && mediaBucket(env))
-      ctx.waitUntil(maintainMediaObjects(env.DB, mediaBucket(env)).catch(() => {}));
+      ctx.waitUntil(
+        maintainMediaObjects(env.DB, mediaBucket(env))
+          .catch(() => {})
+          .then(() => auditMediaObjectsIfDue(env.DB, mediaBucket(env))),
+      );
     if (!parseModerationOperators(env as Env & ModerationBindings).length) return;
     const options = moderationEmailOptions(
       env as Env & ModerationEmailBindings,

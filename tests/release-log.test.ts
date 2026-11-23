@@ -8,6 +8,12 @@ import {
   trainAt,
   // @ts-expect-error plain ESM script without type declarations
 } from '../scripts/loop/release-log.mjs';
+import {
+  MEDIA_AUDIT_SQL,
+  formatMediaAudit,
+  parseMediaAudit,
+  // @ts-expect-error plain ESM script without type declarations
+} from '../scripts/loop/media-audit.mjs';
 
 const jst = (s: string) => new Date(`${s}+09:00`);
 
@@ -111,5 +117,67 @@ describe('release record', () => {
   it('does not count a train whose window is still open as missed', () => {
     const s = summarize([], { from: jst('2026-11-22T00:00:00'), to: jst('2026-11-22T20:30:00') });
     expect(s.missedSlots).toEqual(['2026-11-22 朝便']);
+  });
+});
+
+// #249: the media D1↔R2 audit counts a release train reads after deploy.
+describe('media audit in the release record', () => {
+  const row = {
+    measured_at_ms: Date.parse('2026-11-23T11:00:00Z'),
+    total: 5,
+    pending: 1,
+    checked: 4,
+    missing: 1,
+    mismatched: 0,
+    complete: 1,
+  };
+  const canary = {
+    id: '11111111-2222-4333-8444-555555555555',
+    key: 'media/11111111-2222-4333-8444-555555555555/' + 'c'.repeat(64),
+    owner_account_id: 'account-canary',
+    payload: 'canary-body',
+  };
+
+  it('reads the latest counts with a single SELECT', () => {
+    expect(MEDIA_AUDIT_SQL).toMatch(/^SELECT /);
+    expect(MEDIA_AUDIT_SQL).not.toMatch(/\b(INSERT|UPDATE|DELETE|REPLACE|DROP|ALTER)\b/i);
+    expect(MEDIA_AUDIT_SQL).not.toContain(';');
+  });
+
+  it('keeps only the counts, even when the row carries other columns', () => {
+    const audit = parseMediaAudit([{ results: [{ ...row, ...canary }] }]);
+    expect(audit).toEqual({
+      measuredAt: '2026-11-23T11:00:00.000Z',
+      total: 5,
+      pending: 1,
+      checked: 4,
+      missing: 1,
+      mismatched: 0,
+      complete: true,
+    });
+    const body = formatRecord({ ...record, mediaAudit: audit });
+    expect(body).toContain('不一致あり：行 5・未写し 1・R2 欠落 1・size/sha256 不一致 0');
+    expect(body).toContain('20:00:00 JST 測定');
+    for (const value of Object.values(canary)) expect(body).not.toContain(value);
+    expect(parseRecord(body).mediaAudit).toEqual(audit);
+  });
+
+  it('says it matched only when every copied row was checked and nothing is off', () => {
+    const all = parseMediaAudit([{ results: [{ ...row, pending: 0, missing: 0, checked: 5 }] }]);
+    expect(formatMediaAudit(all)).toMatch(/^一致：/);
+    const partial = parseMediaAudit([
+      { results: [{ ...row, pending: 0, missing: 0, checked: 3, complete: 0 }] },
+    ]);
+    expect(formatMediaAudit(partial)).toMatch(/^不一致あり：.*一部のみ/);
+  });
+
+  it('records that it could not audit instead of failing the train', () => {
+    expect(parseMediaAudit([{ results: [] }])).toEqual({ error: 'まだ照合の記録がありません' });
+    expect(parseMediaAudit([{ results: [{ ...row, total: -1 }] }])).toHaveProperty('error');
+    expect(parseMediaAudit(undefined)).toHaveProperty('error');
+    expect(formatRecord({ ...record, mediaAudit: { error: '本番 D1 に届きません' } })).toContain(
+      '照合できず（本番 D1 に届きません）',
+    );
+    expect(formatRecord(record)).not.toContain('media 照合');
   });
 });

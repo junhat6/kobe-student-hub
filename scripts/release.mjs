@@ -343,6 +343,7 @@ function applyDeployResult(result, via, url) {
   };
   if (result?.smoke) rec.smoke = result.smoke;
   if (result?.bookmark) rec.bookmark = result.bookmark;
+  if (result?.mediaAudit) rec.mediaAudit = result.mediaAudit;
   if (result?.migrations?.length) rec.migrationsApplied = result.migrations;
   if (!result || result.code === 0) return;
   const outcome = /rollback が失敗/.test(result.message)

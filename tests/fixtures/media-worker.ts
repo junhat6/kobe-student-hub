@@ -6,7 +6,41 @@ import { ProjectStore } from '../../worker/projects';
 import { PrivateDraftStore } from '../../worker/drafts';
 import { ArticleModerationStore } from '../../worker/moderation';
 import { PublicationStopStore } from '../../worker/publication-stops';
-import { maintainMediaObjects } from '../../worker/media-objects';
+import {
+  auditMediaObjects,
+  auditMediaObjectsIfDue,
+  maintainMediaObjects,
+} from '../../worker/media-objects';
+
+// Read-only views for the audit (#249): any write throws, so a passing audit proves it wrote nothing.
+const readOnlyDb = (db: D1Database): D1Database =>
+  ({
+    prepare(sql: string) {
+      if (!/^\s*SELECT\b/i.test(sql) || /\b(INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql))
+        throw Error('write refused: ' + sql.split(' ')[0]);
+      return db.prepare(sql);
+    },
+    batch() {
+      throw Error('write refused: batch');
+    },
+    exec() {
+      throw Error('write refused: exec');
+    },
+  }) as unknown as D1Database;
+const readOnlyBucket = (bucket: R2Bucket): R2Bucket =>
+  ({
+    head: (key: string) => bucket.head(key),
+    get: (key: string) => bucket.get(key),
+    put() {
+      throw Error('write refused: put');
+    },
+    delete() {
+      throw Error('write refused: delete');
+    },
+    createMultipartUpload() {
+      throw Error('write refused: multipart');
+    },
+  }) as unknown as R2Bucket;
 export default {
   async fetch(request: Request, env: { DB: D1Database; MEDIA_BUCKET?: R2Bucket }) {
     const origin = 'https://app.example.invalid',
@@ -36,6 +70,39 @@ export default {
           request.headers.get('X-Test-Start') ?? undefined,
         ),
       );
+    if (url.pathname === '/fixture/audit')
+      return Response.json(
+        await auditMediaObjects(
+          readOnlyDb(env.DB),
+          request.headers.has('X-Test-R2-Fail')
+            ? ({
+                head() {
+                  throw Error('r2 unavailable');
+                },
+              } as unknown as R2Bucket)
+            : readOnlyBucket(env.MEDIA_BUCKET!),
+        ).catch((e: unknown) => ({ error: String(e) })),
+      );
+    if (url.pathname === '/fixture/audit-guards') {
+      const refused = async (f: () => unknown) => {
+        try {
+          await f();
+          return false;
+        } catch {
+          return true;
+        }
+      };
+      const db = readOnlyDb(env.DB),
+        bucket = readOnlyBucket(env.MEDIA_BUCKET!);
+      return Response.json([
+        await refused(() => db.prepare('UPDATE media_assets SET object_stored_at_ms=0')),
+        await refused(() => db.prepare('DELETE FROM media_assets')),
+        await refused(() => bucket.put('media/x', new Uint8Array([1]))),
+        await refused(() => bucket.delete('media/x')),
+      ]);
+    }
+    if (url.pathname === '/fixture/audit-if-due')
+      return Response.json(await auditMediaObjectsIfDue(env.DB, env.MEDIA_BUCKET, () => now));
     if (url.pathname === '/fixture/session')
       return Response.json(
         await createFixtureSession(env.DB, origin, () => now, {
