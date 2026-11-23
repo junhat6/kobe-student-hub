@@ -109,6 +109,10 @@ test('likes on own articles come back on the account page with what arrived sinc
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
+    // "+1" pops in with a delayed animation; check contrast on its settled colors, not mid-fade.
+    for (const added of await received(page).locator('.received-added').all()) {
+      await added.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    }
     const axe = await new AxeBuilder({ page }).include('.received-likes').analyze();
     expect(axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual(
       [],
