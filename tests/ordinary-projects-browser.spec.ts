@@ -76,11 +76,15 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }),
   ).toBeEnabled();
   // C10: an author without public articles can still publish the project on its own.
-  await expect(
-    page.getByText('公開中の自分の記事はまだありません。作品だけでも公開できます。', {
-      exact: true,
-    }),
-  ).toBeVisible();
+  const noArticles = page.getByRole('group', { name: 'この作品の記事（任意・3件まで）' });
+  await expect(noArticles.getByText('公開中の自分の記事はまだありません。')).toBeVisible();
+  // #168: before publishing, the author learns that a later article cannot be linked.
+  await expect(noArticles.getByText('あとから足せません。')).toBeVisible();
+  await expect(noArticles.getByRole('link', { name: '先に記事を公開' })).toHaveAttribute(
+    'href',
+    '/drafts',
+  );
+  await noArticles.screenshot({ path: test.info().outputPath('project-no-articles.png') });
   expect(await publicCount()).toBe(before);
   await page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }).click();
   const link = page.getByRole('link', { name: 'ログインなしで作品を見る' });

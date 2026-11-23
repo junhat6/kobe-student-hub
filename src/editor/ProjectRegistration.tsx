@@ -917,11 +917,16 @@ export default function ProjectRegistration({
                   自分の公開記事を確認できませんでした。記事を紐づけずに公開できます。紐づけたい場合は「公開の確認をもう一度」を押してください。
                 </p>
               ) : !ownArticles.length ? (
-                <p>公開中の自分の記事はまだありません。作品だけでも公開できます。</p>
+                // #168: a project published first can never gain a later article, so say so here.
+                <p>
+                  公開中の自分の記事はまだありません。記事は作品を公開するときにだけ選べて、あとから足せません。制作記録も載せたいなら、
+                  <a href="/drafts">先に記事を公開</a>
+                  してから作品を公開してください。作品だけでも公開できます。
+                </p>
               ) : (
                 <>
                   <p>
-                    選んだ記事へのリンクが作品ページに表示され、記事ページにもこの作品が表示されます。公開後は変更できません。
+                    選んだ記事へのリンクが作品ページに表示され、記事ページにもこの作品が表示されます。記事を選べるのは公開のときだけで、あとから足したり外したりはできません。
                   </p>
                   {ownArticles.map((article) => {
                     const checked = linked.includes(article.id);
