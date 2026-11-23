@@ -48,7 +48,7 @@
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 
 ## 4. 閉じる
-- commit 本文に `Loop: finish`・`Risk: R0|R1|R2`・`Closes #N`。main へ push（rebase してから。force push しない）
+- commit 本文に `Loop: finish`・`Risk: R0|R1|R2`・`Closes #N`（R2 の実装 commit は `Refs #N` にして push し、verifier 合格後の commit か手で閉じる。`Closes` だと push と同時に閉じる）。main へ push（rebase してから。force push しない）
 - completion.json の該当 item の status/evidence/production だけを更新（capability と acceptance は触らない）
 - push 後に main が壊れていたら、それが最優先。15分で直せなければ自分の commit を revert
 - main-health が自分の変更と無関係な vitest の timeout（oauth・media 等）だけで赤なら、まず `gh run rerun <id> --failed` で再確認する。ローカル `npm test` が green で再実行も green なら revert しない
