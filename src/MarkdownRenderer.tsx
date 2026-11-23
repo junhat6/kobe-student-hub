@@ -5,8 +5,8 @@ import CodeBlock from './CodeBlock';
 import PrivateImage from './editor/PrivateImage';
 import { mediaId } from './shared/media';
 import './editor/media.css';
-import YouTubeEmbed from './YouTubeEmbed';
-import { youtubeVideoId } from './shared/youtube';
+import ExternalEmbed from './ExternalEmbed';
+import { parseEmbed } from './shared/embed';
 export default function MarkdownRenderer({
   body,
   privateMedia,
@@ -22,11 +22,12 @@ export default function MarkdownRenderer({
       components={{
         p: ({ node, children }) => {
           const child = node?.children.length === 1 ? node.children[0] : null;
-          const id =
+          // A paragraph that is only one official embed URL becomes a click-to-load frame.
+          const embed =
             child?.type === 'element' && child.tagName === 'a'
-              ? youtubeVideoId(child.properties.href)
+              ? parseEmbed(child.properties.href)
               : null;
-          return id ? <YouTubeEmbed key={id} videoId={id} /> : <p>{children}</p>;
+          return embed ? <ExternalEmbed embed={embed} /> : <p>{children}</p>;
         },
         pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
         a: ({ href, children }) => (

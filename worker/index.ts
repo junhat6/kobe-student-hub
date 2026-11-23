@@ -47,7 +47,12 @@ app.use(
       styleSrc: ["'self'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
       connectSrc: ["'self'"],
-      frameSrc: ['https://www.youtube-nocookie.com'],
+      // Official embeds only, path-limited (src/shared/embed.ts embedFrameUrl).
+      frameSrc: [
+        'https://www.youtube-nocookie.com',
+        'https://www.google.com/maps/embed',
+        'https://www.instagram.com/p/',
+      ],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
       baseUri: ["'none'"],
@@ -227,7 +232,7 @@ export default {
             'Cache-Control': 'private, no-store',
             Vary: 'Cookie',
             'Content-Security-Policy':
-              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+              "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; frame-src https://www.youtube-nocookie.com https://www.google.com/maps/embed https://www.instagram.com/p/; object-src 'none'; frame-ancestors 'none'; base-uri 'none'",
             'Cross-Origin-Resource-Policy': 'same-origin',
             'Cross-Origin-Opener-Policy': 'same-origin',
             'Origin-Agent-Cluster': '?1',

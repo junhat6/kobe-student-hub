@@ -137,6 +137,83 @@ test('real static CSP permits guarded private Blob images and explicit nocookie 
   await expect(preview.locator('iframe')).toHaveCount(0);
   expect(await page.evaluate(() => Reflect.get(window, '__fixtureCspDirectives'))).toEqual([]);
 });
+test('pasted Google マップ embed HTML and an Instagram URL become consent-gated sandboxed frames under the real CSP', async ({
+  page,
+}, info) => {
+  await article(page, info);
+  await page.evaluate(() => {
+    const directives: string[] = [];
+    Object.defineProperty(window, '__fixtureCspDirectives', { value: directives });
+    document.addEventListener('securitypolicyviolation', (event) => {
+      directives.push(event.effectiveDirective);
+    });
+  });
+  const pb =
+    '!1m18!1m12!1m3!1d3280.6!2d135.19!3d34.69!3m3!1m2!1s0x0%3A0x0!2z5Y+N5oi4=!5e0!3m2!1sja!2sjp';
+  const map = 'https://www.google.com/maps/embed?pb=' + pb;
+  const insta = 'https://www.instagram.com/p/AbC_12-x/embed/';
+  const externalRequests: string[] = [];
+  await page.route(/^https?:\/\/(?!127\.0\.0\.1:8790\/)/, async (route) => {
+    externalRequests.push(route.request().url());
+    expect([map, insta]).toContain(route.request().url());
+    expect(route.request().headers()['referer']).toBe(O + '/');
+    // Synthetic frames only: no request reaches Google or Instagram.
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      headers: { 'Content-Security-Policy': "default-src 'none'" },
+      body: '<!doctype html><title>Synthetic embedded frame</title><p>Synthetic embedded frame</p>',
+    });
+  });
+  const body = page.getByLabel('Markdown本文', { exact: true });
+  await body.focus();
+  await body.evaluate((area: HTMLTextAreaElement) =>
+    area.setSelectionRange(area.value.length, area.value.length),
+  );
+  // What Google マップ「共有 → 地図を埋め込む」 copies. Raw HTML would be dropped, so it becomes one URL line.
+  await body.evaluate((area: HTMLTextAreaElement, html: string) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', html);
+    area.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+    );
+  }, `<iframe src="${map}" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy"></iframe>`);
+  await expect(body).toHaveValue('## 実験の画面\n\n保存した画面を説明します。\n\n' + map);
+  await body.fill(
+    (await body.inputValue()) + '\n\nhttps://www.instagram.com/p/AbC_12-x/?igsh=tracking',
+  );
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
+  const preview = page.getByLabel('Markdownプレビュー', { exact: true });
+  await expect(preview.getByRole('button', { name: '地図を読み込む', exact: true })).toBeVisible();
+  await expect(preview.getByRole('link', { name: 'Instagramで開く', exact: true })).toHaveAttribute(
+    'href',
+    'https://www.instagram.com/p/AbC_12-x/',
+  );
+  await expect(page.locator('iframe')).toHaveCount(0);
+  expect(externalRequests).toEqual([]);
+  await preview.getByRole('button', { name: '地図を読み込む', exact: true }).click();
+  await preview.getByRole('button', { name: 'Instagramの投稿を読み込む', exact: true }).click();
+  for (const title of ['Google マップ', 'Instagramの投稿']) {
+    const frame = preview.locator(`iframe[title="${title}"]`);
+    await expect(frame).toHaveAttribute(
+      'sandbox',
+      'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox',
+    );
+    await expect(
+      preview
+        .frameLocator(`iframe[title="${title}"]`)
+        .getByText('Synthetic embedded frame', { exact: true }),
+    ).toBeVisible();
+  }
+  expect(externalRequests.sort()).toEqual([map, insta].sort());
+  await page.screenshot({
+    path: info.outputPath('consented-map-and-instagram.png'),
+    fullPage: true,
+  });
+  expect(await page.evaluate(() => Reflect.get(window, '__fixtureCspDirectives'))).toEqual([]);
+});
 test('article image stays private until explicit saved-version publication and fresh acquisition stops with owner stop', async ({
   page,
   browser,

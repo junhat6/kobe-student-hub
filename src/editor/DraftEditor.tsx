@@ -11,8 +11,10 @@ import AgentWritingPanel from '../agent/AgentWritingPanel';
 import { useAgentDrafts } from '../agent/connections-client';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import type { AgentArticle, AgentArticleMetadata } from '../agent/article-format';
+import { embedLineFromPaste } from '../shared/embed';
 import {
   formatMarkdown,
+  insertOwnLine,
   textareaText,
   type MarkdownFormat,
   type MarkdownTool,
@@ -594,6 +596,17 @@ export default function DraftEditor({
     pendingFormat.current = result;
     setText((t) => ({ ...t, body: result.body }));
   }
+  /** Official embed HTML (Google マップ・Instagram・YouTube) becomes one URL line; raw HTML is not shown. */
+  function pasteEmbed(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const line = embedLineFromPaste(event.clipboardData.getData('text/plain'));
+    const area = event.currentTarget;
+    if (!line || editingLocked || compositionRef.current) return;
+    event.preventDefault();
+    const result = insertOwnLine(area.value, area.selectionStart, area.selectionEnd, line);
+    cancelAutosave();
+    pendingFormat.current = result;
+    setText((t) => ({ ...t, body: result.body }));
+  }
   useLayoutEffect(() => {
     const selection = pendingFormat.current;
     if (!selection) return;
@@ -840,6 +853,7 @@ export default function DraftEditor({
                       }
                       onCompositionStart={startComposition}
                       onCompositionEnd={endComposition}
+                      onPaste={pasteEmbed}
                       onChange={(event) => {
                         cancelAutosave();
                         pendingFormat.current = null;

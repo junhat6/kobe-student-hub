@@ -254,10 +254,10 @@ export const SHOP_REVIEW_RULES = [
  * pattern as SHOP_REVIEW_RULES: the request/MCP guide, the kit, the draft screen and /guide#rules.
  */
 export const QUOTE_RULES = [
-  '自分の経験・感想が主で、引用は必要な部分だけ短く',
+  '自分の経験・感想が主で、口コミは必要な部分だけ短く引用するか、口コミへのリンクを添える',
   '引用は > で本文と分け、自分で開いて確かめた原文のまま写す（言い換えない・作らない）',
   'すぐ下に出典（サイト名と URL）を書く。投稿者の名前・アカウント名は書かない',
-  '他の人の写真・画像は保存してアップロードし直さない。見せたいときは公式の SNS やページへのリンクにする',
+  '他の人の写真・画像は保存してアップロードし直さない（Google マップに投稿された写真も同じ）。見せたいときは公式の埋め込みかリンクにする',
 ] as const;
 
 export const WRITING_RULES = `- 自分（依頼者）が実際にやったこと・確かめたことだけを書く。やっていない経験や数字を作らない。
@@ -268,7 +268,7 @@ export const WRITING_RULES = `- 自分（依頼者）が実際にやったこと
 - 読者は神戸電子の学生。専門用語は最初に一言で説明する。
 - お店のレビューなら：${SHOP_REVIEW_RULES.join('。')}。
 - 引用するなら：${QUOTE_RULES.join('。')}。
-  - 例：「> 昼は12時を過ぎると並ぶ」のすぐ下に「出典：〇〇（https://…）」。YouTube は URL だけの行が埋め込みになる。それ以外のリンクはリンクとして出る。覚えている内容から口コミを作らない。`;
+  - 例：「> 昼は12時を過ぎると並ぶ」のすぐ下に「出典：〇〇（https://…）」。埋め込みになるのは、それだけを1行に書いた YouTube の動画 URL・Instagram の投稿 URL・Google マップの「地図を埋め込む」の URL（https://www.google.com/maps/embed?pb=…）。それ以外のリンクはリンクとして出る。覚えている内容から口コミを作らない。`;
 
 /**
  * The text a student copies into their own AI agent. Includes the current draft when there is

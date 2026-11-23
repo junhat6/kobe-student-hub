@@ -163,3 +163,15 @@ export function formatMarkdown(
     end: domOffset(body, blockStart + opening.length + selectionEnd),
   };
 }
+
+/** Puts a URL on its own paragraph at the selection, so the renderer can turn it into an embed. */
+export function insertOwnLine(value: string, start: number, end: number, line: string) {
+  const before = value.slice(0, start);
+  const after = value.slice(end);
+  const lead =
+    before === '' || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+  const trail =
+    after === '' || after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+  const cursor = before.length + lead.length + line.length;
+  return { body: before + lead + line + trail + after, start: cursor, end: cursor };
+}

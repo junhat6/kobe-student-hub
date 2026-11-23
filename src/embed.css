@@ -1,0 +1,43 @@
+.external-embed {
+  margin: 32px 0;
+  overflow: hidden;
+}
+.embed-placeholder {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 200px;
+  padding: 24px;
+  background: #f1f5f9;
+  border: 1px solid #d6e3ed;
+  border-radius: 12px;
+}
+.embed-placeholder p {
+  margin: 12px 0 0;
+  color: #596e7d;
+}
+.external-embed iframe {
+  display: block;
+  width: 100%;
+  min-height: 200px;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 12px;
+}
+.external-embed-map iframe {
+  aspect-ratio: 4 / 3;
+}
+/* Instagram の埋め込みは縦長で、提供元のスクリプトを使わないので高さを固定する。 */
+.external-embed-instagram iframe,
+.external-embed-instagram .embed-placeholder {
+  max-width: 400px;
+  margin-inline: auto;
+}
+.external-embed-instagram iframe {
+  aspect-ratio: auto;
+  height: 560px;
+}
+.external-embed figcaption {
+  margin-top: 12px;
+  font-size: 14px;
+}
