@@ -149,12 +149,12 @@ test('ordinary search finds article-only and project-only authors and preserves 
     await expect(page.locator('main')).not.toContainText('公開停止記事-' + key);
     await expect(page.locator('main')).not.toContainText('公開停止作品-' + key);
     await expect(page.locator('main')).not.toContainText('一時非公開記事-' + key);
-    await expect(
-      page.getByText(
-        '新しい公開記事・作品それぞれ最大20件のタイトル・紹介・記事タグ・投稿者名が検索対象です。',
-        { exact: true },
-      ),
-    ).toBeVisible();
+    // The search range is explained only once a public list is actually cut off at 20 cards.
+    const atLimit =
+      JSON.parse(publicArticles).cards.length === 20 ||
+      JSON.parse(publicProjects).cards.length === 20;
+    await expect(page.locator('.search-limit')).toHaveCount(atLimit ? 1 : 0);
+    await expect(page.locator('main')).not.toContainText('気になる言葉や投稿者名から');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -263,8 +263,11 @@ test('ordinary search finds article-only and project-only authors and preserves 
       .click();
     await expect(page).toHaveURL(ORIGIN + '/search?type=article&tag=AI');
     await page.goto('/search?' + new URLSearchParams({ q: key, type: 'project', tag: 'AI' }));
-    await expect(page.getByText('タグは記事が対象です。', { exact: false })).toBeVisible();
-    await page.getByRole('button', { name: 'タグを解除', exact: true }).click();
+    await expect(page.locator('main')).not.toContainText('タグは記事が対象です。');
+    await page.getByRole('button', { name: 'タグ「# AI」を解除', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'タグ「# AI」を解除', exact: true })).toHaveCount(
+      0,
+    );
     await expect(page.locator('.search-result-count')).toHaveText('作品 1件');
     await expect(page.getByRole('link', { name: 'DuckDB作品-' + key, exact: true })).toBeVisible();
     await page.getByRole('searchbox').fill('架空の該当なし-' + key);

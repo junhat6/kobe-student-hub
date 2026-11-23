@@ -5,6 +5,7 @@ import { createPublicDiscoveryClient } from '../editor/public-discovery-client';
 import { createPublicWorksClient } from '../editor/public-works-client';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import PublicProjectCard from '../editor/PublicProjectCard';
+import Icon from '../shared/Icon';
 import { usePublicRead } from './public-read';
 import './search.css';
 
@@ -92,6 +93,10 @@ export default function Search() {
         ]
       : []),
   ];
+  // The public APIs return at most 20 cards; say so only once a list is actually cut off.
+  const atLimit =
+    (showArticles && articleRead.value?.cards.length === 20) ||
+    (showProjects && projectRead.value?.cards.length === 20);
   const complete =
     (!showArticles || articleRead.value !== null) && (!showProjects || projectRead.value !== null);
   const empty =
@@ -101,7 +106,6 @@ export default function Search() {
     <section className="shell community-search">
       <div className="community-search-heading">
         <h1>記事・作品を探す</h1>
-        <p>気になる言葉や投稿者名から、学生の知識と制作を探せます。</p>
       </div>
       <form
         className="searchbox"
@@ -126,7 +130,7 @@ export default function Search() {
       </form>
       <div className="community-search-filters">
         <fieldset>
-          <legend>種類</legend>
+          <legend className="sr-only">種類</legend>
           <div className="search-types">
             {(
               [
@@ -146,7 +150,7 @@ export default function Search() {
           </div>
         </fieldset>
         <label className="search-tag" htmlFor="ordinary-search-tag">
-          タグ（記事）
+          <span className="sr-only">タグ（記事）</span>
           <select
             id="ordinary-search-tag"
             value={tag}
@@ -160,15 +164,18 @@ export default function Search() {
             ))}
           </select>
         </label>
+        {tag && (
+          <Button
+            className="search-tag-chip"
+            aria-label={`タグ「# ${tag}」を解除`}
+            title={`タグ「# ${tag}」を解除`}
+            onClick={() => update('tag', '')}
+          >
+            # {tag}
+            <Icon name="close" size={16} />
+          </Button>
+        )}
       </div>
-      {tag && (
-        <p className="search-tag-note">
-          タグは記事が対象です。<Button onClick={() => update('tag', '')}>タグを解除</Button>
-        </p>
-      )}
-      <p className="search-limit">
-        新しい公開記事・作品それぞれ最大20件のタイトル・紹介・記事タグ・投稿者名が検索対象です。
-      </p>
       <p className="search-result-count" role="status" aria-live="polite">
         {status.join(' · ') || 'タグを解除すると作品を検索できます。'}
       </p>
@@ -245,6 +252,9 @@ export default function Search() {
               </section>
             ) : null)}
         </div>
+      )}
+      {atLimit && (
+        <p className="search-limit">新しい公開記事・作品それぞれ20件までが検索対象です。</p>
       )}
     </section>
   );
