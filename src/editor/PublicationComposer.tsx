@@ -32,6 +32,10 @@ interface Props {
   onUnsavedPreparation: (value: boolean, uncertain?: boolean) => void;
   /** Reader-facing fields an AI agent wrote for this draft; applied only when the author asks. */
   suggested?: AgentArticleMetadata | null;
+  /** Called once the author put the suggestion into the fields (it then counts as unsaved). */
+  onSuggestionUsed?: () => void;
+  /** The suggestion exists only in this page (a pasted file), so leaving loses it. */
+  suggestionVolatile?: boolean;
 }
 class SavedPreviewBoundary extends React.Component<
   { children: React.ReactNode },
@@ -61,6 +65,8 @@ export default function PublicationComposer({
   onPending,
   onUnsavedPreparation,
   suggested = null,
+  onSuggestionUsed,
+  suggestionVolatile = false,
 }: Props) {
   const ordinary = surface === 'ordinary';
   const [optionalOpen, setOptionalOpen] = useState(false);
@@ -338,6 +344,7 @@ export default function PublicationComposer({
       outcome: suggested.outcome || f.outcome,
     }));
     setSuggestionUsed(suggested);
+    onSuggestionUsed?.();
     setConfirmed(false);
   }
   // Best-effort notice only (owner decision 2026-11-22): it never blocks publishing.
@@ -365,6 +372,11 @@ export default function PublicationComposer({
       className="publication-composer"
       aria-label={ordinary ? '保存済み版の公開' : '保存済み版のローカル公開'}
     >
+      {suggestionOffered && suggestionVolatile && !readOnly && (
+        <p className="publication-suggestion-note">
+          AIの概要・タグの候補あり・この画面を離れると消えます
+        </p>
+      )}
       <details>
         <summary>
           {ordinary

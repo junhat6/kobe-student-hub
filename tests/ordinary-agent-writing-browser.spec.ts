@@ -102,6 +102,24 @@ test('a student hands the draft to their own agent, imports its file, and publis
   await check.getByRole('button', { name: '下書きに反映', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 15000 });
   await page.screenshot({ path: info.outputPath('agent-import.png'), fullPage: true });
+  // #201: the suggested fields live only in this page. Saved text alone does not keep them, so
+  // the student is told and asked before a reload or a switch drops them unused.
+  await expect(
+    page.getByText('AIの概要・タグの候補あり・この画面を離れると消えます', { exact: true }),
+  ).toBeVisible();
+  const reloadDialog = page.waitForEvent('dialog');
+  const reloading = page.evaluate(() => location.reload());
+  const reload = await reloadDialog;
+  expect(reload.type()).toBe('beforeunload');
+  await reload.dismiss();
+  await reloading;
+  const switchDialog = page.waitForEvent('dialog');
+  const switching = page.getByRole('button', { name: '新しい下書き', exact: true }).click();
+  const switchConfirm = await switchDialog;
+  expect(switchConfirm.message()).toContain('この候補は消えます');
+  await switchConfirm.dismiss();
+  await switching;
+  await expect(page.locator('.editor-preview')).toContainText('AGENT_IMPORTED_BODY');
   // Applying and saving keep it a private draft: nothing reaches the public list.
   const beforePublish = await page.request.get('/api/articles');
   expect(beforePublish.status()).toBe(200);

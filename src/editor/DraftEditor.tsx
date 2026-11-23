@@ -10,7 +10,7 @@ import ShopReviewGuide, { withShopReviewTemplate } from './ShopReviewGuide';
 import AgentWritingPanel from '../agent/AgentWritingPanel';
 import { useAgentDrafts } from '../agent/connections-client';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
-import type { AgentArticle, AgentArticleMetadata } from '../agent/article-format';
+import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
 import { embedLineFromPaste } from '../shared/embed';
 import {
   formatMarkdown,
@@ -146,7 +146,20 @@ export default function DraftEditor({
   const [agentMetadata, setAgentMetadata] = useState<{
     draftId: string;
     metadata: AgentArticleMetadata;
+    used: boolean;
   } | null>(null);
+  // Suggestions live only in this page, so leaving before 「AIの出力から入れる」 loses them (#201).
+  const agentSuggestionPending = Boolean(
+    draft &&
+    agentMetadata &&
+    agentMetadata.draftId === draft.id &&
+    !agentMetadata.used &&
+    hasMetadata(agentMetadata.metadata),
+  );
+  const onSuggestionUsed = useCallback(
+    () => setAgentMetadata((value) => value && { ...value, used: true }),
+    [],
+  );
   // Drafts an AI agent made through MCP, and its summary/tag suggestions (ordinary surface only).
   const agentDrafts = useAgentDrafts(ordinary && AGENT_MCP_RELEASE_ENABLED, fetcher, list);
   const compositionRef = useRef(false);
@@ -282,6 +295,7 @@ export default function DraftEditor({
   }, [client]);
   const navigationRisk =
     dirty ||
+    agentSuggestionPending ||
     (ordinary &&
       (mutationPending ||
         publicationMutationPending ||
@@ -309,11 +323,13 @@ export default function DraftEditor({
   }, [navigationRisk]);
   function maySwitch() {
     return (
-      (!dirty && !preparationUnsaved.current) ||
+      (!dirty && !preparationUnsaved.current && !agentSuggestionPending) ||
       window.confirm(
-        ordinary
-          ? '未保存の編集があります。別の下書きへ移ると、この画面の変更は失われます。移動しますか？'
-          : '未保存の編集・公開情報があります。別の下書きへ移ると、この画面の変更は失われます。移動しますか？',
+        !dirty && !preparationUnsaved.current
+          ? 'AIの出力の概要・タグなどをまだ入れていません。別の下書きへ移ると、この候補は消えます。移動しますか？'
+          : ordinary
+            ? '未保存の編集があります。別の下書きへ移ると、この画面の変更は失われます。移動しますか？'
+            : '未保存の編集・公開情報があります。別の下書きへ移ると、この画面の変更は失われます。移動しますか？',
       )
     );
   }
@@ -322,10 +338,14 @@ export default function DraftEditor({
     cancelAutosave();
     pendingFormat.current = null;
     setBeforeAgent({ draftId: draft.id, ...currentText.current });
-    setAgentMetadata({ draftId: draft.id, metadata: article.metadata });
+    setAgentMetadata({ draftId: draft.id, metadata: article.metadata, used: false });
     setText((t) => ({ title: article.title || t.title, body: article.body || t.body }));
     setPreview(true);
-    setStatus('AIの出力を下書きに反映しました。プレビューで読み、違うところを直してください。');
+    setStatus(
+      hasMetadata(article.metadata)
+        ? 'AIの出力を下書きに反映しました。概要・タグなどは「記事を公開する」の「AIの出力から入れる」で入れてください。この画面を離れると消えます。'
+        : 'AIの出力を下書きに反映しました。プレビューで読み、違うところを直してください。',
+    );
   }
   function undoAgentArticle() {
     if (!draft || !beforeAgent || beforeAgent.draftId !== draft.id || editingLocked) return;
@@ -953,6 +973,8 @@ export default function DraftEditor({
                   canStart={canPublishStart}
                   onPending={onPublicationPending}
                   onUnsavedPreparation={onUnsavedPreparation}
+                  onSuggestionUsed={onSuggestionUsed}
+                  suggestionVolatile={agentSuggestionPending}
                   suggested={
                     agentMetadata?.draftId === draft.id
                       ? agentMetadata.metadata
