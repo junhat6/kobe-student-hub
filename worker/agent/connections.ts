@@ -5,6 +5,7 @@ import {
   type SessionStorageProof,
 } from '../auth/session-guard';
 import { periodSql } from '../auth/student-participation';
+import { pkceChallenge } from '../auth/pkce';
 
 /**
  * Server repository for AI agent connections (MCP over OAuth 2.1).
@@ -33,11 +34,6 @@ export async function secretHash(value: string) {
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode('agent-v1:' + value)),
   );
   return Array.from(digest, (x) => x.toString(16).padStart(2, '0')).join('');
-}
-export async function pkceChallenge(verifier: string) {
-  return base64url.encode(
-    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))),
-  );
 }
 const uuid = (v: unknown): v is string =>
   typeof v === 'string' &&
@@ -375,11 +371,12 @@ export class AgentConnectionStore {
       !rawValid(code) ||
       !rawValid(clientId) ||
       typeof redirectUri !== 'string' ||
-      redirectUri.length > 2048 ||
-      typeof verifier !== 'string' ||
-      !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)
+      redirectUri.length > 2048
     )
       return null;
+    // Malformed verifiers stop here, before the code is looked up or marked used.
+    const challenge = await pkceChallenge(verifier);
+    if (!challenge) return null;
     try {
       const now = this.now();
       const hash = await secretHash(code);
@@ -387,7 +384,7 @@ export class AgentConnectionStore {
         .prepare(
           `UPDATE agent_tokens SET used_at_ms=? WHERE token_hash=? AND kind='code' AND used_at_ms IS NULL AND expires_at_ms>? AND created_at_ms<=? AND redirect_uri=? AND code_challenge=? AND EXISTS(SELECT 1 FROM agent_grants g JOIN private_accounts a ON a.id=g.account_id WHERE g.id=agent_tokens.grant_id AND g.client_id=? AND g.revoked_at_ms IS NULL AND g.expires_at_ms>? AND a.status='active' AND a.session_epoch=g.account_epoch) RETURNING grant_id`,
         )
-        .bind(now, hash, now, now, redirectUri, await pkceChallenge(verifier), clientId, now)
+        .bind(now, hash, now, now, redirectUri, challenge, clientId, now)
         .first<{ grant_id: string }>();
       if (!row) {
         const replay = await this.db

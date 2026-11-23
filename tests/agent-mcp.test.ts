@@ -52,9 +52,12 @@ async function registerClient(name = 'Claude Code') {
   expect(r!.status).toBe(201);
   return JSON.parse(r!.body).client_id as string;
 }
-async function startAuthorization(clientId: string, extra: Record<string, string> = {}) {
-  const verifier = b64(randomBytes(32));
-  const challenge = b64(createHash('sha256').update(verifier).digest());
+async function startAuthorization(
+  clientId: string,
+  extra: Record<string, string> = {},
+  verifier = b64(randomBytes(32)),
+  challenge = b64(createHash('sha256').update(verifier).digest()),
+) {
   const q = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
@@ -401,6 +404,40 @@ describe('authorization flow', () => {
     );
     expect(wrong!.status).toBe(400);
     expect((await rpc(c.access_token, 'tools/list')).status).toBe(401);
+  });
+  it('exchanges the RFC 7636 appendix B vector and rejects a malformed verifier without spending the code', async () => {
+    const clientId = await registerClient();
+    const { r, verifier } = await startAuthorization(
+      clientId,
+      {},
+      'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
+      'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    );
+    expect(r.status).toBe(302);
+    const requestId = new URL(r.headers.location).searchParams.get('request')!;
+    const decided = await http('/api/private/agent-connections/requests/' + requestId, {
+      method: 'POST',
+      headers: browser(users.c, true),
+      body: JSON.stringify({ decision: 'allow' }),
+    });
+    const code = new URL(JSON.parse(decided!.body).redirectTo).searchParams.get('code')!;
+    const exchange = (code_verifier: string) =>
+      http(
+        '/api/oauth/token',
+        form({
+          grant_type: 'authorization_code',
+          code,
+          client_id: clientId,
+          redirect_uri: REDIRECT,
+          code_verifier,
+          resource: ORIGIN + '/api/mcp',
+        }),
+      );
+    for (const bad of ['short', 'x'.repeat(129), verifier.slice(0, 42) + ' '])
+      expect((await exchange(bad))!.status).toBe(400);
+    const ok = await exchange(verifier);
+    expect(ok!.status).toBe(200);
+    expect((await rpc(JSON.parse(ok!.body).access_token, 'tools/list')).status).toBe(200);
   });
   it('rotates refresh tokens and revokes the connection when a spent refresh token is reused', async () => {
     const c = await connect('c');

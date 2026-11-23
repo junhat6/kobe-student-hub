@@ -1,5 +1,6 @@
 import { EncryptJWT, jwtDecrypt, base64url } from 'jose';
 import { OAUTH_ATTEMPT_TTL_MS } from './oauth-attempts';
+import { pkceChallenge } from './pkce';
 import {
   BrowserSessionCoordinator,
   freshBrowserSecret,
@@ -11,6 +12,7 @@ const plainHash = async (v: string) =>
     new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v))),
     (x) => x.toString(16).padStart(2, '0'),
   ).join('');
+export { pkceChallenge };
 const COOKIE = '__Host-kobe-oauth';
 const ISSUER = 'kobe-student-hub:oauth-attempt';
 const secret = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z0-9_-]{43}$/.test(v);
@@ -69,12 +71,6 @@ function readCookie(header: string | null): string | null {
     .filter((x) => x.startsWith(COOKIE + '='))
     .map((x) => x.slice(COOKIE.length + 1));
   return values.length === 1 && values[0].length <= 4096 ? values[0] : null;
-}
-export async function pkceChallenge(verifier: string): Promise<string | null> {
-  if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return null;
-  return base64url.encode(
-    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))),
-  );
 }
 /** Server-private orchestration; production does not import or expose it. */
 export class BrowserOAuthFlow {
