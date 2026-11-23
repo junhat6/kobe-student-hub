@@ -33,6 +33,7 @@
 - `npm run test:editor` は先に `npm run editor:build` が要る（無いと「assets.directory … .editor-preview does not exist」で起動しない）
 - 認証つきの新しい Store を足したら `tests/auth-guard-inventory.test.ts` の inventory と件数を更新する。SQL はクラスのメソッド内に置く（クラス外の関数は「outside method」で落ちる）
 - 新しい画面や色を足したら axe 検査（`tests/accessibility.spec.ts`＝sample、`tests/ordinary-accessibility-browser.spec.ts`＝HTTPS fixture）にその画面を足して回す
+- Base UI の Popover・Menu を開いた状態で axe を当てるときは、popup の `opacity` が 1 になるのを待ち（フェードイン前に色を拾い color-contrast が時々落ちる）、`[data-base-ui-focus-guard]` だけ除外する（#232）
 - テストから Python を importlib で読み込むときは `exec_module` の前に `sys.modules[...]` へ登録する（CI の Python では `@dataclass` が AttributeError で落ち、手元の新しい Python では通ってしまう）
 - 「形を足すほど verifier が新しい形を見つける」仕事（毎回違う理由で不合格）は、2回不合格の時点で実装を足すのをやめ、条件・設計の見直しを Issue に提案して `blocked` にする（#214 は秘密の形の後追いで3回不合格。考え方は docs/loop/DESIGN-PRINCIPLES.md の原則3）
 - auth-browser が CI だけで赤く手元で再現しないときは、`gh workflow run ci.yml --ref main` で回し、artifact browser-evidence の `test-results-generation/` の trace（error-context.md と .network）を見る（#208 は通信の中断が原因で、順序依存ではなかった）
