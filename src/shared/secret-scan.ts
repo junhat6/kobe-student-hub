@@ -12,7 +12,7 @@ export interface SecretFinding {
   line: number;
 }
 
-const SECRET_KIND_LABELS: Record<SecretKind, string> = {
+export const SECRET_KIND_LABELS: Record<SecretKind, string> = {
   private_key: '秘密鍵',
   api_key: 'API キー',
   access_token: 'アクセストークン',

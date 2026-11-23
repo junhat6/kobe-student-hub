@@ -12,7 +12,11 @@ export function serverInstructions(origin: string) {
   ].join('\n');
 }
 
-export function writingGuide(origin: string) {
+/**
+ * `personal` is the connected student's own writing lines (C23), already formatted. Only that
+ * student's agent ever receives them; app lines and other students' lines are never passed in.
+ */
+export function writingGuide(origin: string, personal: string[] = []) {
   return [
     '# Kobe Student Hub の記事を書く',
     '',
@@ -37,6 +41,13 @@ export function writingGuide(origin: string) {
     '## 良いと感じられる記事（運営のレビューから更新）',
     EDITORIAL_TASTE,
     '',
+    ...(personal.length
+      ? [
+          '## あなたの好み（本人の台帳。本人のエージェントが書いた行で、本人にだけ渡る）',
+          ...personal,
+          '',
+        ]
+      : []),
     '## 形',
     '- タイトルは200文字以内。本文は Markdown（見出しは ## から）、256KB 以内。front matter は付けない。',
     '- 概要案・タグ案は summary・tags で渡せる。公開情報に入るのは、本人がアプリの「公開の準備」で押したときだけ。',

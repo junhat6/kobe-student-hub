@@ -361,7 +361,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "closed",
-      "evidence": "2026-11-23 オーナー決定（DECISIONS「好みの台帳はアプリ側に置き、抽象化は利用者のエージェントが行う…」）で追加。C21（MCP、#219）が本番で開くことが前提。release flag TASTE_LEDGER_RELEASE_ENABLED を閉じて main に入れ、別 context の独立検証のあと開ける。 条件1〜3は #242、条件4は #243。"
+      "evidence": "2026-11-23 オーナー決定（DECISIONS「好みの台帳はアプリ側に置き、抽象化は利用者のエージェントが行う…」）で追加。C21（MCP、#219）が本番で開くことが前提。release flag TASTE_LEDGER_RELEASE_ENABLED を閉じて main に入れ、別 context の独立検証のあと開ける。 条件1〜3は #242、条件4は #243。 条件1〜3の実装（#242, 2026-11-23）を flag 閉で main へ：migration 0033（agent_taste_ledgers・agent_draft_versions、expand のみ、アカウント・下書きの削除で CASCADE）、worker/agent/taste.ts、MCP ツール get_my_taste_materials・get_my_taste・replace_my_taste（flag 閉では tools/list に出ず、AI の版も記録しない）、src/shared/line-diff.ts（非 AI の行 diff、1本120行・2000行・LCS 100万マスまで）、src/shared/taste-ledger.ts（型と上限）。tests/agent-mcp.test.ts に 8 件（flag 閉・版の確認・他人の台帳・400 の16形・40行・秘密の注意・guide の分離・材料は本人のレビューと差分だけ・書いた本人にレビューが渡らない・下書き削除で版も消える・401・在籍期間外）、tests/line-diff.test.ts 3 件。npm test 1072 passed。別 context の独立検証待ち（pass にはしない）。"
     }
   ]
 }

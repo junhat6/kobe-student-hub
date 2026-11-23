@@ -113,8 +113,8 @@ export interface AgentDraftHintsView extends DraftHints {
 const grantLiveSql = `EXISTS(SELECT 1 FROM agent_grants g JOIN private_accounts a ON a.id=g.account_id WHERE g.id=? AND g.account_id=? AND g.revoked_at_ms IS NULL AND g.expires_at_ms>? AND g.created_at_ms<=? AND a.status='active' AND a.session_epoch=g.account_epoch)`;
 /** The presented access token is still current for that grant. */
 const accessLiveSql = `EXISTS(SELECT 1 FROM agent_tokens t WHERE t.token_hash=? AND t.grant_id=? AND t.kind='access' AND t.used_at_ms IS NULL AND t.expires_at_ms>? AND t.created_at_ms<=?)`;
-const liveAccess = `(${grantLiveSql} AND ${accessLiveSql})`;
-const accessBindings = (a: AgentAccess, now: number) => [
+export const liveAccess = `(${grantLiveSql} AND ${accessLiveSql})`;
+export const accessBindings = (a: AgentAccess, now: number) => [
   a.grantId,
   a.accountId,
   now,
@@ -124,7 +124,7 @@ const accessBindings = (a: AgentAccess, now: number) => [
   now,
   now,
 ];
-const periodBindings = (a: AgentAccess, now: number) => [a.accountId, now, now, now];
+export const periodBindings = (a: AgentAccess, now: number) => [a.accountId, now, now, now];
 
 type DraftRow = {
   id: string;

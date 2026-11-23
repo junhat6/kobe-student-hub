@@ -16,6 +16,7 @@ export default {
       input?: unknown;
       draft?: unknown;
       enrollment?: boolean;
+      taste?: boolean;
     };
     const origin = 'https://app.example.invalid';
     const clock = () => i.now;
@@ -35,7 +36,12 @@ export default {
       body: i.body,
     });
     if (i.action === 'http') {
-      const response = await createAgentHandler(env.DB, origin, { enabled: true }, clock)(target);
+      const response = await createAgentHandler(
+        env.DB,
+        origin,
+        { enabled: true, tasteEnabled: i.taste !== false },
+        clock,
+      )(target);
       if (!response) return Response.json(null);
       return Response.json({
         status: response.status,

@@ -17,7 +17,10 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
 import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
 import { cleanupAgentConnections, createAgentHandler } from './agent/http';
-import { AGENT_MCP_RELEASE_ENABLED } from '../src/shared/agent-release';
+import {
+  AGENT_MCP_RELEASE_ENABLED,
+  TASTE_LEDGER_RELEASE_ENABLED,
+} from '../src/shared/agent-release';
 // Ordinary account access and authoring have separate source release stages.
 const OAUTH_HTTP_RELEASE_ENABLED = true;
 const ORDINARY_DRAFT_HTTP_RELEASE_ENABLED = true;
@@ -80,7 +83,7 @@ app.use('*', async (c, next) => {
   const response = await createAgentHandler(
     c.env.DB,
     (c.env as Env & OAuthBindings).AUTH_ORIGIN ?? '',
-    { enabled: AGENT_MCP_RELEASE_ENABLED },
+    { enabled: AGENT_MCP_RELEASE_ENABLED, tasteEnabled: TASTE_LEDGER_RELEASE_ENABLED },
   )(c.req.raw);
   if (response) return response;
   await next();
