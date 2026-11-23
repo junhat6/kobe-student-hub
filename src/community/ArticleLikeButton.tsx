@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { createLikesClient } from '../editor/likes-client';
 import { useViewer } from '../shell/viewer';
+import Icon from '../shared/Icon';
 import './article-actions.css';
 
 type State =
@@ -111,15 +112,15 @@ export default function ArticleLikeButton({
         {actions}
       </div>
       <p className="article-like-note" role="status" aria-live="polite">
-        {state.kind === 'error'
-          ? '保存できたか確認できませんでした。「状態を確認」を押すと、保存されている状態を読み直します。'
-          : hint === 'login'
-            ? null
-            : hint === 'profile'
-              ? null
-              : liked
-                ? 'あなたの公開プロフィールの「いいね」に表示されます。'
-                : 'いいねは公開されます。あなたの公開プロフィールに、いいねした記事として表示されます。'}
+        {state.kind === 'error' ? (
+          '保存できたか確認できませんでした。「状態を確認」を押すと、保存されている状態を読み直します。'
+        ) : hint === 'login' ? null : hint === 'profile' ? null : (
+          // Liking is public: a globe and one line instead of a paragraph (原則2).
+          <>
+            <Icon name="globe" size={14} />
+            いいねは公開プロフィールに表示されます。
+          </>
+        )}
         {hint === 'login' && state.kind !== 'error' && (
           <>
             いいねするには<Link to="/login">ログイン</Link>してください。

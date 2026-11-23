@@ -176,7 +176,8 @@
   color: var(--ink-muted);
   letter-spacing: 0.04em;
 }
-.author-side .author-side-name {
+/* Beat the generic `.side-box > a:not(.author)` (space-between) so the name sits by the avatar. */
+.side-box.author-side > a.author-side-name {
   display: flex;
   flex-direction: row;
   justify-content: flex-start;

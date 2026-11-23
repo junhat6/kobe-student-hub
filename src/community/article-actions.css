@@ -58,6 +58,11 @@
   font-size: 13px;
   line-height: 1.6;
 }
+.article-like-note .icon {
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
 .article-like-note a {
   color: var(--accent-strong);
   text-decoration: underline;

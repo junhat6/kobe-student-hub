@@ -90,8 +90,7 @@ function likeWrites(page: Page) {
   return writes;
 }
 
-const publicNote =
-  'いいねは公開されます。あなたの公開プロフィールに、いいねした記事として表示されます。';
+const publicNote = 'いいねは公開プロフィールに表示されます。';
 
 test('a signed-in student likes and unlikes; the like is public and the guidance is clear', async ({
   page,
@@ -145,9 +144,7 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
     await reader.getByRole('button', { name: 'いいね', exact: true }).click();
     const liked = reader.getByRole('button', { name: 'いいね済み', exact: true });
     await expect(liked).toHaveAttribute('aria-pressed', 'true');
-    await expect(
-      reader.getByText('あなたの公開プロフィールの「いいね」に表示されます。', { exact: true }),
-    ).toBeVisible();
+    await expect(reader.getByText(publicNote, { exact: true })).toBeVisible();
     // #175: the pointer still rests on the button right after pressing it; the liked label
     // must stay readable in that hover state (it used to be white on a pale pink, 1.08:1).
     await liked.hover();

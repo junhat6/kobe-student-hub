@@ -27,17 +27,20 @@ export default function ArticleHandoff(props: {
   }
   return (
     <div className="agent-handoff">
-      <Button className="agent-button" onClick={() => void copy()}>
+      <Button
+        className="agent-button"
+        onClick={() => void copy()}
+        aria-label="AIに渡す（記事をMarkdownでコピー）"
+        title="記事をMarkdownでコピーして、自分のAIに質問できます"
+      >
         <Icon name={state === 'copied' ? 'check' : 'copy'} size={18} />
-        AIに渡す（Markdownでコピー）
+        AIに渡す
       </Button>
       <span className="sr-only" role="status">
         {state === 'copied' ? 'コピーしました' : ''}
       </span>
-      {state === 'failed' ? (
+      {state === 'failed' && (
         <span role="alert">コピーできませんでした。ブラウザの設定を確認してください。</span>
-      ) : (
-        <span>記事を自分のAIに読ませて、わからないところを聞けます。</span>
       )}
     </div>
   );
