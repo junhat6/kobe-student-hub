@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
 import ProjectSessionScope from '../editor/ProjectSessionScope';
 import ReportPanel from '../editor/ReportPanel';
+import ReportMenu from './ReportMenu';
 
-/** Reading stays anonymous until the reader explicitly opens the report session. */
+/** Reading stays anonymous until the reader chooses 「…」 → 「通報する」. */
 export default function OrdinaryArticleReport({
   contentId,
   onNavigationRiskChange,
@@ -11,28 +12,32 @@ export default function OrdinaryArticleReport({
   onNavigationRiskChange?: (risk: boolean) => void;
 }) {
   return (
-    <section className="report-panel" aria-label="記事の通報">
-      <h2>記事の通報</h2>
-      <ProjectSessionScope
-        signedInMessage=""
-        label="この記事を通報する"
-        signedOutMessage={
-          <>
-            現在ログインしていません。前の入力・通報内容は閉じています。通報するには{' '}
-            <Link to="/login">ログインしてください</Link>。
-          </>
-        }
-      >
-        {({ fetcher }) => (
-          <ReportPanel
-            contentId={contentId}
-            surface="ordinary"
-            fetcher={fetcher}
-            embedded
-            onNavigationRiskChange={onNavigationRiskChange}
-          />
-        )}
-      </ProjectSessionScope>
-    </section>
+    <ReportMenu subject="記事" panelClass="report-panel">
+      {(onSubmitted) => (
+        <ProjectSessionScope
+          initial
+          inDialog
+          signedInMessage=""
+          label="この記事を通報する"
+          signedOutMessage={
+            <>
+              現在ログインしていません。前の入力・通報内容は閉じています。通報するには{' '}
+              <Link to="/login">ログインしてください</Link>。
+            </>
+          }
+        >
+          {({ fetcher }) => (
+            <ReportPanel
+              contentId={contentId}
+              surface="ordinary"
+              fetcher={fetcher}
+              embedded
+              onNavigationRiskChange={onNavigationRiskChange}
+              onSubmitted={onSubmitted}
+            />
+          )}
+        </ProjectSessionScope>
+      )}
+    </ReportMenu>
   );
 }

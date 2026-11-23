@@ -44,6 +44,7 @@
 - `/api/private/` の1つの読み取りだけを失敗させる spec は `route.abort()` でなく HTTP 503 を返す（abort は画面全体のセッション確認の失敗に倒れ、画面の「もう一度」まで届かない。#229）
 - blur で確定して見た目が増える入力（チップ等）は、下の要素を押し下げない並びにする（押し下げると、blur を起こしたクリックの的がずれて click が消え、別の欄の spec がまとめてタイムアウトする。#231）
 - D1 は `recursive_triggers=0` で、`INSERT OR REPLACE` の暗黙削除には DELETE trigger が効かない（行を守るなら同じ key の INSERT も trigger で拒む）。Markdown に値を文字どおり出すならエスケープでなく code span にする（GFM の自動リンクは text node 上で探すので `\:`・`&#58;` でもリンクになる。#177）
+- Base UI の Menu の項目から Dialog を開く spec は、`.report-menu-popup` 等の popup が DOM から消えるのを待ってから axe を当てる（modal が外を aria-hidden にするので `getByRole('menu')` は即0件になるが、フェードアウト中の項目を axe が拾い color-contrast で落ちる。#228）
 - 公開パネルの `<summary>` の中に要素（span 等）を足さない（#190 の見出し1行判定が flex の子の箱で2行と数えて通報系 spec がまとめて落ちる。補足は summary の外に出す。#201）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 

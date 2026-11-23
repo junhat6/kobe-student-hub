@@ -3,6 +3,7 @@ import { test, expect, type BrowserContext, type Page, type TestInfo } from '@pl
 import { ensureProfileByApi } from './helpers/profile';
 import { accountMenu } from './helpers/header';
 import { japanDaysSince } from './helpers/japan-day';
+import { chooseReport, reportDialog } from './helpers/report-menu';
 
 /** Each date / reading-time label of the article header stays on a single line. */
 async function expectUnbrokenDates(page: Page) {
@@ -351,7 +352,7 @@ async function openReport(page: Page, articlePath: string) {
   expect(privateReads).toBe(0);
   await expect.poll(() => editorialStatuses).toEqual([404]);
   await expect(page.getByRole('region', { name: /編集レビュー/ })).toHaveCount(0);
-  await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+  await chooseReport(page, '記事');
   await expect(reportReason(page)).toBeEditable();
   page.off('request', observe);
   page.off('response', observeEditorial);
@@ -392,7 +393,7 @@ test('ordinary report retains same-session input while an unknown session stays 
     '同じページのメモリに保持する架空の詳細',
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('region', { name: '記事の通報', exact: true }).screenshot({
+  await reportDialog(page, '記事').screenshot({
     path: info.outputPath('ordinary-report-same-session.png'),
   });
 });
@@ -437,7 +438,7 @@ test('ordinary report blocks A input under B without a lifecycle event and requi
     page.getByRole('button', { name: '確認した内容で通報を送信', exact: true }),
   ).toBeDisabled();
   expect(reportPosts).toBe(0);
-  await page.getByRole('region', { name: '記事の通報', exact: true }).screenshot({
+  await reportDialog(page, '記事').screenshot({
     path: info.outputPath('ordinary-report-changed-session.png'),
   });
 });
@@ -511,7 +512,7 @@ test('ordinary report cancels a pending initial session proof on hide and ignore
     predicate: (request) => new URL(request.url()).pathname === '/api/private/session',
   });
   try {
-    await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+    await chooseReport(page, '記事');
     await held.promise;
     await page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });

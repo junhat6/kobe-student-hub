@@ -1,5 +1,4 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { PublicSurface } from '../shared/public-paths';
 import { Button } from '@base-ui/react/button';
 import { createProjectReportClient, validProjectReportInput } from './project-report-client';
 import ProjectSessionScope from './ProjectSessionScope';
@@ -13,6 +12,7 @@ export function ReportForm({
   onNavigationRiskChange,
   subject = '作品',
   createClient = createProjectReportClient,
+  onSubmitted,
 }: {
   projectId: string;
   csrf: string;
@@ -20,6 +20,8 @@ export function ReportForm({
   onNavigationRiskChange?: (risk: boolean) => void;
   subject?: string;
   createClient?: (csrf: string, fetcher: typeof fetch) => ReportClient;
+  /** Called once a new report is confirmed received (the dialog closes on it). */
+  onSubmitted?: () => void;
 }) {
   const client = useMemo(() => createClient(csrf, fetcher), [createClient, csrf, fetcher]);
   const id = useId(),
@@ -93,6 +95,7 @@ export function ReportForm({
         setReceived(true);
         setInput({ reason: '', detail: '' });
         setMessage(`送信しました。この${subject}の通報を受け付けました。運営が内容を確認します。`);
+        onSubmitted?.();
       }
     } catch {
       if (mounted.current && run === generation.current) {
@@ -228,38 +231,24 @@ export function ReportForm({
     </div>
   );
 }
+/** The local lab panel. Student pages use the 「…」 menu in community/OrdinaryProjectReport. */
 export default function ProjectReport({
   projectId,
-  surface = 'lab',
   onNavigationRiskChange,
 }: {
   projectId: string;
-  surface?: PublicSurface;
   onNavigationRiskChange?: (risk: boolean) => void;
 }) {
   return (
     <section className="project-report-panel" aria-label="作品の通報">
-      <h2>{surface === 'ordinary' ? '作品の通報' : 'この作品を通報する'}</h2>
-      {surface === 'lab' && (
-        <p className="project-local">
-          架空データのローカル試作です。受付のみで、自動非公開・通知・運営判断は行いません。実際の学校ログインや運営連絡先は未提供です。
-        </p>
-      )}
-      {surface === 'lab' && (
-        <p>
-          理由・詳細は匿名の作品画面や一般読者には表示しません。確認できるまで入力を隠し、同じセッションなら保持した入力を再開します。無効・変更なら前の入力を破棄し、別の状態は明示確認後に開きます。
-        </p>
-      )}
-      <ProjectSessionScope
-        label={surface === 'ordinary' ? 'この作品を通報する' : '作品通報の準備を確認'}
-        signedOutMessage={
-          surface === 'ordinary' ? (
-            <>
-              通報するには<a href="/login">ログイン</a>してください。前の入力は引き継ぎません。
-            </>
-          ) : undefined
-        }
-      >
+      <h2>この作品を通報する</h2>
+      <p className="project-local">
+        架空データのローカル試作です。受付のみで、自動非公開・通知・運営判断は行いません。実際の学校ログインや運営連絡先は未提供です。
+      </p>
+      <p>
+        理由・詳細は匿名の作品画面や一般読者には表示しません。確認できるまで入力を隠し、同じセッションなら保持した入力を再開します。無効・変更なら前の入力を破棄し、別の状態は明示確認後に開きます。
+      </p>
+      <ProjectSessionScope label="作品通報の準備を確認">
         {(session) => (
           <ReportForm
             projectId={projectId}

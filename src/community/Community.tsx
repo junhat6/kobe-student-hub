@@ -166,7 +166,16 @@ function StudentArticle({ id }: { id: string }) {
           <ArticleLikeButton
             key={`like-${entry.id}`}
             contentId={entry.id}
-            actions={<ArticleShare id={entry.id} title={entry.title} />}
+            actions={
+              <>
+                <ArticleShare id={entry.id} title={entry.title} />
+                <OrdinaryArticleReport
+                  key={`report-${entry.id}`}
+                  contentId={entry.id}
+                  onNavigationRiskChange={reportRisk}
+                />
+              </>
+            }
           />
           <Link className="article-end-author" to={`/students/${author.id}`}>
             <AuthorAvatar
@@ -183,11 +192,6 @@ function StudentArticle({ id }: { id: string }) {
           </Link>
         </div>
         <EditorialReview key={`editorial-${entry.id}`} contentId={entry.id} />
-        <OrdinaryArticleReport
-          key={`report-${entry.id}`}
-          contentId={entry.id}
-          onNavigationRiskChange={reportRisk}
-        />
         <RelatedReading key={`related-${entry.id}`} id={entry.id} />
       </article>
       <aside>

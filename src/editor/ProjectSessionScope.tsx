@@ -18,12 +18,15 @@ import {
 export default function ProjectSessionScope({
   children,
   initial = false,
+  inDialog = false,
   label,
   signedOutMessage = '現在ログインしていません。前の入力・通報内容は閉じています。このローカル検証では学校Googleログインは利用できません。',
   signedInMessage = '有効な既存セッションを確認しました。この画面からログイン・権限付与は行いません。',
 }: {
   children: (session: { csrf: string; fetcher: typeof fetch }) => ReactNode;
   initial?: boolean;
+  /** In the report dialog the check starts on open; the button is only the way back after a failure. */
+  inDialog?: boolean;
   label: string;
   signedOutMessage?: ReactNode;
   /** Shown when an existing session opens the panel; student pages pass '' (the form speaks for itself). */
@@ -250,9 +253,11 @@ export default function ProjectSessionScope({
   return (
     <>
       <p aria-live="polite">{message}</p>
-      <Button disabled={busy} onClick={() => void check()}>
-        {label}
-      </Button>
+      {(!inDialog || (concealed && !busy)) && (
+        <Button disabled={busy} onClick={() => void check()}>
+          {label}
+        </Button>
+      )}
       {candidate && (
         <Button disabled={busy} onClick={() => void proceed()}>
           確認したセッションで通報画面を開く

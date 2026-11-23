@@ -1,6 +1,7 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { accountMenu } from './helpers/header';
+import { chooseReport, reportDialog } from './helpers/report-menu';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 async function register(page: Page, info: TestInfo) {
@@ -180,13 +181,14 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
     await register(reader, info);
     await reader.goto(path!);
-    await reader.getByRole('button', { name: 'この作品を通報する', exact: true }).click();
+    await chooseReport(reader, '作品');
     await reader.getByLabel('作品の通報理由（必須）', { exact: true }).fill('架空の通報理由');
     await reader.locator('.project-report-form').getByRole('checkbox').check();
     await reader.getByRole('button', { name: '確認した作品通報を送信', exact: true }).click();
-    await expect(reader.locator('.project-report-form [role="status"]')).toContainText(
-      '送信しました。この作品の通報を受け付けました',
-    );
+    await expect(reportDialog(reader, '作品')).toBeHidden();
+    await expect(
+      reader.getByRole('region', { name: '作品の通報' }).getByRole('status'),
+    ).toContainText('通報を受け付けました');
     await page.bringToFront();
     await accountMenu(page, 'マイページ');
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });

@@ -1,5 +1,6 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Browser, type Page, type TestInfo } from '@playwright/test';
+import { chooseReport, reportDialog } from './helpers/report-menu';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 async function register(page: Page, info: TestInfo, who: string) {
@@ -68,15 +69,17 @@ test('three different accounts temporarily hide a project without deleting it', 
       await register(reader, info, 'reporter' + n);
       await reader.goto(path);
       await expect(reader.getByRole('heading', { name: title, exact: true })).toBeVisible();
-      await reader.getByRole('button', { name: 'この作品を通報する', exact: true }).click();
+      await chooseReport(reader, '作品');
       await reader
         .getByLabel('作品の通報理由（必須）', { exact: true })
         .fill('架空の通報理由 ' + (n + 1));
       await reader.locator('.project-report-form').getByRole('checkbox').check();
       await reader.getByRole('button', { name: '確認した作品通報を送信', exact: true }).click();
-      await expect(reader.locator('.project-report-form [role="status"]')).toContainText(
-        '送信しました。この作品の通報を受け付けました',
-      );
+      // The dialog closes and the page keeps a check: 「通報を受け付けました」.
+      await expect(reportDialog(reader, '作品')).toBeHidden();
+      await expect(
+        reader.getByRole('region', { name: '作品の通報' }).getByRole('status'),
+      ).toContainText('通報を受け付けました');
       if (n === 0) {
         await reader.screenshot({
           path: info.outputPath('project-report-received.png'),

@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { actor, write } from './helpers/fictional-actor';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { chooseReport, reportDialog } from './helpers/report-menu';
 
 // #198 (first stage): a signed-in student reports another author's public profile from the
 // author page, the author never sees a report form on their own page, and a server-listed
@@ -11,7 +12,10 @@ async function seriousViolations(page: Page) {
       .getAnimations()
       .every((a) => !(a instanceof CSSTransition) || a.playState !== 'running'),
   );
-  const { violations } = await new AxeBuilder({ page }).analyze();
+  // The report dialog's Base UI focus guards are not content (#232).
+  const { violations } = await new AxeBuilder({ page })
+    .exclude('[data-base-ui-focus-guard]')
+    .analyze();
   return violations
     .filter((v) => v.impact === 'critical' || v.impact === 'serious')
     .map((v) => ({ id: v.id, targets: v.nodes.map((n) => n.target.join(' ')) }));
@@ -36,20 +40,16 @@ test('a student reports a public profile and an operator reads it with the repor
       confirmPublic: true,
     });
     const profilePath = '/students/' + author.profileId;
-    const reportButton = (p: Page) =>
-      p.getByRole('button', { name: 'このプロフィールを通報する', exact: true });
 
     // Anonymous readers see the entry; opening it asks them to sign in instead of a form.
     await page.goto(profilePath);
     await expect(
       page.getByRole('heading', { name: '架空の通報される投稿者-' + key }),
     ).toBeVisible();
-    await reportButton(page).click();
+    await chooseReport(page, 'プロフィール');
     // Scoped: the mobile header can also carry its own ログイン link.
     await expect(
-      page
-        .getByRole('region', { name: 'プロフィールの通報' })
-        .getByRole('link', { name: 'ログイン', exact: true }),
+      reportDialog(page, 'プロフィール').getByRole('link', { name: 'ログイン', exact: true }),
     ).toBeVisible();
     await expect(page.getByLabel('プロフィールの通報理由（必須）')).toHaveCount(0);
 
@@ -65,7 +65,7 @@ test('a student reports a public profile and an operator reads it with the repor
     const readerPage = await reader.context.newPage();
     await readerPage.setViewportSize(page.viewportSize()!);
     await readerPage.goto(profilePath);
-    await reportButton(readerPage).click();
+    await chooseReport(readerPage, 'プロフィール');
     const reason = readerPage.getByLabel('プロフィールの通報理由（必須）', { exact: true });
     await expect(reason).toBeEditable();
     expect.soft(await seriousViolations(readerPage)).toEqual([]);
@@ -74,10 +74,14 @@ test('a student reports a public profile and an operator reads it with the repor
     await readerPage
       .getByRole('button', { name: '確認したプロフィール通報を送信', exact: true })
       .click();
-    const status = readerPage.locator('.project-report-form [role="status"]');
-    await expect(status).toContainText('送信しました。このプロフィールの通報を受け付けました');
+    // The dialog closes and the page keeps a check: 「通報を受け付けました」.
+    await expect(reportDialog(readerPage, 'プロフィール')).toBeHidden();
+    const status = readerPage
+      .getByRole('region', { name: 'プロフィールの通報' })
+      .getByRole('status');
+    await expect(status).toContainText('通報を受け付けました');
     await expect(status.locator('svg')).toBeVisible();
-    // The form closes and the private reason no longer stays on screen.
+    // The private reason no longer stays on screen, even when the dialog is opened again.
     await expect(reason).toHaveCount(0);
     await expect(
       readerPage.getByRole('button', { name: '確認したプロフィール通報を送信', exact: true }),

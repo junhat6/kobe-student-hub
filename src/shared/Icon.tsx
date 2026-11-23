@@ -8,6 +8,20 @@ const paths = {
     </>
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  // Three dots for the 「…」 menu that holds rare actions such as reporting.
+  more: (
+    <>
+      <circle cx="5.5" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="18.5" cy="12" r="1.2" fill="currentColor" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M5 21V4" />
+      <path d="M5 4h11l-2 4 2 4H5" />
+    </>
+  ),
   pencil: (
     <>
       <path d="M4 20l1-4L16 5l3 3L8 19z" />

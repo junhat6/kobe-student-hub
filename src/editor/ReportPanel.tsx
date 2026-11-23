@@ -13,12 +13,15 @@ export default function ReportPanel({
   fetcher = fetch,
   embedded = false,
   onNavigationRiskChange,
+  onSubmitted,
 }: {
   contentId: string;
   surface?: PublicSurface;
   fetcher?: typeof fetch;
   embedded?: boolean;
   onNavigationRiskChange?: (risk: boolean) => void;
+  /** Called once a new report is confirmed received (the dialog closes on it). */
+  onSubmitted?: () => void;
 }) {
   const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
   const panelId = useId();
@@ -97,6 +100,7 @@ export default function ReportPanel({
           setReceived(true);
           setUncertain(false);
           setMessage('通報の受付を確認しました。運営判断や通知メールの送信完了を意味しません。');
+          onSubmitted?.();
         }
       } catch (error) {
         if (mounted.current) {

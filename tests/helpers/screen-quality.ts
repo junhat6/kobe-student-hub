@@ -16,6 +16,8 @@ function smallTargets(page: Page) {
       const style = getComputedStyle(el);
       if (!r.width || !r.height || style.visibility === 'hidden') continue;
       if (el.closest('.sr-only, .skip, .editor-skip')) continue;
+      // Base UI's 1px focus guards keep Tab inside an open dialog; nobody presses them.
+      if (el.hasAttribute('data-base-ui-focus-guard')) continue;
       // A checkbox or radio is pressed through its label, so the label is the target.
       const label =
         el instanceof HTMLInputElement && /^(checkbox|radio)$/.test(el.type)

@@ -1,0 +1,136 @@
+/* 「…」 → 「通報する」 → dialog (#228). The page keeps only a small round button. */
+.report-menu {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.report-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink-muted, #5d6875);
+  cursor: pointer;
+}
+.report-menu-trigger:hover,
+.report-menu-trigger[data-popup-open] {
+  color: var(--ink, #1c2530);
+  background: var(--tint, #f1f5f9);
+}
+.report-menu-trigger:focus-visible,
+.report-dialog-close:focus-visible {
+  outline: 3px solid #0676bb;
+  outline-offset: 2px;
+}
+.report-menu-popup {
+  min-width: 160px;
+}
+.report-menu-item {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.report-menu-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: #1f6b3a;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  order: -1;
+}
+.report-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgb(20 26 34 / 0.45);
+  transition: opacity 150ms;
+}
+.report-dialog-backdrop[data-starting-style],
+.report-dialog-backdrop[data-ending-style] {
+  opacity: 0;
+}
+.report-dialog-backdrop[hidden] {
+  display: none;
+}
+.report-dialog {
+  position: fixed;
+  z-index: 41;
+  top: 50%;
+  left: 50%;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  margin: 0 !important;
+  padding: 20px 24px 24px !important;
+  border: 0 !important;
+  border-radius: 16px;
+  background: var(--surface, #fff) !important;
+  color: var(--ink, #141a22);
+  box-shadow: 0 20px 48px rgb(20 26 34 / 0.24);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  transition:
+    opacity 150ms,
+    transform 150ms;
+}
+.report-dialog[data-starting-style],
+.report-dialog[data-ending-style] {
+  opacity: 0;
+  transform: translate(-50%, -48%);
+}
+.report-dialog[hidden] {
+  display: none;
+}
+.report-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.report-dialog-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+}
+.report-dialog .report-dialog-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-muted, #5d6875);
+  cursor: pointer;
+}
+.report-dialog .report-dialog-close:hover {
+  background: var(--tint, #f1f5f9);
+}
+.report-dialog .report-panel-content {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+@media (max-width: 480px) {
+  .report-dialog {
+    padding: 16px 16px 20px !important;
+  }
+}

@@ -50,6 +50,21 @@
   color: var(--ink-muted);
   font-size: 13px;
 }
+.detail-layout .detail-author-end {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+@media (max-width: 560px) {
+  .detail-layout .detail-author-end {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+}
 .detail-layout .detail-header .tags {
   display: flex;
   flex-wrap: wrap;
@@ -383,36 +398,12 @@
   flex: none;
   color: var(--ink-muted);
 }
-/* Reporting stays a quiet link under the person, as GitHub's 「Block or report」 does. */
+/* Reporting is the small 「…」 under the person (#228). */
 .profile-report-slot {
   grid-column: 1;
   min-width: 0;
   padding-top: 16px;
   border-top: 1px solid var(--line);
-}
-.profile-report-slot .profile-report-panel {
-  padding: 0;
-  background: none !important;
-}
-.profile-report-slot .profile-report-panel > h2 {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-.profile-report-slot .profile-report-panel > button {
-  min-height: 32px;
-  padding: 4px 0;
-  border: 0;
-  background: none;
-  color: var(--ink-muted);
-  font-size: 13px;
-  text-decoration: underline;
-}
-.profile-report-slot .profile-report-panel > p:empty {
-  display: none;
 }
 .profile-main {
   grid-column: 2;

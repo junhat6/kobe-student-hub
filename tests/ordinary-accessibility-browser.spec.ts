@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { actor, write } from './helpers/fictional-actor';
 import { AGENT_MCP_RELEASE_ENABLED } from '../src/shared/agent-release';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { chooseReport, reportDialog } from './helpers/report-menu';
 
 // C19 / #141: the ordinary release screens (reading, report forms, sign-in, account,
 // history and authoring entry points) have no critical or serious axe violations.
@@ -112,14 +113,16 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     await readerPage.setViewportSize(page.viewportSize()!);
     await readerPage.goto('/articles/' + article.contentId);
     await expect(readerPage.getByRole('heading', { level: 1 })).toContainText('読みやすさの記事');
-    await readerPage.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+    await chooseReport(readerPage, '記事');
     await expect(readerPage.getByLabel('通報理由（必須）', { exact: true })).toBeEditable();
-    expect.soft(await seriousViolations(readerPage)).toEqual([]);
+    await expect(reportDialog(readerPage, '記事')).toHaveCSS('opacity', '1');
+    expect.soft(await seriousViolations(readerPage, ['[data-base-ui-focus-guard]'])).toEqual([]);
     await readerPage.goto('/projects/' + work.projectId);
     await expect(readerPage.getByRole('heading', { level: 1 })).toContainText('読みやすさの作品');
-    await readerPage.getByRole('button', { name: 'この作品を通報する', exact: true }).click();
+    await chooseReport(readerPage, '作品');
     await expect(readerPage.getByLabel('作品の通報理由（必須）', { exact: true })).toBeEditable();
-    expect.soft(await seriousViolations(readerPage)).toEqual([]);
+    await expect(reportDialog(readerPage, '作品')).toHaveCSS('opacity', '1');
+    expect.soft(await seriousViolations(readerPage, ['[data-base-ui-focus-guard]'])).toEqual([]);
 
     // Signed-in owner.
     const ownerPage = await owner.context.newPage();

@@ -1,6 +1,7 @@
 import { actor, write } from './helpers/fictional-actor';
 import { checkScreen } from './helpers/screen-quality';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { chooseReport, reportDialog } from './helpers/report-menu';
 
 // C19: on the release screens of J1–J5, nothing scrolls sideways, touch targets are about
 // 44px, and every control is reachable with Tab and shows where focus is.
@@ -94,7 +95,7 @@ test('J1–J5 screens fit the width, have 44px targets and visible keyboard focu
     await readerPage.setViewportSize(page.viewportSize()!);
     await readerPage.goto('/articles/' + article.contentId);
     await expect(readerPage.getByRole('heading', { level: 1 })).toContainText('モバイルの記事');
-    await readerPage.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
+    await chooseReport(readerPage, '記事');
     await check(readerPage, '', () =>
       expect(readerPage.getByLabel('通報理由（必須）', { exact: true })).toBeEditable(),
     );

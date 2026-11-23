@@ -6,7 +6,7 @@ import { createPublicProjectClient } from '../editor/public-project-client';
 import { createPublicWorksClient } from '../editor/public-works-client';
 import PublicProjectCard from '../editor/PublicProjectCard';
 import { ProjectText } from '../editor/ProjectRegistration';
-import ProjectReport from '../editor/ProjectReport';
+import OrdinaryProjectReport from './OrdinaryProjectReport';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import './discovery.css';
@@ -96,9 +96,16 @@ function Project({ id }: { id: string }) {
                 <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
               </span>
             </Link>
-            <span>
-              <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)}</time> 公開
-            </span>
+            <div className="detail-author-end">
+              <span>
+                <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)}</time> 公開
+              </span>
+              <OrdinaryProjectReport
+                key={project.id}
+                projectId={project.id}
+                onNavigationRiskChange={reportRisk}
+              />
+            </div>
           </div>
         </div>
         <ProjectText value={project} showTitle={false} surface="ordinary" />
@@ -114,12 +121,6 @@ function Project({ id }: { id: string }) {
             </ul>
           </section>
         )}
-        <ProjectReport
-          key={project.id}
-          projectId={project.id}
-          surface="ordinary"
-          onNavigationRiskChange={reportRisk}
-        />
       </article>
       <aside>
         <section className="side-box">
