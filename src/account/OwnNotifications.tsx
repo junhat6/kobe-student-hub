@@ -5,12 +5,8 @@ import { createModerationClient } from '../editor/moderation-client';
 import type { OwnModerationNotice } from '../notification-types';
 import './notifications.css';
 import Icon from '../shared/Icon';
-const label = {
-  temporarily_hidden: '記事が一時非公開になりました',
-  restored: '記事が復元されました',
-  deleted: '記事が公開表示から削除されました',
-  avatar_removed: 'プロフィールのアイコン画像が外されました',
-};
+import { noticeLabel } from '../shared/notice-label';
+import { markSeen } from '../shell/notice-seen';
 /** Loads by itself and stays out of the way when there is nothing to tell. */
 export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch }) {
   const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
@@ -21,7 +17,12 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
     let live = true;
     setFailed(false);
     client.ownNotifications().then(
-      (value) => live && setItems(value),
+      (value) => {
+        if (!live) return;
+        setItems(value);
+        // Shown in full here, so the header bell stops marking them as new.
+        markSeen(value);
+      },
       () => live && setFailed(true),
     );
     return () => {
@@ -30,7 +31,12 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
   }, [client, attempt]);
   if (!failed && !items?.length) return null;
   return (
-    <section aria-label="運営からのお知らせ" className="account-block account-notifications">
+    <section
+      id="notifications"
+      tabIndex={-1}
+      aria-label="運営からのお知らせ"
+      className="account-block account-notifications"
+    >
       <h2 className="account-notifications-title">
         <Icon name="bell" size={18} />
         運営からのお知らせ
@@ -47,11 +53,7 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
           <ul className="notification-list">
             {items!.map((item) => (
               <li key={item.id}>
-                <h3>
-                  {/^project(?:-report)?\./.test(item.id)
-                    ? label[item.kind].replace('記事', '作品')
-                    : label[item.kind]}
-                </h3>
+                <h3>{noticeLabel(item)}</h3>
                 <p>{item.title}</p>
                 <time dateTime={new Date(item.createdAt).toISOString()}>
                   {new Date(item.createdAt).toLocaleDateString('ja-JP')}

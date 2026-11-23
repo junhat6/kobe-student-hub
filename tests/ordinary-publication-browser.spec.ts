@@ -306,10 +306,14 @@ async function openReport(page: Page, articlePath: string) {
     const path = new URL(request.url()).pathname;
     if (
       path.startsWith('/api/private/') &&
-      // The header reads the signed-in reader's own profile, and the like button its own state.
-      !['/api/private/session', '/api/private/reading-history', '/api/private/profile'].includes(
-        path,
-      ) &&
+      // The header reads the signed-in reader's own profile and notices, and the like button
+      // its own state.
+      ![
+        '/api/private/session',
+        '/api/private/reading-history',
+        '/api/private/profile',
+        '/api/private/notifications',
+      ].includes(path) &&
       !path.startsWith('/api/private/article-likes/') &&
       // The operator-only editorial review asks once; a non-operator reader gets the same 404.
       !path.startsWith('/api/private/editorial-reviews/')
@@ -539,7 +543,23 @@ test('owner reads a temporary-hide explanation and another session cannot retain
         ).status(),
       ).toBe(200);
     }
-    await page.goto('/account');
+    // #232: the header bell shows a dot for the new notice on any page, without opening /account.
+    await page.evaluate(() => localStorage.removeItem('ksh:notices-seen-at'));
+    await page.goto('/');
+    const bell = page.getByRole('button', { name: 'お知らせ（新しいお知らせがあります）' });
+    await expect(bell).toBeVisible();
+    await bell.click();
+    const panel = page.getByRole('dialog', { name: 'お知らせ' });
+    await expect(panel).toContainText('記事が一時非公開になりました');
+    await expect(panel).toContainText('架空の通知記事-' + info.project.name);
+    await expect(panel).not.toContainText('PRIVATE_REPORTER');
+    await panel.screenshot({ path: info.outputPath('notifications-bell.png') });
+    await panel.getByRole('link', { name: '理由と相談先をマイページで見る' }).click();
+    await expect(page).toHaveURL(/\/account#notifications$/);
+    // Opened once: the dot is gone, and stays gone after a reload.
+    await expect(page.getByRole('button', { name: 'お知らせ', exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: 'お知らせ', exact: true })).toBeVisible();
     const notices = page.getByRole('region', { name: '運営からのお知らせ', exact: true });
     await expect(notices).toContainText('記事が一時非公開になりました');
     await expect(notices).toContainText('架空の通知記事-' + info.project.name);
@@ -552,6 +572,12 @@ test('owner reads a temporary-hide explanation and another session cannot retain
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(notices).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText('架空の通知記事-' + info.project.name);
+    // The bell of the new session does not carry the previous account's notice either.
+    await page.getByRole('button', { name: /^お知らせ/ }).click();
+    await expect(page.getByRole('dialog', { name: 'お知らせ' })).toContainText(
+      'お知らせはまだありません',
+    );
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: '確認したアカウントを開く', exact: true }).click();
     // No notices for the newly opened account: the section stays out of the way.
     await expect(page.getByRole('heading', { name: 'プロフィール', exact: true })).toBeVisible();

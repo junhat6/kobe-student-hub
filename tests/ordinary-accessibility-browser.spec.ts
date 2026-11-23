@@ -5,24 +5,29 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 // C19 / #141: the ordinary release screens (reading, report forms, sign-in, account,
 // history and authoring entry points) have no critical or serious axe violations.
-async function seriousViolations(page: Page) {
-  const { violations } = await new AxeBuilder({ page }).analyze();
+async function seriousViolations(page: Page, exclude: string[] = []) {
+  const builder = new AxeBuilder({ page });
+  for (const selector of exclude) builder.exclude(selector);
+  const { violations } = await builder.analyze();
   return violations
     .filter((v) => v.impact === 'critical' || v.impact === 'serious')
     .map((v) => ({ id: v.id, targets: v.nodes.map((n) => n.target.join(' ')) }));
 }
 
-async function check(page: Page, path: string, ready: () => Promise<void>) {
-  await page.goto(path);
-  await ready();
-  // Colour transitions (e.g. a primary button turning from its disabled pale blue to the accent
-  // after the session check) must settle first, or axe can sample a mid-transition colour. CI
-  // caught /login this way on rc/9d1c184. CSS transitions are finite, unlike looping animations.
-  await page.waitForFunction(() =>
+// Colour transitions (e.g. a primary button turning from its disabled pale blue to the accent
+// after the session check, or a popup fading in) must settle first, or axe can sample a
+// mid-transition colour. CI caught /login this way on rc/9d1c184. CSS transitions are finite.
+const settled = (page: Page) =>
+  page.waitForFunction(() =>
     document
       .getAnimations()
       .every((a) => !(a instanceof CSSTransition) || a.playState !== 'running'),
   );
+
+async function check(page: Page, path: string, ready: () => Promise<void>) {
+  await page.goto(path);
+  await ready();
+  await settled(page);
   expect
     .soft({ path, violations: await seriousViolations(page) })
     .toEqual({ path, violations: [] });
@@ -124,6 +129,18 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
       // #223: the milestones (one article and one work are public) are part of what axe sees.
       await expect(ownerPage.locator('.milestone.is-next')).toBeVisible();
     });
+    // #232: the header bell's panel (empty for this owner) is part of every signed-in page.
+    await ownerPage.getByRole('button', { name: /^お知らせ/ }).click();
+    const bellPanel = ownerPage.getByRole('dialog', { name: 'お知らせ' });
+    await expect(bellPanel).toContainText('お知らせはまだありません');
+    // The fade-in may not have started when `settled` first looks, so wait for the end state.
+    await expect(bellPanel).toHaveCSS('opacity', '1');
+    await expect(bellPanel).toHaveCSS('transform', 'none');
+    await settled(ownerPage);
+    // Base UI's focus guards are aria-hidden spans that only bounce focus back into the open
+    // popup; they are the library's focus trap, not content, so only they are left out here.
+    expect.soft(await seriousViolations(ownerPage, ['[data-base-ui-focus-guard]'])).toEqual([]);
+    await ownerPage.keyboard.press('Escape');
     await check(ownerPage, '/history', () =>
       expect(ownerPage.getByRole('region', { name: '自分の閲覧履歴', exact: true })).toBeVisible(),
     );

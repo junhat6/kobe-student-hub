@@ -19,7 +19,7 @@ import ReceivedLikes from '../community/ReceivedLikes';
 import { ParticipationNotice, writesClosed, type ParticipationState } from './participation';
 import { useHashLanding } from './useHashLanding';
 
-const LANDING_SECTIONS = ['publications', 'enrollment'] as const;
+const LANDING_SECTIONS = ['publications', 'enrollment', 'notifications'] as const;
 
 /**
  * #174: the article a reader wanted to like before making a profile. Only router state

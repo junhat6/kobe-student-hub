@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu } from '@base-ui/react/menu';
 import { accountUiEnabled, authoringUiEnabled } from '../account/routes';
 import { useViewer } from './viewer';
+import NotificationBell from './NotificationBell';
 import './shell.css';
 
 const sections = (authoring: boolean) =>
@@ -141,6 +142,8 @@ export default function SiteHeader() {
           ) : viewer.status === 'signed-in' ? (
             <>
               {authoringUiEnabled && <WriteMenu />}
+              {/* A new session remounts the bell, so one account's notices never show under another. */}
+              <NotificationBell key={viewer.csrfToken} session={viewer.csrfToken} />
               <AccountMenu />
             </>
           ) : viewer.status === 'loading' ? (
