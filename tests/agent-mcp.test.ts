@@ -832,6 +832,50 @@ describe('the publish boundary: humans publish first, agents may edit what is al
     expect(stopped.isError).toBe(true);
     expect((await publicArticle(q.contentId))!.revision).toBe(1);
   });
+
+  it('refuses while a report is open, and leaves the draft untouched', async () => {
+    const p = await publishAs('b', '通報された記事', '本文');
+    const c = await connect('b');
+    const db = await mf.getD1Database('DB');
+    await db
+      .prepare(
+        'INSERT INTO article_reports(id,content_id,reporter_account_id,reason,created_at_ms) VALUES(?,?,?,?,?)',
+      )
+      .bind(crypto.randomUUID(), p.contentId, 'account-a', 'spam', NOW)
+      .run();
+    const r = await tool(c.access_token, 'update_published_article', {
+      id: p.draftId,
+      title: '通報中に直す',
+      body: '本文2',
+      expected_version: p.version,
+    });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toContain('通報の確認中');
+    expect(await publicArticle(p.contentId)).toMatchObject({ body: '本文', revision: 1 });
+    const read = await tool(c.access_token, 'get_my_draft', { id: p.draftId });
+    expect(read.structuredContent!.draft).toMatchObject({ body: '本文', version: p.version });
+  });
+
+  it('rolls the draft back too when the public revision is refused mid-batch', async () => {
+    // A whitespace-only body passes the tool's checks and the state read, but the revision guard
+    // trigger refuses it. The draft UPDATE in the same batch must not survive on its own.
+    const p = await publishAs('b', '途中で失敗する記事', '本文');
+    const c = await connect('b');
+    const r = await tool(c.access_token, 'update_published_article', {
+      id: p.draftId,
+      title: '途中で失敗',
+      body: ' \n ',
+      expected_version: p.version,
+    });
+    expect(r.isError).toBe(true);
+    expect(await publicArticle(p.contentId)).toMatchObject({ body: '本文', revision: 1 });
+    const read = await tool(c.access_token, 'get_my_draft', { id: p.draftId });
+    expect(read.structuredContent!.draft).toMatchObject({
+      title: '途中で失敗する記事',
+      body: '本文',
+      version: p.version,
+    });
+  });
 });
 
 describe("the student's own taste ledger (C23, flag TASTE_LEDGER_RELEASE_ENABLED)", () => {

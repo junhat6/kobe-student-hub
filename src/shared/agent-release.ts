@@ -1,9 +1,10 @@
 /**
  * Release gate for AI agent connections (MCP + OAuth 2.1). R2: flip only after an independent
  * verification in a separate context. The Worker and the UI read the same constant, so the
- * connection screens never appear while the server endpoints are closed.
+ * connection screens never appear while the server endpoints are closed. Opened after the
+ * independent verification of #219 (2026-11-23).
  */
-export const AGENT_MCP_RELEASE_ENABLED = false;
+export const AGENT_MCP_RELEASE_ENABLED = true;
 
 /**
  * Release gate for the student's own taste ledger and its MCP material tools (C23, R2).

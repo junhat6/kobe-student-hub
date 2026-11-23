@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { actor, write } from './helpers/fictional-actor';
+import { AGENT_MCP_RELEASE_ENABLED } from '../src/shared/agent-release';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 // C19 / #141: the ordinary release screens (reading, report forms, sign-in, account,
@@ -126,6 +127,34 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     );
     await check(ownerPage, '/drafts', () => expect(ownerPage.locator('h1')).toBeVisible());
     await check(ownerPage, '/works/new', () => expect(ownerPage.locator('h1')).toBeVisible());
+    // C21 / #219: the MCP consent screen, reached the way an agent sends the student there.
+    if (AGENT_MCP_RELEASE_ENABLED) {
+      const registered = await ownerPage.request.post('/api/oauth/register', {
+        data: {
+          client_name: '架空のエージェント-' + key,
+          redirect_uris: ['http://127.0.0.1:33418/callback'],
+        },
+      });
+      expect(registered.status()).toBe(201);
+      const authorize = await ownerPage.request.get(
+        '/api/oauth/authorize?' +
+          new URLSearchParams({
+            response_type: 'code',
+            client_id: (await registered.json()).client_id,
+            redirect_uri: 'http://127.0.0.1:33418/callback',
+            code_challenge: 'A'.repeat(43),
+            code_challenge_method: 'S256',
+          }),
+        { maxRedirects: 0 },
+      );
+      expect(authorize.status()).toBe(302);
+      const consent = new URL(authorize.headers().location);
+      await check(ownerPage, consent.pathname + consent.search, () =>
+        expect(
+          ownerPage.getByRole('button', { name: '接続を許可する', exact: true }),
+        ).toBeEnabled(),
+      );
+    }
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
   }

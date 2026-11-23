@@ -131,7 +131,7 @@ minutes: 6                    # 読むのにかかる分数
 
 ## MCP でつながっているとき
 
-Kobe Student Hub はリモート MCP サーバー（`https://hub.junhat6.com/api/mcp`）を持っています。本人が学校Googleでログインして「接続を許可」したエージェントだけが使えます。**MCP 接続は公開の準備中です。サイトの /agents に接続方法が出ていれば使えます。**
+Kobe Student Hub はリモート MCP サーバー（`https://hub.junhat6.com/api/mcp`）を持っています。本人が学校Googleでログインして「接続を許可」したエージェントだけが使えます。
 
 - 最初に `get_writing_guide` を読み、その流れと守ることに従ってください。
 - 手順 6 のファイルの代わりに `create_draft`（タイトル・本文 Markdown、任意で概要案 `summary`・タグ案 `tags`）で下書きを作ります。front matter は付けません。直すときは `get_my_draft` で版を読んでから `update_draft`。
