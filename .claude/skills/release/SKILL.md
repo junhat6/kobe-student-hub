@@ -7,7 +7,7 @@ description: kobe-student-hub の本番リリースを1周回す。main の SHA 
 
 本番に出す道は `npm run release` の1本。手順の正本は [docs/RELEASE.md](../../../docs/RELEASE.md)。この skill は、その手順を agent が1人で回し切るための判断表。
 
-本番の運用（D1 migration・deploy・rollback・secret）は agent が自分で判断して進めてよい（2026-11-21 オーナー決定）。資格情報の発行も条件つきで agent が行う（2026-11-23、[LOOPS.md](../../../docs/loop/LOOPS.md#資格情報の発行)）。人に戻すのは、課金・契約、実利用者への連絡だけ。
+本番の運用（D1 migration・deploy・rollback・secret）は agent が自分で判断して進めてよい（2026-11-21 オーナー決定）。資格情報の発行も条件つきで agent が行う（2026-11-23、[LOOPS.md](../../../docs/loop/LOOPS.md#資格情報の発行)）。人に戻すのは、課金・契約だけ（実利用者に関わる運営も 2026-11-23 から agent が行う）。
 
 ## 便（いつ出すか）
 
