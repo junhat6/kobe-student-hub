@@ -8,6 +8,7 @@ import PublicProjectCard from '../editor/PublicProjectCard';
 import Icon from '../shared/Icon';
 import { usePublicRead } from './public-read';
 import './search.css';
+import EmptySprout from '../shared/EmptySprout';
 
 const normalized = (text: string) => text.normalize('NFKC').toLocaleLowerCase('ja');
 const matches = (query: string, texts: string[]) =>
@@ -198,6 +199,7 @@ export default function Search() {
             </>
           ) : (
             <>
+              <EmptySprout />
               <h2>公開中の記事・作品はまだありません</h2>
               <p>記事や作品が公開されると、ここから探せるようになります。</p>
             </>

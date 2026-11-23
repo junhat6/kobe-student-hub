@@ -11,6 +11,7 @@ import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import './discovery.css';
 import { AuthorAvatar } from '../shared/public-avatars';
+import EmptySprout from '../shared/EmptySprout';
 
 function Works() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
@@ -30,6 +31,7 @@ function Works() {
         <p role="status">作品を読み込んでいます…</p>
       ) : !value.cards.length ? (
         <div className="empty">
+          <EmptySprout />
           <h2>まだ作品がありません</h2>
           <p>つくったものを紹介してみませんか。完成していなくても大丈夫です。</p>
           <Link className="primary" to="/works/new">

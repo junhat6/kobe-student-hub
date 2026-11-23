@@ -9,6 +9,7 @@ import PublicProjectCard from '../editor/PublicProjectCard';
 import { useViewer } from '../shell/viewer';
 import { AREA_ENTRANCE, areaEntranceCount, areaEntrancePath } from './area-entrance';
 import './home.css';
+import EmptySprout from '../shared/EmptySprout';
 
 type View = 'recent' | 'popular' | 'recommended';
 
@@ -206,6 +207,7 @@ export default function Home() {
           </div>
         ) : !value.recent.length ? (
           <div className="empty home-empty">
+            <EmptySprout />
             <h2>まだ記事がありません</h2>
             <p>最初の1本を書いてみませんか。短いメモでも、誰かのヒントになります。</p>
             <Link className="primary" to={viewer.status === 'signed-in' ? '/drafts' : '/signup'}>

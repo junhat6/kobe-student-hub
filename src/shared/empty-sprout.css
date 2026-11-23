@@ -1,0 +1,33 @@
+.empty-sprout {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #fff3ec 0%, #e6f6ea 70%);
+  box-shadow: 0 0 0 6px rgb(255 122 69 / 0.08);
+  color: #23964a;
+}
+.empty-sprout .icon {
+  transform-origin: 50% 85%;
+  animation: empty-sprout-grow 900ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+@keyframes empty-sprout-grow {
+  0% {
+    transform: scale(0.4) rotate(-8deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-sprout .icon {
+    animation: none;
+  }
+}
