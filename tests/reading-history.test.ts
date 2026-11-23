@@ -384,6 +384,8 @@ describe('private reading history with native D1 final authority', () => {
     expect(first.entries).toHaveLength(20);
     expect(first.nextOffset).toBe(20);
     expect(first.total).toBe(500);
+    // #229: total counts only the requesting owner's rows.
+    expect((await list(1)).total).toBe(0);
     expect(first.entries.every((x) => x.title === null)).toBe(true);
     expect((await list(0, '?offset=480')).nextOffset).toBeNull();
     expect(

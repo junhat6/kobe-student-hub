@@ -52,6 +52,12 @@ describe('bounded explicit private history browser transport', () => {
       { ...page, entries: [{ ...page.entries[0], title: null, isSample: true }] },
       { ...page, entries: [{ ...page.entries[0], contentId: '../../private' }] },
       { ...page, nextOffset: 501 },
+      { ...page, total: 501 },
+      { ...page, total: -1 },
+      { ...page, total: 1.5 },
+      { ...page, total: '1' },
+      { ...page, total: null },
+      (({ total: _total, ...rest }) => rest)(page),
     ])
       await expect(
         createReadingHistoryClient('', async () => reply(v)).read(),
