@@ -108,9 +108,10 @@ export default function ActivityGrass({
   return (
     <section className={'grass' + (own ? ' grass-own' : '')} aria-label="草">
       <div className="grass-stats">
-        <span className="grass-chip" aria-hidden="true">
+        {/* The unit says what the number counts; the grid's label reads the full sentence. */}
+        <span className="grass-chip" aria-hidden="true" title={`過去半年の公開 ${grass.total}件`}>
           <Icon name="sprout" size={16} />
-          {grass.total}
+          {grass.total}件
         </span>
         {grass.streakWeeks > 0 && (
           <span

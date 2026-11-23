@@ -83,6 +83,19 @@
   letter-spacing: 0;
   overflow-wrap: anywhere;
 }
+/* The legacy .author-lab-card rules (20px title, 14px margins, 44px link box) loaded after this
+   file stretched article cards far beyond work cards. Keep the 44px touch box on the title
+   link, but drop the margins and padding around it. */
+.content-card.author-lab-card h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.content-card.author-lab-card h3 > a {
+  display: flex;
+  align-items: center;
+  padding: 0;
+}
 .content-card-link {
   color: var(--ink, #1c2530);
   text-decoration: none !important;
