@@ -117,7 +117,7 @@ export default function ConnectPage() {
             <a className="primary" href="/login" target="_blank" rel="noopener">
               新しいタブでログインする
             </a>
-            <p>ログインしたら、このタブに戻って「ログイン状態を確認」を押してください。</p>
+            <p>ログインしたら、このタブに戻ってください。ログインを確かめて続きを出します。</p>
           </div>
         }
       >

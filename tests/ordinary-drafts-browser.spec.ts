@@ -114,7 +114,7 @@ async function assertPrivateBuffer(page: Page, expected: string) {
 
 test('ordinary drafts offers signed-out login and is independent of catalog failure', async ({
   page,
-}) => {
+}, info) => {
   let catalogCalls = 0,
     draftCalls = 0;
   await page.route('**/api/catalog', (route) => {
@@ -140,8 +140,20 @@ test('ordinary drafts offers signed-out login and is independent of catalog fail
     page.getByRole('link', { name: '初めての方は学生として登録する', exact: true }),
   ).toBeVisible();
   await expect(page.locator('.draft-editor')).toHaveCount(0);
+  // Signed out, sign-in is the only next step: no manual re-check, no logout note (#251).
+  const main = page.getByRole('main');
+  await expect(main.getByRole('button')).toHaveCount(0);
+  await expect(main.getByText('ログアウトと入力の保持について')).toHaveCount(0);
   expect(catalogCalls).toBe(0);
   expect(draftCalls).toBe(0);
+  // Signing in from another tab is picked up when this tab regains focus, and private
+  // drafts still open only on the explicit second step.
+  const other = await page.context().newPage();
+  await register(other, info, 'focus', false);
+  await other.close();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'まずプロフィールをつくろう' })).toBeVisible();
 });
 
 test('ordinary signup asks for a profile first, then drafts save and reopen', async ({

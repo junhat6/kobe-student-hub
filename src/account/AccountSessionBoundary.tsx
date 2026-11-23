@@ -117,6 +117,9 @@ export default function AccountSessionBoundary({
   const [candidate, setCandidate] = useState<string | null>(null);
   const [concealed, setConcealed] = useState(true);
   const [phase, setPhase] = useState<Phase>('checking');
+  // Read by the mount-time focus/visibility listeners, which would otherwise see a stale phase.
+  const phaseRef = useRef<Phase>('checking');
+  phaseRef.current = phase;
   const [checking, setChecking] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [message, setMessage] = useState(
@@ -237,7 +240,10 @@ export default function AccountSessionBoundary({
     checkingRef.current = true;
     setChecking(true);
     conceal();
-    setMessage(copy('現在のセッションを確認しています…', 'ログイン状態を確認しています…'));
+    // A signed-out page re-checks by itself on focus (after a sign-in in another tab). Keep its
+    // sign-in links and message still meanwhile, so a click is never lost and nothing is re-announced.
+    if (lab || phaseRef.current !== 'signed-out' || rescueRef.current)
+      setMessage(copy('現在のセッションを確認しています…', 'ログイン状態を確認しています…'));
     const request = revision.current;
     const controller = new AbortController();
     inspection.current = controller;
@@ -305,6 +311,9 @@ export default function AccountSessionBoundary({
       if (error instanceof SessionClientError && error.kind === 'signed-out') {
         if (tokenRef.current) keepUnsaved();
         clearPrivate();
+        // Ordinary pages look again on the next focus, so the reader who signs in from another
+        // tab never needs a "check" button to continue (#251).
+        if (!lab) resumeInspection.current = true;
         setPhase('signed-out');
         setMessage(
           rescueRef.current
@@ -533,6 +542,11 @@ export default function AccountSessionBoundary({
   // Outside the lab, a confirmed session needs no visible session chrome: the header owns
   // identity and logout. The live region stays for assistive technology.
   const quiet = !lab && phase === 'active' && !concealed && !checking && !candidate;
+  // Signed out (or still on the first check), the only useful next step is the page's own
+  // sign-in links: the re-check runs by itself, and the logout note belongs to signed-in pages.
+  // A kept rescue still offers the manual re-check after signing in again in a new tab (#251).
+  const signedOutQuiet =
+    !lab && !candidate && !rescue && (phase === 'signed-out' || phase === 'checking');
   return (
     <div className={lab ? 'session-account-lab' : 'session-account'}>
       <section
@@ -559,7 +573,7 @@ export default function AccountSessionBoundary({
         >
           {message}
         </p>
-        <div className="session-actions" hidden={quiet}>
+        <div className="session-actions" hidden={quiet || signedOutQuiet}>
           <Button disabled={checking || loggingOut} onClick={() => void inspect(false)}>
             {lab ? 'セッションを再確認' : 'ログイン状態を確認'}
           </Button>
@@ -589,7 +603,7 @@ export default function AccountSessionBoundary({
           <p className="session-scope-note">
             別タブの変更を常時検知するものではありません。ログアウトは同じブラウザ文脈のセッションと保留中の認証試行が対象です。別端末の終了は確認していません。通信の中止で、すでに保存・公開された操作を取り消すことはできません。ページを閉じると未保存の入力は失われます。
           </p>
-        ) : quiet ? null : (
+        ) : quiet || signedOutQuiet ? null : (
           <details className="session-scope-note">
             <summary>ログアウトと入力の保持について</summary>
             <p>
@@ -636,7 +650,7 @@ export default function AccountSessionBoundary({
           </p>
         </section>
       )}
-      {phase === 'signed-out' && !checking && !loggingOut && !rescue && signedOutContent}
+      {phase === 'signed-out' && !loggingOut && !rescue && signedOutContent}
       <div ref={privatePanel} className="session-private" hidden={concealed} inert={concealed}>
         {sessionToken && (
           <div key={sessionToken}>

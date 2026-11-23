@@ -243,9 +243,12 @@ export default function HistoryPage() {
       <AccountSessionBoundary
         title="閲覧履歴"
         signedOutContent={
-          <p>
-            <Link to="/login">ログインして履歴を見る</Link>
-          </p>
+          <div className="account-signed-out">
+            <Link className="primary" to="/login">
+              ログインして履歴を見る
+            </Link>
+            <Link to="/signup">初めての方は学生として登録する</Link>
+          </div>
         }
       >
         {(session) => <OwnHistory {...session} />}

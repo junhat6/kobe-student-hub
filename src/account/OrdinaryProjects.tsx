@@ -51,10 +51,12 @@ export default function OrdinaryProjects() {
         title="作品"
         onRescueChange={onRescueChange}
         signedOutContent={
-          <p>
-            <Link to="/login">ログインする</Link> ·{' '}
+          <div className="account-signed-out">
+            <Link className="primary" to="/login">
+              ログインする
+            </Link>
             <Link to="/signup">初めての方は学生として登録する</Link>
-          </p>
+          </div>
         }
       >
         {({ csrfToken, fetcher, rescue }) => (
