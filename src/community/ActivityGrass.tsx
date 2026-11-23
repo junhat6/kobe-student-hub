@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPublicStudentClient, validActivity } from './student-client';
 import { buildGrass } from './grass';
+import { milestones } from './milestones';
 import type { PublicStudentActivity } from '../public-student-types';
 import Icon from '../shared/Icon';
 import './grass.css';
@@ -29,6 +30,27 @@ function useActivity(id: string | undefined, own: boolean) {
     return () => controller.abort();
   }, [client, id, own]);
   return value && value.id === id ? value.activity : null;
+}
+
+/**
+ * Owner-only count of what is public right now (articles + projects, each list bounded to 20),
+ * for the milestones. Not public yet is 0; a failed read is null and hides the milestones.
+ */
+function useOwnPieces(id: string | undefined) {
+  const client = useMemo(() => createPublicStudentClient(), []);
+  const [value, setValue] = useState<{ id: string; pieces: number } | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    const controller = new AbortController();
+    client.read(id, controller.signal).then(
+      (student) => setValue({ id, pieces: student.entries.length + student.projects.length }),
+      (error: unknown) => {
+        if ((error as { missing?: unknown })?.missing === true) setValue({ id, pieces: 0 });
+      },
+    );
+    return () => controller.abort();
+  }, [client, id]);
+  return value && value.id === id ? value.pieces : null;
 }
 
 /**
@@ -71,8 +93,10 @@ export default function ActivityGrass({
 }) {
   const activity = useActivity(id, own);
   const reading = useOwnReading(own ? fetcher : undefined);
+  const pieces = useOwnPieces(own ? id : undefined);
   if (!activity) return null;
   const grass = buildGrass(activity, own ? reading : null);
+  const marks = own && pieces !== null ? milestones(pieces, grass.bestStreakWeeks) : null;
   const label =
     `過去半年の公開：${grass.activeDays}日・${grass.total}件` +
     (grass.streakWeeks ? `、${grass.streakWeeks}週連続` : '') +
@@ -141,6 +165,31 @@ export default function ActivityGrass({
           )),
         )}
       </div>
+      {marks && marks.reached.length > 0 && (
+        <ul className="milestones" aria-label="節目（自分だけに見えます）">
+          {marks.reached.map((m, i) => (
+            <li
+              key={m.key}
+              className="milestone is-reached"
+              title={m.detail}
+              style={{ animationDelay: `${500 + i * 120}ms` }}
+            >
+              <Icon name={m.icon} size={16} />
+              {m.label}
+            </li>
+          ))}
+          {marks.next && (
+            <li className="milestone is-next" title={`次の節目：${marks.next.milestone.detail}`}>
+              <Icon name={marks.next.milestone.icon} size={16} />
+              {marks.next.milestone.label}
+              <span className="milestone-left">
+                あと{marks.next.left}
+                {marks.next.unit}
+              </span>
+            </li>
+          )}
+        </ul>
+      )}
     </section>
   );
 }

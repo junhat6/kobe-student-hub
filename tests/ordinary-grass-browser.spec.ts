@@ -69,6 +69,7 @@ test('own grass starts empty, the publish burst appears and leaves, and the gras
   await expect(grass(page)).toBeVisible();
   await expect(grass(page).getByText('最初の1本で芽が出ます', { exact: true })).toBeVisible();
   await expect(grass(page).getByRole('img', { name: /^過去半年の公開：0日・0件/ })).toBeVisible();
+  await expect(grass(page).locator('.milestones')).toHaveCount(0);
 
   const composer = await prepareArticle(page, '架空の草ノート');
   const burstSeen = await watchBurst(page);
@@ -90,6 +91,10 @@ test('own grass starts empty, the publish burst appears and leaves, and the gras
   await expect(grass(page).locator('.grass-cell.is-today')).not.toHaveClass(/level-0/);
   await expect(grass(page).getByText('最初の1本で芽が出ます', { exact: true })).toHaveCount(0);
   await expect(grass(page).locator('.grass-streak')).toHaveText('1週連続');
+  // #223: the first milestone is reached and the next one is shown with what is left.
+  const marks = grass(page).getByRole('list', { name: '節目（自分だけに見えます）' });
+  await expect(marks.locator('.milestone.is-reached')).toHaveText(['初公開']);
+  await expect(marks.locator('.milestone.is-next')).toHaveText('5本あと4本');
   // The page still fits the viewport with the grass on it.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -111,4 +116,8 @@ test('reduced motion publishes without the burst and still grows the grass', asy
   expect(await burstSeen()).toBe(false);
   await page.goto('/account');
   await expect(grass(page).getByRole('img', { name: /^過去半年の公開：1日・1件/ })).toBeVisible();
+  // The milestone is there but does not bounce.
+  const first = grass(page).locator('.milestone.is-reached');
+  await expect(first).toHaveText('初公開');
+  expect(await first.evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
 });

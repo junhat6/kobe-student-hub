@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildGrass } from '../src/community/grass';
+import { milestones } from '../src/community/milestones';
 import { validActivity } from '../src/community/student-client';
 import { emptyActivity } from '../src/community/ActivityGrass';
 
@@ -92,5 +93,33 @@ describe('the grass transport', () => {
         .weeks.flat()
         .every((c) => c.read === 0),
     ).toBe(true);
+  });
+});
+
+describe("milestones on one's own page", () => {
+  it('shows nothing before anything is public', () => {
+    expect(milestones(0, 0)).toEqual({ reached: [], next: null });
+  });
+  it('celebrates the first publication and points at the next one', () => {
+    const m = milestones(1, 1);
+    expect(m.reached.map((x) => x.label)).toEqual(['初公開']);
+    expect(m.next).toMatchObject({ milestone: { key: 'five' }, left: 4, unit: '本' });
+  });
+  it('counts pieces and the longest weekly run separately', () => {
+    const m = milestones(6, 2);
+    expect(m.reached.map((x) => x.key)).toEqual(['first', 'five']);
+    expect(m.next).toMatchObject({ milestone: { key: 'fourWeeks' }, left: 2, unit: '週' });
+    const all = milestones(12, 4);
+    expect(all.reached.map((x) => x.key)).toEqual(['first', 'five', 'fourWeeks', 'ten']);
+    expect(all.next).toBeNull();
+  });
+  it('keeps a four-week run reached after the current streak ends', () => {
+    const days = ['2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22', '2026-11-10'].map(
+      (date) => ({ date, count: 1 }),
+    );
+    const g = buildGrass({ from, to, days });
+    expect(g.streakWeeks).toBe(1);
+    expect(g.bestStreakWeeks).toBe(4);
+    expect(milestones(5, g.bestStreakWeeks).reached.map((x) => x.key)).toContain('fourWeeks');
   });
 });

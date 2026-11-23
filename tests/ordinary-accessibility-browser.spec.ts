@@ -119,9 +119,11 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     // Signed-in owner.
     const ownerPage = await owner.context.newPage();
     await ownerPage.setViewportSize(page.viewportSize()!);
-    await check(ownerPage, '/account', () =>
-      expect(ownerPage.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible(),
-    );
+    await check(ownerPage, '/account', async () => {
+      await expect(ownerPage.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
+      // #223: the milestones (one article and one work are public) are part of what axe sees.
+      await expect(ownerPage.locator('.milestone.is-next')).toBeVisible();
+    });
     await check(ownerPage, '/history', () =>
       expect(ownerPage.getByRole('region', { name: '自分の閲覧履歴', exact: true })).toBeVisible(),
     );

@@ -17,6 +17,8 @@ export interface Grass {
   activeDays: number;
   /** Consecutive weeks with activity, ending this week (or last week while this one is still open). */
   streakWeeks: number;
+  /** Longest run of consecutive active weeks anywhere in the window. */
+  bestStreakWeeks: number;
   /** True when this week already has activity. */
   thisWeek: boolean;
   /** Owner-only total of the reading layer. */
@@ -69,11 +71,15 @@ export function buildGrass(
   const thisWeek = active[active.length - 1] ?? false;
   let streakWeeks = 0;
   for (let i = active.length - (thisWeek ? 1 : 2); i >= 0 && active[i]; i--) streakWeeks++;
+  let bestStreakWeeks = 0;
+  let run = 0;
+  for (const on of active) bestStreakWeeks = Math.max(bestStreakWeeks, (run = on ? run + 1 : 0));
   return {
     weeks,
     total: activity.days.reduce((sum, d) => sum + d.count, 0),
     activeDays: activity.days.length,
     streakWeeks,
+    bestStreakWeeks,
     thisWeek,
     readTotal: [...reads.values()].reduce((sum, n) => sum + n, 0),
   };
