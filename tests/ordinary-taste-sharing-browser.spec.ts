@@ -57,9 +57,27 @@ test('a student shows one ledger line to operators, deletes another, and the ope
 
     await show('結論を見出しの直後に書く').click();
     await expect(show('結論を見出しの直後に書く')).toHaveAttribute('aria-pressed', 'true');
-    await ledger.getByRole('button', { name: '削除：手順は番号つきの箇条書きにする' }).click();
+    // #248: success is quiet (no visible sentence), and deleting offers 「元に戻す」 first.
+    await expect(ledger.locator('p:not(.sr-only)')).toHaveCount(0);
+    const remove = () =>
+      ledger.getByRole('button', { name: '削除：手順は番号つきの箇条書きにする' }).click();
+    const undo = ledger.getByRole('button', { name: '元に戻す', exact: true });
+    await remove();
+    await expect(ledger.getByRole('listitem')).toHaveCount(2);
+    await expect(undo).toBeVisible();
+    await undo.click();
+    await expect(undo).toHaveCount(0);
+    await expect(ledger.getByRole('listitem')).toHaveCount(3);
+    await mine.reload();
+    await expect(region(mine).getByRole('listitem')).toHaveCount(3);
+    await remove();
     await expect(ledger.getByRole('listitem')).toHaveCount(2);
     await expect(ledger).not.toContainText('手順は番号つきの箇条書きにする');
+    if (page.viewportSize()!.width < 500)
+      await mine.screenshot({ path: info.outputPath('own-taste-undo.png'), scale: 'css' });
+    // The deletion is sent when the undo window closes.
+    await expect(undo).toHaveCount(0, { timeout: 10_000 });
+    await expect(ledger.locator('p:not(.sr-only)')).toHaveCount(0);
     await mine.reload();
     await expect(region(mine).getByRole('listitem')).toHaveCount(2);
     await expect(show('結論を見出しの直後に書く')).toHaveAttribute('aria-pressed', 'true');

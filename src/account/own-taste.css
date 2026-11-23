@@ -32,7 +32,45 @@
   border-color: var(--accent-strong, #1659c7);
   color: var(--accent-strong, #1659c7);
 }
-.own-taste-message {
+.own-taste-error {
   margin: 8px 0 0;
+  color: #8c3423;
   font-size: 14px;
+}
+/* Gmail・Google ドライブの「元に戻す」と同じ型：画面の下に浮かぶ1行。 */
+.own-taste-undo {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 16px;
+  border-radius: 10px;
+  background: #1f2933;
+  color: #fff;
+  font-size: 15px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.25);
+  transform: translateX(-50%);
+}
+.own-taste .own-taste-undo-button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #9cc3ff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.own-taste .own-taste-undo-button:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+.own-taste .own-taste-undo-button:focus-visible {
+  outline: 2px solid #9cc3ff;
+  outline-offset: 2px;
 }
