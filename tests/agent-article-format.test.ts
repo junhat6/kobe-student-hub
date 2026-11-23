@@ -1,10 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   ARTICLE_FORMAT_EXAMPLE,
   articleForAgent,
   buildWritingRequest,
   parseAgentArticle,
+  SHOP_REVIEW_RULES,
+  WRITING_RULES,
 } from '../src/agent/article-format';
+import { SHOP_REVIEW_TEMPLATE, withShopReviewTemplate } from '../src/editor/ShopReviewGuide';
 
 describe('parseAgentArticle', () => {
   it('reads the documented example into title, body and publication fields', () => {
@@ -128,5 +132,21 @@ describe('articleForAgent', () => {
     expect(text).toContain('- 前提知識: P');
     expect(text).not.toContain('想定読者');
     expect(text.trim().endsWith('B')).toBe(true);
+  });
+});
+
+describe('shop-review rules (#193)', () => {
+  const line = `- お店のレビューなら：${SHOP_REVIEW_RULES.join('。')}。`;
+  it('come from one list for the request, the MCP guide and the downloadable kit', () => {
+    expect(WRITING_RULES).toContain(line);
+    expect(buildWritingRequest({ title: '', body: '' }, 'https://example.test')).toContain(line);
+    expect(readFileSync('public/agent-kit/ksh-article/SKILL.md', 'utf8')).toContain(line);
+  });
+  it('the draft-screen template is appended after the body and never replaces it', () => {
+    expect(withShopReviewTemplate('')).toBe(SHOP_REVIEW_TEMPLATE);
+    expect(withShopReviewTemplate('  \n')).toBe(SHOP_REVIEW_TEMPLATE);
+    expect(withShopReviewTemplate('## 前置き\nおいしい。\n\n')).toBe(
+      '## 前置き\nおいしい。\n\n' + SHOP_REVIEW_TEMPLATE,
+    );
   });
 });

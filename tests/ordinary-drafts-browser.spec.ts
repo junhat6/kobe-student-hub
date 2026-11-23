@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { createProfileOnAccount, ensureProfileByApi } from './helpers/profile';
@@ -191,6 +192,23 @@ test('ordinary signup asks for a profile first, then drafts save and reopen', as
     fullPage: true,
     scale: 'css',
   });
+  // #193: the folded shop-review guide shows the shared rules and appends the body skeleton.
+  const guide = page.locator('.shop-review-guide');
+  await guide.locator('summary', { hasText: 'お店のレビューを書くとき' }).click();
+  await expect(guide.getByText('店員や他の客を特定しない', { exact: true })).toBeVisible();
+  await expect(guide.locator('code', { hasText: '北野川線沿い' })).toBeVisible();
+  await guide.getByRole('button', { name: '本文の末尾に型を入れる', exact: true }).click();
+  await expect(body(page)).toHaveValue(
+    /100万行[\s\S]*## 学生向けのポイント\n- 昼休みに間に合うか：/,
+  );
+  const { violations } = await new AxeBuilder({ page }).include('.shop-review-guide').analyze();
+  expect(
+    violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id),
+  ).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await guide.screenshot({ path: info.outputPath('ordinary-drafts-shop-review-guide.png') });
+  await save(page).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
   await page.reload();
   await expect(newDraft(page)).toBeEnabled();
   await page.getByRole('button', { name: 'AIと技術を選んだ理由', exact: true }).click();

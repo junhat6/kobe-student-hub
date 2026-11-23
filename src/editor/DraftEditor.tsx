@@ -6,6 +6,7 @@ import type { RescueChannel } from '../account/AccountSessionBoundary';
 import './editor.css';
 import PublicationComposer from './PublicationComposer';
 import MediaAttachments from './MediaAttachments';
+import ShopReviewGuide, { withShopReviewTemplate } from './ShopReviewGuide';
 import AgentWritingPanel from '../agent/AgentWritingPanel';
 import { useAgentDrafts } from '../agent/connections-client';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
@@ -836,6 +837,15 @@ export default function DraftEditor({
                   <span>{ordinary ? 'JPEG・PNG画像に対応' : '画像・Mermaidは未対応'}</span>
                 </div>
               </section>
+              {ordinary && draft && writable && (
+                <ShopReviewGuide
+                  disabled={editingLocked || composing || busy || publicationBusy}
+                  onInsert={() => {
+                    cancelAutosave();
+                    setText((t) => ({ ...t, body: withShopReviewTemplate(t.body) }));
+                  }}
+                />
+              )}
               {ordinary && draft && writable && (
                 <AgentWritingPanel
                   key={'agent-' + draft.id}

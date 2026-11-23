@@ -237,13 +237,25 @@ minutes: 6
 ## なぜ書くのか
 （ここから本文。見出しは ## から始めます）`;
 
+/**
+ * Shop-review rules (DECISIONS 2026-11-22「食事レビュー記事と北野川線沿い」). One source for the
+ * agent request/MCP guide and the hand-writing guide on the draft screen, so the two never drift.
+ */
+export const SHOP_REVIEW_RULES = [
+  '実際に行った店だけ',
+  '行った時期と、値段・メニューは「その時点」と書く',
+  '無料提供・割引・依頼があれば書く',
+  '店員や他の客を特定しない',
+  '悪口・中傷にしない',
+] as const;
+
 export const WRITING_RULES = `- 自分（依頼者）が実際にやったこと・確かめたことだけを書く。やっていない経験や数字を作らない。
 - 他の人の名前・顔・連絡先、学校のメールアドレス、パスワード・APIキー・トークン、社外秘の情報は書かない（見つけたら伏せる）。
 - 課題の解答の丸写しは載せない。考え方や詰まった点は書いてよい。
 - 本文は Markdown（GFM）。見出しは ## から。HTML タグは表示されないので使わない。
 - 画像は多めに、見出しごとに1枚以上を目安にする。ファイルには埋め込めないので、置きたい場所に「（写真：〇〇）」「（図：〇〇）」と書く（あとで本人がサイトで画像を追加する）。画像は本人が撮った写真か、内容を図にした自作の図版だけ。ネットで見つけた画像・店の公式写真は使わない。AIが作った写真風の画像で実在の店や料理を見せない。
 - 読者は神戸電子の学生。専門用語は最初に一言で説明する。
-- お店のレビューなら：実際に行った店だけ。行った時期と、値段・メニューは「その時点」と書く。無料提供・割引・依頼があれば書く。店員や他の客を特定しない。`;
+- お店のレビューなら：${SHOP_REVIEW_RULES.join('。')}。`;
 
 /**
  * The text a student copies into their own AI agent. Includes the current draft when there is

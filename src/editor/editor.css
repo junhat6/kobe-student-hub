@@ -801,3 +801,63 @@
     font-size: 16px;
   }
 }
+
+/* 「お店のレビューを書くとき」 folded guide under the body (#193). */
+.shop-review-guide {
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.shop-review-guide > summary {
+  min-height: 44px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+}
+.shop-review-guide-body {
+  padding: 0 20px 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.draft-editor .shop-review-guide-body p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.shop-review-guide-body h4 {
+  margin: 16px 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.shop-review-guide-body ul {
+  margin: 0;
+  padding-left: 1.4em;
+  list-style: disc;
+}
+.shop-review-guide-body li {
+  display: list-item;
+}
+.shop-review-guide-body code {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--tint);
+  font-family: inherit;
+  font-size: 13px;
+}
+.shop-review-guide-body button {
+  min-height: 44px;
+  margin-top: 12px;
+}
+@media (max-width: 640px) {
+  .shop-review-guide > summary {
+    padding: 12px 14px;
+  }
+  .shop-review-guide-body {
+    padding: 0 14px 16px;
+  }
+}
