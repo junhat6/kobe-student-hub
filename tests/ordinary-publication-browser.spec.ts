@@ -324,12 +324,13 @@ async function openReport(page: Page, articlePath: string) {
     const path = new URL(request.url()).pathname;
     if (
       path.startsWith('/api/private/') &&
-      // The header reads the signed-in reader's own profile and notices, and the like button
-      // its own state.
+      // The header reads the signed-in reader's own profile, icon version and notices, and the
+      // like button its own state.
       ![
         '/api/private/session',
         '/api/private/reading-history',
         '/api/private/profile',
+        '/api/private/profile-avatar',
         '/api/private/notifications',
       ].includes(path) &&
       !path.startsWith('/api/private/article-likes/') &&
