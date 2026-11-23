@@ -48,7 +48,10 @@ test('project detail shows summary, technologies, author and a consent-gated You
     .fill('React、TypeScript, Cloudflare Workers');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
   await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
-  await page.getByRole('button', { name: '作品の公開準備・記録を確認', exact: true }).click();
+  // #235: the publish check runs by itself once the saved version matches the input.
+  await expect(
+    page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }),
+  ).toBeEnabled();
   await page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }).click();
   const open = page.getByRole('link', { name: 'ログインなしで作品を見る' });
   await expect(open).toBeVisible();

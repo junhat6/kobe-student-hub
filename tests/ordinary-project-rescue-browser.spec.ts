@@ -50,9 +50,7 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
   await page.goto('/works/new');
   await expect(projectTitle(page)).toBeEditable();
   expect((await listed).status()).toBe(200);
-  await expect(
-    page.getByRole('button', { name: '作品の保存一覧を更新', exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: '新しい作品の入力', exact: true })).toBeEnabled();
   return actor;
 }
 // Signs the same browser context in again (as `actor`) without touching the observed page.

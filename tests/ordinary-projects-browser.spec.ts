@@ -63,6 +63,15 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   // #216: an author with a profile sees it and can publish without pressing a check button.
   await expect(page.getByText('公開する投稿者：架空の作品投稿者', { exact: false })).toBeVisible();
   await expect(page.getByText('公開プロフィールがまだ', { exact: false })).toHaveCount(0);
+  // #235 原則4: the screen re-reads by itself; check/refresh buttons appear only after a failure.
+  for (const name of [
+    '作品の保存一覧を更新',
+    '保存した作品をもう一度読み込む',
+    '保存済みの作品を確認',
+    '作品の公開準備・記録を確認',
+    '公開の確認をもう一度',
+  ])
+    await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }),
   ).toBeEnabled();

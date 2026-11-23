@@ -142,6 +142,8 @@ export default function ProjectRegistration({
     [profile, setProfile] = useState<PublicProfile | null>(null),
     // 'pending' until a preparation read returns, so the absence of a profile is never claimed early.
     [profileState, setProfileState] = useState<'pending' | 'loaded' | 'failed'>('pending'),
+    // A preparation read (receipt, profile or own articles) failed; only then is a retry shown.
+    [prepFailed, setPrepFailed] = useState(false),
     [receipt, setReceipt] = useState<ProjectReceipt['publication']>(null),
     [published, setPublished] = useState<{ id: string; version: number } | null>(null);
   /** Bumped only by a publication made here, never by reading an existing record. */
@@ -289,6 +291,7 @@ export default function ProjectRegistration({
     setReady(false);
     setReceipt(null);
     setPublished(null);
+    setPrepFailed(false);
     setAutosavePaused(false);
     composition.current = false;
     setComposing(false);
@@ -328,6 +331,7 @@ export default function ProjectRegistration({
           setCandidate(null);
           setReady(false);
           setReceipt(null);
+          setPrepFailed(false);
           setAutosavePaused(false);
           setMessage(
             '確認した入力を保存しました。後から入力した変更は保存結果と別に保持しています。',
@@ -425,6 +429,7 @@ export default function ProjectRegistration({
     setReady(false);
     setReceipt(null);
     setPublished(null);
+    setPrepFailed(false);
     setAutosavePaused(false);
     composition.current = false;
     setComposing(false);
@@ -501,6 +506,9 @@ export default function ProjectRegistration({
     setLinked((old) => old.filter((id) => articles?.some((a) => a.id === id)));
     setProfile(author.status === 'fulfilled' ? author.value : null);
     setProfileState(author.status === 'fulfilled' ? 'loaded' : 'failed');
+    setPrepFailed(
+      record.status !== 'fulfilled' || author.status !== 'fulfilled' || (ordinary && !articles),
+    );
     if (record.status !== 'fulfilled') {
       setMessage('公開記録を確認できません。未公開とは判断せず、自動で再送しません。');
       return;
@@ -646,7 +654,9 @@ export default function ProjectRegistration({
         if (current(g)) {
           setPubUnknown(true);
           setMessage(
-            '公開結果を確認できませんでした。再送せず、公開準備・記録を確認してください。',
+            ordinary
+              ? '公開できたか確かめられませんでした。自動で再送しません。「公開の確認をもう一度」で確かめてください。'
+              : '公開結果を確認できませんでした。再送せず、公開準備・記録を確認してください。',
           );
         }
       }
@@ -675,9 +685,12 @@ export default function ProjectRegistration({
         <Button disabled={busy} onClick={reset}>
           新しい作品の入力
         </Button>
-        <Button disabled={busy} onClick={() => void refresh()}>
-          作品の保存一覧を更新
-        </Button>
+        {/* The list loads by itself; ordinary authors see a reload only when it is needed (原則4). */}
+        {(!ordinary || listFailed || createUnknown) && (
+          <Button disabled={busy} onClick={() => void refresh()}>
+            {ordinary ? '保存した作品をもう一度読み込む' : '作品の保存一覧を更新'}
+          </Button>
+        )}
       </div>
       {listFailed && (
         <p role="alert">
@@ -775,7 +788,9 @@ export default function ProjectRegistration({
           </div>
         ))}
         <p>
-          HTTPSのURLだけを利用できます。URLのクエリやフラグメントも公開されます。認証情報や秘密のリンクは入力しないでください。画像や外部ページは自動取得しません。
+          {ordinary
+            ? 'URL は https:// で始まるものだけ使えます。秘密のリンクは入れないでください。'
+            : 'HTTPSのURLだけを利用できます。URLのクエリやフラグメントも公開されます。認証情報や秘密のリンクは入力しないでください。画像や外部ページは自動取得しません。'}
         </p>
         {!normalized && dirty && (
           <p role="alert">
@@ -860,12 +875,17 @@ export default function ProjectRegistration({
             fetcher={fetcher}
             scopeKey={csrfToken}
           />
-          <Button disabled={busy} onClick={() => void inspect(saved.id)}>
-            保存済みの作品を確認
-          </Button>
-          <Button disabled={busy} onClick={() => void preparation()}>
-            作品の公開準備・記録を確認
-          </Button>
+          {/* Ordinary authors get these reads automatically; the buttons appear only to recover. */}
+          {(!ordinary || saveUnknown) && (
+            <Button disabled={busy} onClick={() => void inspect(saved.id)}>
+              保存済みの作品を確認
+            </Button>
+          )}
+          {(!ordinary || prepFailed || pubUnknown) && (
+            <Button disabled={busy} onClick={() => void preparation()}>
+              {ordinary ? '公開の確認をもう一度' : '作品の公開準備・記録を確認'}
+            </Button>
+          )}
           {profile && (
             <p>
               公開する投稿者：{profile.displayName} ／ {profile.department} {profile.yearLabel}
@@ -886,7 +906,7 @@ export default function ProjectRegistration({
               </p>
             ) : profileState === 'failed' ? (
               <p role="alert">
-                公開プロフィールを読み込めませんでした。「作品の公開準備・記録を確認」でもう一度確かめてください。
+                公開プロフィールを読み込めませんでした。「公開の確認をもう一度」を押してください。
               </p>
             ) : null)}
           {ordinary && ready && !receipt && !published && (
@@ -894,7 +914,7 @@ export default function ProjectRegistration({
               <legend>この作品の記事（任意・3件まで）</legend>
               {ownArticles === null ? (
                 <p>
-                  自分の公開記事を確認できませんでした。記事を紐づけずに公開できます。紐づけたい場合は公開準備をもう一度確認してください。
+                  自分の公開記事を確認できませんでした。記事を紐づけずに公開できます。紐づけたい場合は「公開の確認をもう一度」を押してください。
                 </p>
               ) : !ownArticles.length ? (
                 <p>公開中の自分の記事はまだありません。作品だけでも公開できます。</p>
@@ -930,12 +950,12 @@ export default function ProjectRegistration({
               )}
             </fieldset>
           )}
-          <p>公開には空白だけではないタイトルと説明が必要です。</p>
+          {(!ordinary || !publishable) && <p>公開には空白だけではないタイトルと説明が必要です。</p>}
           <p>
             {surface === 'ordinary' ? (
               <>
-                保存した説明とURL、プロフィールが誰でも見られるようになります。公開した後は内容を直せません。
-                <a href="/account#publications">マイページから公開を止められます。</a>
+                公開すると誰でも見られ、内容は直せません。
+                <a href="/account#publications">マイページから止められます。</a>
               </>
             ) : (
               '保存した説明と上のURL、確認済みプロフィールが匿名の読者にも見える操作です。公開後の本文更新・削除・再公開は未提供です。「自分の公開記録」から、現在の公開を停止するローカル試作を利用できます。'
