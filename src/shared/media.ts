@@ -5,14 +5,15 @@ export const JPEG_MAX_PIXELS = 524_288;
 // Larger PNG diagrams are accepted only when the compressed work is also small.
 export const PNG_HIGH_RES_BYTES = 64 * 1024;
 /**
- * Storage limits. The `media_assets_insert` trigger (migrations/0020) enforces the same values
- * atomically; tests/media-limits.test.ts fails if the two drift. Raising a value needs a migration (#195).
+ * Storage limits. The latest `media_assets_insert` trigger (migrations/0032) and the media_ids_json
+ * CHECKs enforce the same values atomically; tests/media-limits.test.ts fails if they drift.
+ * Changing a value needs a migration. Raised in #195 so an article can carry many images.
  */
-export const MEDIA_PER_DRAFT = 8;
-export const MEDIA_OWNER_COUNT = 128;
-export const MEDIA_OWNER_BYTES = 8 * 1024 * 1024;
-export const MEDIA_GLOBAL_COUNT = 4096;
-export const MEDIA_GLOBAL_BYTES = 64 * 1024 * 1024;
+export const MEDIA_PER_DRAFT = 24;
+export const MEDIA_OWNER_COUNT = 512;
+export const MEDIA_OWNER_BYTES = 64 * 1024 * 1024;
+export const MEDIA_GLOBAL_COUNT = 16384;
+export const MEDIA_GLOBAL_BYTES = 2 * 1024 * 1024 * 1024;
 /** Why an authorized upload was refused by a storage limit. Only sent to the draft's owner. */
 export type MediaLimit = 'draft' | 'owner' | 'site';
 export const mediaLimit = (value: unknown): value is MediaLimit =>

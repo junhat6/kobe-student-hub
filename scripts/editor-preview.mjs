@@ -27,6 +27,7 @@ for (const file of [
   'migrations/0027_profile_reports.sql',
   'migrations/0028_profile_avatars.sql',
   'migrations/0031_media_objects.sql',
+  'migrations/0032_media_limits_raise.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
@@ -73,6 +74,10 @@ for (const file of [
                                   : file.includes('0008')
                                     ? 'article_likes'
                                     : 'account_public_profiles';
+  // 0032 only swaps CHECKs and a trigger, so it is detected by the raised trigger value.
+  const marker = file.includes('0032')
+    ? `SELECT name FROM sqlite_master WHERE type='trigger' AND name='media_assets_insert' AND instr(sql,'>=16384')>0`
+    : null;
   const check = spawnSync(
     'npx',
     [
@@ -86,9 +91,10 @@ for (const file of [
       '--persist-to',
       '.wrangler/editor-state',
       '--command',
-      column
-        ? `SELECT name FROM pragma_table_info('${columnTable}') WHERE name='${column}'`
-        : `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`,
+      marker ??
+        (column
+          ? `SELECT name FROM pragma_table_info('${columnTable}') WHERE name='${column}'`
+          : `SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`),
       '--json',
     ],
     { encoding: 'utf8' },
@@ -97,7 +103,7 @@ for (const file of [
     process.stderr.write(check.stderr);
     process.exit(check.status ?? 1);
   }
-  const expected = column ?? table;
+  const expected = marker ? 'media_assets_insert' : (column ?? table);
   if (!JSON.parse(check.stdout).some((x) => x.results?.some((row) => row.name === expected)))
     run([
       'd1',

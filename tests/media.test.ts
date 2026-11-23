@@ -5,7 +5,13 @@ import { encode as pngEncode, decode as pngDecode } from 'fast-png';
 import jpeg from 'jpeg-js';
 import { workerModules } from './helpers/worker-modules';
 import type { PrivateDraft } from '../worker/drafts';
-import type { MediaReceipt } from '../src/shared/media';
+import {
+  MEDIA_GLOBAL_COUNT,
+  MEDIA_OWNER_BYTES,
+  MEDIA_OWNER_COUNT,
+  MEDIA_PER_DRAFT,
+  type MediaReceipt,
+} from '../src/shared/media';
 const O = 'https://app.example.invalid',
   NOW = 1800000000000;
 type Session = { setCookie: string; contextCookie: string; csrfToken: string };
@@ -22,6 +28,50 @@ const jpg = jpeg.encode(
   75,
 ).data;
 const id = () => crypto.randomUUID();
+type TestDb = Awaited<ReturnType<Miniflare['getD1Database']>>;
+async function holderDraft(db: TestDb, account: string) {
+  const draftId = id();
+  await db
+    .prepare('INSERT INTO private_article_drafts VALUES(?,?,?, ?,1,?)')
+    .bind(draftId, account, 'Limit fixture', 'Unreferenced fixture', NOW)
+    .run();
+  return draftId;
+}
+/** The insert trigger exactly as the newest migration defines it. */
+const insertTrigger = () =>
+  readdirSync('migrations')
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map(
+      (f) =>
+        /CREATE TRIGGER media_assets_insert[\s\S]*?\nEND;/.exec(
+          readFileSync('migrations/' + f, 'utf8'),
+        )?.[0],
+    )
+    .filter(Boolean)
+    .at(-1)!;
+/**
+ * Fills the site to `total` images with 1-byte fixture rows owned by `account`. The trigger scans
+ * the table per row, so the fill runs without it and the migration's trigger is restored after.
+ */
+async function fillSiteCount(db: TestDb, account: string, total: number) {
+  const holder = await holderDraft(db, account);
+  const used = (await db.prepare('SELECT COUNT(*) n FROM media_assets').first<{ n: number }>())!.n;
+  await db.prepare('DROP TRIGGER media_assets_insert').run();
+  try {
+    await db
+      .prepare(
+        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<?) INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT printf('e%07x-0000-4000-8000-000000000000',i),?,?,'image/png',1,1,zeroblob(1),?,? FROM n",
+      )
+      .bind(total - used, account, holder, '0'.repeat(64), NOW)
+      .run();
+  } finally {
+    await db.prepare(insertTrigger().replace(/;$/, '')).run();
+  }
+  expect((await db.prepare('SELECT COUNT(*) n FROM media_assets').first<{ n: number }>())!.n).toBe(
+    total,
+  );
+}
 const h = (n = 0) => ({
   Cookie: [users[n].setCookie, users[n].contextCookie].map((s) => s.split(';')[0]).join('; '),
   Origin: O,
@@ -69,58 +119,60 @@ function security(r: { headers: Pick<Headers, 'get' | 'has'> }) {
     expect(r.headers.has(key)).toBe(false);
 }
 // Every case runs without R2 (D1 only, the previous Worker's shape) and with the private bucket (#12).
-describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 }) => {
-  beforeAll(async () => {
-    users = [];
-    mf = new Miniflare(
-      convertV4MiniflareOptions({
-        modules: workerModules('.worker/media-test.js'),
-        compatibilityDate: '2026-11-03',
-        compatibilityFlags: ['nodejs_compat'],
-        d1Databases: ['DB'],
-        r2Buckets: r2 ? ['MEDIA_BUCKET'] : [],
-        outboundService() {
-          throw Error('Unexpected outbound');
-        },
-      }),
+/** Boots the media worker on a fresh D1 with every migration before `until` applied. */
+async function boot(r2: boolean, until = '\uffff') {
+  users = [];
+  mf = new Miniflare(
+    convertV4MiniflareOptions({
+      modules: workerModules('.worker/media-test.js'),
+      compatibilityDate: '2026-11-03',
+      compatibilityFlags: ['nodejs_compat'],
+      d1Databases: ['DB'],
+      r2Buckets: r2 ? ['MEDIA_BUCKET'] : [],
+      outboundService() {
+        throw Error('Unexpected outbound');
+      },
+    }),
+  );
+  const db = await mf.getD1Database('DB');
+  for (const file of readdirSync('migrations')
+    .filter((f) => f.endsWith('.sql') && f < until)
+    .sort()) {
+    const raw = readFileSync('migrations/' + file, 'utf8');
+    for (const sql of (raw.includes('-- @statement')
+      ? raw.split(/^-- @statement\s*$/m)
+      : raw.split(/;\s*(?:\n|$)/)
+    )
+      .map((s) => s.replace(/^--.*$/gm, '').trim())
+      .filter(Boolean))
+      await db.prepare(sql).run();
+  }
+  for (let n = 0; n < 4; n++) {
+    await db
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
+      )
+      .bind('account-' + n, 'subject-' + n, n + '@st.kobedenshi.ac.jp', NOW)
+      .run();
+    users.push(
+      (await (
+        await mf.dispatchFetch(O + '/fixture/session', { headers: { 'X-Test-Who': String(n) } })
+      ).json()) as Session,
     );
-    const db = await mf.getD1Database('DB');
-    for (const file of readdirSync('migrations')
-      .filter((f) => f.endsWith('.sql'))
-      .sort()) {
-      const raw = readFileSync('migrations/' + file, 'utf8');
-      for (const sql of (raw.includes('-- @statement')
-        ? raw.split(/^-- @statement\s*$/m)
-        : raw.split(/;\s*(?:\n|$)/)
-      )
-        .map((s) => s.replace(/^--.*$/gm, '').trim())
-        .filter(Boolean))
-        await db.prepare(sql).run();
-    }
-    for (let n = 0; n < 4; n++) {
-      await db
-        .prepare(
-          "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
-        )
-        .bind('account-' + n, 'subject-' + n, n + '@st.kobedenshi.ac.jp', NOW)
-        .run();
-      users.push(
-        (await (
-          await mf.dispatchFetch(O + '/fixture/session', { headers: { 'X-Test-Who': String(n) } })
-        ).json()) as Session,
-      );
-    }
-    await db
-      .prepare(
-        "INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) VALUES('image-author','公開表示名','','','','画',0)",
-      )
-      .run();
-    await db
-      .prepare(
-        "INSERT INTO account_public_profiles(owner_account_id,public_profile_id) VALUES('account-0','image-author')",
-      )
-      .run();
-  });
+  }
+  await db
+    .prepare(
+      "INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) VALUES('image-author','公開表示名','','','','画',0)",
+    )
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO account_public_profiles(owner_account_id,public_profile_id) VALUES('account-0','image-author')",
+    )
+    .run();
+}
+describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 }) => {
+  beforeAll(() => boot(r2));
   afterAll(async () => {
     await mf?.dispose();
   });
@@ -395,7 +447,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
   it('enforces atomic per-draft and owner quotas and allows removal only after removing private references', async () => {
     const d = await draft();
     const images: ReturnType<typeof id>[] = [];
-    for (let n = 0; n < 8; n++) {
+    for (let n = 0; n < MEDIA_PER_DRAFT; n++) {
       images.push(id());
       expect((await upload(d, images[n])).status).toBe(201);
     }
@@ -404,7 +456,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     security(full);
     expect(await full.json()).toEqual({ error: 'media_limit', limit: 'draft' });
     // A resend of an image that is already saved stays the idempotent receipt, not a refusal.
-    expect((await upload(d, images[7])).status).toBe(201);
+    expect((await upload(d, images[MEDIA_PER_DRAFT - 1])).status).toBe(201);
     const image = id(),
       linked = await draft(`![keep](/api/media/${image})`);
     await upload(linked, image);
@@ -591,59 +643,78 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       ).status,
     ).toBe(415);
   });
-  it('enforces owner byte quotas and the global byte ceiling atomically in actual D1 triggers', async () => {
+  it('enforces owner byte/count quotas and the site count ceiling atomically in actual D1 triggers', async () => {
     const db = await mf.getD1Database('DB'),
-      owners: string[] = [];
+      accounts = ['quota-bytes', 'quota-count', 'quota-site', 'quota-probe'];
+    const insert = (account: string, draftId: string, size: number) =>
+      db
+        .prepare(
+          "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) VALUES(?,?,?,'image/png',1,1,zeroblob(?),?,?)",
+        )
+        .bind(id(), account, draftId, size, '0'.repeat(64), NOW);
+    const holders = async (account: string, images: number) => {
+      const drafts: string[] = [];
+      // One spare draft so the probe is never refused by the per-draft limit instead.
+      for (let n = 0; n <= Math.ceil(images / MEDIA_PER_DRAFT); n++)
+        drafts.push(await holderDraft(db, account));
+      return drafts;
+    };
+    const count = async (account?: string) =>
+      (await db
+        .prepare(
+          'SELECT COUNT(*) n FROM media_assets' + (account ? ' WHERE owner_account_id=?' : ''),
+        )
+        .bind(...(account ? [account] : []))
+        .first<{ n: number }>())!.n;
     try {
-      let rejected = false;
-      for (let owner = 0; owner < 9 && !rejected; owner++) {
-        const account = 'quota-account-' + owner;
-        owners.push(account);
+      for (const account of accounts)
         await db
           .prepare(
             "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
           )
-          .bind(account, 'quota-subject-' + owner, 'quota-' + owner + '@st.kobedenshi.ac.jp', NOW)
+          .bind(account, account + '-subject', account + '@st.kobedenshi.ac.jp', NOW)
           .run();
-        const drafts = [id(), id(), id()];
-        for (const d of drafts)
-          await db
-            .prepare('INSERT INTO private_article_drafts VALUES(?,?,?, ?,1,?)')
-            .bind(d, account, 'Quota fixture', 'Unreferenced fixture', NOW)
-            .run();
-        const insert = (draftId: string) =>
-          db
-            .prepare(
-              "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) VALUES(?,?,?,'image/png',1,1,zeroblob(524288),?,?)",
-            )
-            .bind(id(), account, draftId, '0'.repeat(64), NOW);
-        for (let n = 0; n < 16; n++) {
-          const total = (await db
-            .prepare('SELECT SUM(length(payload)) n FROM media_assets')
-            .first<{ n: number }>())!.n;
-          if (total + 524288 > 67108864) {
-            await expect(insert(drafts[Math.floor(n / 8)]).run()).rejects.toThrow();
-            rejected = true;
-            break;
-          }
-          await insert(drafts[Math.floor(n / 8)]).run();
-        }
-        if (!rejected) await expect(insert(drafts[2]).run()).rejects.toThrow();
-      }
-      expect(rejected).toBe(true);
-      expect(
-        (await db
-          .prepare('SELECT SUM(length(payload)) n FROM media_assets')
-          .first<{ n: number }>())!.n,
-      ).toBeLessThanOrEqual(67108864);
+      // Owner bytes: one byte below the limit, then exactly the limit fits; one more byte does not.
+      const full = MEDIA_OWNER_BYTES / 524288,
+        byteDrafts = await holders('quota-bytes', full);
+      for (let n = 0; n < full; n++)
+        await insert(
+          'quota-bytes',
+          byteDrafts[Math.floor(n / MEDIA_PER_DRAFT)],
+          n === full - 1 ? 524287 : 524288,
+        ).run();
+      await insert('quota-bytes', byteDrafts.at(-1)!, 1).run();
+      await expect(insert('quota-bytes', byteDrafts.at(-1)!, 1).run()).rejects.toThrow(
+        'media unavailable',
+      );
+      // Owner count: exactly MEDIA_OWNER_COUNT images fit; one more does not.
+      const countDrafts = await holders('quota-count', MEDIA_OWNER_COUNT);
+      await db.batch(
+        Array.from({ length: MEDIA_OWNER_COUNT }, (_, n) =>
+          insert('quota-count', countDrafts[Math.floor(n / MEDIA_PER_DRAFT)], 1),
+        ),
+      );
+      expect(await count('quota-count')).toBe(MEDIA_OWNER_COUNT);
+      await expect(insert('quota-count', countDrafts.at(-1)!, 1).run()).rejects.toThrow(
+        'media unavailable',
+      );
+      // Site count: other owners leave one slot; another owner takes it, then nobody can add more.
+      await fillSiteCount(db, 'quota-site', MEDIA_GLOBAL_COUNT - 1);
+      const probe = await holderDraft(db, 'quota-probe');
+      await insert('quota-probe', probe, 1).run();
+      expect(await count()).toBe(MEDIA_GLOBAL_COUNT);
+      await expect(insert('quota-probe', probe, 1).run()).rejects.toThrow('media unavailable');
     } finally {
-      for (const account of owners) {
+      for (const account of accounts) {
         await db.prepare('DELETE FROM media_assets WHERE owner_account_id=?').bind(account).run();
+        await db
+          .prepare('DELETE FROM private_article_drafts WHERE owner_account_id=?')
+          .bind(account)
+          .run();
         await db.prepare('DELETE FROM private_accounts WHERE id=?').bind(account).run();
       }
     }
-  }, 20_000);
-
+  }, 60_000);
   it('refuses an upload past the owner and site limits with a named reason, and accepts it just below', async () => {
     const db = await mf.getD1Database('DB'),
       owner = 'account-3',
@@ -677,11 +748,11 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       .run();
     try {
       const d = await call<PrivateDraft>('draft', { title: 'Limit', body: '# Limit' }, 3);
-      // Owner: leave 4 KiB free (an upload fits), then fill to exactly 8 MiB (it does not).
-      for (let free = 8388608 - (await used(owner)) - 4096; free > 0; free -= 524288)
+      // Owner: leave 4 KiB free (an upload fits), then fill to exactly the limit (it does not).
+      for (let free = MEDIA_OWNER_BYTES - (await used(owner)) - 4096; free > 0; free -= 524288)
         await fill(owner, Math.min(524288, free));
       expect((await upload(d, id(), png, 3)).status).toBe(201);
-      await fill(owner, 8388608 - (await used(owner)));
+      await fill(owner, MEDIA_OWNER_BYTES - (await used(owner)));
       const ownerFull = await upload(d, id(), png, 3);
       expect(ownerFull.status).toBe(409);
       expect(await ownerFull.json()).toEqual({ error: 'media_limit', limit: 'owner' });
@@ -693,24 +764,15 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
         const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
         for (const row of ownerRows.results) await bucket.delete(`media/${row.id}/${row.sha256}`);
       }
-      // Site: other owners leave 4 KiB of the 64 MiB free, then fill it.
-      for (let n = 0, free = 67108864 - (await used()) - 4096; free > 0; n++) {
-        const account = filler + '-' + n;
-        await db
-          .prepare(
-            "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
-          )
-          .bind(account, account, account + '@st.kobedenshi.ac.jp', NOW)
-          .run();
-        for (let k = 0; k < 15 && free > 0; k++, free -= 524288)
-          await fill(account, Math.min(524288, free));
-      }
+      // Site: other owners' images leave one slot; this upload takes it, the next is refused.
+      await fillSiteCount(db, filler, MEDIA_GLOBAL_COUNT - 1);
       expect((await upload(d, id(), png, 3)).status).toBe(201);
-      await fill(filler, 67108864 - (await used()));
       const siteFull = await upload(d, id(), png, 3);
       expect(siteFull.status).toBe(409);
       expect(await siteFull.json()).toEqual({ error: 'media_limit', limit: 'site' });
-      expect(await used()).toBe(67108864);
+      expect(
+        (await db.prepare('SELECT COUNT(*) n FROM media_assets').first<{ n: number }>())!.n,
+      ).toBe(MEDIA_GLOBAL_COUNT);
     } finally {
       const removed = await db
         .prepare(
@@ -730,9 +792,9 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     }
   }, 30_000);
 
-  it('independent: concurrent final uploads cannot cross the eight-image draft limit', async () => {
+  it('independent: concurrent final uploads cannot cross the per-draft image limit', async () => {
     const d = await draft();
-    for (let n = 0; n < 7; n++) expect((await upload(d)).status).toBe(201);
+    for (let n = 0; n < MEDIA_PER_DRAFT - 1; n++) expect((await upload(d)).status).toBe(201);
     const last = [id(), id()];
     const final = await Promise.all(last.map((image) => upload(d, image)));
     expect(final.map((r) => r.status).sort()).toEqual([201, 409]);
@@ -751,11 +813,11 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
           .bind(d.id)
           .first()
       )?.n,
-    ).toBe(8);
+    ).toBe(MEDIA_PER_DRAFT);
   });
   it('independent: a limit reason is only told to the authorized owner of a live draft', async () => {
     const d = await draft();
-    for (let n = 0; n < 8; n++) expect((await upload(d)).status).toBe(201);
+    for (let n = 0; n < MEDIA_PER_DRAFT; n++) expect((await upload(d)).status).toBe(201);
     expect((await upload(d)).status).toBe(409);
     const db = await mf.getD1Database('DB'),
       count = async () =>
@@ -784,7 +846,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       expect(r.status).toBe(404);
       expect(await r.text()).not.toContain('media_limit');
     }
-    expect(await count()).toBe(8);
+    expect(await count()).toBe(MEDIA_PER_DRAFT);
   });
   it('independent: an author cannot grant another owners private attachment using a known image UUID', async () => {
     const other = await call<PrivateDraft>(
@@ -868,6 +930,83 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       { media_ids_json: JSON.stringify([firstImage]) },
       { media_ids_json: JSON.stringify([secondImage]) },
     ]);
+  });
+
+  it('publishes and revises an article with a full draft of images; one more fails every manifest CHECK', async () => {
+    const d = await draft(),
+      images = Array.from({ length: MEDIA_PER_DRAFT }, id),
+      db = await mf.getD1Database('DB');
+    for (const image of images) expect((await upload(d, image)).status).toBe(201);
+    const body = (list: string[]) => list.map((image) => `![x](/api/media/${image})`).join('\n');
+    await db
+      .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+      .bind(body(images), d.id)
+      .run();
+    const p = (await publication({ ...d, version: 2 }, images))!;
+    expect(p).not.toBeNull();
+    for (const image of [images[0], images.at(-1)!])
+      expect((await publicRead(image)).status).toBe(200);
+    const reversed = [...images].reverse();
+    await db
+      .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+      .bind(body(reversed), d.id)
+      .run();
+    expect(
+      await call('article-publish', {
+        id: d.id,
+        input: {
+          expectedVersion: 3,
+          expectedPublicationVersion: 2,
+          confirmPublic: true,
+          summary: 'Many images',
+          tags: [],
+          minutes: 1,
+          mediaIds: reversed,
+        },
+      }),
+    ).toEqual(p);
+    expect(
+      (
+        await db
+          .prepare(
+            'SELECT json_array_length(media_ids_json) n FROM article_publication_revisions WHERE content_id=? ORDER BY revision',
+          )
+          .bind(p.contentId)
+          .all()
+      ).results,
+    ).toEqual([{ n: MEDIA_PER_DRAFT }, { n: MEDIA_PER_DRAFT }]);
+    // The column CHECK takes a full draft of ids and refuses one more. Rows that pass it are still
+    // refused by the media and foreign-key checks, so nothing here is stored.
+    const manifest = (n: number) => JSON.stringify(Array.from({ length: n }, id));
+    const inserts = (n: number) => [
+      db
+        .prepare(
+          "INSERT INTO article_publications(content_id,owner_account_id,draft_id,public_profile_id,source_version,summary,tags_json,audience,prerequisite,outcome,minutes,published_at_ms,media_ids_json) VALUES(?,'account-0',NULL,'image-author',1,'','[]','','','',1,?,?)",
+        )
+        .bind(id(), NOW, manifest(n)),
+      db
+        .prepare(
+          "INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status,media_ids_json) VALUES(?,'account-0',NULL,'image-author',1,'t','d','','',?,'hidden',?)",
+        )
+        .bind(id(), NOW, manifest(n)),
+      db
+        .prepare(
+          "INSERT INTO article_publication_revisions(content_id,revision,source_version,title,body,summary,tags_json,audience,prerequisite,outcome,minutes,media_ids_json,published_at_ms) VALUES(?,1,1,'t','b','','[]','','','',1,?,?)",
+        )
+        .bind(id(), manifest(n), NOW),
+    ];
+    const failure = (statement: ReturnType<typeof db.prepare>) =>
+      statement.run().then(
+        () => 'stored',
+        (error: unknown) => String(error),
+      );
+    for (const statement of inserts(MEDIA_PER_DRAFT)) {
+      const error = await failure(statement);
+      expect(error).not.toBe('stored');
+      expect(error).not.toContain('CHECK constraint failed');
+    }
+    for (const statement of inserts(MEDIA_PER_DRAFT + 1))
+      expect(await failure(statement)).toContain('CHECK constraint failed');
   });
 
   const stored = async (image: string) =>
@@ -963,7 +1102,9 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       .bind(legacy, NOW, source)
       .run();
     const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
-    const orphan = `media/${id()}/${'a'.repeat(64)}`;
+    // Sorts right after the fixed start, so it is on the first sweep page however many objects
+    // earlier cases left in the bucket (a full draft is 24 images since #195).
+    const orphan = `media/00000000-0000-4000-8000-${id().slice(-12)}/${'a'.repeat(64)}`;
     await bucket.put(orphan, new Uint8Array([1, 2, 3]));
     const later = String(Date.now() + 2 * 60 * 60 * 1000);
     const run = async (now: string) =>
@@ -1068,5 +1209,151 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     expect((await run(ids[2])).copied).toBe(ids.length);
     for (const row of ids) expect((await stored(row)).object_stored_at_ms).not.toBeNull();
     expect((await run(ids[2])).copied).toBe(0);
+  });
+});
+
+describe('migration 0032 on a database that already has published images', () => {
+  const db = () => mf.getD1Database('DB');
+  const apply = async (file: string) => {
+    const database = await db();
+    for (const sql of readFileSync('migrations/' + file, 'utf8')
+      .split(/^-- @statement\s*$/m)
+      .map((part) => part.replace(/^--.*$/gm, '').trim())
+      .filter(Boolean))
+      await database.prepare(sql).run();
+  };
+  beforeAll(() => boot(false, '0032'));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  it('keeps every manifest, grant and trigger, and only raises the limits', async () => {
+    const database = await db();
+    // Before: an article with two revisions and a project, each with images (old limits apply).
+    const d = await draft(),
+      first = id(),
+      second = id();
+    for (const image of [first, second]) expect((await upload(d, image)).status).toBe(201);
+    await database
+      .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+      .bind(`![a](/api/media/${first}) ![b](/api/media/${second})`, d.id)
+      .run();
+    const article = (await publication({ ...d, version: 2 }, [first, second]))!;
+    await database
+      .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+      .bind(`![b](/api/media/${second})`, d.id)
+      .run();
+    expect(
+      await call('article-publish', {
+        id: d.id,
+        input: {
+          expectedVersion: 3,
+          expectedPublicationVersion: 2,
+          confirmPublic: true,
+          summary: 'Before the migration',
+          tags: [],
+          minutes: 1,
+          mediaIds: [second],
+        },
+      }),
+    ).toEqual(article);
+    const projectImage = id(),
+      project = await call<{ id: string }>('project-draft', {
+        title: 'Image project',
+        description: `![screen](/api/media/${projectImage})`,
+        githubUrl: '',
+        demoUrl: '',
+      });
+    expect(
+      (
+        await mf.dispatchFetch(O + `/api/private/media/projects/${project.id}/${projectImage}`, {
+          method: 'PUT',
+          headers: { ...h(), 'Content-Type': 'image/png', 'If-Match': '"1"' },
+          body: png,
+        })
+      ).status,
+    ).toBe(201);
+    const published = (await call<{ projectId: string }>('project-publish', {
+      id: project.id,
+      input: { expectedVersion: 1, confirmPublic: true, mediaIds: [projectImage] },
+    }))!;
+    const snapshot = async () => ({
+      articles: (
+        await database
+          .prepare('SELECT * FROM article_publications ORDER BY content_id')
+          .all<Record<string, unknown>>()
+      ).results,
+      projects: (
+        await database
+          .prepare('SELECT * FROM project_publications ORDER BY id')
+          .all<Record<string, unknown>>()
+      ).results,
+      revisions: (
+        await database
+          .prepare('SELECT * FROM article_publication_revisions ORDER BY content_id,revision')
+          .all<Record<string, unknown>>()
+      ).results,
+      grants: await database
+        .prepare(
+          "SELECT 'a',content_id,media_id FROM article_publication_media UNION ALL SELECT 'p',project_id,media_id FROM project_publication_media ORDER BY 1,2,3",
+        )
+        .raw(),
+    });
+    const triggers = async () =>
+      (
+        await database
+          .prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name")
+          .all<{ name: string; sql: string }>()
+      ).results;
+    const before = await snapshot(),
+      beforeTriggers = await triggers();
+    expect(before.revisions).toHaveLength(2);
+
+    await apply('0032_media_limits_raise.sql');
+
+    // Same rows and values (column order may differ), same grants, no dangling references.
+    expect(await snapshot()).toEqual(before);
+    expect((await database.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
+    // Same triggers; only the limit trigger and the revision copy's column list changed.
+    const after = await triggers();
+    expect(after.map((t) => t.name)).toEqual(beforeTriggers.map((t) => t.name));
+    expect(
+      after
+        .filter((t, n) => t.sql !== beforeTriggers[n].sql)
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(['article_revision_initial', 'media_assets_insert']);
+    // Published images still read; manifests and revisions stay immutable.
+    for (const image of [second, projectImage]) expect((await publicRead(image)).status).toBe(200);
+    expect((await publicRead(first)).status).toBe(404);
+    for (const sql of [
+      "UPDATE article_publications SET media_ids_json='[]' WHERE content_id=?",
+      "UPDATE project_publications SET media_ids_json='[]' WHERE id=?",
+      "UPDATE article_publication_revisions SET media_ids_json='[]' WHERE content_id=?",
+    ])
+      await expect(
+        database
+          .prepare(sql)
+          .bind(sql.includes('project') ? published.projectId : article.contentId)
+          .run(),
+      ).rejects.toThrow(/immutable/);
+    // The raised limits apply to new work: a new draft takes a full draft of images and publishes.
+    const next = await draft(),
+      images = Array.from({ length: MEDIA_PER_DRAFT }, id);
+    for (const image of images) expect((await upload(next, image)).status).toBe(201);
+    expect((await upload(next)).status).toBe(409);
+    await database
+      .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+      .bind(images.map((image) => `/api/media/${image}`).join(' '), next.id)
+      .run();
+    const fresh = (await publication({ ...next, version: 2 }, images))!;
+    expect(fresh).not.toBeNull();
+    expect(
+      await database
+        .prepare(
+          'SELECT revision,json_array_length(media_ids_json) n FROM article_publication_revisions WHERE content_id=?',
+        )
+        .bind(fresh.contentId)
+        .first(),
+    ).toEqual({ revision: 1, n: MEDIA_PER_DRAFT });
   });
 });

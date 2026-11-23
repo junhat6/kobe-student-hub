@@ -221,6 +221,7 @@ for (const f of [
   '0029_agent_connections.sql',
   '0030_editorial_reviews.sql',
   '0031_media_objects.sql',
+  '0032_media_limits_raise.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

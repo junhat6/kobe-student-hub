@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
@@ -14,8 +14,16 @@ const ids = Array.from({ length: 4 }, (_, n) => `1111111${n}-1111-4111-8111-1111
 
 it('keeps the shared constants equal to the values the media_assets_insert trigger enforces', async () => {
   const real = await vi.importActual<typeof import('../src/shared/media')>('../src/shared/media');
-  const sql = readFileSync('migrations/0020_private_images.sql', 'utf8');
-  const trigger = /CREATE TRIGGER media_assets_insert[\s\S]*?\nEND;/.exec(sql)?.[0] ?? '';
+  // The newest migration that (re)creates the trigger is the one in force.
+  const files = readdirSync('migrations')
+    .filter((name) => name.endsWith('.sql'))
+    .sort();
+  const latest = (pattern: RegExp) =>
+    files
+      .map((name) => pattern.exec(readFileSync('migrations/' + name, 'utf8'))?.[0])
+      .filter(Boolean)
+      .at(-1) ?? '';
+  const trigger = latest(/CREATE TRIGGER media_assets_insert[\s\S]*?\nEND;/);
   const expected = [
     `(SELECT COUNT(*) FROM media_assets)>=${real.MEDIA_GLOBAL_COUNT}`,
     `+length(NEW.payload)>${real.MEDIA_GLOBAL_BYTES}`,
@@ -24,6 +32,19 @@ it('keeps the shared constants equal to the values the media_assets_insert trigg
     `project_draft_id=NEW.project_draft_id))>=${real.MEDIA_PER_DRAFT}`,
   ];
   for (const piece of expected) expect(trigger).toContain(piece);
+  // Publications and revisions hold at most as many images as a draft (#195).
+  for (const table of [
+    'article_publications',
+    'project_publications',
+    'article_publication_revisions',
+  ]) {
+    const column = latest(
+      new RegExp(
+        `(?:ALTER TABLE ${table} ADD COLUMN |CREATE TABLE ${table} \\([\\s\\S]*?)media_ids_json TEXT NOT NULL[^\\n]*`,
+      ),
+    );
+    expect(column, table).toContain(`json_array_length(media_ids_json)<=${real.MEDIA_PER_DRAFT})`);
+  }
   // Each refusal message names the limit with the same numbers.
   expect(real.MEDIA_LIMIT_MESSAGE.draft).toContain(`${real.MEDIA_PER_DRAFT}枚`);
   expect(real.MEDIA_LIMIT_MESSAGE.owner).toContain(

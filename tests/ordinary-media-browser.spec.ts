@@ -378,7 +378,7 @@ test('a storage-limit refusal names the limit and leaves no resend command', asy
     .getByLabel('下書きへ画像を追加', { exact: true })
     .setInputFiles({ name: 'synthetic-screen.png', mimeType: 'image/png', buffer: screen });
   await expect(status).toHaveText(
-    'あなたが保存できる画像の合計（128枚・8 MiB）に達しました。使っていない下書きの画像を削除してから追加してください。',
+    'あなたが保存できる画像の合計（512枚・64 MiB）に達しました。使っていない下書きの画像を削除してから追加してください。',
   );
   await expect(page.getByText('結果未確定の画像があります。', { exact: false })).toHaveCount(0);
   await expect(page.getByLabel('下書きへ画像を追加', { exact: true })).toBeEnabled();
