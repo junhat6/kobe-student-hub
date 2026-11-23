@@ -108,20 +108,30 @@ export class AgentTasteStore {
               )
               .bind(a.accountId, json, now, ...accessBindings(a, now), ...periodBindings(a, now))
               .first<{ version: number }>()
-          : await this.db
-              .prepare(
-                `UPDATE agent_taste_ledgers SET version=version+1,lines_json=?,updated_at_ms=? WHERE account_id=? AND version=? AND updated_at_ms<=? AND ${liveAccess} AND ${periodSql} RETURNING version`,
-              )
-              .bind(
-                json,
-                now,
-                a.accountId,
-                expectedVersion,
-                now,
-                ...accessBindings(a, now),
-                ...periodBindings(a, now),
-              )
-              .first<{ version: number }>();
+          : // Same batch: a line the student showed to operators stays shown only while its
+            // kind and text survive the replacement; a changed line goes back to not shown (#243).
+            ((
+              await this.db.batch([
+                this.db
+                  .prepare(
+                    `UPDATE agent_taste_ledgers SET version=version+1,lines_json=?,updated_at_ms=? WHERE account_id=? AND version=? AND updated_at_ms<=? AND ${liveAccess} AND ${periodSql} RETURNING version`,
+                  )
+                  .bind(
+                    json,
+                    now,
+                    a.accountId,
+                    expectedVersion,
+                    now,
+                    ...accessBindings(a, now),
+                    ...periodBindings(a, now),
+                  ),
+                this.db
+                  .prepare(
+                    `DELETE FROM agent_taste_shares WHERE account_id=? AND NOT EXISTS(SELECT 1 FROM agent_taste_ledgers l,json_each(l.lines_json) j WHERE l.account_id=agent_taste_shares.account_id AND json_extract(j.value,'$.kind')=agent_taste_shares.kind AND json_extract(j.value,'$.text')=agent_taste_shares.text)`,
+                  )
+                  .bind(a.accountId),
+              ])
+            )[0].results[0] as { version: number } | undefined);
       if (row) return { ok: true, version: row.version };
       const state = await this.db
         .prepare(

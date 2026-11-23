@@ -109,6 +109,29 @@ const control = async (r) => {
     const listed = await (await mf.getR2Bucket('MEDIA_BUCKET')).list({ prefix: `media/${image}/` });
     return Response.json({ objects: listed.objects.length });
   }
+  if (u.pathname === '/__control/taste-ledger') {
+    // Test-only: gives one fictional student a ledger, as their agent would over MCP (#243).
+    const subject = u.searchParams.get('actor') ?? '';
+    if (!/^fictional-[A-Za-z0-9-]{1,100}$/.test(subject))
+      return new Response('bad actor', { status: 400 });
+    const line = (kind, text) => ({ kind, text, basis: 'reviews', count: 3, date: '2026-11-23' });
+    const lines = [
+      line('writing', '結論を見出しの直後に書く'),
+      line('writing', '手順は番号つきの箇条書きにする'),
+      line('app', '設定はアイコンで足りる'),
+    ];
+    const done = await (
+      await mf.getD1Database('DB')
+    )
+      .prepare(
+        'INSERT INTO agent_taste_ledgers(account_id,version,lines_json,updated_at_ms) SELECT id,1,?,? FROM private_accounts WHERE google_subject=?',
+      )
+      .bind(JSON.stringify(lines), Date.now() - 1000, subject)
+      .run();
+    return new Response(done.meta.changes === 1 ? 'seeded' : 'no account', {
+      status: done.meta.changes === 1 ? 200 : 404,
+    });
+  }
   if (u.pathname === '/__control/expire') {
     await (
       await mf.getD1Database('DB')
@@ -223,6 +246,7 @@ for (const f of [
   '0031_media_objects.sql',
   '0032_media_limits_raise.sql',
   '0033_taste_ledgers.sql',
+  '0034_taste_shares.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

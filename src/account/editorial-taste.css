@@ -75,3 +75,8 @@
 .editorial-taste-points .is-minus {
   border-style: dashed;
 }
+.editorial-taste-meta {
+  display: block;
+  color: var(--ink-muted, #4d5967);
+  font-size: 13px;
+}

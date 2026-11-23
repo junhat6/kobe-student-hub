@@ -1,0 +1,38 @@
+.own-taste-lines {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.own-taste-lines li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 12px;
+}
+.own-taste-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.own-taste-text small {
+  color: var(--ink-muted, #4d5967);
+  font-size: 13px;
+}
+.own-taste .own-taste-button {
+  flex: none;
+}
+.own-taste .own-taste-button[aria-pressed='true'] {
+  border-color: var(--accent-strong, #1659c7);
+  color: var(--accent-strong, #1659c7);
+}
+.own-taste-message {
+  margin: 8px 0 0;
+  font-size: 14px;
+}

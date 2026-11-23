@@ -10,7 +10,8 @@ import OwnPublications from '../editor/OwnPublications';
 import OwnNotifications from './OwnNotifications';
 import EditorialTaste from './EditorialTaste';
 import AgentConnections from '../agent/AgentConnections';
-import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
+import { AGENT_MCP_RELEASE_ENABLED, TASTE_SHARING_RELEASE_ENABLED } from '../shared/agent-release';
+import OwnTaste from './OwnTaste';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import { useViewer } from '../shell/viewer';
 import ActivityGrass from '../community/ActivityGrass';
@@ -95,6 +96,9 @@ function AccountContent({
       )}
       {authoringUiEnabled && ready && <OwnNotifications fetcher={fetcher} />}
       {authoringUiEnabled && <EditorialTaste fetcher={fetcher} />}
+      {authoringUiEnabled && TASTE_SHARING_RELEASE_ENABLED && (
+        <OwnTaste csrfToken={csrfToken} fetcher={fetcher} />
+      )}
       {authoringUiEnabled && AGENT_MCP_RELEASE_ENABLED && (
         <AgentConnections csrfToken={csrfToken} fetcher={fetcher} />
       )}

@@ -13,3 +13,10 @@ export const AGENT_MCP_RELEASE_ENABLED = false;
  * screen and sharing with operators (#243) need their own verification and their own gate.
  */
 export const TASTE_LEDGER_RELEASE_ENABLED = true;
+
+/**
+ * Release gate for the account screen's ledger list, per-line delete and 「運営に見せる」, and
+ * the operators' read of shown lines (C23 condition 4, #243, R2). Separate from the gate above so
+ * that sharing with operators stays closed until its own independent verification.
+ */
+export const TASTE_SHARING_RELEASE_ENABLED = false;

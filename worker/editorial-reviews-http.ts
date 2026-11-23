@@ -47,7 +47,8 @@ function canonicalOrigin(origin: string) {
   }
 }
 type Body = { ok: true; value: unknown } | { ok: false; status: number };
-async function input(request: Request): Promise<Body> {
+/** Bounded JSON request body (16 KiB, 5 s), shared with the taste sharing handler. */
+export async function input(request: Request): Promise<Body> {
   const type = request.headers.get('Content-Type');
   if (!type || !/^application\/json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?\s*$/i.test(type))
     return { ok: false, status: 415 };

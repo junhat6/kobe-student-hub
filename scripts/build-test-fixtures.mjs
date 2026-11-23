@@ -36,6 +36,7 @@ await build({
     'likes-test': 'tests/fixtures/likes-worker.ts',
     'agent-mcp-test': 'tests/fixtures/agent-mcp-worker.ts',
     'editorial-reviews-test': 'tests/fixtures/editorial-reviews-worker.ts',
+    'taste-sharing-test': 'tests/fixtures/taste-sharing-worker.ts',
   },
   loader: { '.sql': 'text', '.wasm': 'copy' },
   outdir: '.worker',

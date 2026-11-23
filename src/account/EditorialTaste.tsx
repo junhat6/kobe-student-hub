@@ -5,6 +5,8 @@ import {
   decodeEditorialTasteSummary,
   type EditorialTasteSummary,
 } from '../shared/editorial-review';
+import { TASTE_SHARING_RELEASE_ENABLED } from '../shared/agent-release';
+import { decodeSharedTasteView, type TasteLine } from '../shared/taste-ledger';
 import './editorial-taste.css';
 
 const VERDICT_LABELS = [
@@ -22,6 +24,26 @@ const strip = (line: string) => line.replace(/^- /, '');
  */
 export default function EditorialTaste({ fetcher }: { fetcher: typeof fetch }) {
   const [summary, setSummary] = useState<EditorialTasteSummary | null>(null);
+  const [shared, setShared] = useState<TasteLine[] | null>(null);
+  useEffect(() => {
+    if (!TASTE_SHARING_RELEASE_ENABLED) return;
+    const controller = new AbortController();
+    fetcher('/api/private/editorial-taste/shared', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: controller.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (v) => {
+          if (!controller.signal.aborted)
+            setShared(v === null ? null : (decodeSharedTasteView(v)?.lines ?? null));
+        },
+        () => {},
+      );
+    return () => controller.abort();
+  }, [fetcher]);
   useEffect(() => {
     if (!EDITORIAL_REVIEW_RELEASE_ENABLED) return;
     const controller = new AbortController();
@@ -95,6 +117,25 @@ export default function EditorialTaste({ fetcher }: { fetcher: typeof fetch }) {
         </ul>
       ) : (
         <p className="editorial-taste-empty">評価項目の記録はまだありません。</p>
+      )}
+      {shared && (
+        <>
+          <h3>学生が見せた行</h3>
+          {shared.length ? (
+            <ul className="editorial-taste-lines" aria-label="学生が見せた好みの行">
+              {shared.map((line, i) => (
+                <li key={i + line.kind + line.text}>
+                  {line.text}
+                  <small className="editorial-taste-meta">
+                    {line.kind === 'writing' ? '執筆' : 'アプリ'} · {line.date}
+                  </small>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="editorial-taste-empty">まだありません。</p>
+          )}
+        </>
       )}
       <h3>AI 下書きとの差</h3>
       <p className="editorial-taste-empty">

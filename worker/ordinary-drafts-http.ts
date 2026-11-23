@@ -18,6 +18,8 @@ import { createProfileAvatarHandler } from './profile-avatars-http';
 import { createOrdinaryDiscoveryHandler } from './ordinary-discovery-http';
 import { createEditorialReviewHandler } from './editorial-reviews-http';
 import { EDITORIAL_REVIEW_RELEASE_ENABLED } from '../src/shared/editorial-review';
+import { createTasteSharingHandler, OWN_TASTE_PATH, SHARED_TASTE_PATH } from './taste-sharing-http';
+import { TASTE_SHARING_RELEASE_ENABLED } from '../src/shared/agent-release';
 
 /** Ordinary authoring and publication composition. Runtime bindings alone never enable it.
  * The entry also requires the independently reviewed OAuth release gate.
@@ -30,6 +32,7 @@ export function createOrdinaryDraftHandler(
     enabled?: boolean;
     operatorIds?: readonly string[];
     editorialReviews?: boolean;
+    tasteSharing?: boolean;
     mediaBucket?: R2Bucket;
   } = {},
   clock: () => number = Date.now,
@@ -75,8 +78,18 @@ export function createOrdinaryDraftHandler(
     },
     clock,
   );
+  const taste = createTasteSharingHandler(
+    db,
+    origin,
+    {
+      enabled: options.tasteSharing ?? TASTE_SHARING_RELEASE_ENABLED,
+      operatorIds: options.operatorIds ?? [],
+    },
+    clock,
+  );
   return async (request: Request): Promise<Response | null> => {
     const path = new URL(request.url).pathname;
+    if (path === OWN_TASTE_PATH || path === SHARED_TASTE_PATH) return taste(request);
     if (
       path.startsWith('/api/private/editorial-reviews/') ||
       path === '/api/private/editorial-taste'

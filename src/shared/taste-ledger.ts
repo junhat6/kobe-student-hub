@@ -98,3 +98,85 @@ export function formatTasteLine(line: TasteLine) {
         : `差分 ${line.count}件`;
   return `- ${line.text}（${basis} ${line.date}）`;
 }
+
+/** The account screen's view of the student's own ledger (#243). */
+export interface OwnTasteView {
+  /** 0 while the student's agent has not written a ledger yet. */
+  version: number;
+  lines: (TasteLine & { shared: boolean })[];
+}
+/** What operators see: shown lines only, with nothing about who wrote them. */
+export interface SharedTasteView {
+  lines: TasteLine[];
+}
+export type TasteActionOp = 'delete' | 'share' | 'unshare';
+/** One row operation. The line is named by its position and its text at the version the student saw. */
+export interface TasteAction {
+  op: TasteActionOp;
+  version: number;
+  index: number;
+  kind: TasteKind;
+  text: string;
+}
+
+export function decodeTasteAction(value: unknown): TasteAction | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).sort().join(',') !== 'index,kind,op,text,version') return null;
+  if (v.op !== 'delete' && v.op !== 'share' && v.op !== 'unshare') return null;
+  if (typeof v.version !== 'number' || !Number.isSafeInteger(v.version) || v.version < 1)
+    return null;
+  if (
+    typeof v.index !== 'number' ||
+    !Number.isSafeInteger(v.index) ||
+    v.index < 0 ||
+    v.index >= TASTE_LIMITS.lines
+  )
+    return null;
+  if (!KINDS.includes(v.kind as TasteKind)) return null;
+  if (
+    typeof v.text !== 'string' ||
+    !v.text ||
+    Array.from(v.text).length > TASTE_LIMITS.chars ||
+    FORBIDDEN.test(v.text)
+  )
+    return null;
+  return {
+    op: v.op,
+    version: v.version,
+    index: v.index,
+    kind: v.kind as TasteKind,
+    text: v.text,
+  };
+}
+
+export function decodeOwnTasteView(value: unknown): OwnTasteView | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const v = value as Record<string, unknown>;
+  if (typeof v.version !== 'number' || !Number.isSafeInteger(v.version) || v.version < 0)
+    return null;
+  if (!Array.isArray(v.lines)) return null;
+  const shared = v.lines.map(
+    (l) => !!l && typeof l === 'object' && (l as { shared?: unknown }).shared === true,
+  );
+  const parsed = parseTasteLines(
+    v.lines.map((l) => {
+      if (!l || typeof l !== 'object') return l;
+      const { shared: _shared, ...rest } = l as Record<string, unknown>;
+      return rest;
+    }),
+  );
+  if (typeof parsed === 'string') return null;
+  return { version: v.version, lines: parsed.map((line, i) => ({ ...line, shared: shared[i] })) };
+}
+
+export function decodeSharedTasteView(value: unknown): SharedTasteView | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const lines = (value as { lines?: unknown }).lines;
+  if (!Array.isArray(lines) || lines.length > 200) return null;
+  const parsed = lines.flatMap((l) => {
+    const one = parseTasteLines([l]);
+    return typeof one === 'string' ? [] : one;
+  });
+  return { lines: parsed };
+}

@@ -951,6 +951,44 @@ describe("the student's own taste ledger (C23, flag TASTE_LEDGER_RELEASE_ENABLED
     expect((await tool(f.access_token, 'get_my_taste')).structuredContent!.version).toBe(2);
   });
 
+  it('keeps 「運営に見せる」 only on lines whose text survives a replacement (#243)', async () => {
+    const h = await connect('h');
+    const d = await db();
+    const lines = [
+      line('見せたまま残る行'),
+      line('書き換えられる行'),
+      line('アプリの行', { kind: 'app' }),
+    ];
+    expect(
+      (await tool(h.access_token, 'replace_my_taste', { lines, expected_version: 0 }))
+        .structuredContent,
+    ).toMatchObject({ version: 1 });
+    for (const l of lines)
+      await d
+        .prepare(
+          "INSERT INTO agent_taste_shares(account_id,kind,text,shared_at_ms) VALUES('account-h',?,?,?)",
+        )
+        .bind(l.kind, l.text, NOW)
+        .run();
+    // Same text but another kind is a different line; the changed text goes back to not shown.
+    const next = [line('見せたまま残る行'), line('書き換えた行'), line('アプリの行')];
+    expect(
+      (await tool(h.access_token, 'replace_my_taste', { lines: next, expected_version: 1 }))
+        .structuredContent,
+    ).toMatchObject({ version: 2 });
+    const { results } = await d
+      .prepare("SELECT kind,text FROM agent_taste_shares WHERE account_id='account-h'")
+      .all<{ kind: string; text: string }>();
+    expect(results).toEqual([{ kind: 'writing', text: '見せたまま残る行' }]);
+    // A refused replacement (stale version) leaves the shares as they are.
+    await tool(h.access_token, 'replace_my_taste', { lines: [], expected_version: 1 });
+    expect(
+      (await d
+        .prepare("SELECT count(*) AS n FROM agent_taste_shares WHERE account_id='account-h'")
+        .first<{ n: number }>())!.n,
+    ).toBe(1);
+  });
+
   it('answers 400 for lines outside the shape and limits, and leaves the ledger as it was', async () => {
     const f = await connect('f');
     const before = (await tool(f.access_token, 'get_my_taste')).structuredContent;
