@@ -37,6 +37,7 @@
 - 「形を足すほど verifier が新しい形を見つける」仕事（毎回違う理由で不合格）は、2回不合格の時点で実装を足すのをやめ、条件・設計の見直しを Issue に提案して `blocked` にする（#214 は秘密の形の後追いで3回不合格。考え方は docs/loop/DESIGN-PRINCIPLES.md の原則3）
 - auth-browser が CI だけで赤く手元で再現しないときは、`gh workflow run ci.yml --ref main` で回し、artifact browser-evidence の `test-results-generation/` の trace（error-context.md と .network）を見る（#208 は通信の中断が原因で、順序依存ではなかった）
 - セッション期限切れの spec は、画面の初回読み込み（一覧の GET など）の応答を待ってから `/__control/expire` を呼ぶ（欄が編集できても読み込みは途中で、遅い CI では先に期限切れを見つけて空のフォームを閉じる。#192）
+- 数千行の fixture を D1 に直接入れるテストは、後始末で R2 を1行ずつ消さない（object の無い行まで消しに行き、CI だけ 30 秒を超えて後始末が切れ、次の R2 テストまで連鎖で落ちる。#195）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 
 ## 4. 閉じる
