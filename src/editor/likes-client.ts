@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { readBoundedJson } from '../shared/http-client';
 import { publicKeys } from './public-author-client';
 export class LikeClientError extends Error {
   constructor() {
@@ -18,113 +18,31 @@ export function createLikesClient(csrfToken: string, fetcher: typeof fetch = fet
       (desired !== undefined && !/^[A-Za-z0-9_-]{43}$/.test(csrfToken))
     )
       throw new LikeClientError();
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let expired = false;
-    let rejectAbort: (error: LikeClientError) => void = () => {};
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const aborted = new Promise<never>((_, reject) => {
-      rejectAbort = reject;
-    });
-    const externalAbort = () => {
-      cancel();
-      rejectAbort(new LikeClientError());
-    };
-    signal?.addEventListener('abort', externalAbort, { once: true });
-    if (signal?.aborted) externalAbort();
-    const operation = (async () => {
-      if (controller.signal.aborted) throw new LikeClientError();
-      const response = await fetcher('/api/private/article-likes/' + contentId, {
-        method: desired === undefined ? 'GET' : 'PUT',
+    let result: unknown;
+    try {
+      result = await readBoundedJson('/api/private/article-likes/' + contentId, {
+        fetcher,
         credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers:
-          desired === undefined
-            ? { Accept: 'application/json' }
-            : {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                Authorization: proofAuthorization('csrf', csrfToken),
-              },
+        method: desired === undefined ? 'GET' : 'PUT',
+        maxBytes: 4096,
+        signal,
         ...(desired === undefined
           ? {}
           : {
-              body: JSON.stringify(
-                desired ? { liked: true, confirmPublic: true } : { liked: false },
-              ),
+              csrf: csrfToken,
+              body: desired ? { liked: true, confirmPublic: true } : { liked: false },
             }),
       });
-      if (
-        expired ||
-        controller.signal.aborted ||
-        response.status !== 200 ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        throw new LikeClientError();
-      }
-      const length = response.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 4096)
-      ) {
-        void response.body.cancel().catch(() => {});
-        throw new LikeClientError();
-      }
-      reader = response.body.getReader();
-      const bytes = new Uint8Array(4096);
-      let size = 0,
-        count = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (expired || controller.signal.aborted) throw new LikeClientError();
-          if (next.done) break;
-          if (++count > 4096 || size + next.value.byteLength > bytes.length)
-            throw new LikeClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        return JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ) as unknown;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new LikeClientError());
-      }, 10000);
-    });
-    try {
-      const result = await Promise.race([operation, deadline, aborted]);
-      if (
-        !publicKeys(result, ['liked']) ||
-        typeof result.liked !== 'boolean' ||
-        (desired !== undefined && result.liked !== desired)
-      )
-        throw new LikeClientError();
-      return result.liked;
-    } catch (error) {
-      if (error instanceof LikeClientError) throw error;
+    } catch {
       throw new LikeClientError();
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', externalAbort);
-      cancel();
     }
+    if (
+      !publicKeys(result, ['liked']) ||
+      typeof result.liked !== 'boolean' ||
+      (desired !== undefined && result.liked !== desired)
+    )
+      throw new LikeClientError();
+    return result.liked;
   }
   return {
     read: (id: string, signal?: AbortSignal) => request(id, undefined, signal),

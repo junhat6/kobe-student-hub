@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { readBoundedJson } from '../shared/http-client';
 import type { ProjectReportInput, ProjectReportReceipt } from '../project-report-types';
 import { projectUUID } from './project-client';
 import { publicKeys, publicText } from './public-author-client';
@@ -25,94 +25,18 @@ export async function projectReportRequest(
   input?: ProjectReportInput,
   csrf?: string,
 ): Promise<unknown> {
-  const controller = new AbortController();
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const cancel = () => {
-    controller.abort();
-    if (reader) void reader.cancel().catch(() => {});
-  };
-  let rejectAbort: (e: ProjectReportClientError) => void = () => {};
-  const aborted = new Promise<never>((_, reject) => {
-    rejectAbort = reject;
-  });
-  const onAbort = () => {
-    cancel();
-    rejectAbort(new ProjectReportClientError());
-  };
-  signal?.addEventListener('abort', onAbort, { once: true });
-  if (signal?.aborted) onAbort();
-  const operation = (async () => {
-    if (controller.signal.aborted) throw new ProjectReportClientError();
-    const r = await fetcher(path, {
-      method: input ? 'POST' : 'GET',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: controller.signal,
-      headers: input
-        ? {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            Authorization: proofAuthorization('csrf', csrf!),
-          }
-        : { Accept: 'application/json' },
-      ...(input ? { body: JSON.stringify(input) } : {}),
-    });
-    if (
-      controller.signal.aborted ||
-      r.status !== (input ? 201 : 200) ||
-      !r.body ||
-      !/^application\/json(?:;|$)/i.test(r.headers.get('Content-Type') ?? '')
-    ) {
-      void r.body?.cancel().catch(() => {});
-      throw new ProjectReportClientError();
-    }
-    const length = r.headers.get('Content-Length');
-    if (
-      length !== null &&
-      (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 262144)
-    ) {
-      void r.body.cancel().catch(() => {});
-      throw new ProjectReportClientError();
-    }
-    reader = r.body.getReader();
-    const bytes = new Uint8Array(262144);
-    let count = 0,
-      size = 0;
-    try {
-      for (;;) {
-        const part = await reader.read();
-        if (controller.signal.aborted) throw new ProjectReportClientError();
-        if (part.done) break;
-        if (++count > 65536 || size + part.value.length > bytes.length)
-          throw new ProjectReportClientError();
-        bytes.set(part.value, size);
-        size += part.value.length;
-      }
-      return JSON.parse(
-        new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-      ) as unknown;
-    } finally {
-      void reader.cancel().catch(() => {});
-      reader.releaseLock();
-      reader = undefined;
-    }
-  })();
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      cancel();
-      reject(new ProjectReportClientError());
-    }, 10000);
-  });
   try {
-    return await Promise.race([operation, deadline, aborted]);
+    return await readBoundedJson(path, {
+      fetcher,
+      credentials: 'same-origin',
+      method: input ? 'POST' : 'GET',
+      status: input ? 201 : 200,
+      maxBytes: 262144,
+      signal,
+      ...(input ? { body: input, csrf } : {}),
+    });
   } catch {
     throw new ProjectReportClientError();
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
-    cancel();
   }
 }
 export function createProjectReportClient(csrf: string, fetcher: typeof fetch = fetch) {
