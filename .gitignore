@@ -26,8 +26,6 @@ test-results-independent-editor*/
 .generation-preview/
 test-results-generation/
 
-# Ephemeral pending-pilot browser output
-test-results-pilot/
 
 .limited-preview/
 test-results-limited/

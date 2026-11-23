@@ -36,7 +36,7 @@ npm run test:editor
 npm run deploy:check
 ```
 
-初回は `npx playwright install chromium` が必要です。Worker/D1とブラウザーの境界を検証します。PC・モバイルviewportでの確認は実機確認とは区別します。`test:pending-pilot` と `test:retired-trial` で旧導線の境界も確認します。
+初回は `npx playwright install chromium` が必要です。Worker/D1とブラウザーの境界を検証します。PC・モバイルviewportでの確認は実機確認とは区別します。`test:retired-trial` で旧導線（旧試用・pending pilot）の境界も確認します。
 
 編集用の架空データ環境は `npm run editor:preview` で起動します（HTTPS、127.0.0.1:8788）。実在の個人情報を入れず、fixtureをデプロイしないでください。詳細は[ローカル編集環境](docs/archive/EDITOR-LAB.md)を参照してください。
 

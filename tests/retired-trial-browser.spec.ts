@@ -23,6 +23,8 @@ test('worker-first denial wins over stale static files and SPA fallback', async 
     '/trial-assets/index.html',
     '/trial-assets/assets/retired-fixture.js',
     '/trial-assets/assets/retired-fixture.js?old=1',
+    '/api/auth/pilot',
+    '/api/auth/pilot.js',
   ]) {
     const r = await request.get(path);
     expect(r.status()).toBe(404);

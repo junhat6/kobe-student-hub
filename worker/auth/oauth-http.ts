@@ -5,7 +5,6 @@ import {
   callbackParameters,
 } from './callback-receiver';
 import type { SessionRestrictionReader } from './session-guard';
-import { parsePendingPilot } from './pending-pilot-policy';
 import { hasLegacyProofHeader } from '../../src/shared/auth-proof';
 import { base64url } from 'jose';
 import { BrowserSessionCoordinator, type BrowserAction } from './browser-session';
@@ -20,7 +19,6 @@ export interface OAuthBindings {
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   OAUTH_COOKIE_KEY?: string;
-  OAUTH_PENDING_PILOT?: string;
 }
 export function parseOAuthConfig(raw: OAuthBindings): GoogleLoginConfig | null {
   try {
@@ -186,14 +184,12 @@ async function callbackBody(request: Request): Promise<URLSearchParams | null> {
     clearTimeout(timer);
   }
 }
-/** Independently testable HTTP glue. Production's separate source release gate must remain false.
- * Normal login remains source-gated. Explicit pendingPilot mode requires a valid private policy. */
+/** Independently testable HTTP glue. Normal login remains source-gated by `enabled`. */
 export function createOAuthHttpHandler(
   db: D1Database,
   bindings: OAuthBindings,
   options: {
     enabled?: boolean;
-    pendingPilot?: boolean;
     restriction?: SessionRestrictionReader;
     loginOnly?: boolean;
     authorizationJson?: boolean;
@@ -202,28 +198,7 @@ export function createOAuthHttpHandler(
   clock: () => number = Date.now,
 ) {
   return async (request: Request): Promise<Response | null> => {
-    const pilot =
-      options.pendingPilot === true
-        ? parsePendingPilot(bindings.OAUTH_PENDING_PILOT, clock())
-        : null;
-    if (options.enabled !== true && !pilot) {
-      // Even a late callback must shed provider query credentials after the pilot closes.
-      if (options.pendingPilot === true) {
-        const closedConfig = parseOAuthConfig(bindings),
-          closedUrl = new URL(request.url);
-        if (
-          closedConfig &&
-          closedUrl.origin === closedConfig.origin &&
-          closedUrl.pathname === '/api/auth/callback' &&
-          request.method === 'GET'
-        )
-          return new Response(null, {
-            status: 303,
-            headers: { ...headers, Location: closedConfig.origin + '/api/auth/pilot#unavailable' },
-          });
-      }
-      return null;
-    }
+    if (options.enabled !== true) return null;
     const url = new URL(request.url),
       auth = url.pathname.startsWith('/api/auth/'),
       session =
@@ -231,7 +206,6 @@ export function createOAuthHttpHandler(
         url.pathname.startsWith('/api/private/logout');
     if (!auth && !session) return null;
     const normalCallback =
-      !pilot &&
       ['/api/auth/callback', '/api/auth/callback/complete'].includes(url.pathname) &&
       request.method === 'GET';
     const cleanLanding = (origin = '') =>
@@ -252,7 +226,6 @@ export function createOAuthHttpHandler(
       void request.body?.cancel().catch(() => {});
       return normalCallback ? cleanLanding(config.origin) : json(400, 'authentication_unavailable');
     }
-    if (pilot && session) return json(404, 'authentication_unavailable');
     if (session)
       return createPrivateSessionHandler(db, config.origin, clock, options.restriction)(request);
     const coordinator = new BrowserSessionCoordinator(db, config.origin, clock);
@@ -274,9 +247,7 @@ export function createOAuthHttpHandler(
           url.hash ||
           url.searchParams.getAll('action').length !== 1 ||
           [...url.searchParams.keys()].some((k) => k !== 'action') ||
-          !(pilot ? ['pending-registration'] : ['login', 'self-registration']).includes(
-            action ?? '',
-          )
+          !['login', 'self-registration'].includes(action ?? '')
         )
           return json(400, 'authentication_unavailable');
         if (options.loginOnly && action !== 'login') return json(400, 'authentication_unavailable');
@@ -293,7 +264,7 @@ export function createOAuthHttpHandler(
         return json(503, 'authentication_unavailable');
       }
     }
-    if (!pilot && url.pathname === '/api/auth/callback/receive.js') {
+    if (url.pathname === '/api/auth/callback/receive.js') {
       if (request.method !== 'GET') return json(405, 'method_not_allowed');
       if (url.search || url.hash) return json(404, 'authentication_unavailable');
       return new Response(callbackReceiverScript, {
@@ -304,17 +275,16 @@ export function createOAuthHttpHandler(
         },
       });
     }
-    const complete = !pilot && url.pathname === '/api/auth/callback/complete',
+    const complete = url.pathname === '/api/auth/callback/complete',
       callback = url.pathname === '/api/auth/callback' || complete,
       login = url.pathname === '/api/auth/start',
       register = url.pathname === '/api/auth/register';
     if ((!callback && !login && !register) || (!callback && (url.hash || url.search)))
       return json(404, 'authentication_unavailable');
     if (options.loginOnly && register) return json(404, 'authentication_unavailable');
-    if (pilot && login) return json(404, 'authentication_unavailable');
-    const method = callback ? (pilot || complete ? 'GET' : 'GET, POST') : 'POST';
+    const method = callback ? (complete ? 'GET' : 'GET, POST') : 'POST';
     if (
-      !(callback && !pilot && !complete
+      !(callback && !complete
         ? ['GET', 'POST'].includes(request.method)
         : request.method === method)
     ) {
@@ -323,7 +293,7 @@ export function createOAuthHttpHandler(
       return r;
     }
     let callbackRequest = request;
-    if (callback && !pilot) {
+    if (callback) {
       if (complete) {
         if (request.url !== config.origin + '/api/auth/callback/complete')
           return cleanLanding(config.origin);
@@ -382,23 +352,12 @@ export function createOAuthHttpHandler(
     const broker = new GoogleLoginBroker(db, config, clock, options.restriction);
     if (callback) {
       // A matched failure already consumed its attempt. Only an unmatched claim may try the other sealed purpose.
-      let result:
-        | Awaited<ReturnType<GoogleLoginBroker['callback']>>
-        | Awaited<ReturnType<GoogleLoginBroker['registrationCallback']>> = null;
+      let result: Awaited<ReturnType<GoogleLoginBroker['callback']>> = null;
       try {
         if (!url.hash) {
-          if (pilot)
-            result = await broker.registrationCallback(
-              request,
-              (identity) =>
-                identity.email === pilot.allowedEmail &&
-                parsePendingPilot(bindings.OAUTH_PENDING_PILOT, clock()) !== null,
-            );
-          else {
-            result = await broker.callback(callbackRequest);
-            if (result === null && !options.loginOnly)
-              result = await broker.selfRegistrationCallback(callbackRequest);
-          }
+          result = await broker.callback(callbackRequest);
+          if (result === null && !options.loginOnly)
+            result = await broker.selfRegistrationCallback(callbackRequest);
         }
       } catch {
         /* No provider/body/error reflection. */
@@ -409,15 +368,12 @@ export function createOAuthHttpHandler(
           ...headers,
           Location:
             config.origin +
-            (pilot
-              ? '/api/auth/pilot#' +
-                (result?.kind === 'pending-receipt' ? 'received' : 'unavailable')
-              : (options.accountLanding === true ? '/account#' : '/#') +
-                (result?.kind === 'authenticated'
-                  ? ''
-                  : result?.kind === 'outside-school'
-                    ? 'school-account-required'
-                    : 'authentication-failed')),
+            (options.accountLanding === true ? '/account#' : '/#') +
+            (result?.kind === 'authenticated'
+              ? ''
+              : result?.kind === 'outside-school'
+                ? 'school-account-required'
+                : 'authentication-failed'),
         },
       });
       // Never mutate the shared attempt cookie: even a claimed response can arrive after a newer start.
@@ -427,7 +383,7 @@ export function createOAuthHttpHandler(
     }
     // Normal registration accepts only two bounded self-declared years, never client identity.
     let years = null;
-    if (register && !pilot) {
+    if (register) {
       if (!isSameOriginPost(request, config.origin)) {
         void request.body?.cancel().catch(() => {});
         return json(400, 'authentication_unavailable');
@@ -443,12 +399,10 @@ export function createOAuthHttpHandler(
           })
         : request;
       const result = register
-        ? pilot
-          ? await broker.startRegistration(target)
-          : await broker.startSelfRegistration(target, years)
+        ? await broker.startSelfRegistration(target, years)
         : await broker.start(target);
       if (!result) return json(400, 'authentication_unavailable');
-      if (pilot || options.authorizationJson) {
+      if (options.authorizationJson) {
         const authorizationUrl = new URL(result.location);
         authorizationUrl.searchParams.set('prompt', 'select_account');
         return new Response(JSON.stringify({ authorizationUrl: authorizationUrl.toString() }), {

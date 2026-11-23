@@ -10,7 +10,6 @@ export default {
       body?: string;
       bindings: OAuthBindings;
       enabled?: boolean;
-      pendingPilot?: boolean;
       production?: boolean;
       forbidDb?: boolean;
       now: number;
@@ -39,7 +38,7 @@ export default {
       (await createOAuthHttpHandler(
         db,
         i.bindings,
-        { enabled: i.enabled, pendingPilot: i.pendingPilot },
+        { enabled: i.enabled },
         () => i.clockValues?.[reads++] ?? i.now,
       )(target)) ?? new Response(null, { status: 418 })
     );

@@ -8,7 +8,6 @@ export default defineConfig({
     '**/session-generation-browser.spec.ts',
     '**/session-registration-browser.spec.ts',
     '**/session-registration-independent-browser.spec.ts',
-    '**/pending-pilot-browser.spec.ts',
     '**/retired-trial-browser.spec.ts',
   ],
   fullyParallel: true,
