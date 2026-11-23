@@ -7,11 +7,21 @@ import {
   MEDIA_MAX_PIXELS,
   JPEG_MAX_PIXELS,
   PNG_HIGH_RES_BYTES,
+  MEDIA_PER_DRAFT,
+  MEDIA_LIMIT_MESSAGE,
+  mediaLimit,
+  type MediaLimit,
   type MediaReceipt,
 } from '../shared/media';
 export class MediaClientError extends Error {
   constructor() {
     super('画像の状態を確認できませんでした。');
+  }
+}
+/** The server definitively refused the upload because a storage limit was reached; nothing was saved. */
+export class MediaLimitError extends Error {
+  constructor(readonly limit: MediaLimit) {
+    super(MEDIA_LIMIT_MESSAGE[limit]);
   }
 }
 function receipt(v: unknown): v is MediaReceipt {
@@ -78,6 +88,7 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
     limit: number,
     expected: number,
     signal?: AbortSignal,
+    refusal?: number,
   ) {
     const controller = new AbortController(),
       abort = () => controller.abort();
@@ -92,13 +103,13 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
         redirect: 'error',
         signal: controller.signal,
       });
-      if (r.status !== expected) {
+      if (r.status !== expected && r.status !== refusal) {
         void r.body?.cancel().catch(() => {});
         throw new MediaClientError();
       }
       const bytes = await bounded(r, limit, controller.signal);
       if (controller.signal.aborted) throw new MediaClientError();
-      return { bytes, type: r.headers.get('Content-Type') };
+      return { bytes, type: r.headers.get('Content-Type'), status: r.status };
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener('abort', abort);
@@ -144,7 +155,7 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
       const images = (v as { images: unknown }).images;
       if (
         !Array.isArray(images) ||
-        images.length > 8 ||
+        images.length > MEDIA_PER_DRAFT ||
         !images.every(receipt) ||
         new Set(images.map((i) => i.id)).size !== images.length
       )
@@ -184,8 +195,22 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
           1024,
           201,
           signal,
+          409,
         ),
         v = json(r.bytes);
+      if (r.status === 409) {
+        const refusal = v as { error?: unknown; limit?: unknown } | null;
+        if (
+          r.type?.startsWith('application/json') &&
+          refusal &&
+          typeof refusal === 'object' &&
+          Object.keys(refusal).sort().join(',') === 'error,limit' &&
+          refusal.error === 'media_limit' &&
+          mediaLimit(refusal.limit)
+        )
+          throw new MediaLimitError(refusal.limit);
+        throw new MediaClientError();
+      }
       if (
         !r.type?.startsWith('application/json') ||
         !receipt(v) ||

@@ -363,3 +363,28 @@ test('unsupported, oversized, unreadable and too-many-pixel images are refused w
     .locator('.media-attachments')
     .screenshot({ path: info.outputPath('refused-image-reason.png') });
 });
+test('a storage-limit refusal names the limit and leaves no resend command', async ({
+  page,
+}, info) => {
+  await article(page, info);
+  const status = page.locator('.media-attachments p[aria-live="polite"]');
+  await expect(status).toHaveText(/画像は私的に保存されます/);
+  // The worker refusal shape is fixed by tests/media.test.ts; here the request is answered with it
+  // before reaching the server, so nothing is saved and the UI must not offer a resend.
+  await page.route('**/api/private/media/articles/*/*', (route) =>
+    route.fulfill({ status: 409, json: { error: 'media_limit', limit: 'owner' } }),
+  );
+  await page
+    .getByLabel('下書きへ画像を追加', { exact: true })
+    .setInputFiles({ name: 'synthetic-screen.png', mimeType: 'image/png', buffer: screen });
+  await expect(status).toHaveText(
+    'あなたが保存できる画像の合計（128枚・8 MiB）に達しました。使っていない下書きの画像を削除してから追加してください。',
+  );
+  await expect(page.getByText('結果未確定の画像があります。', { exact: false })).toHaveCount(0);
+  await expect(page.getByLabel('下書きへ画像を追加', { exact: true })).toBeEnabled();
+  await expect(page.locator('.media-grid figure')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page
+    .locator('.media-attachments')
+    .screenshot({ path: info.outputPath('storage-limit-reason.png') });
+});

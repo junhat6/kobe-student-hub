@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
-import { createMediaClient, prepareImage } from './media-client';
+import { createMediaClient, MediaLimitError, prepareImage } from './media-client';
 import PrivateImage from './PrivateImage';
-import { publicMediaPath, type MediaReceipt } from '../shared/media';
+import { MEDIA_PER_DRAFT, publicMediaPath, type MediaReceipt } from '../shared/media';
 import './media.css';
 interface Props {
   kind: 'articles' | 'projects';
@@ -94,11 +94,17 @@ export default function MediaAttachments({
       setMessage(
         '私的な画像を保存し、本文へ参照を入れました。本文を保存して、公開前に画像も確認してください。',
       );
-    } catch {
-      if (current.current)
-        setMessage(
-          '保存結果を確認できませんでした。同じ画像の確認・再送を選べます。自動では再送しません。',
-        );
+    } catch (error) {
+      if (!current.current) return;
+      if (error instanceof MediaLimitError) {
+        // A definitive refusal: nothing was saved, so there is nothing to confirm or resend.
+        setPending(null);
+        setMessage(error.message);
+        return;
+      }
+      setMessage(
+        '保存結果を確認できませんでした。同じ画像の確認・再送を選べます。自動では再送しません。',
+      );
     }
   }
   async function select(selected: File) {
@@ -121,14 +127,17 @@ export default function MediaAttachments({
         <div>
           <h3>画像を添える</h3>
           <p>
-            JPEG・PNG（元画像12 MiB・1600万画素まで）を縮小して保存します。1枚512
-            KiB・下書き8枚まで。保存しただけでは公開されません。位置情報などのメタデータは除去します。
+            JPEG・PNG（元画像12 MiB・1600万画素まで）を縮小して保存します。1枚512 KiB・下書き
+            {MEDIA_PER_DRAFT}
+            枚まで。保存しただけでは公開されません。位置情報などのメタデータは除去します。
           </p>
         </div>
         <label
           className={
             'media-pick' +
-            (disabled || busy || Boolean(pending) || images.length >= 8 ? ' is-disabled' : '')
+            (disabled || busy || Boolean(pending) || images.length >= MEDIA_PER_DRAFT
+              ? ' is-disabled'
+              : '')
           }
         >
           <span aria-hidden="true">＋ 画像を選ぶ</span>
@@ -138,7 +147,7 @@ export default function MediaAttachments({
             type="file"
             accept="image/jpeg,image/png"
             aria-label="下書きへ画像を追加"
-            disabled={disabled || busy || Boolean(pending) || images.length >= 8}
+            disabled={disabled || busy || Boolean(pending) || images.length >= MEDIA_PER_DRAFT}
             onChange={(e) => {
               const selected = e.target.files?.[0];
               if (selected) void select(selected);

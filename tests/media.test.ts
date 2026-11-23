@@ -394,8 +394,17 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
   });
   it('enforces atomic per-draft and owner quotas and allows removal only after removing private references', async () => {
     const d = await draft();
-    for (let n = 0; n < 8; n++) expect((await upload(d)).status).toBe(201);
-    expect((await upload(d)).status).toBe(404);
+    const images: ReturnType<typeof id>[] = [];
+    for (let n = 0; n < 8; n++) {
+      images.push(id());
+      expect((await upload(d, images[n])).status).toBe(201);
+    }
+    const full = await upload(d);
+    expect(full.status).toBe(409);
+    security(full);
+    expect(await full.json()).toEqual({ error: 'media_limit', limit: 'draft' });
+    // A resend of an image that is already saved stays the idempotent receipt, not a refusal.
+    expect((await upload(d, images[7])).status).toBe(201);
     const image = id(),
       linked = await draft(`![keep](/api/media/${image})`);
     await upload(linked, image);
@@ -635,11 +644,97 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     }
   }, 20_000);
 
+  it('refuses an upload past the owner and site limits with a named reason, and accepts it just below', async () => {
+    const db = await mf.getD1Database('DB'),
+      owner = 'account-3',
+      filler = 'limit-filler';
+    const fill = async (account: string, size: number) => {
+      const holder = id();
+      await db
+        .prepare('INSERT INTO private_article_drafts VALUES(?,?,?, ?,1,?)')
+        .bind(holder, account, 'Limit fixture', 'Unreferenced fixture', NOW)
+        .run();
+      await db
+        .prepare(
+          "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) VALUES(?,?,?,'image/png',1,1,zeroblob(?),?,?)",
+        )
+        .bind(id(), account, holder, size, '0'.repeat(64), NOW)
+        .run();
+    };
+    const used = async (account?: string) =>
+      (await db
+        .prepare(
+          'SELECT COALESCE(SUM(length(payload)),0) n FROM media_assets' +
+            (account ? ' WHERE owner_account_id=?' : ''),
+        )
+        .bind(...(account ? [account] : []))
+        .first<{ n: number }>())!.n;
+    await db
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
+      )
+      .bind(filler, 'limit-filler-subject', 'limit-filler@st.kobedenshi.ac.jp', NOW)
+      .run();
+    try {
+      const d = await call<PrivateDraft>('draft', { title: 'Limit', body: '# Limit' }, 3);
+      // Owner: leave 4 KiB free (an upload fits), then fill to exactly 8 MiB (it does not).
+      for (let free = 8388608 - (await used(owner)) - 4096; free > 0; free -= 524288)
+        await fill(owner, Math.min(524288, free));
+      expect((await upload(d, id(), png, 3)).status).toBe(201);
+      await fill(owner, 8388608 - (await used(owner)));
+      const ownerFull = await upload(d, id(), png, 3);
+      expect(ownerFull.status).toBe(409);
+      expect(await ownerFull.json()).toEqual({ error: 'media_limit', limit: 'owner' });
+      const ownerRows = await db
+        .prepare('DELETE FROM media_assets WHERE owner_account_id=? RETURNING id,sha256')
+        .bind(owner)
+        .all<{ id: string; sha256: string }>();
+      if (r2) {
+        const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+        for (const row of ownerRows.results) await bucket.delete(`media/${row.id}/${row.sha256}`);
+      }
+      // Site: other owners leave 4 KiB of the 64 MiB free, then fill it.
+      for (let n = 0, free = 67108864 - (await used()) - 4096; free > 0; n++) {
+        const account = filler + '-' + n;
+        await db
+          .prepare(
+            "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
+          )
+          .bind(account, account, account + '@st.kobedenshi.ac.jp', NOW)
+          .run();
+        for (let k = 0; k < 15 && free > 0; k++, free -= 524288)
+          await fill(account, Math.min(524288, free));
+      }
+      expect((await upload(d, id(), png, 3)).status).toBe(201);
+      await fill(filler, 67108864 - (await used()));
+      const siteFull = await upload(d, id(), png, 3);
+      expect(siteFull.status).toBe(409);
+      expect(await siteFull.json()).toEqual({ error: 'media_limit', limit: 'site' });
+      expect(await used()).toBe(67108864);
+    } finally {
+      const removed = await db
+        .prepare(
+          "DELETE FROM media_assets WHERE owner_account_id=? OR owner_account_id LIKE 'limit-filler%' RETURNING id,sha256",
+        )
+        .bind(owner)
+        .all<{ id: string; sha256: string }>();
+      // Later cases count R2 orphans, so the uploaded objects leave with their rows.
+      if (r2) {
+        const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+        for (const row of removed.results) await bucket.delete(`media/${row.id}/${row.sha256}`);
+      }
+      await db
+        .prepare("DELETE FROM private_article_drafts WHERE owner_account_id LIKE 'limit-filler%'")
+        .run();
+      await db.prepare("DELETE FROM private_accounts WHERE id LIKE 'limit-filler%'").run();
+    }
+  }, 30_000);
+
   it('independent: concurrent final uploads cannot cross the eight-image draft limit', async () => {
     const d = await draft();
     for (let n = 0; n < 7; n++) expect((await upload(d)).status).toBe(201);
     const final = await Promise.all([upload(d), upload(d)]);
-    expect(final.map((r) => r.status).sort()).toEqual([201, 404]);
+    expect(final.map((r) => r.status).sort()).toEqual([201, 409]);
     const db = await mf.getD1Database('DB');
     expect(
       (

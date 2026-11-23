@@ -12,7 +12,7 @@ import {
   type PublicationReceipt,
 } from './publication-client';
 import './publication.css';
-import { referencedMediaIds } from '../shared/media';
+import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import MediaPublicationPreview from './MediaPublicationPreview';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
@@ -113,7 +113,7 @@ export default function PublicationComposer({
     outcome: fields.outcome,
   });
   const sourceValid = Boolean(
-    referencedMediaIds(draft.body).length <= 8 &&
+    referencedMediaIds(draft.body).length <= MEDIA_PER_DRAFT &&
     draft.title.trim() &&
     draft.body.trim() &&
     [draft.title, draft.body].every(

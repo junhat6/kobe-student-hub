@@ -16,7 +16,7 @@ import './project.css';
 import MarkdownRenderer from '../MarkdownRenderer';
 import MediaAttachments from './MediaAttachments';
 import MediaPublicationPreview from './MediaPublicationPreview';
-import { referencedMediaIds } from '../shared/media';
+import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import type { RescueChannel } from '../account/AccountSessionBoundary';
 import Celebration from '../shared/Celebration';
 const empty: ProjectFields = {
@@ -158,7 +158,7 @@ export default function ProjectRegistration({
   const publishable = Boolean(
     saved?.title.trim() &&
     saved?.description.trim() &&
-    referencedMediaIds(saved.description).length <= 8,
+    referencedMediaIds(saved.description).length <= MEDIA_PER_DRAFT,
   );
   const hasUnsaved = dirty || createUnknown || saveUnknown || pubUnknown || mediaUncertain;
   useLayoutEffect(

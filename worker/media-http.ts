@@ -140,6 +140,12 @@ export function createMediaHandler(
           value.bytes,
           value.mime,
         );
+        if (typeof result === 'string')
+          // Only the authorized owner reaches this: the draft and session were checked first.
+          return Response.json(
+            { error: 'media_limit', limit: result },
+            { status: 409, headers: { ...security, Vary: 'Cookie' } },
+          );
         return result
           ? Response.json(result, { status: 201, headers: { ...security, Vary: 'Cookie' } })
           : error();

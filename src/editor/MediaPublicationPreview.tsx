@@ -1,4 +1,4 @@
-import { referencedMediaIds } from '../shared/media';
+import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import PrivateImage from './PrivateImage';
 export default function MediaPublicationPreview({
   body,
@@ -17,8 +17,10 @@ export default function MediaPublicationPreview({
       <p>
         本文に参照した画像は、コードやリンクとして書いた参照も含め、匿名の読者が取得できるようになります。個人情報や他の人の写り込みを確認してください。
       </p>
-      {ids.length > 8 ? (
-        <p role="alert">公開できる画像は8枚までです。参照を減らして保存してください。</p>
+      {ids.length > MEDIA_PER_DRAFT ? (
+        <p role="alert">
+          公開できる画像は{MEDIA_PER_DRAFT}枚までです。参照を減らして保存してください。
+        </p>
       ) : (
         <div className="media-grid">
           {ids.map((id) => (

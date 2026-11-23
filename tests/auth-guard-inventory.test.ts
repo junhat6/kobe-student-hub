@@ -30,6 +30,8 @@ const inventory: Record<string, Inventory> = {
       readOwn: ['base', 'base'],
       remove: ['base'],
       cleanup: ['student'],
+      // Aggregate counts only, read after upload's own checks to name the reached limit (#188).
+      limit: ['student'],
     },
     // dropUnclaimedObject only checks whether a D1 row (id + sha256) owns an R2 object before the
     // failed upload's object is deleted; it returns nothing to the caller (#12).
@@ -487,11 +489,11 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 85 private SQL sites (59 base, 25 student, one explicit choice) and 18 public sites', () => {
+  it('inventory is exactly 86 private SQL sites (59 base, 26 student, one explicit choice) and 18 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(85);
+    expect(guards).toHaveLength(86);
     expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(59);
-    expect(guards.filter((guard) => guard === 'student')).toHaveLength(25);
+    expect(guards.filter((guard) => guard === 'student')).toHaveLength(26);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)

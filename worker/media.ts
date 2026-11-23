@@ -4,7 +4,16 @@ import {
   liveStudentSessionSql as writer,
   liveStudentSessionBindings as writerBinds,
 } from './auth/student-participation';
-import { mediaId, type MediaReceipt } from '../src/shared/media';
+import {
+  mediaId,
+  MEDIA_GLOBAL_BYTES,
+  MEDIA_GLOBAL_COUNT,
+  MEDIA_OWNER_BYTES,
+  MEDIA_OWNER_COUNT,
+  MEDIA_PER_DRAFT,
+  type MediaLimit,
+  type MediaReceipt,
+} from '../src/shared/media';
 import { deleteMediaObjects, getMediaObject, putMediaObject, sha256Hex } from './media-objects';
 
 type Kind = 'articles' | 'projects';
@@ -91,7 +100,7 @@ export class MediaStore {
     version: number,
     bytes: Uint8Array,
     mime: string,
-  ): Promise<MediaReceipt | null> {
+  ): Promise<MediaReceipt | MediaLimit | null> {
     if (!mediaId(id) || !(await this.authorizeUpload(request, kind, draftId, version))) return null;
     try {
       const { normalizeMedia } = await import('./media-codec');
@@ -102,6 +111,9 @@ export class MediaStore {
       if (!p || p.nowMs > 253402300799999) return null;
       // Cleanup is bounded, only touches old unreferenced/private orphans, and never erases a snapshot.
       await this.cleanup(p);
+      // Checked before R2 so a full draft costs no object write. The trigger stays authoritative.
+      const full = await this.limit(p, kind, draftId, id, value.bytes.length);
+      if (full) return full;
       // R2 first: if it refuses the bytes, no D1 row is created. If the D1 insert then fails, the
       // object is removed below (or swept later), so it is never reachable without a D1 row.
       // The key holds the sha256, so a repeated or colliding upload never replaces other bytes.
@@ -139,6 +151,11 @@ export class MediaStore {
           )
           .bind(id, p.accountId, draftId, sha, mime, ...writerBinds(p))
           .first<Row>();
+      } catch (error) {
+        // A concurrent upload can fill the last slot between the check and the insert.
+        const raced = await this.limit(p, kind, draftId, id, value.bytes.length);
+        if (raced) return raced;
+        throw error;
       } finally {
         if (!r) await this.dropUnclaimedObject(id, sha);
       }
@@ -146,6 +163,32 @@ export class MediaStore {
     } catch {
       return null;
     }
+  }
+  /**
+   * The same limits as the media_assets_insert trigger, named so the owner knows what to change.
+   * A resend of an existing id is not a new image; it falls through to the idempotent receipt.
+   */
+  private async limit(p: Proof, kind: Kind, draftId: string, id: string, size: number) {
+    const row = await this.db
+      .prepare(
+        `SELECT CASE WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=?) THEN NULL WHEN (SELECT COUNT(*) FROM media_assets WHERE ${link(kind)}=?)>=? THEN 'draft' WHEN (SELECT COUNT(*) FROM media_assets WHERE owner_account_id=?)>=? OR (SELECT COALESCE(SUM(length(payload)),0) FROM media_assets WHERE owner_account_id=?)+?>? THEN 'owner' WHEN (SELECT COUNT(*) FROM media_assets)>=? OR (SELECT COALESCE(SUM(length(payload)),0) FROM media_assets)+?>? THEN 'site' END reason WHERE ${writer}`,
+      )
+      .bind(
+        id,
+        draftId,
+        MEDIA_PER_DRAFT,
+        p.accountId,
+        MEDIA_OWNER_COUNT,
+        p.accountId,
+        size,
+        MEDIA_OWNER_BYTES,
+        MEDIA_GLOBAL_COUNT,
+        size,
+        MEDIA_GLOBAL_BYTES,
+        ...writerBinds(p),
+      )
+      .first<{ reason: MediaLimit | null }>();
+    return row?.reason ?? null;
   }
   /** Removes an object written for a failed upload, unless a D1 row with the same id+sha owns it. */
   private async dropUnclaimedObject(id: string, sha256: string) {
@@ -172,9 +215,9 @@ export class MediaStore {
       if (!authorized) return null;
       const rows = await this.db
         .prepare(
-          `SELECT ${info} FROM media_assets WHERE ${link(kind)}=? AND owner_account_id=? AND ${live} ORDER BY created_at_ms,id LIMIT 8`,
+          `SELECT ${info} FROM media_assets WHERE ${link(kind)}=? AND owner_account_id=? AND ${live} ORDER BY created_at_ms,id LIMIT ?`,
         )
-        .bind(id, p.accountId, ...binds(p))
+        .bind(id, p.accountId, ...binds(p), MEDIA_PER_DRAFT)
         .all<Row>();
       return rows.results.map(receipt);
     } catch {
