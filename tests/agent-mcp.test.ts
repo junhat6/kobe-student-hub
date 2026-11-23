@@ -1190,6 +1190,24 @@ describe("the student's own taste ledger (C23, flag TASTE_LEDGER_RELEASE_ENABLED
     });
     expect(r.content[0].text).toContain('在籍期間');
     expect((await tool(e.access_token, 'get_my_taste')).structuredContent!.version).toBe(0);
+    // A ledger kept from the enrollment period is still readable, but cannot be replaced after it.
+    await (
+      await db()
+    )
+      .prepare(
+        "INSERT INTO agent_taste_ledgers(account_id,version,lines_json,updated_at_ms) VALUES('account-e',1,?,?)",
+      )
+      .bind(JSON.stringify([line('在籍中の行')]), NOW - DAY)
+      .run();
+    const kept = await tool(e.access_token, 'replace_my_taste', {
+      lines: [line('卒業後の行')],
+      expected_version: 1,
+    });
+    expect(kept.content[0].text).toContain('在籍期間');
+    expect((await tool(e.access_token, 'get_my_taste')).structuredContent).toEqual({
+      version: 1,
+      lines: [line('在籍中の行')],
+    });
   });
 });
 

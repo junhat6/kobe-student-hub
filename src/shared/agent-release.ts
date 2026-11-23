@@ -8,6 +8,8 @@ export const AGENT_MCP_RELEASE_ENABLED = false;
 /**
  * Release gate for the student's own taste ledger and its MCP material tools (C23, R2).
  * Closed: the tools are absent from tools/list, get_writing_guide has no personal section, and
- * the agent's own draft versions are not recorded. Open only after an independent verification.
+ * the agent's own draft versions are not recorded. Opened after the independent verification of
+ * #242 (2026-11-23). It only takes effect while AGENT_MCP_RELEASE_ENABLED is also open. The account
+ * screen and sharing with operators (#243) need their own verification and their own gate.
  */
-export const TASTE_LEDGER_RELEASE_ENABLED = false;
+export const TASTE_LEDGER_RELEASE_ENABLED = true;
