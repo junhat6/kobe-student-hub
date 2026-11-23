@@ -775,11 +775,14 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       ).toBe(MEDIA_GLOBAL_COUNT);
     } finally {
       const removed = await db
-        .prepare(
-          "DELETE FROM media_assets WHERE owner_account_id=? OR owner_account_id LIKE 'limit-filler%' RETURNING id,sha256",
-        )
+        .prepare('DELETE FROM media_assets WHERE owner_account_id=? RETURNING id,sha256')
         .bind(owner)
         .all<{ id: string; sha256: string }>();
+      // Filler rows were written straight to D1 and have no objects; thousands of R2 deletes
+      // would only slow the case past its timeout.
+      await db
+        .prepare("DELETE FROM media_assets WHERE owner_account_id LIKE 'limit-filler%'")
+        .run();
       // Later cases count R2 orphans, so the uploaded objects leave with their rows.
       if (r2) {
         const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
