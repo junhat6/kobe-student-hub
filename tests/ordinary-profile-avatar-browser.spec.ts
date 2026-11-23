@@ -135,8 +135,7 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     await expect(articleCard.locator('.mini-avatar img')).toHaveAttribute('src', publicIcon);
     expect.soft(await seriousViolations(page)).toEqual([]);
     await page.screenshot({ path: info.outputPath('avatar-cards.png'), scale: 'css' });
-    await page.goto(profilePath);
-
+    // #252: stay on the search cards, so this tab has remembered the icon when it is removed.
     // Another student reports the profile; a server-listed operator removes the icon.
     const reader = await actor(browser, contexts, '架空のアイコン通報者-' + key);
     await write(reader, '/api/private/profile-reports/' + author.profileId, {
@@ -180,7 +179,24 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     await expect(detail).toContainText('アイコン画像は設定されていません。');
     await ops.screenshot({ path: info.outputPath('avatar-operator.png'), fullPage: true });
 
+    // #252: a reader whose tab already showed the icon moves to another screen without
+    // reloading. The answer the cards remembered is asked again on the new screen, so an <img>
+    // kept across screens cannot keep the removed image for the cache's five minutes.
+    const asked = page.waitForRequest(
+      (r) => r.url().includes('/api/profile-avatars?ids=') && r.url().includes(author.profileId),
+      { timeout: 10000 },
+    );
+    await page
+      .locator('article', { hasText: 'アイコン確認の記事-' + key })
+      .locator('.content-card-link')
+      .click();
+    await asked;
+    await expect(page).toHaveURL(new RegExp('/articles/' + article.contentId + '$'));
+    await expect(page.locator('.detail-author .avatar')).toHaveText('架');
+    await expect(page.locator('.detail-author .avatar img')).toHaveCount(0);
+
     // Readers get the initial again, and the owner reads the reason.
+    await page.goto(profilePath);
     await page.reload();
     await expect(page.locator('.profile-side .avatar')).toHaveText('架');
     await expect(page.locator('.profile-side .avatar img')).toHaveCount(0);
