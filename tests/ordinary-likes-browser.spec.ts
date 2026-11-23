@@ -136,6 +136,29 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
       bare.getByRole('link', { name: 'マイページで公開プロフィールを作成', exact: true }),
     ).toHaveAttribute('href', '/account');
     expect(bareWrites).toHaveLength(0);
+    // #174: after making the profile, the account page leads back to the article to like it.
+    await bare
+      .getByRole('link', { name: 'マイページで公開プロフィールを作成', exact: true })
+      .click();
+    await expect(bare).toHaveURL(/\/account$/);
+    await expect(bare.getByRole('link', { name: '記事に戻っていいねする' })).toHaveCount(0);
+    await bare.getByLabel('表示名').fill('架空の新しい読者-' + key);
+    await bare.getByRole('button', { name: '公開する', exact: true }).click();
+    const back = bare.getByRole('link', { name: '記事に戻っていいねする' });
+    await expect(back).toHaveAttribute('href', articlePath);
+    await bare.screenshot({
+      path: info.outputPath('likes-profile-return.png'),
+      fullPage: true,
+      scale: 'css',
+    });
+    await back.click();
+    await expect(bare).toHaveURL(new RegExp(articlePath + '$'));
+    await bare.getByRole('button', { name: 'いいね', exact: true }).click();
+    await expect(bare.getByRole('button', { name: 'いいね済み', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(bareWrites).toEqual(['PUT']);
 
     // Signed in with a profile: the note says the like is public before it is pressed.
     const reader = await liker.context.newPage();

@@ -696,3 +696,14 @@
   border-radius: 999px;
   color: var(--ink-soft, #46525f);
 }
+
+/* #174: back to the article the reader wanted to like, once the profile exists. */
+.account-home a.account-return {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 12px;
+  color: #fff;
+  text-decoration: none;
+}

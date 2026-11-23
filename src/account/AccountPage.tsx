@@ -20,6 +20,18 @@ import { useHashLanding } from './useHashLanding';
 
 const LANDING_SECTIONS = ['publications', 'enrollment'] as const;
 
+/**
+ * #174: the article a reader wanted to like before making a profile. Only router state
+ * from our own like button sets it, and only an article path is accepted, so a link from
+ * elsewhere cannot turn this page into a redirect.
+ */
+function returnArticle(state: unknown): string | null {
+  const value = (state as { returnTo?: unknown } | null)?.returnTo;
+  return typeof value === 'string' && /^\/articles\/[A-Za-z0-9_-]{1,128}$/.test(value)
+    ? value
+    : null;
+}
+
 function AccountActions({ participation }: { participation: ParticipationState }) {
   return (
     <nav className="account-actions" aria-label="マイページの操作">
@@ -59,9 +71,10 @@ function AccountContent({
   publicationRisk: (risk: boolean) => void;
 }) {
   const { refresh, viewer } = useViewer();
+  const locationState: unknown = useLocation().state;
   // 「プロフィールを編集」 on the author page lands here with the form already open (as on GitHub).
-  const editProfile =
-    (useLocation().state as { editProfile?: unknown } | null)?.editProfile === true;
+  const editProfile = (locationState as { editProfile?: unknown } | null)?.editProfile === true;
+  const returnTo = returnArticle(locationState);
   const ownProfileId = viewer.status === 'signed-in' ? viewer.profile?.id : undefined;
   // Follows the enrollment panel, so a correction there updates the page at once.
   const [participation, setParticipation] = useState<ParticipationState>('checking');
@@ -83,6 +96,12 @@ function AccountContent({
             onRiskChange={profileRisk}
             startEditing={editProfile}
           />
+          {returnTo && profileState === 'exists' && (
+            <Link className="primary account-return" to={returnTo}>
+              記事に戻っていいねする
+              <Icon name="arrowRight" size={18} />
+            </Link>
+          )}
         </div>
       )}
       {authoringUiEnabled && ready && <ActivityGrass id={ownProfileId} own fetcher={fetcher} />}

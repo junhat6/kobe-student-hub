@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { createLikesClient } from '../editor/likes-client';
 import { useViewer } from '../shell/viewer';
 import Icon from '../shared/Icon';
@@ -25,6 +25,8 @@ export default function ArticleLikeButton({
   actions?: ReactNode;
 }) {
   const { viewer, refresh } = useViewer();
+  // #174: the account page offers the way back here once the profile exists.
+  const { pathname } = useLocation();
   const csrf = viewer.status === 'signed-in' ? viewer.csrfToken : null;
   // Only a confirmed "no profile" blocks a like; an unreadable profile lets the server decide.
   const hasProfile = viewer.status === 'signed-in' && viewer.profile !== null;
@@ -129,7 +131,10 @@ export default function ArticleLikeButton({
         {hint === 'profile' && state.kind !== 'error' && (
           <>
             いいねは公開プロフィールに表示されます。先に
-            <Link to="/account">マイページで公開プロフィールを作成</Link>してください。
+            <Link to="/account" state={{ returnTo: pathname }}>
+              マイページで公開プロフィールを作成
+            </Link>
+            してください。
           </>
         )}
       </p>
