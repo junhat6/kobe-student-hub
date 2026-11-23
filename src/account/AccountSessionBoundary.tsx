@@ -274,7 +274,8 @@ export default function AccountSessionBoundary({
           copy(
             '有効な既存セッションを確認しました。この画面からログインやアカウント作成は行っていません。',
             'ログインしています。',
-            'ログインを確認しました。下書きを書く・再開できます。',
+            // Participation is read later; this line must stay true even when writes are closed.
+            'ログインを確認しました。',
           ),
         );
         reveal();

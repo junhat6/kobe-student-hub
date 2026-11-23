@@ -42,6 +42,8 @@ const stamp = (n: number) =>
     minute: '2-digit',
   }).format(n);
 /** Routine progress and success are announced only; failures and warnings stay visible (原則6). */
+const LIST_READY = '左の一覧から下書きを開くか、新しく作成できます。',
+  LIST_EMPTY = '新しい下書きを作成して、書き始めましょう。';
 const QUIET_STATUS = new Set([
   '下書きを読み込んでいます…',
   '新しい下書きを作成しています…',
@@ -88,6 +90,14 @@ export default function DraftEditor({
   const lock = useRef(false);
   const mounted = useRef(true);
   const [status, setStatus] = useState('下書きを読み込んでいます…');
+  // The list may load before participation is known, so the closed wording is chosen at render.
+  const shownStatus = writable
+    ? status
+    : status === LIST_READY
+      ? '左の一覧から下書きを開くと、読み返したり削除したりできます。'
+      : status === LIST_EMPTY
+        ? '保存した下書きはありません。'
+        : status;
   const [problem, setProblem] = useState(false);
   const [autosavePaused, setAutosavePaused] = useState(false);
   const autosaveTimer = useRef<number | undefined>(undefined);
@@ -119,7 +129,8 @@ export default function DraftEditor({
   useEffect(() => {
     if (ordinary && !busy && !draft && focusAfterDelete.current) {
       focusAfterDelete.current = false;
-      newDraftButton.current?.focus();
+      // Without the create button (writes closed), focus stays in the editor area instead of body.
+      (newDraftButton.current ?? document.getElementById('editor-main'))?.focus();
     }
   }, [ordinary, busy, draft]);
   const [composing, setComposing] = useState(false);
@@ -202,12 +213,7 @@ export default function DraftEditor({
         if (!mounted.current) return;
         setList(rows);
         setListError(false);
-        if (!draft)
-          setStatus(
-            rows.length
-              ? '左の一覧から下書きを開くか、新しく作成できます。'
-              : '新しい下書きを作成して、書き始めましょう。',
-          );
+        if (!draft) setStatus(rows.length ? LIST_READY : LIST_EMPTY);
       } catch {
         if (mounted.current) {
           setListError(true);
@@ -632,15 +638,17 @@ export default function DraftEditor({
             {ordinary ? <h2>自分の下書き</h2> : <h1>下書き</h1>}
             <span>本人だけに表示</span>
           </div>
-          <Button
-            ref={newDraftButton}
-            aria-label="新しい下書き"
-            className="editor-primary editor-new"
-            disabled={busy || publicationBusy || deletionOpen || !writable}
-            onClick={() => void create()}
-          >
-            ＋ 新しい下書き
-          </Button>
+          {writable && (
+            <Button
+              ref={newDraftButton}
+              aria-label="新しい下書き"
+              className="editor-primary editor-new"
+              disabled={busy || publicationBusy || deletionOpen}
+              onClick={() => void create()}
+            >
+              ＋ 新しい下書き
+            </Button>
+          )}
           <div className="editor-list-heading">
             <h2>保存した下書き</h2>
             <Button
@@ -696,7 +704,13 @@ export default function DraftEditor({
           <div className="editor-main-heading">
             <div>
               {!ordinary && <p className="editor-eyebrow">YOUR WORDS, YOUR PACE</p>}
-              <h2>{draft ? '経験を、書き残そう。' : 'まずは、ひとつの気づきから。'}</h2>
+              <h2>
+                {!writable
+                  ? '保存した下書きを読み返す'
+                  : draft
+                    ? '経験を、書き残そう。'
+                    : 'まずは、ひとつの気づきから。'}
+              </h2>
             </div>
             {draft && (
               <span className={'editor-save-state ' + (dirty ? 'is-dirty' : '')}>
@@ -705,11 +719,13 @@ export default function DraftEditor({
             )}
           </div>
           <div
-            className={'editor-status' + (ordinary && QUIET_STATUS.has(status) ? ' sr-only' : '')}
+            className={
+              'editor-status' + (ordinary && QUIET_STATUS.has(shownStatus) ? ' sr-only' : '')
+            }
             role="status"
             aria-live="polite"
           >
-            {status}
+            {shownStatus}
           </div>
           {draft ? (
             <>
@@ -1024,19 +1040,25 @@ export default function DraftEditor({
           ) : (
             <section className="editor-welcome">
               {!ordinary && <span aria-hidden="true">✎</span>}
-              <h3>小さな経験も、次の誰かのヒントに。</h3>
-              <p>
-                新しい下書きを作成するか、保存した下書きを選んでください。
-                <br />
-                書くことと、読みやすさの確認を行き来できます。
-              </p>
-              <Button
-                className="editor-primary"
-                disabled={busy || publicationBusy || deletionOpen || !writable}
-                onClick={() => void create()}
-              >
-                新しい下書きを作成
-              </Button>
+              {writable ? (
+                <>
+                  <h3>小さな経験も、次の誰かのヒントに。</h3>
+                  <p>
+                    新しい下書きを作成するか、保存した下書きを選んでください。
+                    <br />
+                    書くことと、読みやすさの確認を行き来できます。
+                  </p>
+                  <Button
+                    className="editor-primary"
+                    disabled={busy || publicationBusy || deletionOpen}
+                    onClick={() => void create()}
+                  >
+                    新しい下書きを作成
+                  </Button>
+                </>
+              ) : (
+                <p>保存した下書きを選ぶと、読み返したり削除したりできます。</p>
+              )}
             </section>
           )}
         </EditorRegion>

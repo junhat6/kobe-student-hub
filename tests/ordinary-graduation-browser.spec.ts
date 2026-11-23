@@ -108,8 +108,20 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
       .getByRole('note', { name: '新しい投稿について' })
       .getByRole('heading', { name: '卒業予定を過ぎています' }),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toBeDisabled();
+  // #179: no create controls, and nothing visible or announced says a new draft can be made.
+  await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '新しい下書きを作成', exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.locator('.editor-status')).toHaveText(
+    '左の一覧から下書きを開くと、読み返したり削除したりできます。',
+  );
+  await expect(page.getByRole('region', { name: '下書きのセッション確認' })).toContainText(
+    'ログインを確認しました。',
+  );
+  await expect(page.getByText(/作成できます|書く・再開できます|新しい下書きを作成/)).toHaveCount(0);
   await page.getByRole('button', { name: TITLE, exact: true }).click();
+  await expect(page.getByRole('heading', { name: '保存した下書きを読み返す' })).toBeVisible();
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(TITLE);
   await expect(page.getByLabel('タイトル', { exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeDisabled();
@@ -124,6 +136,8 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
     '下書きを削除しました。公開済みの記事は変更していません。',
   );
   await expect(page.getByRole('button', { name: TITLE, exact: true })).toHaveCount(0);
+  // Without the create button, focus lands on the editor area rather than being dropped.
+  await expect(page.locator('#editor-main')).toBeFocused();
 
   // #178: the notice's links land on the named account section, not on the page top.
   await page

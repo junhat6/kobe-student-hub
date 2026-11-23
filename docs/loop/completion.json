@@ -263,7 +263,7 @@
       "risk": "R2",
       "status": "pass",
       "production": "unknown",
-      "evidence": "受け入れ1: サーバーは tests/enrollment-writer-independent.test.ts で、年度外(ended/upcoming/missing)の新規作成・保存・公開など参加者の書き込みを全て拒否し、期限後も本人の読み取り・下書き削除・いいね解除・公開停止・年度訂正・ログアウトが使えることを確認。画面は tests/ordinary-graduation-browser.spec.ts（HTTPS fixture、PC1280/モバイル390、axe serious/critical 0件）で、卒業予定年度を過ぎるとマイページ・下書き・作品登録に理由と続けられる操作を示し、作成・保存・公開・画像追加を出さない／無効にする。下書き削除と公開停止は実際に成功し、年度を訂正すると書く導線が戻る。受け入れ2: 同 test の「does not revive suspended or deleted accounts through declaration correction」と tests/pending-registration.test.ts で、停止・削除済みアカウントの年度訂正・再登録が拒否され記録も変わらない。R2 独立検証は #161 で合格（main 384d033、別タブ保存・直接API・年度API失敗・年度の露出を攻めて境界の破れなし）"
+      "evidence": "受け入れ1: サーバーは tests/enrollment-writer-independent.test.ts で、年度外(ended/upcoming/missing)の新規作成・保存・公開など参加者の書き込みを全て拒否し、期限後も本人の読み取り・下書き削除・いいね解除・公開停止・年度訂正・ログアウトが使えることを確認。画面は tests/ordinary-graduation-browser.spec.ts（HTTPS fixture、PC1280/モバイル390、axe serious/critical 0件）で、卒業予定年度を過ぎるとマイページ・下書き・作品登録に理由と続けられる操作を示し、作成・保存・公開・画像追加を出さない／無効にする。下書き削除と公開停止は実際に成功し、年度を訂正すると書く導線が戻る。受け入れ2: 同 test の「does not revive suspended or deleted accounts through declaration correction」と tests/pending-registration.test.ts で、停止・削除済みアカウントの年度訂正・再登録が拒否され記録も変わらない。R2 独立検証は #161 で合格（main 384d033、別タブ保存・直接API・年度API失敗・年度の露出を攻めて境界の破れなし） #179：書けない状態の下書き画面は作成ボタンを出さず、状態文・見出し・セッション確認の読み上げ文に「作成できます」「書く・再開できます」を出さない（同 spec、PC1280/モバイル390）。"
     },
     {
       "id": "C18",
