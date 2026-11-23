@@ -10,6 +10,7 @@ import ProjectReport from '../editor/ProjectReport';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import './discovery.css';
+import { AuthorAvatar } from '../shared/public-avatars';
 
 function Works() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
@@ -82,7 +83,12 @@ function Project({ id }: { id: string }) {
           <h1>{project.title}</h1>
           <div className="detail-author">
             <Link className="author" to={`/students/${author.id}/works`}>
-              <span className="avatar">{author.initials}</span>
+              <AuthorAvatar
+                id={author.id}
+                initials={author.initials}
+                className="avatar"
+                size={44}
+              />
               <span>
                 {author.name}
                 <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>

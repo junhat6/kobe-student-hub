@@ -1,7 +1,11 @@
 import { SessionStore } from './auth/sessions';
 import { ProfileAvatarStore } from './profile-avatars';
 import { warmMediaCodec } from './media';
-import { AVATAR_MAX_BYTES } from '../src/shared/avatar';
+import {
+  AVATAR_MAX_BYTES,
+  PUBLIC_AVATAR_BATCH_MAX,
+  PUBLIC_AVATAR_BATCH_PATH,
+} from '../src/shared/avatar';
 // Same response posture as /api/media: never cached, never sniffed, never framed or scripted.
 const security = {
   'Cache-Control': 'private, no-store',
@@ -103,6 +107,26 @@ export function createProfileAvatarHandler(
         return error(503);
     } catch {
       return error(503);
+    }
+    if (url.pathname === PUBLIC_AVATAR_BATCH_PATH) {
+      if (request.method !== 'GET') {
+        const response = error(405);
+        response.headers.set('Allow', 'GET');
+        return response;
+      }
+      // Exactly one `ids` parameter: a comma-separated list of distinct public profile ids.
+      const keys = [...url.searchParams.keys()];
+      const raw = url.searchParams.get('ids');
+      if (url.hash || keys.length !== 1 || keys[0] !== 'ids' || raw === null || raw.length > 6400)
+        return error();
+      const ids = raw.split(',');
+      if (ids.length > PUBLIC_AVATAR_BATCH_MAX) return error();
+      try {
+        const avatars = await store.readPublicPaths(ids);
+        return avatars ? json({ avatars }) : error();
+      } catch {
+        return error();
+      }
     }
     if (url.search || url.hash || (!own && !ownMatch && !publicMatch)) return error();
     const allowed = own ? 'GET, PUT, DELETE' : 'GET';

@@ -145,6 +145,8 @@ const inventory: Record<string, Inventory> = {
       getOwnReceipt: ['base'],
       queue: ['base'],
       readCase: ['base'],
+      // Operator-only view of the reported icon, even after the profile stopped being public (#205).
+      readAvatar: ['base'],
       removeAvatar: ['base'],
     },
   },
@@ -157,7 +159,7 @@ const inventory: Record<string, Inventory> = {
       remove: ['base', 'base'],
       readOwn: ['base'],
     },
-    public: { readPublic: 1, readPublicPath: 1 },
+    public: { readPublic: 1, readPublicPath: 1, readPublicPaths: 1 },
   },
   'auth/enrollment': {
     className: 'EnrollmentStore',
@@ -500,16 +502,16 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 93 private SQL sites (65 base, 27 student, one explicit choice) and 18 public sites', () => {
+  it('inventory is exactly 94 private SQL sites (66 base, 27 student, one explicit choice) and 19 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(93);
-    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(65);
+    expect(guards).toHaveLength(94);
+    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(66);
     expect(guards.filter((guard) => guard === 'student')).toHaveLength(27);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)
         .flatMap((item) => Object.values(item.public ?? {}))
         .reduce((a, b) => a + b, 0),
-    ).toBe(18);
+    ).toBe(19);
   });
 });

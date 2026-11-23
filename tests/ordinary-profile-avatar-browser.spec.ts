@@ -38,6 +38,8 @@ test('a student sets an icon, readers see it, and an operator removes a reported
   browser,
   page,
 }, info) => {
+  // #205 added the article, work and card checks to the same walk.
+  test.setTimeout(90000);
   const contexts: BrowserContext[] = [];
   const key = info.project.name + '-' + Date.now().toString(36);
   try {
@@ -48,9 +50,23 @@ test('a student sets an icon, readers see it, and an operator removes a reported
       githubUrl: '',
       demoUrl: '',
     });
-    await write(author, '/api/private/project-publications/' + draft.id, {
+    const work = await write(author, '/api/private/project-publications/' + draft.id, {
       expectedVersion: draft.version,
       confirmPublic: true,
+    });
+    const articleDraft = await write(author, '/api/private/drafts', {
+      title: 'アイコン確認の記事-' + key,
+      body: '架空の本文',
+    });
+    const article = await write(author, '/api/private/publications/' + articleDraft.id, {
+      confirmPublic: true,
+      summary: '架空の要約',
+      tags: ['アイコン'],
+      minutes: 1,
+      audience: '',
+      prerequisite: '',
+      outcome: '',
+      expectedVersion: articleDraft.version,
     });
     const mine = await author.context.newPage();
     await mine.setViewportSize(page.viewportSize()!);
@@ -87,6 +103,40 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     expect.soft(await seriousViolations(page)).toEqual([]);
     await page.screenshot({ path: info.outputPath('avatar-public.png'), scale: 'css' });
 
+    // #205: the owner's header shows the icon, and readers see it on the article and work
+    // bylines and on cards, with the initial only as a fallback.
+    await loaded(mine, '.header-avatar img');
+    expect(await mine.locator('.header-avatar img').getAttribute('src')).toMatch(
+      /^\/api\/private\/profile-avatar\/[0-9a-f]{16}$/,
+    );
+    const publicIcon = new RegExp(`^/api/profile-avatars/${author.profileId}/[0-9a-f]{16}$`);
+    await page.goto('/articles/' + article.contentId);
+    await expect(page.locator('.detail-author .avatar')).toBeVisible();
+    for (const at of [
+      '.detail-author .avatar',
+      '.author-side-name .mini-avatar',
+      '.article-end-author .mini-avatar',
+    ]) {
+      // Icons load lazily, and the side box is not shown on a phone.
+      if (!(await page.locator(at).isVisible())) continue;
+      await page.locator(at).scrollIntoViewIfNeeded();
+      await loaded(page, at + ' img');
+      expect(await page.locator(at + ' img').getAttribute('src')).toMatch(publicIcon);
+    }
+    expect.soft(await seriousViolations(page)).toEqual([]);
+    await page.screenshot({ path: info.outputPath('avatar-article.png'), scale: 'css' });
+    await page.goto('/projects/' + work.projectId);
+    await loaded(page, '.detail-author .avatar img');
+    await page.goto('/works');
+    const card = page.locator('article', { hasText: 'アイコン確認の作品-' + key });
+    await expect(card.locator('.mini-avatar img')).toHaveAttribute('src', publicIcon);
+    await page.goto('/search?type=article&tag=' + encodeURIComponent('アイコン'));
+    const articleCard = page.locator('article', { hasText: 'アイコン確認の記事-' + key });
+    await expect(articleCard.locator('.mini-avatar img')).toHaveAttribute('src', publicIcon);
+    expect.soft(await seriousViolations(page)).toEqual([]);
+    await page.screenshot({ path: info.outputPath('avatar-cards.png'), scale: 'css' });
+    await page.goto(profilePath);
+
     // Another student reports the profile; a server-listed operator removes the icon.
     const reader = await actor(browser, contexts, '架空のアイコン通報者-' + key);
     await write(reader, '/api/private/profile-reports/' + author.profileId, {
@@ -116,6 +166,11 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     release();
     const detail = ops.getByRole('region', { name: '選択した通報内容' });
     await expect(detail.getByRole('img', { name: 'いまのアイコン画像' })).toBeVisible();
+    // The operator reads the icon through the operator-only path, never the public one (#205).
+    await expect(detail.getByRole('img', { name: 'いまのアイコン画像' })).toHaveAttribute(
+      'src',
+      new RegExp(`^/api/private/profile-moderation/cases/${author.profileId}/avatar/[0-9a-f]{16}$`),
+    );
     await detail.getByLabel('外す理由（本人に届きます）').fill('架空の取り外し理由-' + key);
     expect.soft(await seriousViolations(ops)).toEqual([]);
     await detail.getByRole('button', { name: 'アイコン画像を外す', exact: true }).click();

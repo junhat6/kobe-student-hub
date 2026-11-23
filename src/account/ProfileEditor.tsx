@@ -12,6 +12,8 @@ import {
 import Icon from '../shared/Icon';
 import { ownAvatarPath } from '../shared/avatar';
 import ProfileAvatarTools from './ProfileAvatarTools';
+import { forgetPublicAvatar } from '../shared/public-avatars';
+import { useViewer } from '../shell/viewer';
 import './profile-editor.css';
 
 const empty: ProfileInput = { displayName: '', department: '', yearLabel: '', bio: '' };
@@ -141,6 +143,7 @@ export default function ProfileEditor({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
+  const { viewer, refresh: refreshViewer } = useViewer();
   const wantsEditing = useRef(startEditing);
   const creating = state === 'none';
   const open = creating || editing;
@@ -250,7 +253,14 @@ export default function ProfileEditor({
       csrfToken={csrfToken}
       fetcher={fetcher}
       avatar={avatar}
-      onChange={setAvatar}
+      onChange={(next) => {
+        setAvatar(next);
+        // The header and this visit's cards show the new icon without a reload (#205).
+        // Only a real difference re-reads the header; the first load usually matches it.
+        if (profile) forgetPublicAvatar(profile.id);
+        if (viewer.status === 'signed-in' && viewer.profile && viewer.profile.avatar !== next)
+          refreshViewer();
+      }}
       onMessage={setMessage}
     />
   );

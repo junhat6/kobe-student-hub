@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from 'react';
 import { createSessionClient, SessionClientError } from '../editor/session-client';
 import { authoringUiEnabled } from '../account/routes';
+import { avatarVersion } from '../shared/avatar';
 
 /**
  * Header-level view of "who is reading". Display only: every private screen and API
@@ -23,7 +24,9 @@ export type Viewer =
       status: 'signed-in';
       csrfToken: string;
       /** null: no public profile yet. undefined: it could not be read right now. */
-      profile: { id: string; name: string; initials: string } | null | undefined;
+      /** `avatar` is the own icon version (#205); null when none or unreadable right now. */
+      profile:
+        { id: string; name: string; initials: string; avatar: string | null } | null | undefined;
     };
 
 interface ViewerContextValue {
@@ -37,6 +40,25 @@ const ViewerContext = createContext<ViewerContextValue>({
   refresh: () => {},
   logout: async () => false,
 });
+
+/** The own icon version for the header; any failure shows the initial instead. */
+async function readOwnAvatar(signal: AbortSignal): Promise<string | null> {
+  try {
+    const response = await fetch('/api/private/profile-avatar', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return null;
+    const body: unknown = await response.json();
+    const avatar = (body as { avatar?: unknown } | null)?.avatar;
+    return avatarVersion(avatar) ? avatar : null;
+  } catch {
+    return null;
+  }
+}
 
 async function readOwnProfile(signal: AbortSignal) {
   try {
@@ -59,7 +81,12 @@ async function readOwnProfile(signal: AbortSignal) {
       typeof profile.initials !== 'string'
     )
       return undefined;
-    return { id: profile.id, name: profile.displayName, initials: profile.initials };
+    return {
+      id: profile.id,
+      name: profile.displayName,
+      initials: profile.initials,
+      avatar: await readOwnAvatar(signal),
+    };
   } catch {
     // A temporary failure is not "no profile": callers must not suggest creating one.
     return undefined;

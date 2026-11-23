@@ -11,7 +11,7 @@ import {
   validProjectReportInput,
 } from './project-report-client';
 import { publicKeys, publicText } from './public-author-client';
-import { avatarVersion, validPublicAvatar } from '../shared/avatar';
+import { avatarVersion, validModerationAvatar } from '../shared/avatar';
 import type { ProjectReportInput } from '../project-report-types';
 
 const validProfileReportInput = (v: unknown): v is ProfileReportInput => validProjectReportInput(v);
@@ -64,7 +64,7 @@ function caseDto(v: unknown): v is ProfileReportCase {
   return (
     publicKeys(p, ['id', 'name', 'department', 'year', 'bio', 'initials']) &&
     slug(p.id) &&
-    validPublicAvatar(v.avatar, p.id) &&
+    validModerationAvatar(v.avatar, p.id) &&
     profileText({ name: p.name, department: p.department, year: p.year, bio: p.bio }) &&
     publicText(p.initials, 8) &&
     typeof v.reportsTruncated === 'boolean' &&

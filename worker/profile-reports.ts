@@ -5,7 +5,7 @@ import {
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
 import { decodePublicProfile, publicProfileSqlBounds } from './publication';
-import { avatarVersion, publicAvatarPath } from '../src/shared/avatar';
+import { AVATAR_MAX_BYTES, avatarVersion, moderationAvatarPath } from '../src/shared/avatar';
 import type {
   ProfileReportCase,
   ProfileReportCaseSummary,
@@ -198,7 +198,7 @@ export class ProfileReportStore {
       if (version !== null && !avatarVersion(version)) return null;
       const result: ProfileReportCase = {
         profile: author,
-        avatar: version === null ? null : publicAvatarPath(author.id, version),
+        avatar: version === null ? null : moderationAvatarPath(author.id, version),
         reports: rs.results.map((r) => ({
           reason: r.reason!,
           detail: r.detail!,
@@ -213,6 +213,40 @@ export class ProfileReportStore {
         reportsTruncated: rs.results[0].report_count > rs.results.length,
       };
       return new TextEncoder().encode(JSON.stringify(result)).length <= 262144 ? result : null;
+    } catch {
+      return null;
+    }
+  }
+  /** The reported profile's current icon for the operator only, even when the profile is no
+   * longer public, so an icon is never taken down unseen (#205). */
+  async readAvatar(
+    req: Request,
+    id: unknown,
+    version: unknown,
+  ): Promise<{ mime: 'image/png' | 'image/jpeg'; bytes: Uint8Array<ArrayBuffer> } | null> {
+    if (!slug(id) || !avatarVersion(version)) return null;
+    try {
+      const p = await this.operator(req);
+      if (!p) return null;
+      const r = await this.db
+        .prepare(
+          `SELECT a.mime,a.payload,a.sha256 FROM profile_avatars a JOIN public_profiles p ON p.id=a.public_profile_id WHERE a.public_profile_id=? AND substr(a.sha256,1,16)=? AND ${profile} AND EXISTS(SELECT 1 FROM profile_reports q WHERE q.public_profile_id=p.id) AND ${live}`,
+        )
+        .bind(id, version, ...binds(p))
+        .first<{ mime: string; payload: unknown; sha256: string }>();
+      if (
+        !r ||
+        (r.mime !== 'image/png' && r.mime !== 'image/jpeg') ||
+        typeof r.sha256 !== 'string' ||
+        !/^[0-9a-f]{64}$/.test(r.sha256) ||
+        r.sha256.slice(0, 16) !== version ||
+        !Array.isArray(r.payload) ||
+        r.payload.length < 1 ||
+        r.payload.length > AVATAR_MAX_BYTES ||
+        r.payload.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
+      )
+        return null;
+      return { mime: r.mime, bytes: Uint8Array.from(r.payload as number[]) };
     } catch {
       return null;
     }

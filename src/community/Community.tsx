@@ -23,6 +23,7 @@ import EditorialReview from './EditorialReview';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
 import './article.css';
+import { AuthorAvatar } from '../shared/public-avatars';
 
 /**
  * A first publication reads 「公開」; only a later revision adds 「更新」, so readers can tell a new
@@ -104,7 +105,12 @@ function StudentArticle({ id }: { id: string }) {
           <p className="detail-summary">{entry.summary}</p>
           <div className="detail-author">
             <Link className="author" to={`/students/${author.id}`}>
-              <span className="avatar">{author.initials}</span>
+              <AuthorAvatar
+                id={author.id}
+                initials={author.initials}
+                className="avatar"
+                size={44}
+              />
               <span>
                 {author.name}
                 <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
@@ -163,9 +169,12 @@ function StudentArticle({ id }: { id: string }) {
             actions={<ArticleShare id={entry.id} title={entry.title} />}
           />
           <Link className="article-end-author" to={`/students/${author.id}`}>
-            <span className="mini-avatar" aria-hidden="true">
-              {author.initials}
-            </span>
+            <AuthorAvatar
+              id={author.id}
+              initials={author.initials}
+              className="mini-avatar"
+              size={40}
+            />
             <span>
               <small>この記事を書いた人</small>
               {author.name}
@@ -185,9 +194,12 @@ function StudentArticle({ id }: { id: string }) {
         <section className="side-box author-side">
           <h2>書いた学生</h2>
           <Link className="author-side-name" to={`/students/${author.id}`}>
-            <span className="mini-avatar" aria-hidden="true">
-              {author.initials}
-            </span>
+            <AuthorAvatar
+              id={author.id}
+              initials={author.initials}
+              className="mini-avatar"
+              size={44}
+            />
             <span>
               {author.name}
               <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>

@@ -95,6 +95,18 @@ const slug = '[A-Za-z0-9][A-Za-z0-9_-]{0,127}';
 const route = new RegExp(
   `^/api/private/profile-(reports|moderation/cases)(?:/(${slug}))?(/avatar-removal)?$`,
 );
+const avatarRoute = new RegExp(
+  `^/api/private/profile-moderation/cases/(${slug})/avatar/([0-9a-f]{16})$`,
+);
+// Same posture as the icon routes: never cached or shared, never sniffed, framed or scripted.
+const imageHeaders = {
+  'Cache-Control': 'private, no-store',
+  Vary: 'Cookie',
+  'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Robots-Tag': 'noindex, nofollow',
+  'Content-Security-Policy': "default-src 'none'; sandbox",
+};
 /** Profile report intake and operator read-only review; the allowlist is checked on every read. */
 export function createPrivateProfileReportHandler(
   db: D1Database,
@@ -112,6 +124,30 @@ export function createPrivateProfileReportHandler(
     )
       return null;
     if (!canonicalOrigin(origin)) return error(503, 'profile_report_unavailable');
+    const image = avatarRoute.exec(u.pathname);
+    if (image) {
+      if (u.search || u.hash) return unavailable();
+      if (request.method !== 'GET') {
+        const r = error(405, 'method_not_allowed');
+        r.headers.set('Allow', 'GET');
+        return r;
+      }
+      try {
+        if (!(await sessions.authenticate(request))) return error(401, 'authentication_required');
+        const value = await store.readAvatar(request, image[1], image[2]);
+        return value
+          ? new Response(value.bytes, {
+              headers: {
+                ...imageHeaders,
+                'Content-Type': value.mime,
+                'Content-Length': String(value.bytes.length),
+              },
+            })
+          : unavailable();
+      } catch {
+        return unavailable();
+      }
+    }
     const m = route.exec(u.pathname);
     if (!m || u.search || u.hash || (m[1] === 'reports' && (!m[2] || m[3])) || (m[3] && !m[2]))
       return unavailable();

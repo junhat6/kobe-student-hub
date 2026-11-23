@@ -2,6 +2,12 @@
 export const AVATAR_MAX_BYTES = 64 * 1024;
 export const AVATAR_MAX_EDGE = 256;
 export const AVATAR_MIN_EDGE = 32;
+/** Upper bound of profile ids per batched public icon lookup (one screen of cards, #205). */
+export const PUBLIC_AVATAR_BATCH_MAX = 48;
+export const PUBLIC_AVATAR_BATCH_PATH = '/api/profile-avatars';
+/** Operator-only view of a reported profile's current icon, readable even when not public. */
+export const moderationAvatarPath = (id: string, version: string) =>
+  `/api/private/profile-moderation/cases/${id}/avatar/${version}`;
 /** The version is the first 16 hex digits of the stored image's SHA-256. */
 export const avatarVersion = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{16}$/.test(value);
@@ -17,5 +23,15 @@ export function validPublicAvatar(value: unknown, id: string): value is string |
   const match = /^\/api\/profile-avatars\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/([0-9a-f]{16})$/.exec(
     value,
   );
+  return !!match && match[1] === id;
+}
+/** The operator review path for exactly this profile, or null. */
+export function validModerationAvatar(value: unknown, id: string): value is string | null {
+  if (value === null) return true;
+  if (typeof value !== 'string' || !profileId(id)) return false;
+  const match =
+    /^\/api\/private\/profile-moderation\/cases\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/avatar\/([0-9a-f]{16})$/.exec(
+      value,
+    );
   return !!match && match[1] === id;
 }

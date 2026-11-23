@@ -183,7 +183,34 @@ it('lets only an operator remove a reported icon they saw, and tells the owner w
   ).json()) as {
     avatar: string;
   };
-  expect(report.avatar).toBe(`/api/profile-avatars/${author}/${current}`);
+  // The operator reviews through an operator-only, uncached path, not the public one (#205).
+  const reviewPath = `/api/private/profile-moderation/cases/${author}/avatar/${current}`;
+  expect(report.avatar).toBe(reviewPath);
+  const seen = await get(reviewPath, 1);
+  expect(seen.status).toBe(200);
+  expect(seen.headers.get('Content-Type')).toBe('image/png');
+  security(seen);
+  for (const n of [null, 0, 2]) expect((await get(reviewPath, n)).status).not.toBe(200);
+  expect(
+    (await get(`/api/private/profile-moderation/cases/${author}/avatar/${'0'.repeat(16)}`, 1))
+      .status,
+  ).toBe(404);
+  expect((await get(reviewPath + '?x=1', 1)).status).toBe(404);
+  // Once the profile is no longer public the public path is gone, but the operator still
+  // sees the exact icon before deciding (verifier finding 1 of #198).
+  await db
+    .prepare("UPDATE project_publications SET status='hidden' WHERE public_profile_id=?")
+    .bind(author)
+    .run();
+  expect((await get(`/api/profile-avatars/${author}/${current}`, null)).status).toBe(404);
+  expect((await get(reviewPath, 1)).status).toBe(200);
+  expect(
+    (
+      (await (await get('/api/private/profile-moderation/cases/' + author, 1)).json()) as {
+        avatar: string;
+      }
+    ).avatar,
+  ).toBe(reviewPath);
   // Non-operators, stale versions and malformed input are refused.
   expect((await post(removal(), { avatar: current, reason: 'x' }, 2)).status).toBe(404);
   expect((await post(removal(), { avatar: 'f'.repeat(16), reason: 'x' }, 1)).status).toBe(404);
@@ -226,4 +253,44 @@ it('keeps removal records and report authors immutable in the table', async () =
       .bind('a'.repeat(64))
       .run(),
   ).rejects.toThrow(/avatar unavailable/);
+});
+
+it('answers a batched public icon lookup with versioned paths only (#205)', async () => {
+  // Re-publish a work so the author is public again, then look up several ids at once.
+  await publishProject(0);
+  const current = (await version())!;
+  const r = await get(`/api/profile-avatars?ids=${author},sample-a,nobody`, null);
+  expect(r.status).toBe(200);
+  security(r);
+  const text = await r.text();
+  expect(JSON.parse(text)).toEqual({
+    avatars: {
+      [author]: `/api/profile-avatars/${author}/${current}`,
+      'sample-a': null,
+      nobody: null,
+    },
+  });
+  expect(text).not.toMatch(/account-|subject-|@st\.kobedenshi|sha256|payload/);
+  // Malformed, duplicated, oversized or extra-parameter requests are refused.
+  for (const q of [
+    '',
+    '?ids=',
+    `?ids=${author},${author}`,
+    '?ids=bad%20id',
+    `?ids=${author}&x=1`,
+    '?id=' + author,
+    '?ids=' + Array.from({ length: 49 }, (_, n) => 'p' + n).join(','),
+  ])
+    expect((await get('/api/profile-avatars' + q, null)).status).toBe(404);
+  expect(
+    (await mf.dispatchFetch(O + '/api/profile-avatars?ids=' + author, { method: 'POST' })).status,
+  ).toBe(405);
+  // A profile without any published work shows no icon even when one is stored.
+  await db
+    .prepare("UPDATE project_publications SET status='hidden' WHERE public_profile_id=?")
+    .bind(author)
+    .run();
+  expect(await (await get(`/api/profile-avatars?ids=${author}`, null)).json()).toEqual({
+    avatars: { [author]: null },
+  });
 });

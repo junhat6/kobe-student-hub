@@ -3,6 +3,7 @@ import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { PublishedArticleSummary, PublicArticleAuthor } from '../types';
 import { formatDate, tagHue } from '../shared/display';
 import '../shared/cards.css';
+import { AuthorAvatar } from '../shared/public-avatars';
 
 /**
  * Article card. The title stays the only link name for assistive technology;
@@ -91,9 +92,12 @@ export default function PublicArticleCard({
               className="content-card-author discovery-author"
               to={paths.author(author.id)}
             >
-              <span className="mini-avatar" aria-hidden="true">
-                {author.initials}
-              </span>
+              <AuthorAvatar
+                id={author.id}
+                initials={author.initials}
+                className="mini-avatar"
+                size={28}
+              />
               <span>
                 {author.name}
                 {(author.department || author.year) && (

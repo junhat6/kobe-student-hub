@@ -4,6 +4,7 @@ import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import SurfaceLink from '../shared/SurfaceLink';
 import { formatDate, tagHue } from '../shared/display';
 import '../shared/cards.css';
+import { AuthorAvatar } from '../shared/public-avatars';
 
 export default function PublicProjectCard({
   project,
@@ -56,9 +57,12 @@ export default function PublicProjectCard({
               className="content-card-author project-card-author"
               to={paths.projectAuthor(author.id)}
             >
-              <span className="mini-avatar" aria-hidden="true">
-                {author.initials}
-              </span>
+              <AuthorAvatar
+                id={author.id}
+                initials={author.initials}
+                className="mini-avatar"
+                size={28}
+              />
               <span>
                 {author.name}
                 <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>

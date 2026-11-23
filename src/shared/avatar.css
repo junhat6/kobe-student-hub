@@ -1,0 +1,15 @@
+/* Author icon on cards, bylines and the header (#205); the initial stays the fallback. */
+.mini-avatar.has-image,
+.avatar.has-image {
+  overflow: hidden;
+  background: var(--surface, #fff);
+}
+.mini-avatar.has-image img,
+.avatar.has-image img,
+.header-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}

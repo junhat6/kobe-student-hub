@@ -8,6 +8,7 @@ import {
   AVATAR_MAX_BYTES,
   AVATAR_MAX_EDGE,
   AVATAR_MIN_EDGE,
+  PUBLIC_AVATAR_BATCH_MAX as PUBLIC_PATHS_MAX,
   avatarVersion,
   publicAvatarPath,
 } from '../src/shared/avatar';
@@ -190,5 +191,32 @@ export class ProfileAvatarStore {
       .bind(id)
       .first<{ sha256: string }>();
     return r && sha(r.sha256) ? publicAvatarPath(id, r.sha256.slice(0, 16)) : null;
+  }
+  /** Card/header projection: the versioned path per requested public profile, nothing else.
+   * Ids without a visible icon (no icon, sample, hidden, not yet public) map to null. */
+  async readPublicPaths(ids: readonly string[]): Promise<Record<string, string | null> | null> {
+    if (
+      !ids.length ||
+      ids.length > PUBLIC_PATHS_MAX ||
+      !ids.every(slug) ||
+      new Set(ids).size !== ids.length
+    )
+      return null;
+    const rows = await this.db
+      .prepare(
+        `SELECT a.public_profile_id id,a.sha256 FROM profile_avatars a JOIN public_profiles p ON ${publicAvatarVisible} WHERE a.public_profile_id IN (${ids.map(() => '?').join(',')})`,
+      )
+      .bind(...ids)
+      .all<{ id: string; sha256: string }>();
+    const result: Record<string, string | null> = Object.create(null) as Record<
+      string,
+      string | null
+    >;
+    for (const id of ids) result[id] = null;
+    for (const r of rows.results) {
+      if (!ids.includes(r.id) || !sha(r.sha256)) return null;
+      result[r.id] = publicAvatarPath(r.id, r.sha256.slice(0, 16));
+    }
+    return result;
   }
 }

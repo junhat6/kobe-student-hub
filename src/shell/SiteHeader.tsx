@@ -2,7 +2,9 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu } from '@base-ui/react/menu';
 import { accountUiEnabled, authoringUiEnabled } from '../account/routes';
 import { useViewer } from './viewer';
+import { ownAvatarPath } from '../shared/avatar';
 import NotificationBell from './NotificationBell';
+import '../shared/avatar.css';
 import './shell.css';
 
 const sections = (authoring: boolean) =>
@@ -59,7 +61,15 @@ function AccountMenu() {
   return (
     <Menu.Root>
       <Menu.Trigger className="header-avatar" aria-label="アカウントメニュー">
-        {profile ? (
+        {profile?.avatar ? (
+          <img
+            className="header-avatar-image"
+            src={ownAvatarPath(profile.avatar)}
+            alt=""
+            width={38}
+            height={38}
+          />
+        ) : profile ? (
           <span aria-hidden="true">{profile.initials}</span>
         ) : (
           <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">

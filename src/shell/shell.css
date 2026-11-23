@@ -271,3 +271,8 @@
 .bell-more:focus-visible {
   background: var(--tint, #f1f5f9);
 }
+.header-avatar:has(.header-avatar-image) {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
