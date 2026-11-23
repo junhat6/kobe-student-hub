@@ -70,7 +70,7 @@ test('every page offers a retry during an API outage and recovers after it', asy
     ['/account', 'ログイン状態を確認', '在学期間'],
     ['/drafts', 'ログイン状態を確認', '保存した下書きはまだありません。'],
     ['/works/new', 'ログイン状態を確認', '作品タイトル'],
-    ['/history', 'ログイン状態を確認', 'これから読む記事・作品を履歴に残す'],
+    ['/history', 'ログイン状態を確認', '履歴を残す'],
     ['/guide', '問い合わせ先を再読み込み', '利用ルールと情報の扱い'],
   ];
   const main = page.getByRole('main');

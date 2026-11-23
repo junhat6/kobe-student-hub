@@ -53,6 +53,12 @@ test('logged-in read → private history → single/all delete → collection di
     panel.getByRole('link', { name: '「動いた」で終わらせない、制作ノートの残し方', exact: true }),
   ).toBeVisible();
   await expect(panel.getByText('記事 · 架空サンプル', { exact: true })).toBeVisible();
+  // #229: YouTube・Chrome の型 — 日付の見出し、短い「自分だけに表示」、再読み込みは置かない。
+  await expect(panel.getByRole('heading', { level: 2, name: '今日', exact: true })).toBeVisible();
+  await expect(panel.getByText('自分だけに表示', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: '履歴を再読み込み' })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'もう一度' })).toHaveCount(0);
+  await expect(panel).not.toContainText('上限の500件');
   await expect(
     page.getByRole('heading', { level: 1, name: '閲覧履歴', exact: true }),
   ).toBeVisible();
@@ -74,16 +80,14 @@ test('logged-in read → private history → single/all delete → collection di
   await accountMenu(page, '閲覧履歴');
   await expect(panel.getByRole('link', { name: 'ひとこと制作ノート', exact: true })).toBeVisible();
   await expect(panel.getByText('作品 · 架空サンプル', { exact: true })).toBeVisible();
-  await panel
-    .getByRole('checkbox', { name: 'これから読む記事・作品を履歴に残す', exact: true })
-    .uncheck();
+  await panel.getByRole('switch', { name: '履歴を残す', exact: true }).uncheck();
   await expect(panel.getByRole('status')).toContainText('これからの履歴の記録を停止しました');
   await expect(panel.getByRole('link', { name: 'ひとこと制作ノート', exact: true })).toBeVisible();
   saved = recorded(page);
   await page.goto('/articles/git-branches');
   expect(await (await saved).json()).toEqual({ recorded: false });
   await accountMenu(page, '閲覧履歴');
-  await expect(panel.getByRole('checkbox')).not.toBeChecked();
+  await expect(panel.getByRole('switch')).not.toBeChecked();
   await expect(panel.locator('li')).toHaveCount(1);
   page.once('dialog', (d) => d.accept());
   await panel.getByRole('button', { name: '履歴をすべて削除', exact: true }).click();
@@ -208,10 +212,7 @@ test('history stays private to its owner across logged-in accounts, and stopping
   expect(await (await saved).json()).toEqual({ recorded: true });
   await page.goto('/history');
   const panel = page.getByRole('region', { name: '自分の閲覧履歴', exact: true });
-  const toggle = panel.getByRole('checkbox', {
-    name: 'これから読む記事・作品を履歴に残す',
-    exact: true,
-  });
+  const toggle = panel.getByRole('switch', { name: '履歴を残す', exact: true });
   await toggle.uncheck();
   await expect(panel.getByRole('status')).toContainText('これからの履歴の記録を停止しました');
   await page.reload();
@@ -232,9 +233,7 @@ test('history stays private to its owner across logged-in accounts, and stopping
     const peerPanel = peer.getByRole('region', { name: '自分の閲覧履歴', exact: true });
     await expect(peerPanel.getByText('閲覧履歴はまだありません。', { exact: true })).toBeVisible();
     await expect(peerPanel).not.toContainText('制作ノートの残し方');
-    await expect(
-      peerPanel.getByRole('checkbox', { name: 'これから読む記事・作品を履歴に残す', exact: true }),
-    ).toBeChecked();
+    await expect(peerPanel.getByRole('switch', { name: '履歴を残す', exact: true })).toBeChecked();
     for (const suffix of ['?owner=x', '?accountId=x'])
       expect((await peer.request.get('/api/private/reading-history' + suffix)).status()).toBe(404);
     const peerSaved = recorded(peer);
@@ -260,4 +259,46 @@ test('history stays private to its owner across logged-in accounts, and stopping
   await expect(panel).not.toContainText('ブランチの考え方');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('history-owner-only.png'), fullPage: true });
+});
+
+test('history shows the cap only near 500 and offers もう一度 only after a failed read', async ({
+  page,
+}, info) => {
+  await register(page, info);
+  let failNext = true;
+  await page.route('**/api/private/reading-history*', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    if (failNext) {
+      failNext = false;
+      return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+    }
+    const offset = Number(new URL(route.request().url()).searchParams.get('offset') ?? 0);
+    const entries = Array.from({ length: 20 }, (_, i) => ({
+      kind: 'article',
+      contentId: 'fictional-cap-' + (offset + i),
+      title: '架空の上限 ' + (offset + i),
+      isSample: false,
+      lastViewedAt: 1800000000000 - offset - i,
+    }));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        entries,
+        enabled: true,
+        capacity: 500,
+        nextOffset: offset === 0 ? 480 : null,
+      }),
+    });
+  });
+  await page.goto('/history');
+  const panel = page.getByRole('region', { name: '自分の閲覧履歴', exact: true });
+  await expect(panel.getByRole('status').first()).toContainText('履歴を読み込めませんでした');
+  await panel.getByRole('button', { name: 'もう一度', exact: true }).click();
+  await expect(panel.getByRole('link', { name: '架空の上限 0', exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'もう一度', exact: true })).toHaveCount(0);
+  await expect(panel).not.toContainText('上限の500件');
+  await panel.getByRole('button', { name: '次の20件', exact: true }).click();
+  await expect(panel.getByRole('link', { name: '架空の上限 480', exact: true })).toBeVisible();
+  await expect(panel.getByText('上限の500件に達すると', { exact: false })).toBeVisible();
 });

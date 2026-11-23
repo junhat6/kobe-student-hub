@@ -1,49 +1,140 @@
+/* #229: YouTube・Chrome の履歴の型。上に1行の操作列、日付ごとの見出し、行ごとの ×。 */
 .reading-history {
-  margin-top: 32px;
+  margin-top: 24px;
 }
-.history-setting {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  min-height: 44px;
-}
-.history-setting input {
-  width: 20px;
-  height: 20px;
-}
-.history-actions {
+.history-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin: 16px 0;
+  align-items: center;
+  gap: 8px 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line, #e2e7ee);
+}
+.history-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 0 0;
+  color: var(--ink-muted, #636d79);
+  font-size: 14px;
+}
+.history-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+/* A native checkbox drawn as a switch, so it keeps keyboard and form semantics. */
+.history-switch input {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  margin: 0;
+  border-radius: 999px;
+  background: #6b7785;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.history-switch input::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 150ms ease;
+}
+.history-switch input:checked {
+  background: var(--accent-strong, #1659c7);
+}
+.history-switch input:checked::after {
+  transform: translateX(16px);
+}
+.history-switch input:focus-visible {
+  outline: 2px solid var(--focus, #1d6fd8);
+  outline-offset: 2px;
+}
+.history-switch input:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+@media (prefers-reduced-motion: reduce) {
+  .history-switch input,
+  .history-switch input::after {
+    transition: none;
+  }
+}
+.reading-history button.history-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.history-status:empty {
+  display: none;
+}
+.history-capacity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8c3423;
+  font-size: 14px;
+}
+.history-day h2 {
+  margin: 24px 0 4px;
+  font-size: 16px;
 }
 .history-list {
-  list-style: none;
+  margin: 0;
   padding: 0;
+  list-style: none;
 }
 .history-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  border-bottom: 1px solid var(--border, #d6e3ed);
-  padding: 20px 0;
+  gap: 16px;
+  border-bottom: 1px solid var(--line-soft, #eef1f5);
+  padding: 12px 0;
+}
+.history-entry {
+  min-width: 0;
+}
+.history-entry span,
+.history-list time {
+  color: var(--ink-muted, #636d79);
+  font-size: 13px;
 }
 .history-list h3 {
-  margin: 4px 0;
+  margin: 2px 0;
+  font-size: 16px;
   overflow-wrap: anywhere;
 }
-.history-list time {
-  color: #596e7d;
-  font-size: 14px;
+.reading-history button.history-remove {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft, #46525f);
 }
-.history-list button {
-  flex-shrink: 0;
+.reading-history button.history-remove:not(:disabled):hover {
+  background: var(--tint, #f0f3f7);
 }
-@media (max-width: 600px) {
-  .history-list li {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-  }
+.history-empty {
+  margin-top: 24px;
+  color: var(--ink-muted, #636d79);
+}
+.history-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
 }

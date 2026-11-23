@@ -1,11 +1,42 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
 import AccountSessionBoundary from '../account/AccountSessionBoundary';
+import Icon from '../shared/Icon';
 import { createReadingHistoryClient } from './client';
-import type { ReadingReference, ReadingHistoryPage } from './types';
+import type { ReadingHistoryEntry, ReadingReference, ReadingHistoryPage } from './types';
 import '../account/account.css';
 import './history.css';
+
+const PAGE = 20;
+/** Show the cap only once the known count is this close to it (YouTube・Chrome never mention one). */
+const NEAR_CAPACITY = 480;
+
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+
+/** 今日・昨日・11月20日（年が違えば 2025年11月20日）— YouTube・Chrome の履歴の見出し。 */
+export function dayLabel(at: number, now = Date.now()) {
+  const d = new Date(at),
+    today = new Date(now),
+    yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  if (dayKey(d) === dayKey(today)) return '今日';
+  if (dayKey(d) === dayKey(yesterday)) return '昨日';
+  const md = `${d.getMonth() + 1}月${d.getDate()}日`;
+  return d.getFullYear() === today.getFullYear() ? md : `${d.getFullYear()}年${md}`;
+}
+
+/** Entries arrive newest first, so consecutive runs of one day form that day's group. */
+function byDay(entries: ReadingHistoryEntry[], now: number) {
+  const groups: { label: string; entries: ReadingHistoryEntry[] }[] = [];
+  for (const entry of entries) {
+    const label = dayLabel(entry.lastViewedAt, now),
+      last = groups[groups.length - 1];
+    if (last?.label === label) last.entries.push(entry);
+    else groups.push({ label, entries: [entry] });
+  }
+  return groups;
+}
+
 function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof fetch }) {
   const client = useMemo(
     () => createReadingHistoryClient(csrfToken, fetcher),
@@ -14,37 +45,35 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
   const [value, setValue] = useState<ReadingHistoryPage | null>(null),
     [offset, setOffset] = useState(0),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState('');
+    [message, setMessage] = useState(''),
+    [failed, setFailed] = useState(false);
   const mounted = useRef(true),
     lock = useRef(false);
-  async function load(at = 0) {
-    const result = await client.read(at);
-    if (mounted.current) {
-      setValue(result);
-      setOffset(at);
-    }
-  }
+  const load = useCallback(
+    async (at = 0, signal?: AbortSignal) => {
+      const result = await client.read(at, signal);
+      if (mounted.current && !signal?.aborted) {
+        setValue(result);
+        setOffset(at);
+        setFailed(false);
+      }
+    },
+    [client],
+  );
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
-    void client
-      .read(0, controller.signal)
-      .then((result) => {
-        if (mounted.current && !controller.signal.aborted) {
-          setValue(result);
-          setOffset(0);
-          setMessage('');
-        }
-      })
-      .catch(() => {
-        if (mounted.current && !controller.signal.aborted)
-          setMessage('履歴を読み込めませんでした。再読み込みしてください。');
-      });
+    load(0, controller.signal).catch(() => {
+      if (mounted.current && !controller.signal.aborted) {
+        setFailed(true);
+        setMessage('履歴を読み込めませんでした。');
+      }
+    });
     return () => {
       mounted.current = false;
       controller.abort();
     };
-  }, [client]);
+  }, [load]);
   async function act(run: () => Promise<unknown>, success: string, at: number | null = offset) {
     if (lock.current) return;
     lock.current = true;
@@ -58,8 +87,10 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
       }
     } catch {
       if (mounted.current) {
+        // The result of a write is unknown, so drop the stale list instead of showing it.
         setValue(null);
-        setMessage('結果を確認できませんでした。履歴を再読み込みして確認してください。');
+        setFailed(true);
+        setMessage('結果を確認できませんでした。');
       }
     } finally {
       lock.current = false;
@@ -74,89 +105,120 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
       0,
     );
   }
+  const now = Date.now();
+  const known = value ? offset + value.entries.length : 0;
   return (
     <section aria-label="自分の閲覧履歴" className="reading-history">
-      <p>
-        自分だけに表示されます。最後に読んだ日時と記事・作品への参照を保存します。本文や画像は保存しません。
-      </p>
-      <p>
-        自動削除は行いません。履歴はここから削除できます。上限の500件に達したら、削除するまで新しい記事・作品を記録しません。
-      </p>
-      {value && (
-        <label className="history-setting">
-          <input
-            type="checkbox"
-            checked={value.enabled}
-            disabled={busy}
-            onChange={(e) => {
-              const enabled = e.target.checked;
-              setValue((current) => (current ? { ...current, enabled } : current));
-              void act(
-                () => client.setEnabled(enabled),
-                enabled
-                  ? '履歴の記録を有効にしました。'
-                  : 'これからの履歴の記録を停止しました。既存の履歴は残ります。',
-              );
-            }}
-          />
-          これから読む記事・作品を履歴に残す
-        </label>
-      )}
-      <p role="status">{message}</p>
-      <div className="history-actions">
-        <Button disabled={busy} onClick={() => void act(() => load(offset), '', null)}>
-          履歴を再読み込み
-        </Button>
-        <Button disabled={busy || !value?.entries.length} onClick={() => void remove()}>
-          履歴をすべて削除
-        </Button>
+      <div className="history-bar">
+        <p className="history-private">
+          <Icon name="lock" size={16} />
+          自分だけに表示
+        </p>
+        {value && (
+          <label className="history-switch">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={value.enabled}
+              disabled={busy}
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                setValue((current) => (current ? { ...current, enabled } : current));
+                void act(
+                  () => client.setEnabled(enabled),
+                  enabled
+                    ? '履歴の記録を有効にしました。'
+                    : 'これからの履歴の記録を停止しました。既存の履歴は残ります。',
+                );
+              }}
+            />
+            履歴を残す
+          </label>
+        )}
+        {value && (
+          <Button
+            className="history-clear"
+            disabled={busy || !value.entries.length}
+            onClick={() => void remove()}
+          >
+            <Icon name="trash" size={18} />
+            履歴をすべて削除
+          </Button>
+        )}
       </div>
+      <p role="status" className="history-status">
+        {message}
+      </p>
+      {failed && (
+        <Button disabled={busy} onClick={() => void act(() => load(value ? offset : 0), '', null)}>
+          もう一度
+        </Button>
+      )}
+      {value && known >= NEAR_CAPACITY && (
+        <p className="history-capacity">
+          <Icon name="alert" size={16} />
+          上限の{value.capacity}件に達すると、削除するまで新しい記事・作品を記録しません。
+        </p>
+      )}
       {value ? (
         value.entries.length ? (
-          <ul className="history-list">
-            {value.entries.map((entry) => (
-              <li key={entry.kind + ':' + entry.contentId}>
-                <div>
-                  <span>
-                    {entry.kind === 'article' ? '記事' : '作品'}
-                    {entry.isSample === true && ' · 架空サンプル'}
-                  </span>
-                  <h3>
-                    {entry.title ? (
-                      <Link
-                        to={`/${entry.kind === 'article' ? 'articles' : 'projects'}/${entry.contentId}`}
-                      >
-                        {entry.title}
-                      </Link>
-                    ) : (
-                      '現在は公開されていません'
-                    )}
-                  </h3>
-                  <time dateTime={new Date(entry.lastViewedAt).toISOString()}>
-                    {new Date(entry.lastViewedAt).toLocaleString('ja-JP')}
-                  </time>
-                </div>
-                <Button
-                  disabled={busy}
-                  aria-label={`${entry.title ?? '公開されていない記事・作品'}を履歴から削除`}
-                  onClick={() => void remove({ kind: entry.kind, contentId: entry.contentId })}
-                >
-                  履歴から削除
-                </Button>
-              </li>
-            ))}
-          </ul>
+          byDay(value.entries, now).map((group) => (
+            <section
+              key={group.label}
+              className="history-day"
+              aria-labelledby={'history-day-' + group.label}
+            >
+              <h2 id={'history-day-' + group.label}>{group.label}</h2>
+              <ul className="history-list">
+                {group.entries.map((entry) => (
+                  <li key={entry.kind + ':' + entry.contentId}>
+                    <div className="history-entry">
+                      <span>
+                        {entry.kind === 'article' ? '記事' : '作品'}
+                        {entry.isSample === true && ' · 架空サンプル'}
+                      </span>
+                      <h3>
+                        {entry.title ? (
+                          <Link
+                            to={`/${entry.kind === 'article' ? 'articles' : 'projects'}/${entry.contentId}`}
+                          >
+                            {entry.title}
+                          </Link>
+                        ) : (
+                          '現在は公開されていません'
+                        )}
+                      </h3>
+                      <time dateTime={new Date(entry.lastViewedAt).toISOString()}>
+                        {new Date(entry.lastViewedAt).toLocaleTimeString('ja-JP', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </time>
+                    </div>
+                    <Button
+                      className="history-remove"
+                      disabled={busy}
+                      aria-label={`${entry.title ?? '公開されていない記事・作品'}を履歴から削除`}
+                      onClick={() => void remove({ kind: entry.kind, contentId: entry.contentId })}
+                    >
+                      <Icon name="close" size={18} />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
         ) : (
-          <p>閲覧履歴はまだありません。</p>
+          <p className="history-empty">閲覧履歴はまだありません。</p>
         )
       ) : (
-        !message && <p role="status">履歴を読み込んでいます…</p>
+        !failed && <p role="status">履歴を読み込んでいます…</p>
       )}
       {value && (offset > 0 || value.nextOffset !== null) && (
-        <nav className="history-actions" aria-label="履歴のページ">
+        <nav className="history-pages" aria-label="履歴のページ">
           <Button
             disabled={busy || offset === 0}
-            onClick={() => void act(() => load(Math.max(0, offset - 20)), '', null)}
+            onClick={() => void act(() => load(Math.max(0, offset - PAGE)), '', null)}
           >
             前の20件
           </Button>

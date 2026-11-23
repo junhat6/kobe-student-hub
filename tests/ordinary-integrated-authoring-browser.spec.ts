@@ -218,7 +218,7 @@ test('article corrections, profile edits, related reading and private history st
       (await related(page.context(), next.id)).articles.some((card) => card.entry.id === source.id),
     ).toBe(false);
     expect((await page.request.get('/api/discovery/articles/' + source.id)).status()).toBe(404);
-    await panel.getByRole('button', { name: '履歴を再読み込み', exact: true }).click();
+    await reader.reload();
     await expect(panel.getByRole('link', { name: title, exact: true })).toHaveCount(0);
     await expect(
       panel.getByRole('heading', { name: '現在は公開されていません', exact: true }),
