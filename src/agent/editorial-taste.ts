@@ -9,12 +9,13 @@
  *
  * Each line ends with its basis: (オーナー指示 YYYY-MM-DD) or (レビュー n件 YYYY-MM-DD).
  */
-export const EDITORIAL_TASTE_UPDATED = '2026-11-22';
+export const EDITORIAL_TASTE_UPDATED = '2026-11-23';
 
 export const EDITORIAL_TASTE = `- 本人の言い回しをそのまま残す。感想を盛らない・言っていないことを足さない。足りないところは「（ここに〇〇を書く）」と空ける（オーナー指示 2026-11-22）
 - 読んだ人がすぐ動ける具体を入れる。お店なら「何人なら入れるか」「いくらぐらいか」「混むと遅い」など、行く前に知りたいこと（オーナー指示 2026-11-22）
 - 良かったことも合わなかったことも正直に書く。合わなかった店も、事実と本人の好みとして短く書く（オーナー指示 2026-11-22）
-- 写真・図を多めに。見出しごとに1枚以上が目安（オーナー指示 2026-11-22）`;
+- 写真・図を多めに。見出しごとに1枚以上が目安（オーナー指示 2026-11-22）
+- お店の記事は1本に1店。何軒か行っても、まとめずに店ごとに1本ずつ書く（オーナー指示 2026-11-23）`;
 
 /**
  * The app-side half of the owner's ledger: tendencies the owner keeps fixing by hand because of
