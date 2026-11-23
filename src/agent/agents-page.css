@@ -1,32 +1,50 @@
-.agents-page .kicker {
-  margin: 0 0 4px;
-  color: var(--accent-strong);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
 .agents-lead {
   font-size: 17px;
   color: var(--ink-soft);
 }
-.agents-toc {
+.agents-start {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 20px 0 8px;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 16px 0 8px;
 }
-.agents-toc a {
+.agents-start .primary {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
-  font-size: 14px;
   text-decoration: none;
 }
-.agents-page section h2 {
+.agents-start span {
+  flex: 1 1 16em;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.agents-more {
+  margin: 8px 0 16px;
+}
+.agents-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 650;
+}
+.agents-more > summary::before {
+  content: '▸';
+  margin-right: 8px;
+  color: var(--ink-soft);
+}
+.agents-more[open] > summary::before {
+  content: '▾';
+}
+.agents-more > summary::-webkit-details-marker {
+  display: none;
+}
+.agents-more > summary {
+  list-style: none;
+}
+.agents-page section h2,
+.agents-more > summary {
   scroll-margin-top: 80px;
 }
 .agents-copy {

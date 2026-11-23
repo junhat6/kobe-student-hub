@@ -156,6 +156,16 @@ test('the agents guide and the writing kit are public', async ({ page }, info) =
   await expect(
     page.getByRole('heading', { name: '自分のAIエージェントと使う', exact: true }),
   ).toBeVisible();
+  // #241: no English kicker, and the first screen already says where to start.
+  await expect(page.getByRole('main')).not.toContainText('YOUR AGENT');
+  const start = page.getByRole('link', { name: '下書きを開く', exact: true });
+  await expect(start).toHaveAttribute('href', '/drafts');
+  expect((await start.boundingBox())!.y + 44).toBeLessThan(page.viewportSize()!.height);
+  // The reference parts (per-agent setup, file format, data handling) fold away; the page stays short.
+  await expect(page.getByText('記事ファイルの形', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('記事ファイルの例', { exact: true })).toBeHidden();
+  const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  expect(pageHeight).toBeLessThan(page.viewportSize()!.height * 5);
   await expect(page.getByLabel('エージェントへの依頼文', { exact: true })).toContainText(
     ORIGIN + '/agent-kit/ksh-article/SKILL.md',
   );
