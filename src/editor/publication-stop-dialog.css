@@ -1,0 +1,124 @@
+.stop-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgb(20 26 34 / 0.45);
+  transition: opacity 150ms;
+}
+.stop-dialog-backdrop[data-starting-style],
+.stop-dialog-backdrop[data-ending-style] {
+  opacity: 0;
+}
+.stop-dialog {
+  position: fixed;
+  z-index: 41;
+  top: 50%;
+  left: 50%;
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  color: var(--ink, #141a22);
+  box-shadow: 0 20px 48px rgb(20 26 34 / 0.24);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  transition:
+    opacity 150ms,
+    transform 150ms;
+}
+.stop-dialog[data-starting-style],
+.stop-dialog[data-ending-style] {
+  opacity: 0;
+  transform: translate(-50%, -48%);
+}
+.stop-dialog-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+}
+.stop-dialog-target {
+  margin: 10px 0 0;
+  font-weight: 700;
+  white-space: pre-wrap;
+}
+.stop-dialog-lines {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  color: var(--ink-soft, #46525f);
+  font-size: 15px;
+}
+.stop-dialog-lines li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 6px 0;
+}
+.stop-dialog-lines svg {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.stop-dialog-status {
+  min-height: 1.7em;
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--ink-muted, #636d79);
+}
+.stop-dialog-problem {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff4db;
+  color: #60480d;
+  font-size: 14px;
+}
+.stop-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+.stop-dialog-cancel,
+.stop-dialog-confirm {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.stop-dialog-cancel {
+  border: 1px solid var(--line, #e2e7ee);
+  background: var(--surface, #fff);
+  color: var(--ink, #141a22);
+}
+.stop-dialog-confirm {
+  border: 0;
+  background: var(--accent-strong, #1659c7);
+  color: #fff;
+}
+.stop-dialog-confirm.is-danger {
+  background: #b42318;
+}
+.stop-dialog-cancel:disabled,
+.stop-dialog-confirm:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+@media (max-width: 480px) {
+  .stop-dialog {
+    padding: 20px 16px;
+  }
+  .stop-dialog-actions > * {
+    flex: 1;
+  }
+}
+.stop-dialog-status:empty {
+  min-height: 0;
+  margin: 0;
+}

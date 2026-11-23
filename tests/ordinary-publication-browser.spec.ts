@@ -213,14 +213,32 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
 
     await accountMenu(page, 'マイページ');
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
-    await records
-      .getByRole('button', { name: '公開停止を確認：架空のAI技術選定ノート', exact: true })
-      .click();
-    const stop = page.getByRole('region', { name: '選択した公開の停止' });
-    await expect(stop.getByRole('checkbox')).toBeEnabled();
-    await stop.getByRole('checkbox').check();
-    await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
-    await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
+    const stopButton = records.getByRole('button', {
+      name: '公開を止める：架空のAI技術選定ノート',
+      exact: true,
+    });
+    // #203: one dialog names the target; cancelling it stops nothing.
+    await stopButton.click();
+    const stop = page.getByRole('alertdialog', { name: 'この記事の公開を止めますか？' });
+    await expect(stop).toContainText('架空のAI技術選定ノート');
+    await expect(stop).toContainText('もう一度公開することはできません');
+    await expect(stop).toContainText('下書きは残ります');
+    await expect(stop.getByRole('button', { name: '公開を止める', exact: true })).toBeEnabled();
+    await stop.getByRole('button', { name: 'やめる', exact: true }).click();
+    await expect(stop).toBeHidden();
+    await reader.reload();
+    await expect(
+      reader.getByRole('heading', { name: '架空のAI技術選定ノート', exact: true }),
+    ).toBeVisible();
+    await stopButton.click();
+    await stop.getByRole('button', { name: '公開を止める', exact: true }).click();
+    await expect(stop).toBeHidden();
+    await expect(page.getByText(/の公開を止めました/)).toBeVisible();
+    // The list re-reads after the stop: the row is marked stopped and offers no second stop.
+    const stoppedRow = records.getByRole('listitem').filter({ hasText: '架空のAI技術選定ノート' });
+    await expect(stoppedRow.locator('.own-publications-state-published')).toHaveCount(0);
+    await expect(stoppedRow.locator('.own-publications-state')).toBeVisible();
+    await expect(stopButton).toHaveCount(0);
     await reader.reload();
     await expect(reader.getByRole('heading', { name: '記事が見つかりません' })).toBeVisible();
     await reader.goto('/');
@@ -648,12 +666,12 @@ test('ordinary author corrects an article at the same URL after saving and expli
     await accountMenu(page, 'マイページ');
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
     await records
-      .getByRole('button', { name: '公開停止を確認：架空の訂正後の記事', exact: true })
+      .getByRole('button', { name: '公開を止める：架空の訂正後の記事', exact: true })
       .click();
-    const stop = page.getByRole('region', { name: '選択した公開の停止' });
-    await stop.getByRole('checkbox').check();
-    await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
-    await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
+    const stop = page.getByRole('alertdialog', { name: /の公開を止めますか/ });
+    await stop.getByRole('button', { name: '公開を止める', exact: true }).click();
+    await expect(stop).toBeHidden();
+    await expect(page.getByText(/の公開を止めました/)).toBeVisible();
     await reader.reload();
     await expect(reader.getByRole('heading', { name: '記事が見つかりません' })).toBeVisible();
   } finally {

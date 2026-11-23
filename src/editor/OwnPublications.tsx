@@ -1,4 +1,5 @@
 import PublicationStop from './PublicationStop';
+import PublicationStopDialog from './PublicationStopDialog';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { OwnPublicationSummary } from '../own-publication-types';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -37,7 +38,8 @@ export default function OwnPublications({
     [message, setMessage] = useState(''),
     [selected, setSelected] = useState<OwnPublicationSummary | null>(null),
     [stopBusy, setStopBusy] = useState(false),
-    [stopUncertain, setStopUncertain] = useState(false);
+    [stopUncertain, setStopUncertain] = useState(false),
+    [notice, setNotice] = useState('');
   const stopLock = useRef(false),
     refreshRef = useRef<() => Promise<void>>(async () => {});
   const pending = useCallback((value: boolean) => {
@@ -46,6 +48,17 @@ export default function OwnPublications({
   }, []);
   const uncertain = useCallback((value: boolean) => setStopUncertain(value), []);
   const stopped = useCallback(() => {
+    void refreshRef.current();
+  }, []);
+  const dialogStopped = useCallback((record: OwnPublicationSummary) => {
+    setSelected(null);
+    setNotice('「' + record.title + '」の公開を止めました。');
+    void refreshRef.current();
+  }, []);
+  const dialogClosed = useCallback(() => {
+    setSelected(null);
+    setStopUncertain(false);
+    // The list shows what the server holds now, including an earlier unknown result.
     void refreshRef.current();
   }, []);
   async function refresh() {
@@ -121,6 +134,12 @@ export default function OwnPublications({
       <p role="status" aria-live="polite" className={ordinary ? 'sr-only' : undefined}>
         {message}
       </p>
+      {ordinary && notice && (
+        <p className="own-publications-notice" role="status">
+          <Icon name="check" size={18} />
+          {notice}
+        </p>
+      )}
       {failed && (
         <p role="alert" className="own-publications-problem">
           読み込めませんでした。
@@ -218,28 +237,46 @@ export default function OwnPublications({
                         </div>
                       </dl>
                     )}
-                    <div className="own-publications-actions">
-                      {row.status === 'published' && !ordinary && (
-                        <a href={href} target="_blank" rel="noopener noreferrer">
-                          読者表示を確認 ↗
-                        </a>
-                      )}
-                      <Button
-                        className={ordinary ? 'text-button' : undefined}
-                        disabled={busy || stopBusy || stopUncertain}
-                        aria-label={
-                          (row.status === 'published' ? '公開停止を確認：' : '停止記録を確認：') +
-                          row.title
-                        }
-                        onClick={() => {
-                          setStopUncertain(false);
-                          setSelected({ ...row });
-                        }}
-                      >
-                        {row.status === 'published' ? '公開停止を確認' : '停止記録を確認'}
-                        {!ordinary && '：' + row.title}
-                      </Button>
-                    </div>
+                    {ordinary ? (
+                      row.status === 'published' && (
+                        <div className="own-publications-actions">
+                          <Button
+                            className="text-button"
+                            disabled={busy || stopBusy || stopUncertain}
+                            aria-label={'公開を止める：' + row.title}
+                            onClick={() => {
+                              setNotice('');
+                              setStopUncertain(false);
+                              setSelected({ ...row });
+                            }}
+                          >
+                            公開を止める
+                          </Button>
+                        </div>
+                      )
+                    ) : (
+                      <div className="own-publications-actions">
+                        {row.status === 'published' && (
+                          <a href={href} target="_blank" rel="noopener noreferrer">
+                            読者表示を確認 ↗
+                          </a>
+                        )}
+                        <Button
+                          disabled={busy || stopBusy || stopUncertain}
+                          aria-label={
+                            (row.status === 'published' ? '公開停止を確認：' : '停止記録を確認：') +
+                            row.title
+                          }
+                          onClick={() => {
+                            setStopUncertain(false);
+                            setSelected({ ...row });
+                          }}
+                        >
+                          {row.status === 'published' ? '公開停止を確認' : '停止記録を確認'}
+                          {'：' + row.title}
+                        </Button>
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -247,7 +284,19 @@ export default function OwnPublications({
           )}
         </>
       )}
-      {selected && (
+      {ordinary && (
+        <PublicationStopDialog
+          record={selected}
+          csrfToken={csrfToken}
+          fetcher={fetcher}
+          parentBusy={busy}
+          onPending={pending}
+          onUncertain={uncertain}
+          onClose={dialogClosed}
+          onStopped={dialogStopped}
+        />
+      )}
+      {selected && !ordinary && (
         <PublicationStop
           key={selected.kind + ':' + selected.publicId}
           record={selected}

@@ -141,6 +141,19 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     // popup; they are the library's focus trap, not content, so only they are left out here.
     expect.soft(await seriousViolations(ownerPage, ['[data-base-ui-focus-guard]'])).toEqual([]);
     await ownerPage.keyboard.press('Escape');
+    // #203: the stop dialog on the account page, opened but not confirmed.
+    await ownerPage
+      .getByRole('button', { name: '公開を止める：読みやすさの記事-' + key, exact: true })
+      .click();
+    const stopDialog = ownerPage.getByRole('alertdialog', { name: 'この記事の公開を止めますか？' });
+    await expect(
+      stopDialog.getByRole('button', { name: '公開を止める', exact: true }),
+    ).toBeEnabled();
+    await expect(stopDialog).toHaveCSS('opacity', '1');
+    await settled(ownerPage);
+    expect.soft(await seriousViolations(ownerPage, ['[data-base-ui-focus-guard]'])).toEqual([]);
+    await stopDialog.getByRole('button', { name: 'やめる', exact: true }).click();
+    await expect(stopDialog).toBeHidden();
     await check(ownerPage, '/history', () =>
       expect(ownerPage.getByRole('region', { name: '自分の閲覧履歴', exact: true })).toBeVisible(),
     );

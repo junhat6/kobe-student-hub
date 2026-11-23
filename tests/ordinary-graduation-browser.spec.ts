@@ -71,7 +71,7 @@ async function expectLanded(page: Page, section: Locator) {
   await expect(section).toBeInViewport();
   // The two slowest parts: the own-publication list above and the enrollment form below.
   await expect(
-    page.getByRole('button', { name: '公開停止を確認：' + TITLE, exact: true }),
+    page.getByRole('button', { name: '公開を止める：' + TITLE, exact: true }),
   ).toBeAttached();
   await expect(
     page.getByRole('region', { name: '在学期間' }).getByLabel('入学', { exact: true }),
@@ -172,11 +172,11 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
 
     await page.goto('/account');
     const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
-    await records.getByRole('button', { name: '公開停止を確認：' + TITLE, exact: true }).click();
-    const stop = page.getByRole('region', { name: '選択した公開の停止' });
-    await stop.getByRole('checkbox').check();
-    await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
-    await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
+    await records.getByRole('button', { name: '公開を止める：' + TITLE, exact: true }).click();
+    const stop = page.getByRole('alertdialog', { name: /の公開を止めますか/ });
+    await stop.getByRole('button', { name: '公開を止める', exact: true }).click();
+    await expect(stop).toBeHidden();
+    await expect(page.getByText(/の公開を止めました/)).toBeVisible();
     await reader.reload();
     await expect(reader.getByRole('heading', { name: '記事が見つかりません' })).toBeVisible();
   } finally {

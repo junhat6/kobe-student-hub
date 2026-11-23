@@ -272,12 +272,12 @@ test('article image stays private until explicit saved-version publication and f
     await reader.screenshot({ path: info.outputPath('public-article-image.png'), fullPage: true });
     await accountMenu(page, 'マイページ');
     await page
-      .getByRole('button', { name: '公開停止を確認：架空の画像付き記事', exact: true })
+      .getByRole('button', { name: '公開を止める：架空の画像付き記事', exact: true })
       .click();
-    const stop = page.getByRole('region', { name: '選択した公開の停止' });
-    await stop.getByRole('checkbox').check();
-    await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
-    await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
+    const stop = page.getByRole('alertdialog', { name: /の公開を止めますか/ });
+    await stop.getByRole('button', { name: '公開を止める', exact: true }).click();
+    await expect(stop).toBeHidden();
+    await expect(page.getByText(/の公開を止めました/)).toBeVisible();
     expect((await guest.request.get('/api/media/' + image.id)).status()).toBe(404);
     // Still stored: the denial comes from the D1 publication check, not from a missing object.
     expect(await objects()).toBe(1);
@@ -319,11 +319,11 @@ test('project JPEG is resized, privately previewed, explicitly published and the
     expect(await img.evaluate((e: HTMLImageElement) => e.naturalWidth)).toBe(image.width);
     await reader.screenshot({ path: info.outputPath('public-project-image.png'), fullPage: true });
     await page.goto('/account');
-    await page.getByRole('button', { name: '公開停止を確認：架空の画像作品', exact: true }).click();
-    const stop = page.getByRole('region', { name: '選択した公開の停止' });
-    await stop.getByRole('checkbox').check();
-    await stop.getByRole('button', { name: '確認した公開保存版を停止' }).click();
-    await expect(stop.getByRole('status')).toContainText('公開停止記録を確認しました');
+    await page.getByRole('button', { name: '公開を止める：架空の画像作品', exact: true }).click();
+    const stop = page.getByRole('alertdialog', { name: /の公開を止めますか/ });
+    await stop.getByRole('button', { name: '公開を止める', exact: true }).click();
+    await expect(stop).toBeHidden();
+    await expect(page.getByText(/の公開を止めました/)).toBeVisible();
     expect((await guest.request.get('/api/media/' + image.id)).status()).toBe(404);
   } finally {
     await guest.close();
