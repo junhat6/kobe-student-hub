@@ -783,3 +783,29 @@ it('refuses a verified outside-school account with a reason, without account, se
   });
   expect(failed.headers.get('Location')).toBe(O + '/#authentication-failed');
 });
+it('production entry refuses the retired pending-registration action and POST on callback/complete', async () => {
+  await applySelfRegistrationSchema(await mf.getD1Database('DB'));
+  const production = { production: true },
+    bootstrap = await request('/api/auth/bootstrap', 'POST', { Origin: O }, production);
+  expect(bootstrap.status).toBe(204);
+  const context = cookies(bootstrap)[0].split(';')[0];
+  for (const action of ['pending-registration', 'PENDING-REGISTRATION']) {
+    const r = await request(
+      '/api/auth/command?action=' + action,
+      'POST',
+      { Origin: O, Cookie: context },
+      production,
+    );
+    expect(r.status).toBe(400);
+    expect(cookies(r)).toEqual([]);
+  }
+  const complete = await request(
+    '/api/auth/callback/complete',
+    'POST',
+    { Origin: O, Cookie: context },
+    production,
+  );
+  expect(complete.status).toBe(405);
+  expect(complete.headers.get('Allow')).toBe('GET');
+  expect(cookies(complete)).toEqual([]);
+});
