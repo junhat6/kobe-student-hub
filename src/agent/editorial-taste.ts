@@ -15,3 +15,11 @@ export const EDITORIAL_TASTE = `- 本人の言い回しをそのまま残す。�
 - 読んだ人がすぐ動ける具体を入れる。お店なら「何人なら入れるか」「いくらぐらいか」「混むと遅い」など、行く前に知りたいこと（オーナー指示 2026-11-22）
 - 良かったことも合わなかったことも正直に書く。合わなかった店も、事実と本人の好みとして短く書く（オーナー指示 2026-11-22）
 - 写真・図を多めに。見出しごとに1枚以上が目安（オーナー指示 2026-11-22）`;
+
+/**
+ * The app-side half of the owner's ledger: tendencies the owner keeps fixing by hand because of
+ * the app, not the writing (DECISIONS 2026-11-23). Never passed to any writing path; the editor
+ * loop turns each line into a loop:ux / loop:finish Issue, and the operator's 好み screen shows it.
+ * Same line format and the same "never quote" rule as EDITORIAL_TASTE. Empty until 3+ signals agree.
+ */
+export const EDITORIAL_PRODUCT_NOTES = '';
