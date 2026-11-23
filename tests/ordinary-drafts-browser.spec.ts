@@ -507,6 +507,10 @@ async function expireWhileTyping(page: Page, context: BrowserContext) {
     '_blank',
   );
   await expect(title(page)).toHaveCount(0);
+  // The header must not keep showing the expired account as signed in (#187).
+  const header = page.getByRole('banner');
+  await expect(header.getByRole('link', { name: 'ログイン', exact: true })).toBeVisible();
+  await expect(header.getByRole('button', { name: 'アカウントメニュー' })).toHaveCount(0);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
 }
 

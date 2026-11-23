@@ -14,7 +14,7 @@ import {
   SessionClientError,
   type AuthorSessionGuard,
 } from '../editor/session-client';
-import { announceSessionConfirmed } from '../shell/viewer';
+import { announceSessionChange, announceSessionConfirmed } from '../shell/viewer';
 import type { ProjectFields } from '../project-types';
 type Phase =
   | 'checking'
@@ -188,6 +188,9 @@ export default function AccountSessionBoundary({
         if (!mounted.current || guard.current !== bound) return;
         if (kind === 'signed-out') keepUnsaved();
         clearPrivate();
+        // The header read the session earlier and would keep the old name and menu until the
+        // next focus; let it re-read now, so it offers 「ログイン」 or the new account instead.
+        announceSessionChange();
         setPhase(kind === 'signed-out' ? 'signed-out' : 'review');
         setMessage(
           kind === 'signed-out'

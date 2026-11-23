@@ -96,3 +96,16 @@ test('a temporary profile read failure is not shown as a missing profile', async
   await profile.getByRole('button', { name: 'もう一度', exact: true }).click();
   await expect(profile).toContainText(name);
 });
+
+test('logging out from the header menu leaves the header signed out (#187)', async ({
+  page,
+}, info) => {
+  await register(page, info, 'logout');
+  const header = page.getByRole('banner');
+  await header.getByRole('button', { name: 'アカウントメニュー', exact: true }).click();
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('menuitem', { name: 'ログアウト', exact: true }).click();
+  await expect(page).toHaveURL(ORIGIN + '/');
+  await expect(header.getByRole('link', { name: 'ログイン', exact: true })).toBeVisible();
+  await expect(header.getByRole('button', { name: 'アカウントメニュー' })).toHaveCount(0);
+});
