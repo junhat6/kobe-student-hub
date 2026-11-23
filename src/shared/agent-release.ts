@@ -19,4 +19,4 @@ export const TASTE_LEDGER_RELEASE_ENABLED = true;
  * the operators' read of shown lines (C23 condition 4, #243, R2). Separate from the gate above so
  * that sharing with operators stays closed until its own independent verification.
  */
-export const TASTE_SHARING_RELEASE_ENABLED = false;
+export const TASTE_SHARING_RELEASE_ENABLED = true;

@@ -113,7 +113,7 @@ beforeAll(async () => {
       .filter(Boolean);
     await d.batch(statements.map((sql) => d.prepare(sql)));
   }
-  for (const who of ['a', 'b', 'c', 'e', 'z'])
+  for (const who of ['a', 'b', 'c', 'e', 'r', 'z'])
     await d
       .prepare(
         "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
@@ -131,7 +131,8 @@ beforeAll(async () => {
     )
     .run();
   users = {};
-  for (const who of ['a', 'b', 'c']) users[who] = await call<Session>({ action: 'session', who });
+  for (const who of ['a', 'b', 'c', 'r'])
+    users[who] = await call<Session>({ action: 'session', who });
   // "e" has a live session but no enrollment period (graduated / not yet declared).
   users.e = await call<Session>({ action: 'session', who: 'e', enrollment: false });
   await seedLedger('account-b', [
@@ -265,6 +266,22 @@ describe('taste sharing (C23 condition 4, flag TASTE_SHARING_RELEASE_ENABLED)', 
     expect(await shared()).toBe('{"lines":[]}');
     // The old version no longer matches.
     expect((await act('b', b, 'delete', 0))!.status).toBe(409);
+  });
+
+  it('does not report a delete as done when the agent replaced the ledger in between', async () => {
+    await seedLedger('account-r', [line('残る行'), line('もう1行')]);
+    const r0 = await own('r');
+    const r = await http(OWN, {
+      method: 'POST',
+      action: 'race',
+      headers: browser(users.r, true),
+      body: JSON.stringify({ op: 'delete', version: 1, index: 0, kind: 'writing', text: '残る行' }),
+    });
+    expect(r0.version).toBe(1);
+    expect(r!.status).toBe(409);
+    const after = await own('r');
+    expect(after.version).toBe(2);
+    expect(after.lines.map((l) => l.text)).toEqual(['残る行', 'もう1行']);
   });
 
   it('lets a student outside the enrollment period delete but not show lines', async () => {

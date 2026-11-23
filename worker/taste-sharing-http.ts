@@ -103,8 +103,10 @@ export class TasteSharingStore {
       !sameLine(before.lines[action.index], action.kind, action.text)
     )
       return { ok: false, reason: 'version_conflict' };
-    if (action.op === 'delete') await this.remove(p, before, action);
-    else if (action.op === 'share') await this.share(p, action);
+    // A delete that lost a race with the agent's replacement must not report success.
+    if (action.op === 'delete') {
+      if (!(await this.remove(p, before, action))) return { ok: false, reason: 'version_conflict' };
+    } else if (action.op === 'share') await this.share(p, action);
     else await this.unshare(p, action);
     const after = await this.view(p);
     if (!after) return { ok: false, reason: 'unauthorized' };
@@ -118,13 +120,16 @@ export class TasteSharingStore {
     }
     return { ok: true, view: after };
   }
-  /** Removes one line under the version check; a share of that text goes with it. */
-  async remove(p: Proof, before: OwnTasteView, action: TasteAction) {
+  /**
+   * Removes one line under the version check; a share of that text goes with it. False when the
+   * ledger moved on since `before` (the agent replaced it), so nothing was removed.
+   */
+  async remove(p: Proof, before: OwnTasteView, action: TasteAction): Promise<boolean> {
     const lines: TasteLine[] = before.lines
       .filter((_, i) => i !== action.index)
       .map(({ shared: _shared, ...line }) => line);
     const now = p.clock();
-    await this.db.batch([
+    const [updated] = await this.db.batch([
       this.db
         .prepare(
           `UPDATE agent_taste_ledgers SET version=version+1,lines_json=?,updated_at_ms=? WHERE account_id=? AND version=? AND updated_at_ms<=? AND ${live}`,
@@ -136,6 +141,7 @@ export class TasteSharingStore {
         )
         .bind(p.accountId, ...bindings(p)),
     ]);
+    return updated.meta.changes === 1;
   }
   async share(p: Proof, action: TasteAction) {
     await this.db
