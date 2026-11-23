@@ -884,7 +884,7 @@ export default function DraftEditor({
                 )}
                 <div className="editor-writing-footer">
                   <span>本文の容量 {(bytes / 1024).toFixed(1)}/256 KiB</span>
-                  <span>{ordinary ? 'JPEG・PNG画像に対応' : '画像・Mermaidは未対応'}</span>
+                  {!ordinary && <span>画像・Mermaidは未対応</span>}
                 </div>
               </section>
               {ordinary && draft && writable && (

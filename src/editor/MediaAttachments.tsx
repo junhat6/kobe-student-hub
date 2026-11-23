@@ -26,7 +26,9 @@ export default function MediaAttachments({
 }: Props) {
   const client = useMemo(() => createMediaClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const [images, setImages] = useState<MediaReceipt[]>([]),
-    [message, setMessage] = useState('画像を確認しています…'),
+    [message, setMessage] = useState(''),
+    [loaded, setLoaded] = useState(false),
+    [listFailed, setListFailed] = useState(false),
     [busy, setBusy] = useState(false),
     [pending, setPending] = useState<{ id: string; blob: Blob; version: number } | null>(null);
   const current = useRef(true),
@@ -37,15 +39,23 @@ export default function MediaAttachments({
     current.current = true;
     setImages([]);
     setPending(null);
+    setLoaded(false);
+    setListFailed(false);
+    setMessage('');
+    // The panel reads its own list; a retry is offered only when that read fails.
     void client.list(kind, draft.id).then(
       (v) => {
         if (current.current) {
           setImages(v);
-          setMessage('画像は私的に保存されます。本文を保存し、公開前に確認してください。');
+          setLoaded(true);
         }
       },
       () => {
-        if (current.current) setMessage('画像一覧を確認できませんでした。');
+        if (current.current) {
+          setListFailed(true);
+          setLoaded(true);
+          setMessage('保存した画像を読み込めませんでした。');
+        }
       },
     );
     return () => {
@@ -76,6 +86,21 @@ export default function MediaAttachments({
       }
     }
   }
+  async function reload(signal: AbortSignal, done: string) {
+    try {
+      const v = await client.list(kind, draft.id, signal);
+      if (current.current) {
+        setImages(v);
+        setListFailed(false);
+        setMessage(done);
+      }
+    } catch {
+      if (current.current) {
+        setListFailed(true);
+        setMessage('保存した画像を読み込めませんでした。');
+      }
+    }
+  }
   async function send(command: { id: string; blob: Blob; version: number }, signal: AbortSignal) {
     setPending(command);
     try {
@@ -91,9 +116,7 @@ export default function MediaAttachments({
       setPending(null);
       setImages((old) => [...old.filter((i) => i.id !== r.id), r]);
       onInsert(`\n\n![画像](${publicMediaPath(r.id)})\n`);
-      setMessage(
-        '私的な画像を保存し、本文へ参照を入れました。本文を保存して、公開前に画像も確認してください。',
-      );
+      setMessage('画像を保存して本文に入れました。位置情報などは消してあります。');
     } catch (error) {
       if (!current.current) return;
       if (error instanceof MediaLimitError) {
@@ -102,9 +125,7 @@ export default function MediaAttachments({
         setMessage(error.message);
         return;
       }
-      setMessage(
-        '保存結果を確認できませんでした。同じ画像の確認・再送を選べます。自動では再送しません。',
-      );
+      setMessage('画像を保存できたか分かりませんでした。');
     }
   }
   async function select(selected: File) {
@@ -122,16 +143,20 @@ export default function MediaAttachments({
     if (file.current) file.current.value = '';
   }
   return (
-    <section className="media-attachments" aria-label="下書きの画像">
+    <section className="media-attachments" aria-label="下書きの画像" aria-busy={!loaded}>
       <div className="media-head">
-        <div>
-          <h3>画像を添える</h3>
-          <p>
-            JPEG・PNG（元画像12 MiB・1600万画素まで）を縮小して保存します。1枚512 KiB・下書き
-            {MEDIA_PER_DRAFT}
-            枚まで。保存しただけでは公開されません。位置情報などのメタデータは除去します。
-          </p>
-        </div>
+        <h3>画像</h3>
+        <span className="media-private">
+          <svg aria-hidden="true" viewBox="0 0 16 16" width="12" height="12">
+            <path
+              d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2M3.5 7h9v7h-9z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+          </svg>
+          公開するまで本人だけ
+        </span>
         <label
           className={
             'media-pick' +
@@ -156,6 +181,9 @@ export default function MediaAttachments({
         </label>
       </div>
       <p aria-live="polite">{message}</p>
+      {loaded && !listFailed && images.length >= MEDIA_PER_DRAFT && (
+        <p className="media-note">画像は1つの下書きに{MEDIA_PER_DRAFT}枚までです。</p>
+      )}
       {pending && (
         <div>
           <p>結果未確定の画像があります。別の画像を送る前に確認してください。</p>
@@ -169,31 +197,25 @@ export default function MediaAttachments({
             disabled={busy}
             onClick={() => {
               setPending(null);
-              setMessage('送信はしません。保存済み画像一覧を読み直してください。');
+              // Re-read what the server actually kept instead of asking the student to do it.
+              if (disabled) {
+                setListFailed(true);
+                setMessage('再送は取り下げました。');
+              } else void run((signal) => reload(signal, '再送は取り下げました。'));
             }}
           >
             手元の再送を取り下げる
           </Button>
         </div>
       )}
-      <Button
-        disabled={disabled || busy}
-        onClick={() =>
-          void run(async (signal) => {
-            try {
-              const v = await client.list(kind, draft.id, signal);
-              if (current.current) {
-                setImages(v);
-                setMessage('保存済みの私的画像を確認しました。');
-              }
-            } catch {
-              if (current.current) setMessage('画像一覧を確認できませんでした。');
-            }
-          })
-        }
-      >
-        保存済み画像を確認
-      </Button>
+      {listFailed && (
+        <Button
+          disabled={disabled || busy}
+          onClick={() => void run((signal) => reload(signal, ''))}
+        >
+          もう一度
+        </Button>
+      )}
       <div className="media-grid">
         {images.map((image) => (
           <figure key={image.id}>

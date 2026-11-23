@@ -390,7 +390,7 @@ test('unsupported, oversized, unreadable and too-many-pixel images are refused w
   });
   const input = page.getByLabel('下書きへ画像を追加', { exact: true }),
     status = page.locator('.media-attachments p[aria-live="polite"]');
-  await expect(status).toHaveText(/画像は私的に保存されます/);
+  await expect(page.locator('.media-attachments')).toHaveAttribute('aria-busy', 'false');
   const ihdr = (width: number, height: number) => {
     const b = Buffer.alloc(64);
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13]).copy(b);
@@ -439,7 +439,7 @@ test('a storage-limit refusal names the limit and leaves no resend command', asy
 }, info) => {
   await article(page, info);
   const status = page.locator('.media-attachments p[aria-live="polite"]');
-  await expect(status).toHaveText(/画像は私的に保存されます/);
+  await expect(page.locator('.media-attachments')).toHaveAttribute('aria-busy', 'false');
   // The worker refusal shape is fixed by tests/media.test.ts; here the request is answered with it
   // before reaching the server, so nothing is saved and the UI must not offer a resend.
   await page.route('**/api/private/media/articles/*/*', (route) =>
@@ -458,4 +458,34 @@ test('a storage-limit refusal names the limit and leaves no resend command', asy
   await page
     .locator('.media-attachments')
     .screenshot({ path: info.outputPath('storage-limit-reason.png') });
+});
+test('the image panel reads its own list, shows only a short private label, and offers a retry only when the read fails', async ({
+  page,
+}, info) => {
+  let failures = 1;
+  await page.route('**/api/private/media/articles/*', (route) => {
+    if (route.request().method() === 'GET' && failures > 0) {
+      failures -= 1;
+      return route.fulfill({ status: 503, body: '' });
+    }
+    return route.continue();
+  });
+  await article(page, info);
+  const panel = page.locator('.media-attachments'),
+    status = panel.locator('p[aria-live="polite"]');
+  await expect(panel).toHaveAttribute('aria-busy', 'false');
+  await expect(panel.getByText('公開するまで本人だけ', { exact: true })).toBeVisible();
+  // Limits and storage rules are not printed up front; they appear only when a file is refused.
+  await expect(panel).not.toContainText('512 KiB');
+  await expect(panel).not.toContainText('メタデータ');
+  await expect(page.getByText('JPEG・PNG画像に対応', { exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: '保存済み画像を確認' })).toHaveCount(0);
+  await expect(status).toHaveText('保存した画像を読み込めませんでした。');
+  await panel.getByRole('button', { name: 'もう一度', exact: true }).click();
+  await expect(status).toHaveText('');
+  await expect(panel.getByRole('button', { name: 'もう一度', exact: true })).toHaveCount(0);
+  await attach(page, 'image/png', screen);
+  await expect(status).toHaveText('画像を保存して本文に入れました。位置情報などは消してあります。');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await panel.screenshot({ path: info.outputPath('image-panel-after-retry.png') });
 });

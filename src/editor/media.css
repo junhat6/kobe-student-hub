@@ -51,19 +51,26 @@
 }
 .media-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
 .media-head h3 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 15px;
 }
-.media-head p {
-  margin: 0;
+.media-private {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--ink-muted, #636d79);
+}
+.media-note {
+  margin: 8px 0 0;
   font-size: 13px;
   color: var(--ink-muted, #636d79);
-  line-height: 1.6;
 }
 .media-pick {
   position: relative;
@@ -111,9 +118,4 @@
   background: var(--surface, #fff);
   color: var(--ink-soft, #46525f);
   font-size: 13px;
-}
-@media (max-width: 720px) {
-  .media-head {
-    flex-direction: column;
-  }
 }
