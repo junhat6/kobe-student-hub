@@ -7,7 +7,7 @@
 
 ## 結論
 
-1. **起動は今のまま Orca automation（プロジェクト向け、`new_per_run`）に任せる。** finish / patrol / garden / replan / release / mend の6本は変えない。
+1. **起動は今のまま Orca automation（プロジェクト向け、`new_per_run`）に任せる。** finish / patrol / garden / replan / release / mend の6本（2026-11-22 時点。その後 polish・editor と、agent を起こさない tidy を足した。一覧は [RELEASE.md](../RELEASE.md#orca-automations)）は変えない。
 2. **Orca bots には移らない。** bot はリポジトリの worktree ではなく bot 自身のフォルダで動き、マージなどの最終判断を owner に戻す指示が、上書きできない形で入っているため（§2）。
 3. **足りなかったのは後片付けだけ。** run ごとに作られる worktree が消されず、2日で 66 個たまっていた。`ksh tidy`（precheck だけで動き、agent を起こさない automation）と `scripts/loop/prune-worktrees.mjs` を足して、毎時片付ける（§3）。
 4. **Orca 標準の掃除ルール（Settings の Workspace cleanup → automation runs）は使わない。** 安全確認の中身はこのルールに合わせたが、ルールそのものは使わない理由が3つある（§3.2）。

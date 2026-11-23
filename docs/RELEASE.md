@@ -121,6 +121,9 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 | `ksh finish` | 30 分ごと | `finish`：未 claim の `P0`/`P1`（`loop:finish`/`loop:ux`）があり、claim 中が 3 件未満 | `docs/loop/prompts/finish.md` に従って Issue を 1 件閉じる |
 | `ksh garden` | 毎日 5:00 | `garden`：`garden-log` の前回 SHA 以降に main への commit がある | `docs/loop/prompts/garden.md` |
 | `ksh replan` | 4 時間ごと | `replan`：前回 `Loop: replan` 以降に Issue か completion.json の変化、待ち行列が空、または blocked が 3 件以上 | `docs/loop/prompts/replan.md` |
+| `ksh polish` | 10:30〜22:30 の 3 時間ごと（`30 10-22/3 * * *`） | `polish`：main-health が赤でない・open な `P0` が無い・前回の `polish-log` から 2 時間以上 | `docs/loop/prompts/polish.md` |
+| `ksh editor` | 毎日 09:15・21:15（`15 9,21 * * *`） | `editor`：手元の材料の受け箱に `.md` がある、または `editor-log` の更新から 20 時間以上 | `docs/loop/prompts/editor.md` |
+| `ksh tidy` | 毎時 :45 | `node scripts/loop/prune-worktrees.mjs --apply --precheck`：片付けだけをして必ず exit 1（agent を起こさない） | run が終わった automation の worktree を消す（[ORCA.md](loop/ORCA.md)） |
 
 ラベル：`P0`（open の間は列車を止める）、`patrol-log`（巡回記録）、`needs-human`（課金・契約など人の判断が必要なものと、権限が無くて agent が進められない場所。実利用者に関わる運営は 2026-11-23 から agent が行う：[LOOPS.md](loop/LOOPS.md#実利用者に関わる運営)。資格情報の発行は 2026-11-23 から agent が条件つきで行う：[LOOPS.md](loop/LOOPS.md#資格情報の発行)）。
 
