@@ -1,7 +1,11 @@
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
-import { decodeEditorialReviewInput } from '../src/shared/editorial-review';
+import {
+  decodeEditorialReviewInput,
+  decodeEditorialTasteSummary,
+} from '../src/shared/editorial-review';
+import { EDITORIAL_PRODUCT_NOTES, EDITORIAL_TASTE } from '../src/agent/editorial-taste';
 
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1_800_000_000_000;
@@ -221,4 +225,95 @@ it('decodes only the fixed shape', () => {
   expect(decodeEditorialReviewInput(null)).toBeNull();
   expect(decodeEditorialReviewInput([])).toBeNull();
   expect(decodeEditorialReviewInput({ ...review, note: 'a\u0000b' })).toBeNull();
+});
+
+// #244 (C22 condition 5): the operator's 好み screen reads the ledger and counts only.
+it('summarises the operator ledger and own review counts without any note', async () => {
+  const r = await http('/api/private/editorial-taste', { headers: browser(users.a) });
+  expect(r!.status).toBe(200);
+  expect(r!.headers['cache-control']).toBe('private, no-store');
+  const summary = decodeEditorialTasteSummary(JSON.parse(r!.body));
+  expect(summary).not.toBeNull();
+  expect(summary!.ledger.taste).toEqual(EDITORIAL_TASTE.split('\n'));
+  expect(summary!.ledger.product).toEqual(
+    EDITORIAL_PRODUCT_NOTES.split('\n').filter((l) => l.trim()),
+  );
+  // Two records on one article count once, as the latest (ok + too_long).
+  expect(summary!.reviews.total).toBe(1);
+  expect(summary!.reviews.verdicts).toEqual({ good: 0, ok: 1, bad: 0 });
+  expect(summary!.reviews.points.too_long).toBe(1);
+  expect(summary!.reviews.points.experience).toBe(0);
+  expect(summary!.aiDiff).toBeNull();
+  // Never a note, an article, an author or a reviewer.
+  for (const secret of [review.note, articleId, 'account-a', 'account-b', '公開名B'])
+    expect(r!.body).not.toContain(secret);
+});
+
+it('leaves reviews older than 30 days out of the summary', async () => {
+  const draft = await call<{ id: string; version: number }>({
+    action: 'create',
+    url: ORIGIN + '/private/drafts',
+    method: 'POST',
+    headers: browser(users.b, true),
+    input: { title: '古いレビューの記事', body: '## 本文\n古い中身' },
+  });
+  const old = await call<{ contentId: string }>({
+    action: 'publish',
+    url: ORIGIN + '/private/publication',
+    method: 'POST',
+    headers: browser(users.b, true),
+    draft: draft.id,
+    input: {
+      expectedVersion: draft.version,
+      confirmPublic: true,
+      summary: '概要',
+      tags: ['ごはん'],
+      minutes: 3,
+    },
+  });
+  const db = await mf.getD1Database('DB');
+  const insert = (id: string, at: number) =>
+    db
+      .prepare(
+        "INSERT INTO editorial_reviews(id,reviewer_account_id,content_id,revision,verdict,points_json,note,reviewed_at_ms) VALUES(?,'account-a',?,NULL,'bad','[\"thin\"]','',?)",
+      )
+      .bind(id, old.contentId, at)
+      .run();
+  await insert('00000000-0000-4000-8000-00000000a0a0', NOW - 31 * 24 * 60 * 60 * 1000);
+  const before = JSON.parse(
+    (await http('/api/private/editorial-taste', { headers: browser(users.a) }))!.body,
+  );
+  expect(before.reviews.total).toBe(1);
+  expect(before.reviews.verdicts.bad).toBe(0);
+  expect(before.reviews.points.thin).toBe(0);
+  // Inside the window it counts.
+  await insert('00000000-0000-4000-8000-00000000a0a1', NOW - 29 * 24 * 60 * 60 * 1000);
+  const after = JSON.parse(
+    (await http('/api/private/editorial-taste', { headers: browser(users.a) }))!.body,
+  );
+  expect(after.reviews.total).toBe(2);
+  expect(after.reviews.verdicts.bad).toBe(1);
+  expect(after.reviews.points.thin).toBe(1);
+});
+
+it('answers non-operators and bad requests on the summary with the same 404', async () => {
+  for (const r of [
+    await http('/api/private/editorial-taste'),
+    await http('/api/private/editorial-taste', { headers: browser(users.b) }),
+    await http('/api/private/editorial-taste?x=1', { headers: browser(users.a) }),
+  ]) {
+    expect(r!.status).toBe(404);
+    expect(JSON.parse(r!.body)).toEqual({ error: 'editorial_review_unavailable' });
+  }
+  const put = await http('/api/private/editorial-taste', {
+    method: 'PUT',
+    headers: browser(users.a, true),
+    body: '{}',
+  });
+  expect(put!.status).toBe(405);
+  const closed = await http('/api/private/editorial-taste', {
+    headers: browser(users.a),
+    action: 'composed-closed',
+  });
+  expect(closed).toBeNull();
 });

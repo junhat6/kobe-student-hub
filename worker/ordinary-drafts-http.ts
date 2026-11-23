@@ -77,7 +77,11 @@ export function createOrdinaryDraftHandler(
   );
   return async (request: Request): Promise<Response | null> => {
     const path = new URL(request.url).pathname;
-    if (path.startsWith('/api/private/editorial-reviews/')) return editorial(request);
+    if (
+      path.startsWith('/api/private/editorial-reviews/') ||
+      path === '/api/private/editorial-taste'
+    )
+      return editorial(request);
     if (path.startsWith('/api/private/profile-avatar') || path.startsWith('/api/profile-avatars'))
       return avatars(request);
     // The private profile handler owns /api/private/profile*, so route these first.

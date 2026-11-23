@@ -2,13 +2,28 @@ import { SessionStore } from './auth/sessions';
 import { liveSessionSql as live, liveSessionBindings as bindings } from './auth/session-guard';
 import { publicArticleSqlBounds } from './publication';
 import {
+  EDITORIAL_TASTE,
+  EDITORIAL_TASTE_UPDATED,
+  EDITORIAL_PRODUCT_NOTES,
+} from '../src/agent/editorial-taste';
+import {
   decodeEditorialReviewInput,
+  EDITORIAL_POINTS,
+  EDITORIAL_SUMMARY_DAYS,
+  EDITORIAL_VERDICTS,
+  type EditorialTasteSummary,
   type EditorialReviewView,
   type EditorialVerdict,
   type EditorialPoint,
 } from '../src/shared/editorial-review';
 
 const PREFIX = '/api/private/editorial-reviews/';
+/** The operator's 好み screen (C22 condition 5): ledger and counts only. */
+export const TASTE_PATH = '/api/private/editorial-taste';
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Bound on rows the summary reads; far above one operator's 30 days of reviews.
+const SUMMARY_ROWS = 2000;
+const ledgerLines = (text: string) => text.split('\n').filter((line) => line.trim() !== '');
 const LIMIT = 16 * 1024;
 // Transport work bound, including zero-byte chunks; distinct from the content byte limit.
 const MAX_CHUNKS = 4096;
@@ -184,6 +199,46 @@ export class EditorialReviewStore {
     const review = view(row);
     return review ? { review } : null;
   }
+  /**
+   * Counts of the operator's own latest review per article over the last 30 days. Reads only
+   * verdict and points: the note, the article and the author never leave this method.
+   */
+  async summary(request: Request): Promise<EditorialTasteSummary | null> {
+    const p = await this.operator(request);
+    if (!p) return null;
+    const since = p.nowMs - EDITORIAL_SUMMARY_DAYS * DAY_MS;
+    const { results } = await this.db
+      .prepare(
+        `SELECT r.verdict,r.points_json FROM editorial_reviews r WHERE r.reviewer_account_id=? AND r.reviewed_at_ms>=? AND NOT EXISTS(SELECT 1 FROM editorial_reviews n WHERE n.content_id=r.content_id AND n.reviewer_account_id=r.reviewer_account_id AND (n.reviewed_at_ms>r.reviewed_at_ms OR (n.reviewed_at_ms=r.reviewed_at_ms AND n.rowid>r.rowid))) AND ${live} LIMIT ${SUMMARY_ROWS}`,
+      )
+      .bind(p.accountId, since, ...bindings(p))
+      .all<{ verdict: string; points_json: string }>();
+    const verdicts = Object.fromEntries(EDITORIAL_VERDICTS.map((v) => [v, 0])) as Record<
+      EditorialVerdict,
+      number
+    >;
+    const points = Object.fromEntries(EDITORIAL_POINTS.map((point) => [point.code, 0])) as Record<
+      EditorialPoint,
+      number
+    >;
+    for (const row of results) {
+      if (Object.hasOwn(verdicts, row.verdict)) verdicts[row.verdict as EditorialVerdict]++;
+      const codes: unknown = JSON.parse(row.points_json);
+      if (Array.isArray(codes))
+        for (const code of new Set(codes))
+          if (typeof code === 'string' && Object.hasOwn(points, code))
+            points[code as EditorialPoint]++;
+    }
+    return {
+      ledger: {
+        taste: ledgerLines(EDITORIAL_TASTE),
+        product: ledgerLines(EDITORIAL_PRODUCT_NOTES),
+        updated: EDITORIAL_TASTE_UPDATED,
+      },
+      reviews: { days: EDITORIAL_SUMMARY_DAYS, total: results.length, verdicts, points },
+      aiDiff: null,
+    };
+  }
 }
 
 /** Closed unless enabled (R2 release flag). */
@@ -197,6 +252,21 @@ export function createEditorialReviewHandler(
   return async (request: Request): Promise<Response | null> => {
     if (options.enabled !== true) return null;
     const url = new URL(request.url);
+    if (url.pathname === TASTE_PATH) {
+      if (!canonicalOrigin(origin)) return error(503, 'editorial_review_unavailable');
+      if (url.search || url.hash) return unavailable();
+      if (request.method !== 'GET') {
+        const response = error(405, 'method_not_allowed');
+        response.headers.set('Allow', 'GET');
+        return response;
+      }
+      try {
+        const result = await store.summary(request);
+        return result === null ? unavailable() : json(result);
+      } catch {
+        return unavailable();
+      }
+    }
     if (!url.pathname.startsWith(PREFIX)) return null;
     if (!canonicalOrigin(origin)) return error(503, 'editorial_review_unavailable');
     const id = url.pathname.slice(PREFIX.length);

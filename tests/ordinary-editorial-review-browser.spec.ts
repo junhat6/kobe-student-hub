@@ -111,8 +111,43 @@ test('only an operator records an editorial review and reads it back', async ({
       await ops.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
 
+    // #244 (C22 condition 5): the operator's 好み on the account page shows the ledger and counts
+    // of the operator's own reviews, never the note text.
+    const taste = (p: Page) => p.getByRole('region', { name: '好み', exact: true });
+    await ops.goto('/account');
+    const mine = taste(ops);
+    await expect(mine).toBeVisible();
+    await expect(mine.getByRole('heading', { name: '執筆の行' })).toBeVisible();
+    await expect(mine.getByRole('heading', { name: 'アプリの行' })).toBeVisible();
+    await expect(
+      mine.getByRole('heading', { name: /あなたのレビュー（直近30日・1本）/ }),
+    ).toBeVisible();
+    await expect(mine.getByRole('definition').first()).toHaveText('1');
+    const points = mine.getByRole('list', { name: '評価項目ごとの件数' });
+    await expect(points).toContainText('体験が具体的1');
+    await expect(points).toContainText('時期・値段などが足りない1');
+    await expect(points).not.toContainText('本人の言葉');
+    await expect(mine).toContainText('まだ数えられません');
+    await expect(ops.locator('body')).not.toContainText('架空のひとこと-' + key);
+    await expect(ops.locator('body')).not.toContainText('レビュー確認の記事-' + key);
+    expect.soft(await seriousViolations(ops)).toEqual([]);
+    expect(
+      await ops.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await mine.scrollIntoViewIfNeeded();
+    await ops.screenshot({ path: info.outputPath('editorial-taste.png'), scale: 'css' });
+    // The author's own account page has no 好み, and the API answers others with 404.
+    await own.goto('/account');
+    await expect(own.getByRole('heading', { name: 'マイページ' })).toBeVisible();
+    await expect(taste(own)).toHaveCount(0);
+    expect((await author.context.request.get('/api/private/editorial-taste')).status()).toBe(404);
+    expect((await page.request.get('/api/private/editorial-taste')).status()).toBe(404);
+    const operatorRead = await operator.context.request.get('/api/private/editorial-taste');
+    expect(operatorRead.status()).toBe(200);
+    expect(await operatorRead.text()).not.toContain('架空のひとこと-' + key);
+
     // The review stays private: the author and a signed-out reader still see nothing.
-    await own.reload();
+    await own.goto(articlePath);
     await expect(heading(own)).toBeVisible();
     await expect(section(own)).toHaveCount(0);
     await page.reload();

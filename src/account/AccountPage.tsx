@@ -8,6 +8,7 @@ import ProfileEditor, { type ProfileState } from './ProfileEditor';
 import Icon from '../shared/Icon';
 import OwnPublications from '../editor/OwnPublications';
 import OwnNotifications from './OwnNotifications';
+import EditorialTaste from './EditorialTaste';
 import AgentConnections from '../agent/AgentConnections';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
@@ -93,6 +94,7 @@ function AccountContent({
         </div>
       )}
       {authoringUiEnabled && ready && <OwnNotifications fetcher={fetcher} />}
+      {authoringUiEnabled && <EditorialTaste fetcher={fetcher} />}
       {authoringUiEnabled && AGENT_MCP_RELEASE_ENABLED && (
         <AgentConnections csrfToken={csrfToken} fetcher={fetcher} />
       )}

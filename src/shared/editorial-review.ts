@@ -74,3 +74,73 @@ export function decodeEditorialReviewInput(v: unknown): EditorialReviewInput | n
     note,
   };
 }
+
+/** Window of the operator's 好み summary (C22 condition 5). */
+export const EDITORIAL_SUMMARY_DAYS = 30;
+
+/**
+ * The operator's 好み screen: the operator ledger (writing and app lines) and counts only.
+ * Never carries a note, an article, an author or a reviewer. `aiDiff` stays null until the AI's
+ * versions are kept (C23); the screen then says it cannot count yet.
+ */
+export interface EditorialTasteSummary {
+  ledger: { taste: string[]; product: string[]; updated: string };
+  reviews: {
+    days: number;
+    total: number;
+    verdicts: Record<EditorialVerdict, number>;
+    points: Record<EditorialPoint, number>;
+  };
+  aiDiff: null;
+}
+
+const countMap = (v: unknown, keys: readonly string[]): Record<string, number> | null => {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const x = v as Record<string, unknown>;
+  if (Object.keys(x).length !== keys.length) return null;
+  const out: Record<string, number> = {};
+  for (const k of keys) {
+    const n = x[k];
+    if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < 0) return null;
+    out[k] = n;
+  }
+  return out;
+};
+const lines = (v: unknown) =>
+  Array.isArray(v) && v.length <= 100 && v.every((l) => typeof l === 'string' && l.length <= 400)
+    ? [...(v as string[])]
+    : null;
+
+/** Strict client-side decoder for the summary. Returns null for anything unexpected. */
+export function decodeEditorialTasteSummary(v: unknown): EditorialTasteSummary | null {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const x = v as Record<string, unknown>;
+  const ledger = x.ledger as Record<string, unknown> | null;
+  const reviews = x.reviews as Record<string, unknown> | null;
+  if (!ledger || typeof ledger !== 'object' || !reviews || typeof reviews !== 'object') return null;
+  const taste = lines(ledger.taste);
+  const product = lines(ledger.product);
+  if (!taste || !product || typeof ledger.updated !== 'string') return null;
+  const verdicts = countMap(reviews.verdicts, EDITORIAL_VERDICTS);
+  const points = countMap(reviews.points, EDITORIAL_POINT_CODES);
+  if (
+    !verdicts ||
+    !points ||
+    reviews.days !== EDITORIAL_SUMMARY_DAYS ||
+    typeof reviews.total !== 'number' ||
+    !Number.isSafeInteger(reviews.total) ||
+    reviews.total < 0 ||
+    x.aiDiff !== null
+  )
+    return null;
+  return {
+    ledger: { taste, product, updated: ledger.updated },
+    reviews: {
+      days: EDITORIAL_SUMMARY_DAYS,
+      total: reviews.total,
+      verdicts: verdicts as Record<EditorialVerdict, number>,
+      points: points as Record<EditorialPoint, number>,
+    },
+    aiDiff: null,
+  };
+}
