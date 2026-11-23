@@ -161,6 +161,11 @@ test('article and work lead an anonymous reader to the author profile without pr
     await expect(page.locator('main')).toContainText('自分で入力した公開の自己紹介');
     await expect(page.getByRole('link', { name: articleTitle })).toBeVisible();
     await expect(page.getByText('別の人の記事-' + key)).toHaveCount(0);
+    // The tab already says "記事": the card carries no colour band and no second kind label (#236).
+    const articleCard = page
+      .locator('.profile-main .content-card')
+      .filter({ hasText: articleTitle });
+    await expect(articleCard.locator('.content-card-band, .content-card-kind')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -175,6 +180,8 @@ test('article and work lead an anonymous reader to the author profile without pr
     await expect(page).toHaveURL(new RegExp('/students/' + owner.profileId + '/works$'));
     await expect(page.getByRole('link', { name: workTitle })).toBeVisible();
     await expect(page.getByText('別の人の作品-' + key)).toHaveCount(0);
+    const workCard = page.locator('.profile-main .content-card').filter({ hasText: workTitle });
+    await expect(workCard.locator('.content-card-band, .content-card-kind')).toHaveCount(0);
     await expectNoPrivateIdentity(page, bodies, owner);
     await page.screenshot({ path: info.outputPath('author-works.png'), fullPage: true });
 

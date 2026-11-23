@@ -13,11 +13,17 @@ export default function PublicArticleCard({
   author,
   surface = 'lab',
   badge,
+  inTypedList = false,
 }: {
   entry: PublishedArticleSummary;
   author?: PublicArticleAuthor;
   surface?: PublicSurface;
   badge?: string;
+  /**
+   * The list around the card already says these are articles (a profile tab). Drop the colour band
+   * and the kind label so the title sits at the top and the type is not repeated (#236).
+   */
+  inTypedList?: boolean;
 }) {
   const paths = publicPaths(surface);
   const hue = tagHue(entry.tags[0] ?? entry.title);
@@ -26,12 +32,14 @@ export default function PublicArticleCard({
       className="content-card author-lab-card"
       style={{ '--card-hue': hue } as React.CSSProperties}
     >
-      <div className="content-card-band" aria-hidden="true">
-        <span>{entry.tags[0] ? '# ' + entry.tags[0] : '記事'}</span>
-      </div>
+      {!inTypedList && (
+        <div className="content-card-band" aria-hidden="true">
+          <span>{entry.tags[0] ? '# ' + entry.tags[0] : '記事'}</span>
+        </div>
+      )}
       <div className="content-card-body">
         <div className="content-card-meta">
-          <span className="content-card-kind">記事</span>
+          {!inTypedList && <span className="content-card-kind">記事</span>}
           {badge && <span className="content-card-badge">{badge}</span>}
           <span>{entry.minutes}分で読める</span>
         </div>

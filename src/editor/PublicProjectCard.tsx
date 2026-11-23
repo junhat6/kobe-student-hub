@@ -9,26 +9,34 @@ export default function PublicProjectCard({
   project,
   author,
   surface = 'lab',
+  inTypedList = false,
 }: {
   project: ProjectDiscoverySummary & Partial<Pick<PublicProjectSummary, 'githubUrl' | 'demoUrl'>>;
   author?: PublicArticleAuthor;
   surface?: PublicSurface;
+  /** The surrounding tab already says these are works: no band, no kind label (#236). */
+  inTypedList?: boolean;
 }) {
   const paths = publicPaths(surface);
+  const showMeta = !inTypedList || Boolean(project.githubUrl || project.demoUrl);
   return (
     <article
       className="content-card content-card-project"
       style={{ '--card-hue': tagHue(project.title) } as React.CSSProperties}
     >
-      <div className="content-card-band" aria-hidden="true">
-        <span>{project.title.slice(0, 1)}</span>
-      </div>
-      <div className="content-card-body">
-        <div className="content-card-meta">
-          <span className="content-card-kind">作品</span>
-          {project.githubUrl && <span>GitHub</span>}
-          {project.demoUrl && <span>デモあり</span>}
+      {!inTypedList && (
+        <div className="content-card-band" aria-hidden="true">
+          <span>{project.title.slice(0, 1)}</span>
         </div>
+      )}
+      <div className="content-card-body">
+        {showMeta && (
+          <div className="content-card-meta">
+            {!inTypedList && <span className="content-card-kind">作品</span>}
+            {project.githubUrl && <span>GitHub</span>}
+            {project.demoUrl && <span>デモあり</span>}
+          </div>
+        )}
         <h2>
           <SurfaceLink
             surface={surface}

@@ -143,7 +143,7 @@ function LikeList({ entries }: { entries: PublicLikedArticles['entries'] }) {
   return entries.length ? (
     <div className="author-lab-cards">
       {entries.map((entry) => (
-        <PublicArticleCard key={entry.id} entry={entry} surface="ordinary" />
+        <PublicArticleCard key={entry.id} entry={entry} surface="ordinary" inTypedList />
       ))}
     </div>
   ) : (
@@ -222,7 +222,7 @@ export default function StudentProfile({
         entries.length ? (
           <div className="author-lab-cards">
             {entries.map((entry) => (
-              <PublicArticleCard key={entry.id} entry={entry} surface="ordinary" />
+              <PublicArticleCard key={entry.id} entry={entry} surface="ordinary" inTypedList />
             ))}
           </div>
         ) : (
@@ -231,7 +231,7 @@ export default function StudentProfile({
       ) : projects.length ? (
         <div className="author-lab-cards">
           {projects.map((project) => (
-            <PublicProjectCard key={project.id} project={project} surface="ordinary" />
+            <PublicProjectCard key={project.id} project={project} surface="ordinary" inTypedList />
           ))}
         </div>
       ) : (
