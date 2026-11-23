@@ -145,7 +145,8 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
           </Button>
         )}
       </div>
-      <p role="status" className="history-status">
+      {/* Success is announced only; failures stay visible (ux-rubric 原則6). */}
+      <p role="status" className={failed ? 'history-status' : 'sr-only'}>
         {message}
       </p>
       {failed && (
@@ -172,10 +173,6 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
                 {group.entries.map((entry) => (
                   <li key={entry.kind + ':' + entry.contentId}>
                     <div className="history-entry">
-                      <span>
-                        {entry.kind === 'article' ? '記事' : '作品'}
-                        {entry.isSample === true && ' · 架空サンプル'}
-                      </span>
                       <h3>
                         {entry.title ? (
                           <Link
@@ -187,12 +184,20 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
                           '現在は公開されていません'
                         )}
                       </h3>
-                      <time dateTime={new Date(entry.lastViewedAt).toISOString()}>
-                        {new Date(entry.lastViewedAt).toLocaleTimeString('ja-JP', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </time>
+                      {/* 型: YouTube の履歴 — タイトルの下に種類と時刻を1行で。 */}
+                      <p className="history-meta">
+                        <span>
+                          {entry.kind === 'article' ? '記事' : '作品'}
+                          {entry.isSample === true && ' · 架空サンプル'}
+                        </span>
+                        {' · '}
+                        <time dateTime={new Date(entry.lastViewedAt).toISOString()}>
+                          {new Date(entry.lastViewedAt).toLocaleTimeString('ja-JP', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </time>
+                      </p>
                     </div>
                     <Button
                       className="history-remove"
@@ -245,9 +250,6 @@ export default function HistoryPage() {
       >
         {(session) => <OwnHistory {...session} />}
       </AccountSessionBoundary>
-      <p>
-        <Link to="/account">アカウントへ戻る</Link> · <Link to="/">記事・作品を読む</Link>
-      </p>
     </section>
   );
 }

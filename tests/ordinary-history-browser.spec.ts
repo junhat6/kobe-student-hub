@@ -59,6 +59,10 @@ test('logged-in read → private history → single/all delete → collection di
   await expect(panel.getByRole('button', { name: '履歴を再読み込み' })).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'もう一度' })).toHaveCount(0);
   await expect(panel).not.toContainText('上限の500件');
+  // polish: ヘッダーと重なる「アカウントへ戻る · 記事・作品を読む」は置かない（原則4）。
+  await expect(page.getByRole('main').getByRole('link', { name: 'アカウントへ戻る' })).toHaveCount(
+    0,
+  );
   await expect(
     page.getByRole('heading', { level: 1, name: '閲覧履歴', exact: true }),
   ).toBeVisible();
@@ -82,6 +86,8 @@ test('logged-in read → private history → single/all delete → collection di
   await expect(panel.getByText('作品 · 架空サンプル', { exact: true })).toBeVisible();
   await panel.getByRole('switch', { name: '履歴を残す', exact: true }).uncheck();
   await expect(panel.getByRole('status')).toContainText('これからの履歴の記録を停止しました');
+  // 原則6: 成功は読み上げだけ。見える文字は失敗のときだけ。
+  await expect(panel.getByRole('status')).toHaveClass('sr-only');
   await expect(panel.getByRole('link', { name: 'ひとこと制作ノート', exact: true })).toBeVisible();
   saved = recorded(page);
   await page.goto('/articles/git-branches');
