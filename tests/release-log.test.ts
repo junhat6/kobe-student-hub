@@ -175,6 +175,11 @@ describe('media audit in the release record', () => {
     expect(parseMediaAudit([{ results: [] }])).toEqual({ error: 'まだ照合の記録がありません' });
     expect(parseMediaAudit([{ results: [{ ...row, total: -1 }] }])).toHaveProperty('error');
     expect(parseMediaAudit(undefined)).toHaveProperty('error');
+    expect(parseMediaAudit([{ results: [{ ...row, pending: 9 }] }])).toHaveProperty('error');
+    expect(parseMediaAudit([{ results: [{ ...row, missing: 5 }] }])).toHaveProperty('error');
+    expect(parseMediaAudit([{ results: [{ ...row, measured_at_ms: 2 ** 52 }] }])).toHaveProperty(
+      'error',
+    );
     expect(formatRecord({ ...record, mediaAudit: { error: '本番 D1 に届きません' } })).toContain(
       '照合できず（本番 D1 に届きません）',
     );

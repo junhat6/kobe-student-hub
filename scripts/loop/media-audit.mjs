@@ -15,8 +15,14 @@ const count = (v) => Number.isSafeInteger(v) && v >= 0;
 export function parseMediaAudit(results) {
   const row = Array.isArray(results) ? results[0]?.results?.[0] : undefined;
   if (!row) return { error: 'まだ照合の記録がありません' };
-  if (!count(row.measured_at_ms) || !COUNTS.every((k) => count(row[k])))
-    return { error: '照合の記録の形が読めません' };
+  const consistent =
+    count(row.measured_at_ms) &&
+    row.measured_at_ms <= 253402300799999 &&
+    COUNTS.every((k) => count(row[k])) &&
+    row.pending <= row.total &&
+    row.checked <= row.total &&
+    row.missing + row.mismatched <= row.checked;
+  if (!consistent) return { error: '照合の記録の形が読めません' };
   return {
     measuredAt: new Date(row.measured_at_ms).toISOString(),
     ...Object.fromEntries(COUNTS.map((k) => [k, row[k]])),

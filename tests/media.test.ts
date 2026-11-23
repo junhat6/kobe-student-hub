@@ -1287,6 +1287,16 @@ describe('media object audit', () => {
       missing: 1,
       mismatched: 1,
     });
+    // Another length counts as mismatched too, and the object is left as it is (a later run still finds it).
+    await bucket.put(`media/${images[1]}/${sha256}`, new Uint8Array(bytes - 1).fill(7));
+    expect((await audit()).value).toEqual({
+      total: 3,
+      checked: 3,
+      ...ok,
+      missing: 1,
+      mismatched: 1,
+    });
+    expect(await bucket.head(`media/${images[1]}/${sha256}`)).not.toBeNull();
     // The right bytes without a stored checksum still count as matching.
     const good = await row(images[2]);
     const key = `media/${images[2]}/${good.sha256}`;
