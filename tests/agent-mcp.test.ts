@@ -439,6 +439,7 @@ describe('MCP tools as the connected student', () => {
       'list_my_drafts',
       'list_recent_articles',
       'update_draft',
+      'update_published_article',
     ]);
     const meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' };
     const stateless = await rpc(
@@ -651,6 +652,172 @@ describe('MCP tools as the connected student', () => {
     );
     expect(text).not.toContain('@st.kobedenshi.ac.jp');
     expect(text).not.toContain('account-b');
+  });
+});
+
+describe('the publish boundary: humans publish first, agents may edit what is already public', () => {
+  const publishAs = async (who: string, title: string, body: string) => {
+    const draft = await call<{ id: string; version: number }>({
+      action: 'create',
+      url: ORIGIN + '/private/drafts',
+      method: 'POST',
+      headers: browser(users[who], true),
+      input: { title, body },
+    });
+    const published = await call<{ contentId: string }>({
+      action: 'publish',
+      url: ORIGIN + '/private/publication',
+      method: 'POST',
+      headers: browser(users[who], true),
+      draft: draft.id,
+      input: {
+        expectedVersion: draft.version,
+        confirmPublic: true,
+        summary: '公開時の概要',
+        tags: ['学び'],
+        minutes: 3,
+      },
+    });
+    return { draftId: draft.id, version: draft.version, contentId: published.contentId };
+  };
+  const publicArticle = async (contentId: string) => {
+    const db = await mf.getD1Database('DB');
+    return db
+      .prepare(
+        'SELECT c.title,c.body,c.summary,c.status,(SELECT MAX(revision) FROM article_publication_revisions WHERE content_id=c.id) AS revision FROM content c WHERE c.id=?',
+      )
+      .bind(contentId)
+      .first<{ title: string; body: string; summary: string; status: string; revision: number }>();
+  };
+  const publicationCount = async () =>
+    (await (
+      await mf.getD1Database('DB')
+    )
+      .prepare('SELECT count(*) AS n FROM article_publications')
+      .first<{ n: number }>())!.n;
+
+  it('never publishes a draft for the first time through MCP', async () => {
+    const c = await connect('a');
+    const made = await tool(c.access_token, 'create_draft', { title: '未公開', body: '本文' });
+    const draft = made.structuredContent!.draft;
+    const before = await publicationCount();
+    const r = await tool(c.access_token, 'update_published_article', {
+      id: draft.id,
+      title: '公開しようとする',
+      body: '本文',
+      expected_version: draft.version,
+    });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toContain('初めての公開は本人だけ');
+    expect(await publicationCount()).toBe(before);
+    // The draft itself is untouched by the refused call.
+    const read = await tool(c.access_token, 'get_my_draft', { id: draft.id });
+    expect(read.structuredContent!.draft).toMatchObject({
+      title: '未公開',
+      version: draft.version,
+      publishedArticleId: null,
+    });
+    // No tool name or description offers a first publication or deletion.
+    const tools = (await rpc(c.access_token, 'tools/list')).json.result.tools as {
+      name: string;
+    }[];
+    expect(tools.some((t) => /^(publish|delete)/.test(t.name))).toBe(false);
+  });
+
+  it("edits the student's own published article in place and keeps it public", async () => {
+    const p = await publishAs('b', '公開した記事（編集前）', '## 本文\n編集前');
+    const c = await connect('b');
+    const listed = await tool(c.access_token, 'list_my_drafts');
+    expect(
+      listed.structuredContent!.drafts.find((d: { id: string }) => d.id === p.draftId),
+    ).toMatchObject({ publishedArticleId: p.contentId });
+    expect(listed.content[0].text).toContain('公開中 ' + ORIGIN + '/articles/' + p.contentId);
+    const before = await publicationCount();
+    const r = await tool(c.access_token, 'update_published_article', {
+      id: p.draftId,
+      title: '公開した記事（直した）',
+      body: '## 本文\n直した',
+      expected_version: p.version,
+    });
+    expect(r.isError).toBeUndefined();
+    expect(r.structuredContent!.articleUrl).toBe(ORIGIN + '/articles/' + p.contentId);
+    expect(await publicationCount()).toBe(before);
+    expect(await publicArticle(p.contentId)).toMatchObject({
+      title: '公開した記事（直した）',
+      body: '## 本文\n直した',
+      summary: '公開時の概要',
+      status: 'published',
+      revision: 2,
+    });
+    // Replaying the same version is a conflict, not a second revision.
+    const stale = await tool(c.access_token, 'update_published_article', {
+      id: p.draftId,
+      title: 'x',
+      body: 'y',
+      expected_version: p.version,
+    });
+    expect(stale.content[0].text).toContain('先に更新');
+    expect((await publicArticle(p.contentId))!.revision).toBe(2);
+    // Another student's connection cannot touch it.
+    const other = await connect('a');
+    const foreign = await tool(other.access_token, 'update_published_article', {
+      id: p.draftId,
+      title: 'x',
+      body: 'y',
+      expected_version: p.version + 1,
+    });
+    expect(foreign.isError).toBe(true);
+    expect((await publicArticle(p.contentId))!.title).toBe('公開した記事（直した）');
+  });
+
+  it('refuses when private unpublished edits, a stop, or secret-looking text would go public', async () => {
+    const p = await publishAs('b', '公開した記事（境界）', '本文');
+    const c = await connect('b');
+    // Secret-looking text is never pushed to the public page.
+    const secret = 'ghp_' + 'B'.repeat(36);
+    const leaked = await tool(c.access_token, 'update_published_article', {
+      id: p.draftId,
+      title: '直す',
+      body: 'トークン ' + secret,
+      expected_version: p.version,
+    });
+    expect(leaked.isError).toBe(true);
+    expect(leaked.content[0].text).toContain('反映していません');
+    expect(JSON.stringify(leaked)).not.toContain(secret);
+    expect((await publicArticle(p.contentId))!.body).toBe('本文');
+    // The student's private work-in-progress (or a private agent edit) is not published by an agent.
+    const privateEdit = await tool(c.access_token, 'update_draft', {
+      id: p.draftId,
+      title: '下書きだけ直した',
+      body: '未公開の変更',
+      expected_version: p.version,
+    });
+    const v = privateEdit.structuredContent!.draft.version;
+    const pending = await tool(c.access_token, 'update_published_article', {
+      id: p.draftId,
+      title: '公開へ',
+      body: '未公開の変更',
+      expected_version: v,
+    });
+    expect(pending.content[0].text).toContain('まだ公開していない変更');
+    expect(await publicArticle(p.contentId)).toMatchObject({ body: '本文', revision: 1 });
+    // A stopped article stays stopped.
+    const q = await publishAs('b', '停止した記事', '本文');
+    const db = await mf.getD1Database('DB');
+    await db
+      .prepare(
+        'INSERT INTO article_publication_stops(content_id,owner_account_id,source_version,stopped_at_ms) VALUES(?,?,?,?)',
+      )
+      .bind(q.contentId, 'account-b', q.version, NOW)
+      .run();
+    const stopped = await tool(c.access_token, 'update_published_article', {
+      id: q.draftId,
+      title: '再公開しようとする',
+      body: '本文2',
+      expected_version: q.version,
+    });
+    expect(stopped.isError).toBe(true);
+    expect((await publicArticle(q.contentId))!.revision).toBe(1);
   });
 });
 

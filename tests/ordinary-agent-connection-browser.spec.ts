@@ -95,7 +95,9 @@ test('a student allows their own agent, sees its draft marked, uses its suggesti
   const consent = page.locator('.agent-consent');
   await expect(consent).toContainText(clientName);
   await expect(consent).toContainText('この端末のアプリ');
-  await expect(consent).toContainText('公開・削除、プロフィール・いいね・通報、ほかの人の下書き');
+  await expect(consent).toContainText(
+    '初めての公開・削除、プロフィール・いいね・通報、ほかの人の下書き',
+  );
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.screenshot({ path: info.outputPath('connect-consent.png'), fullPage: true });
   await page.getByRole('button', { name: '接続を許可する', exact: true }).click();

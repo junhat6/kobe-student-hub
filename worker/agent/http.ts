@@ -6,6 +6,7 @@ import {
   SCOPE,
   type AgentAccess,
   type DraftWriteResult,
+  type PublishedEditResult,
 } from './connections';
 import { describeFindings, scanDraft } from '../../src/shared/secret-scan';
 import { serverInstructions, writingGuide } from './guide';
@@ -258,6 +259,29 @@ const TOOLS = [
       openWorldHint: false,
     },
   },
+  {
+    name: 'update_published_article',
+    title: '公開中の記事を直す',
+    description:
+      '本人がすでに公開した記事のタイトルと本文を置き換え、公開したまま反映する（概要・タグなどはそのまま）。まだ公開していない下書きは公開できない（初めての公開は本人だけがアプリで行う）。id は list_my_drafts で「公開中」と出た下書きの ID、expected_version は get_my_draft で読んだ版。本人が公開後に下書きを直していて未公開の変更があるとき・公開停止中・通報の確認中は受け付けない。秘密らしき形が見つかったときは反映しない。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', pattern: uuidPattern },
+        title: { type: 'string', minLength: 1, maxLength: 200 },
+        body: { type: 'string', description: '本文の Markdown（見出しは ## から）' },
+        expected_version: { type: 'integer', minimum: 1 },
+      },
+      required: ['id', 'title', 'body', 'expected_version'],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
 ];
 
 type ToolResult = {
@@ -281,20 +305,41 @@ const writeFailureText: Record<Exclude<DraftWriteResult, { ok: true }>['reason']
     '在籍期間の外なので下書きを保存できません。本人にアプリで在籍年度を確かめてもらってください。',
 };
 
+const publishedEditFailureText: Record<
+  Exclude<PublishedEditResult, { ok: true }>['reason'],
+  string
+> = {
+  unauthorized: writeFailureText.unauthorized,
+  not_found: writeFailureText.not_found,
+  not_published:
+    'その下書きはまだ公開されていません。初めての公開は本人だけがアプリで行います。update_draft で下書きを直し、本人に公開してもらってください。',
+  version_conflict: writeFailureText.version_conflict,
+  unpublished_changes:
+    '本人が公開後に下書きを直していて、まだ公開していない変更があります。公開中の記事は直さず、update_draft で下書きを直して本人に公開してもらってください。',
+  unavailable:
+    'この記事はいま直せません（公開停止中・通報の確認中・改訂の上限など）。本人にアプリで状態を確かめてもらってください。',
+  not_enrolled: writeFailureText.not_enrolled,
+};
+
 /** Tool input that breaks the declared types or limits. Answered as HTTP 400 / -32602. */
 class InvalidParams extends Error {}
 const LIMITS = { title: 200, summary: 300, tags: 5, tagChars: 24 } as const;
 const chars = (v: string) => Array.from(v).length;
 const singleLine = (v: string) => !/[\r\n\u0000-\u0008\u000b-\u001f]/.test(v);
 /** Only structured fields of a finished draft. No files, history or arbitrary JSON. */
-function writeInput(name: 'create_draft' | 'update_draft', args: unknown) {
+function writeInput(
+  name: 'create_draft' | 'update_draft' | 'update_published_article',
+  args: unknown,
+) {
   if (!args || typeof args !== 'object' || Array.isArray(args))
     throw new InvalidParams('arguments はオブジェクトで渡してください。');
   const a = args as Record<string, unknown>;
   const allowed =
     name === 'create_draft'
       ? ['title', 'body', 'summary', 'tags']
-      : ['id', 'title', 'body', 'summary', 'tags', 'expected_version'];
+      : name === 'update_draft'
+        ? ['id', 'title', 'body', 'summary', 'tags', 'expected_version']
+        : ['id', 'title', 'body', 'expected_version'];
   const unknown = Object.keys(a).filter((k) => !allowed.includes(k));
   if (unknown.length) throw new InvalidParams('受け付けない項目があります：' + unknown.join(', '));
   const { title, body, summary, tags } = a;
@@ -319,7 +364,7 @@ function writeInput(name: 'create_draft' | 'update_draft', args: unknown) {
   )
     throw new InvalidParams('tags は5個まで、1個24文字以内の文字列の配列にしてください。');
   let expectedVersion: number | undefined;
-  if (name === 'update_draft') {
+  if (name !== 'create_draft') {
     const v = a.expected_version;
     if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < 1 || v >= Number.MAX_SAFE_INTEGER)
       throw new InvalidParams(
@@ -415,7 +460,7 @@ export function createAgentHandler(
             ? drafts
                 .map(
                   (d) =>
-                    `- ${d.title || '（無題）'}　id: ${d.id}　版: ${d.version}${d.createdByAgent ? '　AIが作成' : ''}`,
+                    `- ${d.title || '（無題）'}　id: ${d.id}　版: ${d.version}${d.createdByAgent ? '　AIが作成' : ''}${d.publishedArticleId ? `　公開中 ${origin}/articles/${d.publishedArticleId}` : ''}`,
                 )
                 .join('\n')
             : 'まだ下書きがありません。',
@@ -427,7 +472,7 @@ export function createAgentHandler(
         if (draft === null) return null;
         if (draft === 'not_found') return fail(writeFailureText.not_found);
         return ok(
-          `# ${draft.title || '（無題）'}\n\n- id: ${draft.id}\n- 版: ${draft.version}\n\n---\n\n${draft.body}`,
+          `# ${draft.title || '（無題）'}\n\n- id: ${draft.id}\n- 版: ${draft.version}${draft.publishedArticleId ? `\n- 公開中: ${origin}/articles/${draft.publishedArticleId}（update_published_article で公開したまま直せる）` : ''}\n\n---\n\n${draft.body}`,
           { draft },
         );
       }
@@ -466,6 +511,40 @@ export function createAgentHandler(
             },
             editUrl: draftsUrl,
             warnings: findings,
+          },
+        );
+      }
+      case 'update_published_article': {
+        const input = writeInput(name, args);
+        const findings = scanDraft(input.title, input.body);
+        if (findings.length)
+          return fail(
+            '決まった形の検査で、公開してはいけない情報に見える箇所がありました。公開中の記事なので反映していません（中身はここに出しません。検査は完全ではありません）。値を <API_KEY> のような置き換えにするか消して、送り直してください。\n' +
+              describeFindings(findings),
+          );
+        const result = await store.editPublishedArticle(
+          access,
+          input.id,
+          input.title,
+          input.body,
+          input.expectedVersion!,
+        );
+        if (!result) return fail('反映できませんでした。時間をおいて試してください。');
+        if (!result.ok) {
+          if (result.reason === 'unauthorized') return null;
+          return fail(publishedEditFailureText[result.reason]);
+        }
+        const url = `${origin}/articles/${result.articleId}`;
+        return ok(
+          `公開中の記事を直しました（公開したまま）。${url}　版: ${result.draft.version}\n本人に「${url} で直した内容を確かめてください」と伝えてください。`,
+          {
+            draft: {
+              id: result.draft.id,
+              title: result.draft.title,
+              version: result.draft.version,
+              updatedAt: result.draft.updatedAt,
+            },
+            articleUrl: url,
           },
         );
       }

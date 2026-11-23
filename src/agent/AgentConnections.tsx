@@ -87,7 +87,7 @@ export default function AgentConnections({
         </ul>
       )}
       <p className="agent-connections-note">
-        接続したエージェントができるのは、公開記事を読むことと、あなたの下書きを作る・直すことだけです。公開・削除はできません。
+        接続したエージェントができるのは、公開記事を読むこと、あなたの下書きを作る・直すこと、公開済みの記事を公開したまま直すことだけです。初めての公開・削除はできません。
       </p>
       {message && <p role="status">{message}</p>}
     </section>

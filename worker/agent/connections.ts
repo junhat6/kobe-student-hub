@@ -74,6 +74,8 @@ export interface AgentDraft {
   version: number;
   updatedAt: number;
   createdByAgent: boolean;
+  /** Public article id when the student has published this draft (and it is still published). */
+  publishedArticleId: string | null;
 }
 export type AgentDraftSummary = Omit<AgentDraft, 'body'>;
 export type DraftWriteResult =
@@ -81,6 +83,20 @@ export type DraftWriteResult =
   | {
       ok: false;
       reason: 'unauthorized' | 'not_found' | 'version_conflict' | 'daily_limit' | 'not_enrolled';
+    };
+/** Editing an already published article while it stays published. Never a first publication. */
+export type PublishedEditResult =
+  | { ok: true; draft: AgentDraft; articleId: string }
+  | {
+      ok: false;
+      reason:
+        | 'unauthorized'
+        | 'not_found'
+        | 'not_published'
+        | 'version_conflict'
+        | 'unpublished_changes'
+        | 'unavailable'
+        | 'not_enrolled';
     };
 
 export const SCOPE = 'drafts';
@@ -117,6 +133,7 @@ type DraftRow = {
   version: number;
   updated_at_ms: number;
   by_agent: number;
+  published_id?: string | null;
 };
 const draftDto = (r: DraftRow): AgentDraft => ({
   id: r.id,
@@ -125,7 +142,11 @@ const draftDto = (r: DraftRow): AgentDraft => ({
   version: r.version,
   updatedAt: r.updated_at_ms,
   createdByAgent: r.by_agent === 1,
+  publishedArticleId: r.published_id ?? null,
 });
+/** The live public article that a draft was published as (first publication by the student). */
+const publishedIdSql = (draft: string) =>
+  `(SELECT r.content_id FROM article_publications r JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id AND c.kind='article' AND c.status='published' AND c.is_sample=0 WHERE r.draft_id=${draft}.id AND r.owner_account_id=${draft}.owner_account_id)`;
 
 export class AgentConnectionStore {
   constructor(
@@ -470,7 +491,7 @@ export class AgentConnectionStore {
       const now = this.now();
       const rows = await this.db
         .prepare(
-          `SELECT d.id,d.title,d.version,d.updated_at_ms,CASE WHEN o.draft_id IS NULL THEN 0 ELSE 1 END AS by_agent FROM (SELECT 1 WHERE ${liveAccess}) authorized LEFT JOIN private_article_drafts d ON d.owner_account_id=? LEFT JOIN agent_draft_origins o ON o.draft_id=d.id ORDER BY d.updated_at_ms DESC,d.id ASC LIMIT 20`,
+          `SELECT d.id,d.title,d.version,d.updated_at_ms,CASE WHEN o.draft_id IS NULL THEN 0 ELSE 1 END AS by_agent,${publishedIdSql('d')} AS published_id FROM (SELECT 1 WHERE ${liveAccess}) authorized LEFT JOIN private_article_drafts d ON d.owner_account_id=? LEFT JOIN agent_draft_origins o ON o.draft_id=d.id ORDER BY d.updated_at_ms DESC,d.id ASC LIMIT 20`,
         )
         .bind(...accessBindings(a, now), a.accountId)
         .all<Omit<DraftRow, 'body'>>();
@@ -483,6 +504,7 @@ export class AgentConnectionStore {
           version: r.version,
           updatedAt: r.updated_at_ms,
           createdByAgent: r.by_agent === 1,
+          publishedArticleId: r.published_id ?? null,
         }));
     } catch {
       return null;
@@ -495,7 +517,7 @@ export class AgentConnectionStore {
       const now = this.now();
       const rows = await this.db
         .prepare(
-          `SELECT d.id,d.title,d.body,d.version,d.updated_at_ms,CASE WHEN o.draft_id IS NULL THEN 0 ELSE 1 END AS by_agent FROM (SELECT 1 WHERE ${liveAccess}) authorized LEFT JOIN private_article_drafts d ON d.id=? AND d.owner_account_id=? LEFT JOIN agent_draft_origins o ON o.draft_id=d.id`,
+          `SELECT d.id,d.title,d.body,d.version,d.updated_at_ms,CASE WHEN o.draft_id IS NULL THEN 0 ELSE 1 END AS by_agent,${publishedIdSql('d')} AS published_id FROM (SELECT 1 WHERE ${liveAccess}) authorized LEFT JOIN private_article_drafts d ON d.id=? AND d.owner_account_id=? LEFT JOIN agent_draft_origins o ON o.draft_id=d.id`,
         )
         .bind(...accessBindings(a, now), id, a.accountId)
         .all<DraftRow>();
@@ -572,7 +594,7 @@ export class AgentConnectionStore {
       const now = this.now();
       const row = await this.db
         .prepare(
-          `UPDATE private_article_drafts SET title=?,body=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${liveAccess} AND ${periodSql} RETURNING id,title,body,version,updated_at_ms,(SELECT count(*) FROM agent_draft_origins o WHERE o.draft_id=private_article_drafts.id) AS by_agent`,
+          `UPDATE private_article_drafts SET title=?,body=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${liveAccess} AND ${periodSql} RETURNING id,title,body,version,updated_at_ms,(SELECT count(*) FROM agent_draft_origins o WHERE o.draft_id=private_article_drafts.id) AS by_agent,${publishedIdSql('private_article_drafts')} AS published_id`,
         )
         .bind(
           title,
@@ -598,6 +620,100 @@ export class AgentConnectionStore {
       return failure.ok === false && failure.reason === 'daily_limit'
         ? { ok: false, reason: 'version_conflict' }
         : failure;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Replaces the title/body of an article the student has already published, and publishes that
+   * edit as the next revision in the same transaction (the article stays public throughout).
+   * It never inserts into article_publications: the first publication stays a human-only action
+   * in the app. Summary, tags and the other public fields are carried over from the current
+   * revision. Refused when the draft holds the student's own unpublished edits, so an agent can
+   * never push private work-in-progress to the public page.
+   */
+  async editPublishedArticle(
+    a: AgentAccess,
+    id: unknown,
+    title: string,
+    body: string,
+    expectedVersion: number,
+  ): Promise<PublishedEditResult | null> {
+    if (!uuid(id)) return { ok: false, reason: 'not_found' };
+    try {
+      const now = this.now();
+      const state = await this.db
+        .prepare(
+          `SELECT d.id,d.version,r.content_id,c.status,cur.revision,cur.source_version,cur.media_ids_json,(SELECT 1 WHERE ${periodSql}) AS enrolled,EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=r.content_id) AS stopped,EXISTS(SELECT 1 FROM article_reports report WHERE report.content_id=r.content_id AND report.round=COALESCE((SELECT round FROM article_moderation_state WHERE content_id=r.content_id),1)) AS reported FROM (SELECT 1 WHERE ${liveAccess}) authorized LEFT JOIN private_article_drafts d ON d.id=? AND d.owner_account_id=? LEFT JOIN article_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id LEFT JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id AND c.kind='article' AND c.is_sample=0 LEFT JOIN article_publication_revisions cur ON cur.content_id=r.content_id AND cur.revision=(SELECT MAX(revision) FROM article_publication_revisions WHERE content_id=r.content_id)`,
+        )
+        .bind(...periodBindings(a, now), ...accessBindings(a, now), id, a.accountId)
+        .all<{
+          id: string | null;
+          version: number;
+          content_id: string | null;
+          status: string | null;
+          revision: number | null;
+          source_version: number | null;
+          media_ids_json: string | null;
+          enrolled: number | null;
+          stopped: number;
+          reported: number;
+        }>();
+      if (!state.results.length) return { ok: false, reason: 'unauthorized' };
+      const s = state.results[0];
+      if (s.id === null) return { ok: false, reason: 'not_found' };
+      if (s.content_id === null || s.revision === null)
+        return { ok: false, reason: 'not_published' };
+      if (s.status !== 'published' || s.stopped || s.reported || s.revision >= 1000)
+        return { ok: false, reason: 'unavailable' };
+      if (!s.enrolled) return { ok: false, reason: 'not_enrolled' };
+      if (s.version !== expectedVersion) return { ok: false, reason: 'version_conflict' };
+      if (s.source_version !== s.version) return { ok: false, reason: 'unpublished_changes' };
+      // Keep only images the current revision already shows and the new body still references.
+      const media = (JSON.parse(s.media_ids_json ?? '[]') as string[]).filter((m) =>
+        body.includes('/api/media/' + m),
+      );
+      const results = await this.db.batch([
+        this.db
+          .prepare(
+            `UPDATE private_article_drafts SET title=?,body=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND ${liveAccess} AND ${periodSql} AND EXISTS(SELECT 1 FROM article_publications r JOIN article_publication_revisions cur ON cur.content_id=r.content_id AND cur.revision=? WHERE r.draft_id=private_article_drafts.id AND r.owner_account_id=private_article_drafts.owner_account_id AND cur.source_version=private_article_drafts.version AND NOT EXISTS(SELECT 1 FROM article_publication_revisions later WHERE later.content_id=r.content_id AND later.revision>cur.revision)) RETURNING id`,
+          )
+          .bind(
+            title,
+            body,
+            now,
+            id,
+            a.accountId,
+            expectedVersion,
+            now,
+            ...accessBindings(a, now),
+            ...periodBindings(a, now),
+            s.revision,
+          ),
+        // Selects nothing unless the UPDATE above applied (d.version is then expected+1). The
+        // article_revision_guard trigger re-checks stops, open reports and account state, and its
+        // RAISE rolls back the whole batch, so a private-only half write cannot remain.
+        this.db
+          .prepare(
+            `INSERT INTO article_publication_revisions(content_id,revision,source_version,title,body,summary,tags_json,audience,prerequisite,outcome,minutes,media_ids_json,published_at_ms) SELECT r.content_id,cur.revision+1,d.version,d.title,d.body,cur.summary,cur.tags_json,cur.audience,cur.prerequisite,cur.outcome,cur.minutes,?,? FROM private_article_drafts d JOIN article_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id JOIN article_publication_revisions cur ON cur.content_id=r.content_id AND cur.revision=? WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND cur.source_version=? RETURNING content_id`,
+          )
+          .bind(
+            JSON.stringify(media),
+            now,
+            s.revision,
+            id,
+            a.accountId,
+            expectedVersion + 1,
+            expectedVersion,
+          ),
+      ]);
+      const published = results[1].results[0] as { content_id: string } | undefined;
+      if (!results[0].results.length || !published)
+        return { ok: false, reason: 'version_conflict' };
+      const draft = await this.readDraft(a, id);
+      if (!draft || draft === 'not_found') return { ok: false, reason: 'unauthorized' };
+      return { ok: true, draft, articleId: published.content_id };
     } catch {
       return null;
     }
