@@ -239,7 +239,8 @@ export default function AccountSessionBoundary({
     const controller = new AbortController();
     inspection.current = controller;
     try {
-      const current = await client.peek(controller.signal);
+      // A single dropped proof request must not hide the editor: retry the read first.
+      const current = await client.peekSteadily(controller.signal);
       if (!canReveal() || request !== revision.current) return;
       initialInspection.current = false;
       if (tokenRef.current === current) {

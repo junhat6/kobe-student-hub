@@ -12,6 +12,22 @@ const keys = (v: unknown, wanted: string[]): v is Record<string, unknown> =>
   !Array.isArray(v) &&
   Object.keys(v).length === wanted.length &&
   wanted.every((k) => Object.hasOwn(v, k));
+/** Pauses between read-only session proof attempts; see peekSteadily. */
+export const PEEK_RETRY_DELAYS = [300, 1200] as const;
+function wait(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(new SessionClientError());
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', stop);
+      resolve();
+    }, ms);
+    function stop() {
+      clearTimeout(timer);
+      reject(new SessionClientError());
+    }
+    signal?.addEventListener('abort', stop, { once: true });
+  });
+}
 /** Raw existing-cookie checks only. This client never creates a session or retries logout. */
 export function createSessionClient(fetcher: typeof fetch = fetch) {
   async function request(logoutToken?: string, signal?: AbortSignal): Promise<unknown> {
@@ -104,11 +120,36 @@ export function createSessionClient(fetcher: typeof fetch = fetch) {
       cancel();
     }
   }
+  async function peek(signal?: AbortSignal): Promise<string> {
+    const result = await request(undefined, signal);
+    if (!keys(result, ['csrfToken']) || !token(result.csrfToken)) throw new SessionClientError();
+    return result.csrfToken;
+  }
   return {
-    async peek(signal?: AbortSignal): Promise<string> {
-      const result = await request(undefined, signal);
-      if (!keys(result, ['csrfToken']) || !token(result.csrfToken)) throw new SessionClientError();
-      return result.csrfToken;
+    peek,
+    /**
+     * The read-only proof is idempotent, so a transient failure (dropped connection,
+     * 5xx, a slow reply) is retried a few times before the caller is told the session is
+     * unverifiable. A confirmed sign-out (401) and a caller abort are final immediately.
+     * Mutations are never retried here; only this GET is.
+     */
+    async peekSteadily(
+      signal?: AbortSignal,
+      delays: readonly number[] = PEEK_RETRY_DELAYS,
+    ): Promise<string> {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await peek(signal);
+        } catch (error) {
+          if (
+            signal?.aborted ||
+            attempt >= delays.length ||
+            (error instanceof SessionClientError && error.kind === 'signed-out')
+          )
+            throw error instanceof SessionClientError ? error : new SessionClientError();
+          await wait(delays[attempt], signal);
+        }
+      }
     },
     async logout(csrfToken: string, signal?: AbortSignal): Promise<void> {
       if (!token(csrfToken)) throw new SessionClientError();
@@ -128,6 +169,8 @@ interface GuardOptions {
   fetcher?: typeof fetch;
   onMismatch: (kind: 'signed-out' | 'changed') => void;
   onUnverified: () => void;
+  /** Pauses before re-asking a transiently failed proof; tests pass []. */
+  retryDelays?: readonly number[];
 }
 /**
  * A UI-consumption guard, not authentication. Bytes may reach an SDK's temporary
@@ -140,6 +183,7 @@ export function createAuthorSessionGuard({
   fetcher = fetch,
   onMismatch,
   onUnverified,
+  retryDelays = PEEK_RETRY_DELAYS,
 }: GuardOptions): AuthorSessionGuard {
   const session = createSessionClient(fetcher);
   const requests = new Set<AbortController>();
@@ -161,9 +205,11 @@ export function createAuthorSessionGuard({
     if (!valid || signal.aborted) throw new SessionClientError();
     let current: string;
     try {
-      current = await session.peek(signal);
+      current = await session.peekSteadily(signal, retryDelays);
     } catch (error) {
-      if (!valid) throw new SessionClientError();
+      // The caller (an SDK timeout, a superseded request) gave up: that says nothing
+      // about the session, so the editor stays open.
+      if (!valid || signal.aborted) throw new SessionClientError();
       if (error instanceof SessionClientError && error.kind === 'signed-out') {
         invalidate();
         onMismatch('signed-out');
@@ -205,6 +251,7 @@ export function createAuthorSessionGuard({
       cancelled = false;
     let rejectAbort: (error: SessionClientError) => void = () => {};
     const parentSignal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+    const callerAborted = () => parentSignal?.aborted === true;
     const onParentAbort = () => {
       controller.abort();
       rejectAbort(new SessionClientError());
@@ -275,7 +322,7 @@ export function createAuthorSessionGuard({
                 reader = undefined;
               } else output.enqueue(next.value);
             } catch {
-              if (!cancelled && valid) unavailable();
+              if (!cancelled && valid && !callerAborted()) unavailable();
               output.error(new SessionClientError());
               cancelBody();
               cleanup();
@@ -298,7 +345,7 @@ export function createAuthorSessionGuard({
     } catch {
       cancelBody();
       cleanup();
-      if (valid) unavailable();
+      if (valid && !callerAborted()) unavailable();
       throw new SessionClientError();
     }
   };

@@ -176,10 +176,11 @@ describe('independent ordinary-registration transport QA', () => {
     let proofs = 0;
     const fetcher = (async (path: unknown) => {
       if (path !== '/api/private/session') return Response.json(own);
-      if (++proofs === 4) throw Error('PRIVATE_PROVIDER_RESPONSE');
+      // From the final proof on, every attempt fails (a single drop is retried, #246).
+      if (++proofs >= 4) throw Error('PRIVATE_PROVIDER_RESPONSE');
       return Response.json({ csrfToken: csrf });
     }) as typeof fetch;
     await expectFailure(createRegistrationClient({ origin, fetcher }).inspect(), 'unavailable');
-    expect(proofs).toBe(4);
+    expect(proofs).toBe(6);
   });
 });

@@ -125,6 +125,39 @@ test('idle article edits save once and reopen from the server without browser pe
   }
 });
 
+test('one dropped session proof while typing neither hides the editor nor stops autosave (#246)', async ({
+  page,
+}, info) => {
+  await register(page, info);
+  await article(page);
+  let dropped = 0,
+    patches = 0;
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'PATCH' && path.startsWith('/api/private/drafts/')) patches++;
+  });
+  // Drop exactly one proof, as a flaky connection would; the guard must re-ask, not conceal.
+  await page.route('**/api/private/session', async (route) => {
+    if (dropped === 0) {
+      dropped++;
+      return route.abort('failed');
+    }
+    return route.continue();
+  });
+  await title(page).fill('途切れた確認のあとも書ける');
+  await body(page).pressSequentially('入力は止まらない', { delay: 20 });
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 10000 });
+  expect(dropped).toBe(1);
+  expect(patches).toBe(1);
+  await expect(page.getByText('セッションを確認できませんでした', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('自動保存を停止しています', { exact: false })).toHaveCount(0);
+  await body(page).pressSequentially('。続きも入る', { delay: 20 });
+  await expect(body(page)).toHaveValue('入力は止まらない。続きも入る');
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 10000 });
+  await image(page, info, 'article-proof-dropped-once');
+  await privateBuffer(page);
+});
+
 test('an in-flight autosave preserves later typing and serializes the next version', async ({
   page,
 }, info) => {

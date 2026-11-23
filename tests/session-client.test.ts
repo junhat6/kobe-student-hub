@@ -190,7 +190,7 @@ describe('existing session browser client and author response-consumption guard'
     for (const signedOut of [true, false]) {
       const mismatch = vi.fn(),
         unknown = vi.fn();
-      const fetcher = vi.fn(async () => {
+      const fetcher = vi.fn(async (_path: string) => {
         if (signedOut) return new Response('', { status: 401 });
         throw new Error('PRIVATE_NETWORK');
       });
@@ -199,10 +199,13 @@ describe('existing session browser client and author response-consumption guard'
         origin,
         onMismatch: mismatch,
         onUnverified: unknown,
-        fetcher: fetcher as typeof fetch,
+        fetcher: fetcher as unknown as typeof fetch,
+        retryDelays: [0, 0],
       });
       await expect(guard.fetcher('/api/private/drafts')).rejects.toBeInstanceOf(SessionClientError);
-      expect(fetcher).toHaveBeenCalledTimes(1);
+      // A 401 is final at once; a network failure re-asks only the read-only proof.
+      expect(fetcher).toHaveBeenCalledTimes(signedOut ? 1 : 3);
+      expect(fetcher.mock.calls.every(([path]) => path === '/api/private/session')).toBe(true);
       if (signedOut) {
         expect(mismatch).toHaveBeenCalledExactlyOnceWith('signed-out');
         expect(unknown).not.toHaveBeenCalled();
@@ -215,6 +218,7 @@ describe('existing session browser client and author response-consumption guard'
   it('propagates an SDK abort to raw proof lookups and refuses foreign URLs', async () => {
     let proofSignal: AbortSignal | undefined;
     const controller = new AbortController();
+    const unverified = vi.fn();
     const raw = vi.fn(async (_path, init) => {
       proofSignal = init?.signal as AbortSignal;
       return await new Promise<Response>(() => {});
@@ -223,7 +227,7 @@ describe('existing session browser client and author response-consumption guard'
       csrfToken: A,
       origin,
       onMismatch: vi.fn(),
-      onUnverified: vi.fn(),
+      onUnverified: unverified,
       fetcher: raw,
     });
     const pending = guard.fetcher('/api/private/drafts', { signal: controller.signal });
@@ -231,6 +235,7 @@ describe('existing session browser client and author response-consumption guard'
     controller.abort();
     await rejected;
     expect(proofSignal?.aborted).toBe(true);
+    expect(unverified).not.toHaveBeenCalled();
     const foreign = createAuthorSessionGuard({
       csrfToken: A,
       origin,
@@ -241,5 +246,77 @@ describe('existing session browser client and author response-consumption guard'
     await expect(
       foreign.fetcher('https://foreign.invalid/api/private/drafts'),
     ).rejects.toBeInstanceOf(SessionClientError);
+  });
+  it('keeps the editor open when one proof request drops and the retry confirms the same session (#246)', async () => {
+    const unknown = vi.fn(),
+      mismatch = vi.fn();
+    let proofs = 0;
+    const fetcher = vi.fn(async (path: string) => {
+      if (path === '/api/private/session') {
+        if (++proofs === 2) throw new TypeError('Failed to fetch');
+        return Response.json({ csrfToken: A });
+      }
+      return Response.json([]);
+    });
+    const guard = createAuthorSessionGuard({
+      csrfToken: A,
+      origin,
+      onMismatch: mismatch,
+      onUnverified: unknown,
+      fetcher: fetcher as unknown as typeof fetch,
+      retryDelays: [0, 0],
+    });
+    const response = await guard.fetcher('/api/private/drafts');
+    expect(await response.json()).toEqual([]);
+    expect(unknown).not.toHaveBeenCalled();
+    expect(mismatch).not.toHaveBeenCalled();
+    expect(fetcher.mock.calls.filter(([path]) => path === '/api/private/drafts')).toHaveLength(1);
+  });
+  it('treats a caller abort during the body as the caller giving up, not as an unverified session', async () => {
+    const unknown = vi.fn();
+    const controller = new AbortController();
+    const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path === '/api/private/session') return Response.json({ csrfToken: A });
+      const body = new ReadableStream<Uint8Array>({
+        start(output) {
+          output.enqueue(new TextEncoder().encode('['));
+          init?.signal?.addEventListener('abort', () =>
+            output.error(new DOMException('', 'AbortError')),
+          );
+        },
+      });
+      return new Response(body, { headers: { 'Content-Type': 'application/json' } });
+    });
+    const guard = createAuthorSessionGuard({
+      csrfToken: A,
+      origin,
+      onMismatch: vi.fn(),
+      onUnverified: unknown,
+      fetcher: fetcher as unknown as typeof fetch,
+      retryDelays: [0, 0],
+    });
+    const response = await guard.fetcher('/api/private/drafts', { signal: controller.signal });
+    const reader = response.body!.getReader();
+    await reader.read();
+    const next = reader.read();
+    controller.abort();
+    await expect(next).rejects.toBeInstanceOf(SessionClientError);
+    expect(unknown).not.toHaveBeenCalled();
+    // The same guard still serves the next request.
+    const again = await guard.fetcher('/api/private/drafts');
+    expect(again.status).toBe(200);
+    void again.body?.cancel();
+  });
+  it('peekSteadily stops at a confirmed sign-out and gives up after the listed retries', async () => {
+    const signedOut = vi.fn(async () => new Response('', { status: 401 }));
+    await expect(
+      createSessionClient(signedOut as unknown as typeof fetch).peekSteadily(undefined, [0, 0]),
+    ).rejects.toMatchObject({ kind: 'signed-out' });
+    expect(signedOut).toHaveBeenCalledTimes(1);
+    const down = vi.fn(async () => new Response('', { status: 503 }));
+    await expect(
+      createSessionClient(down as unknown as typeof fetch).peekSteadily(undefined, [0, 0]),
+    ).rejects.toMatchObject({ kind: 'unavailable' });
+    expect(down).toHaveBeenCalledTimes(3);
   });
 });

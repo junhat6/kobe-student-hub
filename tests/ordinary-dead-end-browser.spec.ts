@@ -78,6 +78,15 @@ test('every page offers a retry during an API outage and recovers after it', asy
     await page.route('**/api/**', (r) => r.abort());
     await page.goto(path);
     const buttons = [retry].flat().map((name) => main.getByRole('button', { name, exact: true }));
+    // Session checks retry a dropped proof before giving up (#246), so wait until the
+    // outage is the settled result before bringing the API back.
+    if (retry === 'ログイン状態を確認')
+      await expect(
+        main.getByText('セッションを確認できませんでした', { exact: false }),
+        path,
+      ).toBeVisible({
+        timeout: 10000,
+      });
     for (const button of buttons) await expect(button, path).toBeVisible();
     expect(await noOverflow(page)).toBe(true);
     if (path === '/') await page.screenshot({ path: info.outputPath('home-outage.png') });
