@@ -16,6 +16,9 @@ import { useUnsavedNavigation } from './useUnsavedNavigation';
 import { useViewer } from '../shell/viewer';
 import ActivityGrass from '../community/ActivityGrass';
 import { ParticipationNotice, writesClosed, type ParticipationState } from './participation';
+import { useHashLanding } from './useHashLanding';
+
+const LANDING_SECTIONS = ['publications', 'enrollment'] as const;
 
 function AccountActions({ participation }: { participation: ParticipationState }) {
   return (
@@ -67,6 +70,7 @@ function AccountContent({
   // Graduated students keep their tidy-up tools even without one.
   const ready =
     profileState === 'exists' || profileState === 'unknown' || writesClosed(participation);
+  useHashLanding(LANDING_SECTIONS);
   return (
     <>
       {authoringUiEnabled && (
@@ -85,7 +89,7 @@ function AccountContent({
       {authoringUiEnabled && ready && <AccountActions participation={participation} />}
       {authoringUiEnabled && <ParticipationNotice participation={participation} place="account" />}
       {authoringUiEnabled && ready && (
-        <div id="publications" className="account-block">
+        <div id="publications" className="account-block" tabIndex={-1}>
           <OwnPublications
             csrfToken={csrfToken}
             fetcher={fetcher}
@@ -102,7 +106,7 @@ function AccountContent({
       {authoringUiEnabled && AGENT_MCP_RELEASE_ENABLED && (
         <AgentConnections csrfToken={csrfToken} fetcher={fetcher} />
       )}
-      <div id="enrollment" className="account-block account-settings">
+      <div id="enrollment" className="account-block account-settings" tabIndex={-1}>
         <AccountEnrollment
           csrfToken={csrfToken}
           fetcher={fetcher}

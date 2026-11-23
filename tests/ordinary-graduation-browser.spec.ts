@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
-import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test';
 
 // C17: after the registered graduation year, new posts stop but own management continues.
 const ORIGIN = 'https://127.0.0.1:8790';
@@ -66,6 +66,20 @@ async function expectNoSeriousAxe(page: Page) {
   ).toEqual([]);
 }
 
+// The section stays in view after every account read has finished, not only at first paint.
+async function expectLanded(page: Page, section: Locator) {
+  await expect(section).toBeInViewport();
+  // The two slowest parts: the own-publication list above and the enrollment form below.
+  await expect(
+    page.getByRole('button', { name: '公開停止を確認：' + TITLE, exact: true }),
+  ).toBeAttached();
+  await expect(
+    page.getByRole('region', { name: '在学期間' }).getByLabel('入学', { exact: true }),
+  ).toHaveValue('2024');
+  await expect(section).toBeInViewport();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+}
+
 const noHorizontalScroll = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
@@ -111,6 +125,14 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
   );
   await expect(page.getByRole('button', { name: TITLE, exact: true })).toHaveCount(0);
 
+  // #178: the notice's links land on the named account section, not on the page top.
+  await page
+    .getByRole('note', { name: '新しい投稿について' })
+    .getByRole('link', { name: '停止', exact: true })
+    .click();
+  await expect(page).toHaveURL(ORIGIN + '/account#publications');
+  await expectLanded(page, page.getByRole('region', { name: '自分の公開記録', exact: true }));
+
   // Works: the notice appears and saving a new project is not offered.
   await page.goto('/works/new');
   await expect(
@@ -120,6 +142,12 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
   ).toBeVisible();
   await expect(page.getByRole('button', { name: '作品を保存', exact: true })).toBeDisabled();
   expect(await noHorizontalScroll(page)).toBe(true);
+  await page
+    .getByRole('note', { name: '新しい投稿について' })
+    .getByRole('link', { name: '在学期間を直す', exact: true })
+    .click();
+  await expect(page).toHaveURL(ORIGIN + '/account#enrollment');
+  await expectLanded(page, page.getByRole('region', { name: '在学期間' }));
 
   // The published article stays public until the owner stops it.
   const guest = await browser.newContext({ baseURL: ORIGIN, ignoreHTTPSErrors: true });

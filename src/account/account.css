@@ -356,6 +356,13 @@
   border: 1px solid var(--line, #e2e7ee);
   border-radius: 20px;
 }
+.account-block[tabindex='-1'] {
+  scroll-margin-top: 80px; /* clears the sticky site header (64px) when a link lands here */
+}
+.account-block[tabindex='-1']:focus {
+  /* Focus lands here only from a link to the section; the section itself is not a control. */
+  outline: none;
+}
 .account-block-title,
 .account-block h2 {
   margin: 0 0 12px;
