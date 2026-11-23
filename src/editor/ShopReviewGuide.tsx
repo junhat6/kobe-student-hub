@@ -1,5 +1,5 @@
 import { Button } from '@base-ui/react/button';
-import { SHOP_REVIEW_RULES } from '../agent/article-format';
+import { QUOTE_RULES, SHOP_REVIEW_RULES } from '../agent/article-format';
 
 /** Tag examples the 北野川線沿い×ごはん entry point counts (DECISIONS 2026-11-22). */
 export const SHOP_REVIEW_TAGS = ['ごはん', '北野川線沿い'] as const;
@@ -42,6 +42,12 @@ export default function ShopReviewGuide({
         <h4>決まり</h4>
         <ul>
           {SHOP_REVIEW_RULES.map((rule) => (
+            <li key={rule}>{rule}</li>
+          ))}
+        </ul>
+        <h4>口コミ・画像を引用するとき</h4>
+        <ul>
+          {QUOTE_RULES.map((rule) => (
             <li key={rule}>{rule}</li>
           ))}
         </ul>

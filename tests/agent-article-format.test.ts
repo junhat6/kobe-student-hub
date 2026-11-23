@@ -5,6 +5,7 @@ import {
   articleForAgent,
   buildWritingRequest,
   parseAgentArticle,
+  QUOTE_RULES,
   SHOP_REVIEW_RULES,
   WRITING_RULES,
 } from '../src/agent/article-format';
@@ -148,5 +149,21 @@ describe('shop-review rules (#193)', () => {
     expect(withShopReviewTemplate('## 前置き\nおいしい。\n\n')).toBe(
       '## 前置き\nおいしい。\n\n' + SHOP_REVIEW_TEMPLATE,
     );
+  });
+});
+
+describe('quote rules (DECISIONS 2026-11-23)', () => {
+  const line = `- 引用するなら：${QUOTE_RULES.join('。')}。`;
+  it('come from one list for the request, the MCP guide and the downloadable kit', () => {
+    expect(WRITING_RULES).toContain(line);
+    expect(buildWritingRequest({ title: '', body: '' }, 'https://example.test')).toContain(line);
+    expect(readFileSync('public/agent-kit/ksh-article/SKILL.md', 'utf8')).toContain(line);
+  });
+  it('no writing path still forbids every web image outright (links are allowed)', () => {
+    for (const text of [
+      WRITING_RULES,
+      readFileSync('public/agent-kit/ksh-article/SKILL.md', 'utf8'),
+    ])
+      expect(text).not.toContain('ネットで見つけた画像・店の公式写真は使わない');
   });
 });
