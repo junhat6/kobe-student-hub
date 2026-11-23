@@ -54,23 +54,19 @@ export default function Search() {
   const projectCards = (projectRead.value?.cards ?? []).filter(({ project, author }) =>
     matches(q, [project.title, project.descriptionPreview, author.name]),
   );
-  const tags = [
-    ...new Set([
-      ...(articleRead.value?.cards.flatMap(({ entry }) => entry.tags) ?? []),
-      ...(tag ? [tag] : []),
-    ]),
-  ].sort((a, b) => a.localeCompare(b, 'ja'));
   const hasCondition = Boolean(query || tag || type !== 'all');
-  // Offer frequent article tags as other words to try; the current tag is the one that failed.
+  // Count article tags once: the chip row and the "other words" suggestions both rank by frequency.
   const tagCounts = new Map<string, number>();
   for (const { entry } of articleRead.value?.cards ?? [])
-    for (const value of new Set(entry.tags))
-      if (normalized(value) !== normalized(tag))
-        tagCounts.set(value, (tagCounts.get(value) ?? 0) + 1);
-  const suggestions = [...tagCounts]
+    for (const value of new Set(entry.tags)) tagCounts.set(value, (tagCounts.get(value) ?? 0) + 1);
+  const rankedTags = [...tagCounts]
     .sort(([a, x], [b, y]) => y - x || a.localeCompare(b, 'ja'))
-    .slice(0, 5)
     .map(([value]) => value);
+  const isTag = (value: string) => Boolean(tag) && normalized(value) === normalized(tag);
+  // The selected tag leads the row even when no loaded article carries it any more.
+  const chips = type === 'project' ? [] : rankedTags.filter((value) => !isTag(value));
+  // Offer frequent article tags as other words to try; the current tag is the one that failed.
+  const suggestions = rankedTags.filter((value) => !isTag(value)).slice(0, 5);
   const showArticles = type !== 'project';
   const showProjects = type !== 'article' && !tag;
   const status = [
@@ -149,33 +145,27 @@ export default function Search() {
             ))}
           </div>
         </fieldset>
-        <label className="search-tag" htmlFor="ordinary-search-tag">
-          <span className="sr-only">タグ（記事）</span>
-          <select
-            id="ordinary-search-tag"
-            value={tag}
-            onChange={(event) => update('tag', event.target.value)}
-          >
-            <option value="">すべてのタグ</option>
-            {tags.map((value) => (
-              <option key={value} value={value}>
-                # {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        {tag && (
-          <Button
-            className="search-tag-chip"
-            aria-label={`タグ「# ${tag}」を解除`}
-            title={`タグ「# ${tag}」を解除`}
-            onClick={() => update('tag', '')}
-          >
-            # {tag}
-            <Icon name="close" size={16} />
-          </Button>
-        )}
       </div>
+      {(tag || chips.length > 0) && (
+        <div className="search-tag-chips" role="group" aria-label="記事のタグ">
+          {tag && (
+            <Button
+              className="search-tag-chip"
+              aria-label={`タグ「# ${tag}」を解除`}
+              title={`タグ「# ${tag}」を解除`}
+              onClick={() => update('tag', '')}
+            >
+              # {tag}
+              <Icon name="close" size={16} />
+            </Button>
+          )}
+          {chips.map((value) => (
+            <Button key={value} onClick={() => update('tag', value)}>
+              # {value}
+            </Button>
+          ))}
+        </div>
+      )}
       <p className="search-result-count" role="status" aria-live="polite">
         {status.join(' · ') || 'タグを解除すると作品を検索できます。'}
       </p>

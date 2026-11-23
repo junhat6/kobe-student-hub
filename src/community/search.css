@@ -15,8 +15,7 @@
   gap: 12px 24px;
   margin: 16px 0 24px;
 }
-.community-search-filters legend,
-.search-tag {
+.community-search-filters legend {
   font-size: 14px;
   font-weight: 600;
 }
@@ -25,8 +24,7 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.community-search button,
-.search-tag select {
+.community-search button {
   min-height: 40px;
   border: 1px solid var(--line, #e2e7ee);
   border-radius: 999px;
@@ -57,12 +55,20 @@
   background: var(--accent-deep, #0f469f);
   color: #fff;
 }
-.search-tag select {
-  display: block;
-  max-width: 100%;
-  color: #253544;
-  font-size: 16px;
-  font-weight: 400;
+.search-tag-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  margin: -8px 0 24px;
+  padding-bottom: 4px;
+}
+.search-tag-chips button {
+  flex: none;
+  border-color: transparent;
+  background: #eef2f6;
+  font-weight: 500;
 }
 .community-search .search-tag-chip {
   display: inline-flex;
@@ -72,6 +78,9 @@
   border-color: var(--accent-strong, #1659c7);
   color: var(--accent-strong, #1659c7);
   padding: 0 12px 0 16px;
+}
+.community-search .search-tag-chips .search-tag-chip {
+  background: var(--surface, #fff);
 }
 .search-limit {
   font-size: 14px;
@@ -137,12 +146,6 @@
   }
   .community-search-heading h1 {
     font-size: 26px;
-  }
-  .search-tag {
-    width: 100%;
-  }
-  .search-tag select {
-    width: 100%;
   }
 }
 

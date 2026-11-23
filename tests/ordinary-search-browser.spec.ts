@@ -194,7 +194,10 @@ test('ordinary search finds article-only and project-only authors and preserves 
 
     await page.goto('/search?' + new URLSearchParams({ q: key }));
     await page.getByRole('button', { name: '記事', exact: true }).click();
-    await page.getByRole('combobox', { name: 'タグ（記事）', exact: true }).selectOption('AI');
+    await page
+      .getByRole('group', { name: '記事のタグ', exact: true })
+      .getByRole('button', { name: '# AI', exact: true })
+      .click();
     await expect(page).toHaveURL(
       ORIGIN + '/search?' + new URLSearchParams({ q: key, type: 'article', tag: 'AI' }),
     );
@@ -208,10 +211,11 @@ test('ordinary search finds article-only and project-only authors and preserves 
         document.querySelectorAll<HTMLButtonElement>('.search-types button'),
       ).find((item) => item.textContent === '記事')!;
       button.click();
-      const select = document.getElementById('ordinary-search-tag');
-      if (!(select instanceof HTMLSelectElement)) throw new Error('Article tag select is missing');
-      select.value = 'AI';
-      select.dispatchEvent(new Event('change', { bubbles: true }));
+      const chip = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('.search-tag-chips button'),
+      ).find((item) => item.textContent === '# AI');
+      if (!chip) throw new Error('Article tag chip is missing');
+      chip.click();
     });
     await expect(page).toHaveURL(
       ORIGIN + '/search?' + new URLSearchParams({ q: key, type: 'article', tag: 'AI' }),
@@ -221,16 +225,24 @@ test('ordinary search finds article-only and project-only authors and preserves 
       'aria-pressed',
       'true',
     );
-    await expect(page.getByRole('combobox', { name: 'タグ（記事）', exact: true })).toHaveValue(
-      'AI',
-    );
+    await expect(
+      page.getByRole('button', { name: 'タグ「# AI」を解除', exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole('searchbox')).toHaveValue(key);
+    await page.screenshot({ path: info.outputPath('search-tag-chips.png'), scale: 'css' });
     await page.goBack();
-    await expect(page.getByRole('combobox', { name: 'タグ（記事）', exact: true })).toHaveValue('');
-    await page.goForward();
-    await expect(page.getByRole('combobox', { name: 'タグ（記事）', exact: true })).toHaveValue(
-      'AI',
+    await expect(page.getByRole('button', { name: 'タグ「# AI」を解除', exact: true })).toHaveCount(
+      0,
     );
+    await expect(
+      page
+        .getByRole('group', { name: '記事のタグ', exact: true })
+        .getByRole('button', { name: '# AI', exact: true }),
+    ).toBeVisible();
+    await page.goForward();
+    await expect(
+      page.getByRole('button', { name: 'タグ「# AI」を解除', exact: true }),
+    ).toBeVisible();
     await page.getByRole('searchbox').fill('ＡＩ制作');
     await page.getByRole('button', { name: '検索', exact: true }).click();
     expect(new URL(page.url()).searchParams.get('type')).toBe('article');
