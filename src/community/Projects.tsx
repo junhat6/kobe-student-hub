@@ -23,7 +23,6 @@ function Works() {
           作品を登録する
         </Link>
       </div>
-      <p className="works-lead">学生がつくったアプリ・ゲーム・作品を紹介しています。</p>
       {failed ? (
         <ReadFailure subject="作品一覧" retry={retry} />
       ) : !value ? (

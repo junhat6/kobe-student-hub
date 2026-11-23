@@ -15,12 +15,15 @@
 }
 .detail-layout .back {
   display: inline-block;
-  margin-bottom: 20px;
+  margin-bottom: 4px;
   color: var(--ink-muted);
   font-size: 13px;
 }
 .detail-layout .back:hover {
   color: var(--ink);
+}
+.detail-layout .detail-header {
+  padding-top: 8px;
 }
 .detail-layout .detail-header h1 {
   margin: 0 0 12px;
@@ -461,10 +464,6 @@
   padding: 40px 0;
   text-align: center;
   color: var(--ink-muted);
-}
-.works-lead {
-  margin: -8px 0 28px;
-  color: var(--ink-soft);
 }
 @media (max-width: 860px) {
   /* Phone layout as on GitHub: small avatar beside the name, then the rest stacked. */

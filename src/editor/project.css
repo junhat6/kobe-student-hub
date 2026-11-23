@@ -100,6 +100,10 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Markdown already turns blank lines into paragraphs; pre-wrap would add the newlines again. */
+div.project-description {
+  white-space: normal;
+}
 .project-text strong {
   display: block;
   font-size: 14px;
