@@ -4,7 +4,7 @@
   "definition": "全itemのstatusがpass、UX巡回でS1/S2が2回連続0件、かつreleaseに載っていれば「開発として完成」。学生にとっての価値は別（価値検証ループ）。",
   "rules": [
     "builder（finishループ）が変更してよいのは status と evidence と production だけ。capability と acceptance を変えてはいけない。",
-    "item の追加・分割は replan ループか人。acceptance の弱体化・削除は人だけ。",
+    "item の追加・分割と、acceptance の書き直し・弱体化・削除は replan ループか人（2026-11-23 オーナー決定）。弱める・消すときは DECISIONS に変更前後の文と理由を1項書き、evidence からその項を指す。恒久条件（AGENTS.md）を写した条件は恒久条件の手前までしか下げない。",
     "status=pass にできるのは、acceptance の全文を main の実物で確かめたときだけ。evidence に確かめた方法（spec名、patrol log のコメントURL、Issue番号）を書く。仮実装・押しても何も起きない操作は pass にしない。",
     "status: unverified（未確認）| pass | fail | blocked。production: open（本番で使える）| closed（本番では閉じている）| unknown。",
     "初期値は全て unverified。既存機能の多くは実装済みだが、この台帳の acceptance で確かめ直すまで pass にしない。"

@@ -10,13 +10,13 @@
 - status が unverified/fail の item ごとに、対応する open Issue があるか。なければ `loop:finish` Issue を作る（受け入れ条件は completion.json の acceptance をそのまま写し、`area:` と `R?` を書く）
 - patrol log で旅が合格し、acceptance を満たした証拠がある item は、builder の代わりに status=pass にしてよい（evidence に patrol log のURL）
 - 大きすぎる Issue（1周で終わらない）は分割する
-- completion.json の item を追加・分割してよい。acceptance を弱めたり消したりはしない（人だけ）
+- completion.json の item を追加・分割し、acceptance を書き直してよい。弱める・消すことも判断してよい（2026-11-23 オーナー決定）。そのときは：まず DESIGN-PRINCIPLES.md の原則3（検証できる形に書き直す・ベストエフォート部分を合否から外すと明記）で足りないか試す。弱める・消すなら docs/DECISIONS.md に1項（item と条件番号・変更前後の文・何回どんな理由で fail したか・確かめなくなること）を書き、evidence からその項を指す。恒久条件（AGENTS.md）を写した条件は恒久条件の手前までしか下げない。R2 の item を緩めたら、緩めた条件で pass にする前に別 context の独立検証を通す
 - item を足す・分けるときは acceptance を docs/loop/DESIGN-PRINCIPLES.md の「条件を書く・見直すときの確かめ」6問に当てる。全称（「全部伏せる」「必ず漏れない」）の条件は、検証できる形に書き直すか、合否から外す部分を明記する
 
 ## 2. 並べ直す
 - P0：本番で利用者が止まる・非公開が漏れる。P1：完成台帳の未達、UX の S2。P2：それ以外
 - 3時間以上動きのない `claimed` は claim を外し、コメントで知らせる
-- `blocked` は原因を読んで (a) 小さく分け直す、(b) 前提 Issue を先に立てる、(c) R3 なら `needs-human` に回す、(d) 毎回違う理由で fail しているなら実装でなく条件・設計の問題として DESIGN-PRINCIPLES.md の原則で見直し、境界の置き場所を変える Issue を立てる。acceptance の弱体化が要るなら `needs-human` で人に上げる（C21/#214）
+- `blocked` は原因を読んで (a) 小さく分け直す、(b) 前提 Issue を先に立てる、(c) R3 なら `needs-human` に回す、(d) 毎回違う理由で fail しているなら実装でなく条件・設計の問題として DESIGN-PRINCIPLES.md の原則で見直し、境界の置き場所を変える Issue を立てるか、acceptance を書き直す・弱める（上の手順で。C21/#214）
 - 重複 Issue を統合して閉じる
 
 ## 3. 報告する

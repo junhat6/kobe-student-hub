@@ -29,7 +29,7 @@ npm run look -- --base editor --video --only mobile --steps .look/steps.mjs /dra
 npm run look:review -- .look/<時刻> --focus "公開ボタンを押した後"
 ```
 
-- `--base` は `local`（:8787）・`editor`（:8788）・`session`（:8790）・`prod`（本番、未ログインで見るだけ）のどれか。任意の URL は撮らない（利用者のログイン状態や他人のサイトを外部へ送る経路を作らないため）。
+- `--base` は `local`（:8787）・`editor`（:8788）・`session`（:8790）・`prod`（本番、未ログインで見るだけ）のどれか。本番のログイン後の画面は look では撮らず、Claude in Chrome で手元で見る（撮影物が外部と公開 Issue へ渡る道具のため。2026-11-23 DECISIONS）。任意の URL は撮らない（利用者のログイン状態や他人のサイトを外部へ送る経路を作らないため）。
 - `--steps` のファイルは `export default async (page, { path, viewport }) => { … }`。クリック・入力・スクロールが録画に残る。置き場所は `.look/`（gitignore）。
 - `look.json` に HTTP 状態・コンソールのエラー・5xx・横はみ出しが入る。`⚠` が出たらまずそれを見る。
 - `look:review` は1回 30〜100 秒（`gemini-3.8-flash-high`、`LOOK_REVIEW_MODEL` で変更）。40ファイルまで、90MB を超える動画は ffmpeg で 720px に縮めてから渡す（`agy` の読み込みは1ファイル 100MB まで）。

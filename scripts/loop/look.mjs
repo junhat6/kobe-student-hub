@@ -17,7 +17,10 @@ import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// 撮ってよい相手はこの3つだけ。本番はログインしない（Cookie を持たない新しい context で開く）。
+// 撮ってよい相手はこの4つだけ。本番はログインしない（Cookie を持たない新しい context で開く）。
+// 巡回は本番でオーナーのアカウントにログインしてよいが（2026-11-23 DECISIONS）、その確認は
+// Claude in Chrome で行い、この道具には載せない。ここで撮ったものは look:review で外部へ送られ、
+// 公開 Issue に貼られる前提だから。
 // 任意の URL を許さないのは、利用者のログイン状態や他人のサイトを撮って外部（Antigravity）へ
 // 送る経路を作らないため。参考アプリは人が撮って渡す（LOOK.md の「人が渡す」）。
 const BASES = {

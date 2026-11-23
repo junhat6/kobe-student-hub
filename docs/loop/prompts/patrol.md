@@ -8,7 +8,8 @@
 - Issue「loop: patrol log」（#131）の最新コメントから前回の SHA を読み、`git log <前回>..origin/main --oneline -- src worker public` で変わった場所を把握（重点的に歩く）
 - docs/loop/ux-rubric.md を全部読む（人物・旅・重大度・観点）
 - 閲覧系：`npm ci && npm run build && npm run db:local && npm run preview`。投稿系：`npm run editor:build && npm run editor:preview`（架空データ）
-- 本番巡回の指示がある場合は本番URLを匿名で開くだけ。書き込み操作・ログインをしない
+- 本番巡回の指示がある場合：匿名の旅は `npm run look -- --base prod`。ログイン後の旅（アカウント・下書き・マイページ）は Claude in Chrome でオーナーの Chrome のセッションを使う（ログイン代行の範囲。資格情報を出力・ファイルに置かない）
+- 本番でしてよいのは閲覧と、オーナーにしか見えず戻せる操作（オーナーの下書きの作成・削除、閲覧履歴の削除）だけ。公開・いいね・通報・運営の判断・公開プロフィールの変更・AI エージェント接続の許可はしない（LOOPS.md の「本番での禁止」）
 
 ## 1. 歩く
 - J0〜J5 を PC(1280×800) とモバイル(390×844) で歩く。Playwright でもブラウザ操作でもよい
@@ -20,7 +21,7 @@
 - 先に `gh issue list --label loop:ux --state all --search "<キーワード>"` で重複を探し、同じなら既存 Issue に「<SHA> で再現」とコメント
 - 前回の所見が直っていたら、その Issue に「<SHA> で解消を確認」とコメントして閉じる
 - 上限：新規10件、S3は3件まで。超えた分は patrol log に一覧だけ書く
-- 公開画面か架空データのスクリーンショットだけを載せる。個人情報・秘密を書かない
+- 公開画面か架空データのスクリーンショットだけを載せる。本番のログイン後の画面は撮っても手元で見るだけにし、Issue には文章で書く（メール・ID・他人の名前・下書きの中身を書かない）。`look:review` にも渡さない
 
 ## 3. 記録して終わる
 - patrol log Issue（#131）にコメント：先頭行に `sha: <歩いた origin/main の完全な40桁SHA>`（`git rev-parse origin/main` の出力そのまま。短縮しない。precheck がこの行を読む）、続けて日時、合否（ux-rubric.md の合否）、S1/S2/S3 件数、作った Issue 番号

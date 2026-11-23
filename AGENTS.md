@@ -11,7 +11,7 @@
 
 - 進め方の正本は [docs/loop/](docs/loop/README.md)。まず README の「原則」と「リスク段階」を読む。
 - 自分の役の指示書を読んで1周1仕事：[finish](docs/loop/prompts/finish.md) / [patrol](docs/loop/prompts/patrol.md) / [polish](docs/loop/prompts/polish.md) / [garden](docs/loop/prompts/garden.md) / [replan](docs/loop/prompts/replan.md)。役の分け方は [SESSIONS.md](docs/loop/SESSIONS.md)。
-- 完成の定義は [completion.json](docs/loop/completion.json)。builder は status/evidence/production だけ変えてよい。受け入れ条件や境界を設計するときは [DESIGN-PRINCIPLES.md](docs/loop/DESIGN-PRINCIPLES.md)（伏せるより渡すものを決める・検証できる条件・繰り返し fail は条件を疑う）。
+- 完成の定義は [completion.json](docs/loop/completion.json)。builder は status/evidence/production だけ変えてよい。acceptance の書き直し・弱体化・削除は replan が判断し、理由を DECISIONS に残す（恒久条件の手前まで）。受け入れ条件や境界を設計するときは [DESIGN-PRINCIPLES.md](docs/loop/DESIGN-PRINCIPLES.md)（伏せるより渡すものを決める・検証できる条件・繰り返し fail は条件を疑う）。
 - オーナーの実機の不満はスクショなら Muse（ヨッチ）か Discord、動画なら Drive「hub動画ポスト」→ Muse → video-review で届く（[INBOX.md](docs/loop/INBOX.md)）。
 - 画面・挙動を確かめるときは人に頼まず自分で撮る（`npm run look`）。見た目と動きの判定は Antigravity に渡し（`npm run look:review`）、所見は確かめてから使う。手順は [LOOK.md](docs/loop/LOOK.md)。
 - 待ち行列は GitHub Issues（`loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
