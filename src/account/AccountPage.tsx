@@ -15,6 +15,7 @@ import OwnTaste from './OwnTaste';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
 import { useViewer } from '../shell/viewer';
 import ActivityGrass from '../community/ActivityGrass';
+import ReceivedLikes from '../community/ReceivedLikes';
 import { ParticipationNotice, writesClosed, type ParticipationState } from './participation';
 import { useHashLanding } from './useHashLanding';
 
@@ -105,6 +106,7 @@ function AccountContent({
         </div>
       )}
       {authoringUiEnabled && ready && <ActivityGrass id={ownProfileId} own fetcher={fetcher} />}
+      {authoringUiEnabled && ready && <ReceivedLikes id={ownProfileId} />}
       {authoringUiEnabled && ready && <AccountActions participation={participation} />}
       {authoringUiEnabled && <ParticipationNotice participation={participation} place="account" />}
       {authoringUiEnabled && ready && (

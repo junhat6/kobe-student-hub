@@ -17,3 +17,8 @@ export interface PublicStudentActivity {
   to: string;
   days: { date: string; count: number }[];
 }
+
+/** Likes received per public article (most-liked first, at most 20). Counts only, no likers. */
+export interface PublicReceivedLikes {
+  articles: { id: string; title: string; likes: number }[];
+}

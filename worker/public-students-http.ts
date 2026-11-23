@@ -2,9 +2,10 @@ import { ArticlePublicationStore } from './publication';
 import { ProjectStore } from './projects';
 import { ProfileAvatarStore } from './profile-avatars';
 import { readPublicActivity } from './public-activity';
+import { readPublicReceivedLikes } from './public-received-likes';
 import type { PublicStudent } from '../src/public-student-types';
 
-const path = /^\/api\/students\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})(\/activity)?$/;
+const path = /^\/api\/students\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})(\/activity|\/received-likes)?$/;
 const headers = {
   'Cache-Control': 'no-store',
   'Referrer-Policy': 'no-referrer',
@@ -43,10 +44,13 @@ export function createPublicStudentHandler(
       });
     if (matched[2])
       try {
-        const activity = await readPublicActivity(db, matched[1], clock());
-        if (activity === 'missing') return error(404);
-        if (activity === null) return error(503);
-        return new Response(JSON.stringify(activity), { headers });
+        const value =
+          matched[2] === '/activity'
+            ? await readPublicActivity(db, matched[1], clock())
+            : await readPublicReceivedLikes(db, matched[1]);
+        if (value === 'missing') return error(404);
+        if (value === null) return error(503);
+        return new Response(JSON.stringify(value), { headers });
       } catch {
         return error(503);
       }

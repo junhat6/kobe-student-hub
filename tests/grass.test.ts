@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildGrass } from '../src/community/grass';
 import { milestones } from '../src/community/milestones';
-import { validActivity } from '../src/community/student-client';
+import { validActivity, validReceivedLikes } from '../src/community/student-client';
+import { receivedLikes } from '../src/community/received-likes';
 import { emptyActivity } from '../src/community/ActivityGrass';
 
 // 2026-11-22 is a Sunday; the window is 182 days ending today.
@@ -121,5 +122,38 @@ describe("milestones on one's own page", () => {
     expect(g.streakWeeks).toBe(1);
     expect(g.bestStreakWeeks).toBe(4);
     expect(milestones(5, g.bestStreakWeeks).reached.map((x) => x.key)).toContain('fourWeeks');
+  });
+});
+
+describe('likes returned to the author (#222)', () => {
+  const a = '00000000-0000-4000-8000-00000000000a';
+  const b = '00000000-0000-4000-8000-00000000000b';
+  const value = {
+    articles: [
+      { id: a, title: 'A', likes: 5 },
+      { id: b, title: 'B', likes: 2 },
+    ],
+  };
+  it('treats the first visit as the baseline and marks only increases as new', () => {
+    expect(receivedLikes(value, null)).toMatchObject({ total: 7, added: 0 });
+    const next = receivedLikes(value, { [a]: 3, [b]: 4 });
+    expect(next.rows.map((r) => r.added)).toEqual([2, 0]);
+    expect(next.added).toBe(2);
+    // An article liked for the first time since the last visit counts in full.
+    expect(receivedLikes(value, { [a]: 5 }).rows.map((r) => r.added)).toEqual([0, 2]);
+  });
+  it('accepts only bounded, most-liked-first counts without extra fields', () => {
+    expect(validReceivedLikes(value)).toBe(true);
+    expect(validReceivedLikes({ articles: [] })).toBe(true);
+    for (const bad of [
+      { articles: [...value.articles].reverse() },
+      { articles: [{ id: a, title: 'A', likes: 0 }] },
+      { articles: [{ id: a, title: 'A', likes: 1, liker: 'x' }] },
+      { articles: [{ id: 'shun', title: 'A', likes: 1 }] },
+      { articles: [value.articles[0], value.articles[0]] },
+      { articles: [], extra: 1 },
+      { articles: Array.from({ length: 21 }, () => value.articles[0]) },
+    ])
+      expect(validReceivedLikes(bad)).toBe(false);
   });
 });

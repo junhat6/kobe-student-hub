@@ -198,6 +198,49 @@ describe('ordinary shared public student with actual Workers/D1', () => {
     expect(wrong.status).toBe(405);
     expect(wrong.headers.get('X-Fixture-Db-Calls')).toBe('0');
   });
+  it('returns likes received per public article, counted like 人気, with no likers or private ids', async () => {
+    const db = await mf.getD1Database('DB');
+    // Accounts 1 and 2 have confirmed public profiles; an account without one is not counted.
+    await db
+      .prepare(
+        "INSERT INTO private_accounts VALUES('private-account-noprofile','subject-np','np@st.kobedenshi.ac.jp','active',0,?)",
+      )
+      .bind(NOW)
+      .run();
+    for (const owner of ['private-account-1', 'private-account-2', 'private-account-noprofile'])
+      await db
+        .prepare('INSERT INTO article_likes(owner_account_id,content_id,liked_at_ms) VALUES(?,?,?)')
+        .bind(owner, articles[0], NOW)
+        .run();
+    try {
+      const response = await request('/api/students/' + authors[0] + '/received-likes');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(response.headers.has('Set-Cookie')).toBe(false);
+      const text = await response.text();
+      expect(JSON.parse(text)).toEqual({
+        articles: [{ id: articles[0], title: 'Public article', likes: 2 }],
+      });
+      expect(text).not.toMatch(/private-account|subject-|st\.kobedenshi|liked_at|Public student/);
+      // A public student with no likes gets an empty list; a non-public id is missing.
+      expect(
+        await (await request('/api/students/' + authors[2] + '/received-likes')).json(),
+      ).toEqual({ articles: [] });
+      for (const id of [authors[3], 'shun', 'private-account-0'])
+        expect((await request('/api/students/' + id + '/received-likes')).status).toBe(404);
+      const wrong = await request(
+        '/api/students/' + authors[0] + '/received-likes',
+        'POST',
+        undefined,
+        {},
+        { 'X-Test-Forbid-Db': '1' },
+      );
+      expect(wrong.status).toBe(405);
+      expect(wrong.headers.get('X-Fixture-Db-Calls')).toBe('0');
+    } finally {
+      await db.prepare('DELETE FROM article_likes WHERE content_id=?').bind(articles[0]).run();
+    }
+  });
   it('adds the owner-only reading layer: counts per day for the signed-in reader, never on public reads', async () => {
     const today = new Date(NOW + 9 * 3600000).toISOString().slice(0, 10);
     expect((await request('/api/private/activity')).status).toBe(401);

@@ -7,7 +7,11 @@ import {
 } from '../editor/public-author-client';
 import { validProjectAuthor } from '../editor/project-client';
 import { validPublicAvatar } from '../shared/avatar';
-import type { PublicStudent, PublicStudentActivity } from '../public-student-types';
+import type {
+  PublicReceivedLikes,
+  PublicStudent,
+  PublicStudentActivity,
+} from '../public-student-types';
 
 export class PublicStudentClientError extends Error {
   /** Absent or not public (404 / impossible id), as opposed to a failed read. */
@@ -56,6 +60,24 @@ export function validActivity(value: unknown): value is PublicStudentActivity {
   }
   return true;
 }
+const ARTICLE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+export function validReceivedLikes(value: unknown): value is PublicReceivedLikes {
+  if (!publicKeys(value, ['articles']) || !Array.isArray(value.articles)) return false;
+  if (value.articles.length > 20) return false;
+  const ids = new Set<string>();
+  let previous = Infinity;
+  for (const row of value.articles) {
+    if (!publicKeys(row, ['id', 'title', 'likes'])) return false;
+    const { id, title, likes } = row;
+    if (typeof id !== 'string' || !ARTICLE_ID.test(id) || ids.has(id)) return false;
+    if (typeof title !== 'string' || !title.trim() || title.length > 200) return false;
+    if (!Number.isSafeInteger(likes) || (likes as number) < 1 || (likes as number) > previous)
+      return false;
+    ids.add(id);
+    previous = likes as number;
+  }
+  return true;
+}
 /** Ordinary anonymous profile, with both bounded public activity selections in one DTO. */
 export function createPublicStudentClient(fetcher: typeof fetch = fetch) {
   return {
@@ -80,6 +102,22 @@ export function createPublicStudentClient(fetcher: typeof fetch = fetch) {
           32768,
         );
         if (!validActivity(value)) throw new PublicStudentClientError();
+        return value;
+      } catch (error) {
+        throw new PublicStudentClientError(publicReadMissing(error));
+      }
+    },
+    /** Likes each public article has received. Shown only on one's own page. */
+    async readReceivedLikes(id: string, signal?: AbortSignal): Promise<PublicReceivedLikes> {
+      if (!publicSlug(id)) throw new PublicStudentClientError(true);
+      try {
+        const value = await readAnonymousJson(
+          '/api/students/' + id + '/received-likes',
+          fetcher,
+          signal,
+          32768,
+        );
+        if (!validReceivedLikes(value)) throw new PublicStudentClientError();
         return value;
       } catch (error) {
         throw new PublicStudentClientError(publicReadMissing(error));

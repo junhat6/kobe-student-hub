@@ -6,6 +6,17 @@ const JAPAN_OFFSET_MS = 9 * 60 * 60 * 1000;
 /** 26 whole weeks ending today (Japan calendar). Half a school year fits a phone width. */
 export const ACTIVITY_DAYS = 26 * 7;
 
+/** A student is public while their profile is valid and at least one article or project is public. */
+export async function publicStudentVisible(db: D1Database, authorId: string) {
+  const visible = await db
+    .prepare(
+      `SELECT 1 ok FROM public_profiles p WHERE p.id=? AND ${publicProfileSqlBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=p.id OR a.google_subject=p.id) AND (EXISTS(SELECT 1 FROM content c JOIN article_publications r ON r.content_id=c.id AND r.public_profile_id=c.author_id WHERE c.author_id=p.id AND c.kind='article' AND c.status='published' AND c.is_sample=0) OR EXISTS(SELECT 1 FROM project_publications j WHERE j.public_profile_id=p.id AND j.status='published'))`,
+    )
+    .bind(authorId)
+    .first<{ ok: number }>();
+  return visible !== null;
+}
+
 const japanDay = (ms: number) => Math.floor((ms + JAPAN_OFFSET_MS) / DAY_MS);
 const isoDay = (day: number) => new Date(day * DAY_MS).toISOString().slice(0, 10);
 
@@ -25,13 +36,7 @@ export async function readPublicActivity(
   const first = today - ACTIVITY_DAYS + 1;
   const fromMs = first * DAY_MS - JAPAN_OFFSET_MS;
   const toMs = nowMs;
-  const visible = await db
-    .prepare(
-      `SELECT 1 ok FROM public_profiles p WHERE p.id=? AND ${publicProfileSqlBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=p.id OR a.google_subject=p.id) AND (EXISTS(SELECT 1 FROM content c JOIN article_publications r ON r.content_id=c.id AND r.public_profile_id=c.author_id WHERE c.author_id=p.id AND c.kind='article' AND c.status='published' AND c.is_sample=0) OR EXISTS(SELECT 1 FROM project_publications j WHERE j.public_profile_id=p.id AND j.status='published'))`,
-    )
-    .bind(authorId)
-    .first<{ ok: number }>();
-  if (!visible) return 'missing';
+  if (!(await publicStudentVisible(db, authorId))) return 'missing';
   const rows = await db
     .prepare(
       `SELECT day,COUNT(*) n FROM (
