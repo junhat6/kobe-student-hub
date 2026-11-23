@@ -24,6 +24,7 @@
 - R1 以上は PC(1280) とモバイル(390) を実際にブラウザで操作して確かめる
 - 新しい worktree で `npm run test:e2e` がほぼ全滅し「記事・作品を読み込めませんでした」になるときは、ローカル D1 未初期化。`npm run db:local`（ローカルのみ）を1回実行してから回す
 - `test:auth-browser` 系（8790番）が「already used」で止まるのは別 worktree の検査中。相手のプロセスは止めず、空くまで待つ間に `npm test`・`npm run test:e2e` を先に回す
+- 8790 の空き待ちを sandbox の中の `lsof`・`kill -0`・`pgrep` で回すと、別 worktree のプロセスが見えずに「空いた」と誤って即終わる。ポートやプロセスの確認は sandbox の外で行うか、`playwright` を回して「already used」が出なくなるまで再試行する
 - `test:e2e` は 8787 番に別 worktree の server があると黙ってそれを再利用し、ほぼ全滅する（`lsof -iTCP:8787 -sTCP:LISTEN` の cwd で確かめる）。相手は止めず、空くのを待つか、`playwright.config.ts` を継いだ一時 config で別ポート（例 8797）に向けて回す
 - `test:auth-browser` を 8790 以外のポートへ置き換えて回すと、project 通報しきい値1件は変更前の版でも落ちる（ポート固有）。比べるときは変更前の版も同じポートで回す（publication の通報3件はポートではなく、記事ページの `/api/private/` 読み取りが spec の許可リストから漏れていたため。#237）
 - 画面に `/api/private/` の読み取りを足したら `tests/ordinary-publication-browser.spec.ts` の `openReport` の許可リストも見直す（足さないと通報3件が release CI で落ちる）
