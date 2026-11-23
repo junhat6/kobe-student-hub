@@ -733,8 +733,16 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
   it('independent: concurrent final uploads cannot cross the eight-image draft limit', async () => {
     const d = await draft();
     for (let n = 0; n < 7; n++) expect((await upload(d)).status).toBe(201);
-    const final = await Promise.all([upload(d), upload(d)]);
+    const last = [id(), id()];
+    const final = await Promise.all(last.map((image) => upload(d, image)));
     expect(final.map((r) => r.status).sort()).toEqual([201, 409]);
+    // The refused image leaves no private object behind, whichever check refused it.
+    const refused = last[final.findIndex((r) => r.status === 409)];
+    if (r2)
+      expect(
+        (await (await mf.getR2Bucket('MEDIA_BUCKET')).list({ prefix: `media/${refused}/` }))
+          .objects,
+      ).toHaveLength(0);
     const db = await mf.getD1Database('DB');
     expect(
       (
@@ -744,6 +752,39 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
           .first()
       )?.n,
     ).toBe(8);
+  });
+  it('independent: a limit reason is only told to the authorized owner of a live draft', async () => {
+    const d = await draft();
+    for (let n = 0; n < 8; n++) expect((await upload(d)).status).toBe(201);
+    expect((await upload(d)).status).toBe(409);
+    const db = await mf.getD1Database('DB'),
+      count = async () =>
+        (await db
+          .prepare('SELECT COUNT(*) n FROM media_assets WHERE article_draft_id=?')
+          .bind(d.id)
+          .first<{ n: number }>())!.n;
+    // Another student, a missing CSRF proof, a foreign Origin and a stale version all get the
+    // same 404 as an unknown draft: none of them learns the draft is full.
+    const refusals = [
+      await mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
+        method: 'PUT',
+        headers: { ...h(1), 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png' },
+        body: png,
+      }),
+      await upload(d, id(), png, 0, { Authorization: '' }),
+      await upload(d, id(), png, 0, { Origin: 'https://evil.example.invalid' }),
+      await upload({ ...d, version: d.version + 1 }),
+      await mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
+        method: 'PUT',
+        headers: { 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png' },
+        body: png,
+      }),
+    ];
+    for (const r of refusals) {
+      expect(r.status).toBe(404);
+      expect(await r.text()).not.toContain('media_limit');
+    }
+    expect(await count()).toBe(8);
   });
   it('independent: an author cannot grant another owners private attachment using a known image UUID', async () => {
     const other = await call<PrivateDraft>(
