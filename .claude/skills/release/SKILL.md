@@ -7,7 +7,7 @@ description: kobe-student-hub の本番リリースを1周回す。main の SHA 
 
 本番に出す道は `npm run release` の1本。手順の正本は [docs/RELEASE.md](../../../docs/RELEASE.md)。この skill は、その手順を agent が1人で回し切るための判断表。
 
-本番の運用（D1 migration・deploy・rollback・secret）は agent が自分で判断して進めてよい（2026-11-21 オーナー決定）。人に戻すのは、課金・契約、新しい資格情報の発行、実利用者への連絡だけ。
+本番の運用（D1 migration・deploy・rollback・secret）は agent が自分で判断して進めてよい（2026-11-21 オーナー決定）。資格情報の発行も条件つきで agent が行う（2026-11-23、[LOOPS.md](../../../docs/loop/LOOPS.md#資格情報の発行)）。人に戻すのは、課金・契約、実利用者への連絡だけ。
 
 ## 便（いつ出すか）
 
@@ -73,6 +73,7 @@ CI 用 token が入るまでの手順。
 ## やらないこと
 
 - release への直接 push・force push・main/release の削除（hook が止める）
-- 契約・課金の変更、API token の発行（オーナーの作業。必要なら `needs-human` Issue に積んで他を進める）
+- 契約・課金の変更（オーナーの作業。必要なら `needs-human` Issue に積んで他を進める）
+- 決まりを外れた API token の発行（スコープを絞らない・期限なし・値が出力に出る手段。発行してよい形は [LOOPS.md](../../../docs/loop/LOOPS.md#資格情報の発行)）
 - 本番での書き込み操作による確認（smoke は匿名の読み取りと書き込み拒否だけを見る）
 - 実 ID・メールアドレス・token を公開リポジトリ・Issue・commit に書く

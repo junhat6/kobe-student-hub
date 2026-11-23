@@ -16,7 +16,7 @@
 - 画面・挙動を確かめるときは人に頼まず自分で撮る（`npm run look`）。見た目と動きの判定は Antigravity に渡し（`npm run look:review`）、所見は確かめてから使う。手順は [LOOK.md](docs/loop/LOOK.md)。
 - 待ち行列は GitHub Issues（`loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
 - 現在地は [docs/WORK.md](docs/WORK.md)（5行）。機能ごとの設計メモ・QA文書は作らない。証拠は commit 本文・Issue コメント・CI artifact へ。
-- 日常の実装判断で人に承認を求めない。迷ったら決めて進め、決めたことを残す。本番 D1 の migration・deploy・rollback と PRD方針も agent が判断する。人の判断が要るもの（課金・契約、資格情報の発行、実利用者）だけを `needs-human` に積んで他の仕事を続ける。
+- 日常の実装判断で人に承認を求めない。迷ったら決めて進め、決めたことを残す。本番 D1 の migration・deploy・rollback と PRD方針も agent が判断する。資格情報の発行も条件つきで agent が行う（最小スコープ・期限つき・発行の記録・値を出さない。[DECISIONS](docs/DECISIONS.md) 2026-11-23）。人の判断が要るもの（課金・契約、実利用者）だけを `needs-human` に積んで他の仕事を続ける。
 
 ## ブランチ・リリース（詳細は [docs/RELEASE.md](docs/RELEASE.md)）
 

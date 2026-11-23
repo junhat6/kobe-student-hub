@@ -122,6 +122,6 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 | `ksh garden` | 毎日 5:00 | `garden`：`garden-log` の前回 SHA 以降に main への commit がある | `docs/loop/prompts/garden.md` |
 | `ksh replan` | 4 時間ごと | `replan`：前回 `Loop: replan` 以降に Issue か completion.json の変化、待ち行列が空、または blocked が 3 件以上 | `docs/loop/prompts/replan.md` |
 
-ラベル：`P0`（open の間は列車を止める）、`patrol-log`（巡回記録）、`needs-human`（課金・契約、新しい資格情報の発行、実利用者への連絡など、人の判断が必要なもの）。
+ラベル：`P0`（open の間は列車を止める）、`patrol-log`（巡回記録）、`needs-human`（課金・契約、実利用者への連絡など、人の判断が必要なもの。資格情報の発行は 2026-11-23 から agent が条件つきで行う：[LOOPS.md](loop/LOOPS.md#資格情報の発行)）。
 
 いずれも 1 回の起動ごとに新しい worktree を作り、指示書（`docs/loop/prompts/<名前>.md`）を読んで 1 周だけ回す。指示書を書き換えれば、automation を登録し直さなくても次の周回から反映される。GitHub のイベント（CI 失敗・Issue）で起動する Orca bot は、作成に owner の承認が必要なため未作成。
