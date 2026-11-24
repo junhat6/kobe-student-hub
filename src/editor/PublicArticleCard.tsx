@@ -4,6 +4,7 @@ import type { PublishedArticleSummary, PublicArticleAuthor } from '../types';
 import { formatDate, tagHue } from '../shared/display';
 import '../shared/cards.css';
 import { AuthorAvatar } from '../shared/public-avatars';
+import Icon from '../shared/Icon';
 
 /**
  * Article card. The title stays the only link name for assistive technology;
@@ -14,12 +15,15 @@ export default function PublicArticleCard({
   author,
   surface = 'lab',
   badge,
+  likeCount,
   inTypedList = false,
 }: {
   entry: PublishedArticleSummary;
   author?: PublicArticleAuthor;
   surface?: PublicSurface;
   badge?: string;
+  /** Public like count shown as a heart and a number (note・Zenn); the full phrase stays in the name. */
+  likeCount?: number;
   /**
    * The list around the card already says these are articles (a profile tab). Drop the colour band
    * and the kind label so the title sits at the top and the type is not repeated (#236).
@@ -42,6 +46,16 @@ export default function PublicArticleCard({
         <div className="content-card-meta">
           {!inTypedList && <span className="content-card-kind">記事</span>}
           {badge && <span className="content-card-badge">{badge}</span>}
+          {likeCount !== undefined && (
+            <span
+              className="content-card-badge content-card-likes"
+              title={`公開いいね ${String(likeCount)}件`}
+            >
+              <Icon name="heart" size={13} />
+              <span aria-hidden="true">{likeCount}</span>
+              <span className="sr-only">{`公開いいね ${String(likeCount)}件`}</span>
+            </span>
+          )}
           <span>{entry.minutes}分で読める</span>
         </div>
         <h3>

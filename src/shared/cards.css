@@ -74,6 +74,14 @@
   color: #9a4a10;
   font-weight: 700;
 }
+.content-card-likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.content-card-likes .icon {
+  fill: currentColor;
+}
 .content-card h2,
 .content-card h3 {
   margin: 0;
@@ -82,6 +90,8 @@
   font-weight: 700;
   letter-spacing: 0;
   overflow-wrap: anywhere;
+  /* Avoid a lone last character on its own line (「…提出した／話」). */
+  text-wrap: pretty;
 }
 /* The legacy .author-lab-card rules (20px title, 14px margins, 44px link box) loaded after this
    file stretched article cards far beyond work cards. Keep the 44px touch box on the title

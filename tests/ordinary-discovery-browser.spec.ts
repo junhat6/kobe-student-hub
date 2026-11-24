@@ -121,7 +121,8 @@ test('ordinary new, real popularity, tag recommendations and related article/pro
       page.getByRole('link', { name: '技術選定の記録-' + key, exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: '人気', exact: true }).click();
-    await expect(page.getByText('公開いいね 1件', { exact: true }).last()).toBeVisible();
+    await expect(page.getByTitle('公開いいね 1件', { exact: true }).last()).toBeVisible();
+    await expect(page.getByText('公開いいねが多い記事です。')).toHaveCount(0);
     await expect(
       page.getByRole('link', { name: '技術選定の記録-' + key, exact: true }),
     ).toBeVisible();

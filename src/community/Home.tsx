@@ -23,9 +23,13 @@ function Hero() {
       <div className="shell home-hero-inner">
         <p className="home-eyebrow">神戸電子の学生がつくる、学びと制作の記録</p>
         <h1>
-          少し先を行く誰かの経験が、
+          <span className="home-phrase">少し先を行く</span>
+          <span className="home-phrase">誰かの経験が、</span>
           <br />
-          自分の<em>次の一歩</em>になる。
+          <span className="home-phrase">自分の</span>
+          <span className="home-phrase">
+            <em>次の一歩</em>になる。
+          </span>
         </h1>
         <p className="home-lead">
           授業で気づいたこと、制作で試したこと、つくったもの。同じ学校の学生の記事と作品から、次にやってみることを見つけよう。
@@ -194,9 +198,6 @@ export default function Home() {
             「{tag}」の新着記事です。閲覧履歴はおすすめに使いません。
           </p>
         )}
-        {view === 'popular' && value && (
-          <p className="home-view-note">公開いいねが多い記事です。</p>
-        )}
         {failed ? (
           <ReadFailure subject="記事一覧" retry={retry} />
         ) : !value ? (
@@ -239,10 +240,8 @@ export default function Home() {
                 entry={card.entry}
                 author={card.author}
                 surface="ordinary"
-                badge={
-                  view === 'popular' && 'likeCount' in card
-                    ? `公開いいね ${String(card.likeCount)}件`
-                    : undefined
+                likeCount={
+                  view === 'popular' && 'likeCount' in card ? Number(card.likeCount) : undefined
                 }
               />
             ))}
