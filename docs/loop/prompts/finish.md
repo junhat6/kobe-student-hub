@@ -50,6 +50,7 @@
 - 公開パネルの `<summary>` の中に要素（span 等）を足さない（#190 の見出し1行判定が flex の子の箱で2行と数えて通報系 spec がまとめて落ちる。補足は summary の外に出す。#201）
 - 大きな BLOB を持つ表（media_assets 等）に ALTER で足した列は BLOB の後ろに置かれ、表から読むと overflow page を辿る。全行を SUM/scan する quota 等は covering index から読む（c749c93 は CI だけ fetch failed で落ちた。#260）
 - 未 commit の変更があるファイルに mutation を当てた後、`git checkout <file>` で戻さない（自分の変更ごと消える）。mutation の前に一時 commit するか、変えた1行だけ sed で戻す
+- SPA の画面遷移の後に `page.goBack()` を検査するときは、遷移先の描画（前の画面の要素が0件）を待ってから戻る（待たないと前の画面が unmount 前に残り、状態が保たれたように見えて CI だけ落ちる。#266）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 
 ## 4. 閉じる
