@@ -10,6 +10,7 @@
 | 何 | どこ | 公開 |
 | --- | --- | --- |
 | オーナーのレビュー（良い/ふつう/合わない・評価項目・ひとこと） | 本番 D1 `editorial_reviews`（記事ページの運営者向け欄から入る） | 非公開 |
+| オーナーの下書きレビュー（同じ形。オーナー自身の下書きだけ） | 本番 D1 `editorial_draft_reviews`（下書きのプレビューの運営者向け欄から入る。#271） | 非公開 |
 | 届いた材料 | `~/.config/kobe-student-hub/materials/inbox/`（済んだら `done/`） | 非公開 |
 | AI が作った下書きの原本 | `~/.config/kobe-student-hub/editorial/originals/<名前>.md` | 非公開 |
 | オーナー向けに作った下書きファイル | `~/ksh-drafts/<名前>.md`（MCP がつながるまで） | 非公開 |
@@ -21,9 +22,12 @@
 1. **レビューを読む。** Cloudflare MCP（アカウント `Junhat6@gmail.com's Account`、DB `kobe-student-hub-production`）で読み取りだけ：
    `SELECT r.content_id,r.revision,r.verdict,r.points_json,r.note,r.reviewed_at_ms,c.title,c.body,c.tags_json FROM editorial_reviews r JOIN content c ON c.id=r.content_id WHERE r.reviewed_at_ms > <前回の editor log の時刻> ORDER BY r.reviewed_at_ms`
    書き込み・削除はしない。
+   続けて下書きレビューを、下書きの題・本文と結ばずに読む（下書きは非公開。公開前の感想として、評価と評価項目の数、ひとことの向きだけを材料にする）：
+   `SELECT r.verdict,r.points_json,r.note,r.reviewed_at_ms FROM editorial_draft_reviews r WHERE r.reviewed_at_ms > <前回の editor log の時刻> ORDER BY r.reviewed_at_ms`
+   同じ下書きに何度も記録があれば、下書きごとに最後の1件だけを数える（`draft_id` は数え分けにだけ使い、どこにも書かない）。
 2. **差分から読む。** `originals/` の原本のうち、公開された記事（公開 API `/api/articles` で同じタイトル・近い本文）があれば、原本と公開版の差を見る。オーナーが消した文・足した文・直した言い回しは、レビューと同じ重さの材料。2週間たっても公開されない原本は「出さなかった」という材料として数える。`originals/superseded/`（店ごとに分け直す前のまとめ下書きなど）は数えない。
 3. **好みを更新する。** 1・2 から、3件以上で同じ向きのことが言えたら `EDITORIAL_TASTE` に1行足すか直す。各行は抽象的な決まりにし、末尾に根拠 `（レビュー n件 YYYY-MM-DD）` を付ける。
-   - 書かない：レビューのひとことの引用、記事のタイトル・本文、書いた人の名前、店名（このファイルは公開される）。
+   - 書かない：レビュー・下書きレビューのひとことの引用、記事・下書きのタイトル・本文、書いた人の名前、店名（このファイルは公開される）。根拠の数は `（レビュー n件 YYYY-MM-DD）` に下書きレビューも足して数える。
    - 1〜2件しかない傾向は書かず、editor log に「様子見」として数だけ残す。
    - 逆向きのレビューが続いたら、その行を直すか消す。オーナー指示の行は、オーナーが別の指示をしたときだけ変える。
    - SKILL.md の「良いと感じられる記事」節を同じ文に揃え、`npx vitest run tests/editorial-taste.test.ts` を通して main に commit（`Loop: editor`・`Risk: R0`）。
@@ -34,7 +38,7 @@
    - 届いた写真（`~/ksh-materials/` など）は、写っている店の下書きに取り込み時にアップロードして本文に置く。
    - 出し方：書き手の MCP 接続（C21）が本番で使え、その書き手が接続を許可していれば `create_draft` で本人の下書きに作る。そうでなければ `~/ksh-drafts/` に置く。書き手がオーナーなら、Claude in Chrome でオーナーの学校アカウントとして本番に入り、下書き →「＋新しい下書き」→「自分のAIエージェントと書く」→「.md ファイルを選ぶ」→「下書きに反映」→「下書きを保存」で取り込む（[DECISIONS](../../DECISIONS.md) 2026-11-23「本番ログインの代行を許可する」。公開はしない）。再読み込み後の一覧に入ったことと、`/api/articles` に出ないことを確かめる。Chrome が使えない・Google のセッションが切れているときと、書き手がオーナー以外のときは、取り込み方を書き手へ伝える依頼をオーナーへの報告に入れる。
    - 原本を `originals/` に写し、材料を `done/` へ移して front matter の `drafts` に名前を書く。
-6. **記録する。** ラベル `editor-log` の Issue「loop: editor log」にコメント：先頭行 `at: <ISO 時刻>`、続けて「読んだレビュー n件・差分 n件・台帳の変更 n行・アプリの行 n行（Issue n件）・作った下書き n本」の数だけ。中身・店名・記事名は書かない（公開 Issue）。
+6. **記録する。** ラベル `editor-log` の Issue「loop: editor log」にコメント：先頭行 `at: <ISO 時刻>`、続けて「読んだレビュー n件・下書きレビュー n件・差分 n件・台帳の変更 n行・アプリの行 n行（Issue n件）・作った下書き n本」の数だけ。中身・店名・記事名・下書きの題・ひとことは書かない（公開 Issue）。
 
 ## 決まり
 

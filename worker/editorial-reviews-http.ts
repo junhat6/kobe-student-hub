@@ -21,6 +21,8 @@ import {
 import { DIFF_LIMITS, lineDiff } from '../src/shared/line-diff';
 
 const PREFIX = '/api/private/editorial-reviews/';
+/** #271: the operator's review of one of their own drafts, from its preview. */
+const DRAFT_PREFIX = '/api/private/editorial-draft-reviews/';
 /** The operator's 好み screen (C22 condition 5): ledger and counts only. */
 export const TASTE_PATH = '/api/private/editorial-taste';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -206,6 +208,59 @@ export class EditorialReviewStore {
     return review ? { review } : null;
   }
   /**
+   * The operator's latest review of one of their own drafts (#271). Another owner's draft, a
+   * missing draft and a non-operator get the same null (404) as an unknown article.
+   */
+  async draftLatest(
+    request: Request,
+    id: string,
+  ): Promise<{ review: EditorialReviewView | null } | null> {
+    const p = await this.operator(request);
+    if (!p) return null;
+    const auth = await this.db
+      .prepare(
+        `SELECT 1 ok FROM private_article_drafts d WHERE d.id=? AND d.owner_account_id=? AND ${live}`,
+      )
+      .bind(id, p.accountId, ...bindings(p))
+      .first<{ ok: number }>();
+    if (!auth) return null;
+    const row = await this.db
+      .prepare(
+        `SELECT r.verdict,r.points_json,r.note,r.reviewed_at_ms FROM editorial_draft_reviews r JOIN private_article_drafts d ON d.id=r.draft_id AND d.owner_account_id=r.reviewer_account_id WHERE r.draft_id=? AND r.reviewer_account_id=? AND ${live} ORDER BY r.reviewed_at_ms DESC,r.rowid DESC LIMIT 1`,
+      )
+      .bind(id, p.accountId, ...bindings(p))
+      .first<Row>();
+    return { review: view(row) };
+  }
+  async draftRecord(
+    request: Request,
+    id: string,
+    input: unknown,
+  ): Promise<{ review: EditorialReviewView } | null> {
+    const decoded = decodeEditorialReviewInput(input);
+    if (!decoded) return null;
+    if (!(await this.sessions.authorizeMutation(request))) return null;
+    const p = await this.operator(request);
+    if (!p) return null;
+    const row = await this.db
+      .prepare(
+        `INSERT INTO editorial_draft_reviews(id,reviewer_account_id,draft_id,draft_version,verdict,points_json,note,reviewed_at_ms) SELECT ?,d.owner_account_id,d.id,d.version,?,?,?,? FROM private_article_drafts d WHERE d.id=? AND d.owner_account_id=? AND ${live} RETURNING verdict,points_json,note,reviewed_at_ms`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        decoded.verdict,
+        JSON.stringify(decoded.points),
+        decoded.note,
+        p.nowMs,
+        id,
+        p.accountId,
+        ...bindings(p),
+      )
+      .first<Row>();
+    const review = view(row);
+    return review ? { review } : null;
+  }
+  /**
    * Counts of the operator's own latest review per article over the last 30 days. Reads only
    * verdict and points: the note, the article and the author never leave this method.
    */
@@ -241,9 +296,29 @@ export class EditorialReviewStore {
         product: ledgerLines(EDITORIAL_PRODUCT_NOTES),
         updated: EDITORIAL_TASTE_UPDATED,
       },
-      reviews: { days: EDITORIAL_SUMMARY_DAYS, total: results.length, verdicts, points },
+      reviews: {
+        days: EDITORIAL_SUMMARY_DAYS,
+        total: results.length,
+        verdicts,
+        points,
+        drafts: await this.draftReviewCount(p, since),
+      },
       aiDiff: await this.aiDiff(p, since),
     };
+  }
+
+  /** How many of the operator's own drafts they reviewed in the window (#271): a number only. */
+  private async draftReviewCount(
+    p: NonNullable<Awaited<ReturnType<EditorialReviewStore['operator']>>>,
+    since: number,
+  ): Promise<number> {
+    const row = await this.db
+      .prepare(
+        `SELECT count(DISTINCT r.draft_id) AS n FROM editorial_draft_reviews r JOIN private_article_drafts d ON d.id=r.draft_id AND d.owner_account_id=r.reviewer_account_id WHERE r.reviewer_account_id=? AND r.reviewed_at_ms>=? AND ${live}`,
+      )
+      .bind(p.accountId, since, ...bindings(p))
+      .first<{ n: number }>();
+    return row?.n ?? 0;
   }
 
   /**
@@ -337,9 +412,10 @@ export function createEditorialReviewHandler(
         return unavailable();
       }
     }
-    if (!url.pathname.startsWith(PREFIX)) return null;
+    const draft = url.pathname.startsWith(DRAFT_PREFIX);
+    if (!draft && !url.pathname.startsWith(PREFIX)) return null;
     if (!canonicalOrigin(origin)) return error(503, 'editorial_review_unavailable');
-    const id = url.pathname.slice(PREFIX.length);
+    const id = url.pathname.slice((draft ? DRAFT_PREFIX : PREFIX).length);
     if (url.search || url.hash || !contentId(id)) return unavailable();
     const allowed = ['GET', 'PUT'];
     if (!allowed.includes(request.method)) {
@@ -349,12 +425,14 @@ export function createEditorialReviewHandler(
     }
     try {
       if (request.method === 'GET') {
-        const result = await store.latest(request, id);
+        const result = await (draft ? store.draftLatest(request, id) : store.latest(request, id));
         return result === null ? unavailable() : json(result);
       }
       const body = await input(request);
       if (!body.ok) return error(body.status, 'invalid_request');
-      const result = await store.record(request, id, body.value);
+      const result = await (draft
+        ? store.draftRecord(request, id, body.value)
+        : store.record(request, id, body.value));
       return result === null ? unavailable() : json(result);
     } catch {
       return unavailable();

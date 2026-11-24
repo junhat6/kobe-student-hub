@@ -10,6 +10,7 @@ import PublicationComposer from './PublicationComposer';
 import MediaAttachments from './MediaAttachments';
 import ShopReviewGuide, { withShopReviewTemplate } from './ShopReviewGuide';
 import AgentWritingPanel from '../agent/AgentWritingPanel';
+import EditorialReview from '../community/EditorialReview';
 import { useAgentDrafts } from '../agent/connections-client';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
@@ -1016,6 +1017,14 @@ export default function DraftEditor({
                     </PreviewBoundary>
                     {!text.body && (
                       <p className="editor-muted">本文を書くと、ここに表示されます。</p>
+                    )}
+                    {/* #271: operator-only; renders nothing unless the server answers 200. */}
+                    {ordinary && (
+                      <EditorialReview
+                        key={'editorial-' + draft.id}
+                        draftId={draft.id}
+                        csrfToken={csrfToken}
+                      />
                     )}
                   </div>
                 ) : (

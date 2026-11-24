@@ -256,6 +256,7 @@ for (const f of [
   '0041_session_long_lifetime.sql',
   '0042_auth_command_context_skew.sql',
   '0043_project_stage.sql',
+  '0044_editorial_draft_reviews.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

@@ -92,6 +92,7 @@ export function createOrdinaryDraftHandler(
     if (path === OWN_TASTE_PATH || path === SHARED_TASTE_PATH) return taste(request);
     if (
       path.startsWith('/api/private/editorial-reviews/') ||
+      path.startsWith('/api/private/editorial-draft-reviews/') ||
       path === '/api/private/editorial-taste'
     )
       return editorial(request);

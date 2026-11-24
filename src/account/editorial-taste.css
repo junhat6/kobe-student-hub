@@ -98,3 +98,40 @@ p.editorial-taste-meta {
   font-size: 13px;
   line-height: 1.6;
 }
+/* #271: where the operator records reviews (drafts' preview and public article pages). */
+.editorial-taste-entries {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+.editorial-taste-entries a {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 12px;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.editorial-taste-entries a:hover {
+  border-color: var(--ink-muted, #4d5967);
+}
+.editorial-taste-entries a:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.editorial-taste-entries small {
+  color: var(--ink-muted, #4d5967);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+@media (max-width: 520px) {
+  .editorial-taste-entries {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

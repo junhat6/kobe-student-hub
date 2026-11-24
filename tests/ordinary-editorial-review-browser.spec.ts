@@ -196,3 +196,152 @@ test('only an operator records an editorial review and reads it back', async ({
     await Promise.all(contexts.map((context) => context.close()));
   }
 });
+
+// #271 (first stage): the operator reviews one of their own drafts from its preview, reads the
+// record back after a reload, and finds both review entrances from 好み. A student writing their
+// own draft never sees the section, and nothing reaches the public API.
+test('only an operator reviews their own draft in its preview and reads it back', async ({
+  browser,
+}, info) => {
+  const contexts: BrowserContext[] = [];
+  const key = info.project.name + '-' + Date.now().toString(36);
+  const section = (p: Page) => p.getByRole('region', { name: '下書きレビュー（運営だけに表示）' });
+  const note = '架空の下書きひとこと-' + key;
+  const title = '架空の下書きレビュー-' + key;
+  const viewport = info.project.use.viewport ?? { width: 1280, height: 900 };
+  const openPreview = async (p: Page, name: string) => {
+    await p.goto('/drafts');
+    await p.getByRole('button', { name, exact: true }).click();
+    await expect(p.getByRole('textbox', { name: 'タイトル' })).toHaveValue(name);
+    await p.getByRole('button', { name: 'プレビュー', exact: true }).click();
+    await expect(p.locator('.editor-preview')).toBeVisible();
+  };
+  try {
+    // A student (not on the allowlist) previews their own draft: no section, the API is 404.
+    const student = await actor(browser, contexts, '架空の学生-' + key);
+    const own = await write(student, '/api/private/drafts', {
+      title: '学生の' + title,
+      body: '## 架空の本文\n\n学生の下書き。\n',
+    });
+    const mine = await student.context.newPage();
+    await mine.setViewportSize(viewport);
+    await openPreview(mine, '学生の' + title);
+    await expect(mine.getByRole('heading', { name: '架空の本文' })).toBeVisible();
+    await expect(section(mine)).toHaveCount(0);
+    expect(
+      (
+        await student.context.request.get('/api/private/editorial-draft-reviews/' + own.id)
+      ).status(),
+    ).toBe(404);
+
+    // The operator on their own draft.
+    const operator = await actor(browser, contexts, '架空の運営者-' + key);
+    await operator.context.setExtraHTTPHeaders({ 'X-Test-Operator-Subject': operator.subject });
+    const draft = await write(operator, '/api/private/drafts', {
+      title,
+      body: '## 架空の見出し\n\n架空の下書きの本文。\n',
+    });
+    const ops = await operator.context.newPage();
+    await ops.setViewportSize(viewport);
+    // The operator cannot read another writer's draft review either.
+    expect(
+      (
+        await operator.context.request.get('/api/private/editorial-draft-reviews/' + own.id)
+      ).status(),
+    ).toBe(404);
+    await openPreview(ops, title);
+    const review = section(ops);
+    await expect(review).toBeVisible();
+    await expect(review.getByRole('radiogroup', { name: 'この下書きは' })).toBeVisible();
+    const save = review.getByRole('button', { name: 'レビューを記録', exact: true });
+    await expect(save).toBeDisabled();
+    await review.getByRole('radio', { name: '合わない' }).click();
+    await review.getByRole('button', { name: '中身が薄い' }).click();
+    await review.getByRole('button', { name: '本人の言葉' }).click();
+    await review.getByRole('textbox', { name: 'ひとこと' }).fill(note);
+    expect.soft(await seriousViolations(ops)).toEqual([]);
+    await save.click();
+    await expect(review.getByRole('button', { name: 'レビューを記録済み' })).toBeDisabled();
+    await expect(review.getByRole('alert')).toHaveCount(0);
+    expect(
+      await ops.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await review.scrollIntoViewIfNeeded();
+    await ops.screenshot({
+      path: info.outputPath('editorial-draft-review-saved.png'),
+      scale: 'css',
+    });
+
+    // Reload and open the preview again: the latest record comes back.
+    await ops.reload();
+    await openPreview(ops, title);
+    const again = section(ops);
+    await expect(again.getByRole('radio', { name: '合わない' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await expect(again.getByRole('button', { name: '中身が薄い' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(again.getByRole('button', { name: '本人の言葉' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(again.getByRole('button', { name: '長い' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    await expect(again.getByRole('textbox', { name: 'ひとこと' })).toHaveValue(note);
+    await expect(again.getByRole('button', { name: 'レビューを記録済み' })).toBeDisabled();
+
+    // 好み shows the count and both review entrances; never the note or the draft title.
+    await ops.goto('/account');
+    const taste = ops.getByRole('region', { name: '好み', exact: true });
+    await expect(taste).toBeVisible();
+    await expect(taste).toContainText('下書きのレビューは直近30日に 1 本です。');
+    const entries = taste.getByRole('navigation', { name: 'レビューする場所' });
+    await expect(entries.getByRole('link', { name: /下書きのプレビュー/ })).toHaveAttribute(
+      'href',
+      '/drafts',
+    );
+    await expect(entries.getByRole('link', { name: /公開記事のページ/ })).toHaveAttribute(
+      'href',
+      '/',
+    );
+    await expect(ops.locator('body')).not.toContainText(note);
+    await expect(ops.locator('body')).not.toContainText(title);
+    expect.soft(await seriousViolations(ops)).toEqual([]);
+    expect(
+      await ops.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await entries.scrollIntoViewIfNeeded();
+    await ops.screenshot({ path: info.outputPath('editorial-taste-entries.png'), scale: 'css' });
+    await entries.getByRole('link', { name: /下書きのプレビュー/ }).click();
+    await expect(ops).toHaveURL(/\/drafts$/);
+
+    // Nothing reaches public reads, the student, or a signed-out reader.
+    for (const path of ['/api/articles', '/api/search?q=' + encodeURIComponent(note)]) {
+      const r = await student.context.request.get(path);
+      expect(await r.text()).not.toContain(note);
+    }
+    await mine.reload();
+    await openPreview(mine, '学生の' + title);
+    await expect(section(mine)).toHaveCount(0);
+    expect(
+      (
+        await student.context.request.get('/api/private/editorial-draft-reviews/' + draft.id)
+      ).status(),
+    ).toBe(404);
+    const anonymous = await browser.newContext({
+      baseURL: 'https://127.0.0.1:8790',
+      ignoreHTTPSErrors: true,
+    });
+    contexts.push(anonymous);
+    expect(
+      (await anonymous.request.get('/api/private/editorial-draft-reviews/' + draft.id)).status(),
+    ).toBe(404);
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});

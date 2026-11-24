@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   EDITORIAL_POINTS,
   EDITORIAL_REVIEW_RELEASE_ENABLED,
@@ -106,6 +107,20 @@ export default function EditorialTaste({ fetcher }: { fetcher: typeof fetch }) {
           </div>
         ))}
       </dl>
+      <p className="editorial-taste-meta">
+        公開記事のレビューの数です。下書きのレビューは直近{reviews.days}日に {reviews.drafts}{' '}
+        本です。
+      </p>
+      <nav className="editorial-taste-entries" aria-label="レビューする場所">
+        <Link to="/drafts">
+          下書きのプレビュー
+          <small>下書きを開いて「プレビュー」を押すと、本文の下で記録できます</small>
+        </Link>
+        <Link to="/">
+          公開記事のページ
+          <small>記事を開くと、本文の下で記録できます</small>
+        </Link>
+      </nav>
       {counted.length ? (
         <ul className="editorial-taste-points" aria-label="評価項目ごとの件数">
           {counted.map((p) => (

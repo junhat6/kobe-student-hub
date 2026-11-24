@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, it, expect } from 'vitest';
+import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
@@ -558,4 +558,184 @@ it('compares a published AI draft with its latest published body and skips other
   expect(hidden.published).toBe(base.published);
   expect(hidden.added).toBe(base.added + 2);
   expect(hidden.edited).toBe(revised.edited);
+});
+
+// #271 (first stage): the operator reviews one of their own drafts from its preview.
+describe('editorial draft reviews', () => {
+  const draftPath = (id: string) => '/api/private/editorial-draft-reviews/' + id;
+  const canary = 'カナリア下書きレビュー-271';
+  const create = (who: Session, title: string) =>
+    call<{ id: string; version: number }>({
+      action: 'create',
+      url: ORIGIN + '/private/drafts',
+      method: 'POST',
+      headers: browser(who, true),
+      input: { title, body: '## 本文\n下書きの中身' },
+    });
+  const rows = async () =>
+    (await (
+      await mf.getD1Database('DB')
+    )
+      .prepare('SELECT count(*) n FROM editorial_draft_reviews')
+      .first<{ n: number }>())!.n;
+
+  it('lets the operator record reviews of their own draft and read back the latest one', async () => {
+    const draft = await create(users.a, '運営者の下書き');
+    const empty = await http(draftPath(draft.id), { headers: browser(users.a) });
+    expect(empty!.status).toBe(200);
+    expect(JSON.parse(empty!.body)).toEqual({ review: null });
+    expect(empty!.headers['cache-control']).toBe('private, no-store');
+    const first = { verdict: 'bad', points: ['thin', 'unclear_reader'], note: canary };
+    const saved = await http(draftPath(draft.id), {
+      method: 'PUT',
+      headers: browser(users.a, true),
+      body: JSON.stringify(first),
+    });
+    expect(saved!.status).toBe(200);
+    expect(JSON.parse(saved!.body).review).toMatchObject(first);
+    const second = { verdict: 'good', points: ['voice'], note: canary + '-2' };
+    await http(draftPath(draft.id), {
+      method: 'PUT',
+      headers: browser(users.a, true),
+      body: JSON.stringify(second),
+    });
+    const latest = JSON.parse(
+      (await http(draftPath(draft.id), { headers: browser(users.a) }))!.body,
+    );
+    expect(latest.review).toMatchObject(second);
+    expect(Object.keys(latest.review).sort()).toEqual(['note', 'points', 'reviewedAt', 'verdict']);
+    // Append-only history tied to the saved draft version; nothing identifies the reviewer.
+    const db = await mf.getD1Database('DB');
+    const history = await db
+      .prepare(
+        'SELECT reviewer_account_id,draft_version FROM editorial_draft_reviews WHERE draft_id=?',
+      )
+      .bind(draft.id)
+      .all<{ reviewer_account_id: string; draft_version: number }>();
+    expect(history.results).toEqual([
+      { reviewer_account_id: 'account-a', draft_version: draft.version },
+      { reviewer_account_id: 'account-a', draft_version: draft.version },
+    ]);
+    expect(JSON.stringify(latest)).not.toContain('account-a');
+    await expect(
+      db
+        .prepare("UPDATE editorial_draft_reviews SET note='x' WHERE draft_id=?")
+        .bind(draft.id)
+        .run(),
+    ).rejects.toThrow(/append-only/);
+    // The 好み summary counts the reviewed draft once, never its note, title or id.
+    const summary = await http('/api/private/editorial-taste', { headers: browser(users.a) });
+    expect(decodeEditorialTasteSummary(JSON.parse(summary!.body))!.reviews.drafts).toBe(1);
+    for (const secret of [canary, '運営者の下書き', draft.id])
+      expect(summary!.body).not.toContain(secret);
+    // Published-article review counts are unchanged by draft reviews.
+    expect(JSON.parse(summary!.body).reviews.verdicts.bad).toBe(1);
+  });
+
+  it('answers everyone else, other drafts and bad requests with the same 404 and stores nothing', async () => {
+    const own = await create(users.a, '運営者の下書き2');
+    const students = await create(users.b, '学生の下書き');
+    const before = await rows();
+    const body = JSON.stringify({ verdict: 'good', points: [], note: canary });
+    for (const r of [
+      // Signed out.
+      await http(draftPath(own.id)),
+      await http(draftPath(own.id), {
+        method: 'PUT',
+        body,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      // A student (not an operator) on their own draft.
+      await http(draftPath(students.id), { headers: browser(users.b) }),
+      await http(draftPath(students.id), { method: 'PUT', headers: browser(users.b, true), body }),
+      // The operator on someone else's draft, and on a draft that does not exist.
+      await http(draftPath(students.id), { headers: browser(users.a) }),
+      await http(draftPath(students.id), { method: 'PUT', headers: browser(users.a, true), body }),
+      await http(draftPath('11111111-1111-4111-8111-111111111111'), { headers: browser(users.a) }),
+      await http(draftPath('11111111-1111-4111-8111-111111111111'), {
+        method: 'PUT',
+        headers: browser(users.a, true),
+        body,
+      }),
+      // A query string, a bad id, a wrong CSRF token, a foreign origin and malformed input.
+      await http(draftPath(own.id) + '?x=1', { headers: browser(users.a) }),
+      await http(draftPath(own.id) + '?x=1', {
+        method: 'PUT',
+        headers: browser(users.a, true),
+        body,
+      }),
+      await http(draftPath('not-a-uuid'), { headers: browser(users.a) }),
+      await http(draftPath(own.id), {
+        method: 'PUT',
+        headers: { ...browser(users.a, true), Authorization: 'Bearer csrf.wrong' },
+        body,
+      }),
+      await http(draftPath(own.id), {
+        method: 'PUT',
+        headers: { ...browser(users.a, true), Origin: 'https://evil.invalid' },
+        body,
+      }),
+      await http(draftPath(own.id), {
+        method: 'PUT',
+        headers: browser(users.a, true),
+        body: JSON.stringify({ verdict: 'good', points: [], note: canary, extra: 1 }),
+      }),
+    ]) {
+      expect(r!.status).toBe(404);
+      expect(JSON.parse(r!.body)).toEqual({ error: 'editorial_review_unavailable' });
+    }
+    expect(await rows()).toBe(before);
+    expect(
+      (await http(draftPath(own.id), { method: 'DELETE', headers: browser(users.a, true) }))!
+        .status,
+    ).toBe(405);
+    // Closed with the release flag off, like the article reviews.
+    expect(
+      await http(draftPath(own.id), { headers: browser(users.a), action: 'composed-closed' }),
+    ).toBeNull();
+    // The trigger refuses a row for another owner's draft even when written directly.
+    const db = await mf.getD1Database('DB');
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO editorial_draft_reviews(id,reviewer_account_id,draft_id,draft_version,verdict,points_json,note,reviewed_at_ms) VALUES(?,'account-a',?,1,'good','[]','',?)",
+        )
+        .bind(crypto.randomUUID(), students.id, NOW)
+        .run(),
+    ).rejects.toThrow(/editorial draft review unavailable/);
+    expect(await rows()).toBe(before);
+  });
+
+  it('removes the reviews with the draft', async () => {
+    const draft = await create(users.a, '消す下書き');
+    await http(draftPath(draft.id), {
+      method: 'PUT',
+      headers: browser(users.a, true),
+      body: JSON.stringify({ verdict: 'ok', points: [], note: '' }),
+    });
+    const db = await mf.getD1Database('DB');
+    const count = () =>
+      db
+        .prepare('SELECT count(*) n FROM editorial_draft_reviews WHERE draft_id=?')
+        .bind(draft.id)
+        .first<{ n: number }>();
+    expect((await count())!.n).toBe(1);
+    await db.prepare('DELETE FROM private_article_drafts WHERE id=?').bind(draft.id).run();
+    expect((await count())!.n).toBe(0);
+  });
+
+  it('is read by no public or MCP code path (only the operator handler names the table)', () => {
+    const names = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory()
+          ? names(dir + '/' + e.name)
+          : /\.(ts|tsx|mjs|js)$/.test(e.name)
+            ? [dir + '/' + e.name]
+            : [],
+      );
+    const readers = [...names('worker'), ...names('src')].filter((file) =>
+      readFileSync(file, 'utf8').includes('editorial_draft_reviews'),
+    );
+    expect(readers).toEqual(['worker/editorial-reviews-http.ts']);
+  });
 });

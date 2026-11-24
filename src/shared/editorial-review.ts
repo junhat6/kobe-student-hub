@@ -112,6 +112,8 @@ export interface EditorialTasteSummary {
     total: number;
     verdicts: Record<EditorialVerdict, number>;
     points: Record<EditorialPoint, number>;
+    /** How many of the operator's own drafts they reviewed in the preview (#271). A number only. */
+    drafts: number;
   };
   aiDiff: EditorialAiDiff;
 }
@@ -205,6 +207,7 @@ export function decodeEditorialTasteSummary(v: unknown): EditorialTasteSummary |
     typeof reviews.total !== 'number' ||
     !Number.isSafeInteger(reviews.total) ||
     reviews.total < 0 ||
+    !count(reviews.drafts) ||
     !aiDiff
   )
     return null;
@@ -215,6 +218,7 @@ export function decodeEditorialTasteSummary(v: unknown): EditorialTasteSummary |
       total: reviews.total,
       verdicts: verdicts as Record<EditorialVerdict, number>,
       points: points as Record<EditorialPoint, number>,
+      drafts: reviews.drafts as number,
     },
     aiDiff,
   };

@@ -35,10 +35,10 @@ const init = (method: string, csrf?: string, body?: unknown): RequestInit => ({
   body: body === undefined ? undefined : JSON.stringify(body),
 });
 async function readReview(
-  id: string,
+  path: string,
   signal: AbortSignal,
 ): Promise<EditorialReviewInput | null | 'hidden'> {
-  const r = await fetch('/api/private/editorial-reviews/' + id, { ...init('GET'), signal });
+  const r = await fetch(path, { ...init('GET'), signal });
   if (r.status === 404) return 'hidden';
   if (!r.ok) throw new Error('editorial');
   const v = (await r.json()) as { review: unknown };
@@ -50,12 +50,19 @@ async function readReview(
 }
 
 /**
- * Owner-only editorial review under a published article. Renders nothing for anyone the server
- * does not treat as an operator (the API answers 404), so readers never see it.
+ * Owner-only editorial review under a published article, or (#271) in the preview of one of the
+ * operator's own drafts. Renders nothing for anyone the server does not treat as an operator (the
+ * API answers 404), so readers and other writers never see it.
  */
-export default function EditorialReview({ contentId }: { contentId: string }) {
+export default function EditorialReview(
+  props: { contentId: string } | { draftId: string; csrfToken: string },
+) {
   const { viewer } = useViewer();
-  const csrf = viewer.status === 'signed-in' ? viewer.csrfToken : null;
+  const draft = 'draftId' in props;
+  const csrf = draft ? props.csrfToken : viewer.status === 'signed-in' ? viewer.csrfToken : null;
+  const path = draft
+    ? '/api/private/editorial-draft-reviews/' + props.draftId
+    : '/api/private/editorial-reviews/' + props.contentId;
   const [visible, setVisible] = useState(false);
   const [verdict, setVerdict] = useState<EditorialVerdict | null>(null);
   const [points, setPoints] = useState<EditorialPoint[]>([]);
@@ -64,7 +71,7 @@ export default function EditorialReview({ contentId }: { contentId: string }) {
   useEffect(() => {
     if (!EDITORIAL_REVIEW_RELEASE_ENABLED || !csrf) return;
     const controller = new AbortController();
-    readReview(contentId, controller.signal).then(
+    readReview(path, controller.signal).then(
       (review) => {
         if (controller.signal.aborted || review === 'hidden') return;
         setVisible(true);
@@ -78,25 +85,29 @@ export default function EditorialReview({ contentId }: { contentId: string }) {
       () => {},
     );
     return () => controller.abort();
-  }, [contentId, csrf]);
+  }, [path, csrf]);
   if (!visible || !csrf) return null;
   const change = () => setStatus('idle');
   async function save() {
     if (!verdict || status === 'saving') return;
     setStatus('saving');
     try {
-      const r = await fetch(
-        '/api/private/editorial-reviews/' + contentId,
-        init('PUT', csrf!, { verdict, points, note: note.trim() }),
-      );
+      const r = await fetch(path, init('PUT', csrf!, { verdict, points, note: note.trim() }));
       setStatus(r.ok ? 'saved' : 'error');
     } catch {
       setStatus('error');
     }
   }
   return (
-    <section className="editorial-review" aria-label="編集レビュー（運営だけに表示）">
-      <div className="editorial-verdicts" role="radiogroup" aria-label="この記事は">
+    <section
+      className="editorial-review"
+      aria-label={draft ? '下書きレビュー（運営だけに表示）' : '編集レビュー（運営だけに表示）'}
+    >
+      <div
+        className="editorial-verdicts"
+        role="radiogroup"
+        aria-label={draft ? 'この下書きは' : 'この記事は'}
+      >
         {VERDICTS.map((v) => (
           <button
             key={v.value}
