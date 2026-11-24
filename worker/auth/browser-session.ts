@@ -213,6 +213,12 @@ export class BrowserSessionCoordinator {
       .run();
     return r.meta.changes === 1 ? { commandToken: raw } : null;
   }
+  /**
+   * The command row's created_at_ms was written by the request that issued it, possibly on an
+   * isolate whose clock ran ahead of this one (two-step logout: logout-command → command proof,
+   * #280), so that `<=` tolerates SESSION_CLOCK_SKEW_MS too. Expiry, generation, fence and epoch
+   * stay strict.
+   */
   async execute(
     request: Request,
     action: BrowserAction,
@@ -239,7 +245,7 @@ export class BrowserSessionCoordinator {
     const rs = await this.db.batch([
       this.db
         .prepare(
-          `UPDATE auth_browser_commands SET executed_at_ms=?1,state_hash=?2,browser_hash=?3,nonce=?4,attempt_expires_at_ms=?5 WHERE command_hash=?6 AND context_hash=?7 AND action=?8 AND executed_at_ms IS NULL AND created_at_ms<=?1 AND expires_at_ms>?1 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=auth_browser_commands.context_hash AND c.generation=auth_browser_commands.expected_generation AND c.generation<9007199254740991 AND c.created_at_ms<=?1+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>?1 AND f.id=1 AND auth_browser_commands.revocation_fence>=f.minimum_generation) AND ${authorization ? liveRestrictedSessionSql(authorization) : '1'} RETURNING expected_generation`,
+          `UPDATE auth_browser_commands SET executed_at_ms=?1,state_hash=?2,browser_hash=?3,nonce=?4,attempt_expires_at_ms=?5 WHERE command_hash=?6 AND context_hash=?7 AND action=?8 AND executed_at_ms IS NULL AND created_at_ms<=?1+${SESSION_CLOCK_SKEW_MS} AND expires_at_ms>?1 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=auth_browser_commands.context_hash AND c.generation=auth_browser_commands.expected_generation AND c.generation<9007199254740991 AND c.created_at_ms<=?1+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>?1 AND f.id=1 AND auth_browser_commands.revocation_fence>=f.minimum_generation) AND ${authorization ? liveRestrictedSessionSql(authorization) : '1'} RETURNING expected_generation`,
         )
         .bind(
           now,
@@ -271,7 +277,7 @@ export class BrowserSessionCoordinator {
         : []),
       this.db
         .prepare(
-          'SELECT executed_at_ms FROM auth_browser_commands WHERE command_hash=? AND context_hash=? AND action=? AND created_at_ms<=? AND expires_at_ms>?',
+          `SELECT executed_at_ms FROM auth_browser_commands WHERE command_hash=? AND context_hash=? AND action=? AND created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND expires_at_ms>?`,
         )
         .bind(hash, context.hash, action, now, now),
     ]);

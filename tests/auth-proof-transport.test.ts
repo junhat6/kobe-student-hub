@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { BrowserSessionCoordinator } from '../worker/auth/browser-session';
 import { BrowserOAuthFlow } from '../worker/auth/browser-flow';
-import { SessionStore } from '../worker/auth/sessions';
+import { SESSION_CLOCK_SKEW_MS, SessionStore } from '../worker/auth/sessions';
 import { createPrivateSessionHandler } from '../worker/session-http';
 import { createOAuthHttpHandler } from '../worker/auth/oauth-http';
 import { proofAuthorization } from '../src/shared/auth-proof';
@@ -261,4 +261,66 @@ it('HTTP glue rejects legacy/mixed fields even on anonymous bootstrap, without s
     expect(r.headers.has('Set-Cookie')).toBe(false);
   }
   expect((await t.db.prepare('SELECT count(*) n FROM auth_browser_contexts').first())?.n).toBe(0);
+});
+it('two-step logout tolerates exactly SESSION_CLOCK_SKEW_MS of a trailing isolate clock on the context and command rows (#280)', async () => {
+  const t = await setup(),
+    a = await session(t);
+  let now = NOW;
+  const handler = createPrivateSessionHandler(t.db, O, () => now),
+    generation = async () =>
+      (await t.db.prepare('SELECT generation FROM auth_browser_contexts').first<{
+        generation: number;
+      }>())!.generation,
+    commands = async () =>
+      (await t.db.prepare('SELECT count(*) n FROM auth_browser_commands').first<{ n: number }>())!
+        .n,
+    issue = async (at: number) => {
+      now = at;
+      return (await handler(request({ Cookie: a.cookie }, '/api/private/logout-command')))!;
+    },
+    run = async (at: number, token: string) => {
+      now = at;
+      return (await handler(
+        request(
+          { Cookie: a.cookie, Authorization: proofAuthorization('command', token) },
+          '/api/private/logout',
+        ),
+      ))!;
+    },
+    live = () => t.s.authenticate(request({ Cookie: a.cookie }, '/', 'GET'));
+  const before = await generation(),
+    issued = await commands();
+  // The browser context was written at NOW by another isolate.
+  expect((await issue(NOW - SESSION_CLOCK_SKEW_MS - 1)).status).toBe(409);
+  expect(await commands()).toBe(issued);
+  const early = await issue(NOW - SESSION_CLOCK_SKEW_MS);
+  expect(early.status).toBe(200);
+  const { commandToken: earlyToken } = (await early.json()) as { commandToken: string };
+  const tooEarly = await run(NOW - SESSION_CLOCK_SKEW_MS - 1, earlyToken);
+  expect(tooEarly.status).toBe(409);
+  expect(await tooEarly.json()).toEqual({ error: 'authentication_restart_required' });
+  expect(await generation()).toBe(before);
+  expect(await live()).not.toBeNull();
+  // Now the command row itself is the newer write: the context is older, the command was issued
+  // at NOW, and the proof arrives on an isolate whose clock trails.
+  await t.db
+    .prepare('UPDATE auth_browser_contexts SET created_at_ms=?')
+    .bind(NOW - 60_000)
+    .run();
+  const fresh = await issue(NOW);
+  const { commandToken } = (await fresh.json()) as { commandToken: string };
+  const rolledBack = await run(NOW - SESSION_CLOCK_SKEW_MS - 1, commandToken);
+  expect(rolledBack.status).toBe(409);
+  expect(await generation()).toBe(before);
+  expect(await live()).not.toBeNull();
+  const ok = await run(NOW - SESSION_CLOCK_SKEW_MS, commandToken);
+  expect(ok.status).toBe(200);
+  expect(await ok.json()).toEqual({ loggedOut: true });
+  expect(await generation()).toBe(before + 1);
+  now = NOW;
+  expect(await live()).toBeNull();
+  // A replay from the same trailing isolate is reported as already done, not as a restart.
+  const replay = await run(NOW - SESSION_CLOCK_SKEW_MS, commandToken);
+  expect(replay.status).toBe(200);
+  expect(await generation()).toBe(before + 1);
 });
