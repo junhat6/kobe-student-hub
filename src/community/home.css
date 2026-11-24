@@ -151,18 +151,6 @@
 .home-empty h2 {
   margin-top: 0;
 }
-.skeleton-card {
-  height: 260px;
-  border-radius: 16px;
-  background: linear-gradient(90deg, var(--tint) 0%, #f8fafc 50%, var(--tint) 100%);
-  background-size: 200% 100%;
-  animation: skeleton 1.2s ease-in-out infinite;
-}
-@keyframes skeleton {
-  to {
-    background-position: -200% 0;
-  }
-}
 @media (max-width: 720px) {
   .home-hero-inner {
     padding-top: 36px;
@@ -176,11 +164,6 @@
   }
   .home-section-head h2 {
     font-size: 20px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .skeleton-card {
-    animation: none;
   }
 }
 .home-area {

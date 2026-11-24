@@ -1,0 +1,50 @@
+/* Loading placeholders shared by every reading screen (#272). */
+.skeleton-block {
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--tint) 0%, var(--line-soft) 50%, var(--tint) 100%);
+  background-size: 200% 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
+}
+.skeleton-card {
+  height: 260px;
+  border-radius: 16px;
+}
+.skeleton-rows {
+  display: grid;
+  gap: 12px;
+}
+.skeleton-row {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.skeleton-line {
+  height: 14px;
+  border-radius: 7px;
+}
+.skeleton-line-short {
+  width: 40%;
+}
+.skeleton-detail {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+.skeleton-heading {
+  height: 32px;
+  width: 70%;
+  border-radius: 8px;
+}
+@keyframes skeleton {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+  }
+}

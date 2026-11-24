@@ -9,6 +9,7 @@ import Icon from '../shared/Icon';
 import { usePublicRead } from './public-read';
 import './search.css';
 import EmptySprout from '../shared/EmptySprout';
+import LoadingSkeleton from '../shared/LoadingSkeleton';
 
 const normalized = (text: string) => text.normalize('NFKC').toLocaleLowerCase('ja');
 const matches = (query: string, texts: string[]) =>
@@ -248,6 +249,8 @@ export default function Search() {
                 </div>
               </section>
             ) : null)}
+          {/* The count line above already says what is still loading, so this stays silent. */}
+          {!complete && <LoadingSkeleton shape="cards" label="" announce={false} />}
         </div>
       )}
       {atLimit && (

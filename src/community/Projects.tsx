@@ -13,6 +13,7 @@ import './discovery.css';
 import { AuthorAvatar } from '../shared/public-avatars';
 import EmptySprout from '../shared/EmptySprout';
 import ProjectStageMark from '../shared/ProjectStageMark';
+import LoadingSkeleton from '../shared/LoadingSkeleton';
 
 function Works() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
@@ -29,7 +30,7 @@ function Works() {
       {failed ? (
         <ReadFailure subject="作品一覧" retry={retry} />
       ) : !value ? (
-        <p role="status">作品を読み込んでいます…</p>
+        <LoadingSkeleton shape="cards" label="作品を読み込んでいます…" />
       ) : !value.cards.length ? (
         <div className="empty">
           <EmptySprout />
@@ -68,11 +69,7 @@ function Project({ id }: { id: string }) {
     return <ReadMissing subject="作品" back={{ to: '/works', label: '作品一覧へ戻る' }} />;
   if (failed) return <ReadFailure subject="作品" retry={retry} />;
   if (!value)
-    return (
-      <p role="status" className="shell empty">
-        作品を読み込んでいます…
-      </p>
-    );
+    return <LoadingSkeleton shape="detail" label="作品を読み込んでいます…" className="shell" />;
   const { project, author } = value;
   const articles = value.articles ?? [];
   return (

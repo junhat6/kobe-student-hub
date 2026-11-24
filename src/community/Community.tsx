@@ -24,6 +24,7 @@ import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import '../editor/public-author.css';
 import './article.css';
 import { AuthorAvatar } from '../shared/public-avatars';
+import LoadingSkeleton from '../shared/LoadingSkeleton';
 
 /**
  * A first publication reads 「公開」; only a later revision adds 「更新」, so readers can tell a new
@@ -78,11 +79,7 @@ function StudentArticle({ id }: { id: string }) {
   if (missing) return <ReadMissing subject="記事" back={{ to: '/', label: '記事一覧へ戻る' }} />;
   if (failed) return <ReadFailure subject="記事" retry={retry} />;
   if (!value)
-    return (
-      <p role="status" className="shell empty">
-        記事を読み込んでいます…
-      </p>
-    );
+    return <LoadingSkeleton shape="detail" label="記事を読み込んでいます…" className="shell" />;
   const { entry, author } = value;
   const readerContextFields = [
     ['想定読者', entry.audience],

@@ -8,6 +8,7 @@ import type { ReadingHistoryEntry, ReadingReference, ReadingHistoryPage } from '
 import '../account/account.css';
 import './history.css';
 import Breadcrumbs, { MY_PAGE_TRAIL } from '../shell/Breadcrumbs';
+import LoadingSkeleton from '../shared/LoadingSkeleton';
 
 const PAGE = 20;
 /** Show the cap only once the owner's total is this close to it (YouTube・Chrome never mention one). */
@@ -215,7 +216,7 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
           <p className="history-empty">閲覧履歴はまだありません。</p>
         )
       ) : (
-        !failed && <p role="status">履歴を読み込んでいます…</p>
+        !failed && <LoadingSkeleton shape="rows" label="履歴を読み込んでいます…" />
       )}
       {value && (offset > 0 || value.nextOffset !== null) && (
         <nav className="history-pages" aria-label="履歴のページ">

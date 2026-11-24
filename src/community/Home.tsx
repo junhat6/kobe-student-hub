@@ -10,6 +10,7 @@ import { useViewer } from '../shell/viewer';
 import { AREA_ENTRANCE, areaEntranceCount, areaEntrancePath } from './area-entrance';
 import './home.css';
 import EmptySprout from '../shared/EmptySprout';
+import LoadingSkeleton from '../shared/LoadingSkeleton';
 
 type View = 'recent' | 'popular' | 'recommended';
 
@@ -201,11 +202,7 @@ export default function Home() {
         {failed ? (
           <ReadFailure subject="記事一覧" retry={retry} />
         ) : !value ? (
-          <div className="card-grid" role="status" aria-label="記事を読み込んでいます…">
-            {[0, 1, 2].map((key) => (
-              <div key={key} className="skeleton-card" />
-            ))}
-          </div>
+          <LoadingSkeleton shape="cards" label="記事を読み込んでいます…" />
         ) : !value.recent.length ? (
           <div className="empty home-empty">
             <EmptySprout />

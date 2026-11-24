@@ -16,6 +16,7 @@ import {
 } from '../editor/session-client';
 import { announceSessionChange, announceSessionConfirmed } from '../shell/viewer';
 import type { ProjectFields } from '../project-types';
+import LoadingSkeleton from '../shared/LoadingSkeleton';
 type Phase =
   | 'checking'
   | 'active'
@@ -651,6 +652,12 @@ export default function AccountSessionBoundary({
         </section>
       )}
       {phase === 'signed-out' && !loggingOut && !rescue && signedOutContent}
+      {/* While a check runs, the private panel stays hidden; a neutral placeholder holds its
+          place so the page does not go blank (#272). It shows nothing from the previous session,
+          and the session message above is the one that announces the wait. */}
+      {!lab && concealed && (checking || phase === 'checking') && !candidate && !rescue && (
+        <LoadingSkeleton shape="rows" label="" announce={false} className="session-skeleton" />
+      )}
       <div ref={privatePanel} className="session-private" hidden={concealed} inert={concealed}>
         {sessionToken && (
           <div key={sessionToken}>

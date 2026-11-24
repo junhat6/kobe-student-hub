@@ -15,6 +15,7 @@ import { useAgentDrafts } from '../agent/connections-client';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
 import { embedLineFromPaste } from '../shared/embed';
+import LoadingSkeleton from '../shared/LoadingSkeleton';
 import {
   formatMarkdown,
   insertOwnLine,
@@ -50,9 +51,10 @@ const stamp = (n: number) =>
 const TITLE_COUNT_SHOWN_FROM = 180;
 /** Routine progress and success are announced only; failures and warnings stay visible (原則6). */
 const LIST_READY = '左の一覧から下書きを開くか、新しく作成できます。',
-  LIST_EMPTY = '新しい下書きを作成して、書き始めましょう。';
+  LIST_EMPTY = '新しい下書きを作成して、書き始めましょう。',
+  LIST_LOADING = '下書きを読み込んでいます…';
 const QUIET_STATUS = new Set([
-  '下書きを読み込んでいます…',
+  LIST_LOADING,
   '新しい下書きを作成しています…',
   '送信した内容を保存しています…',
   '下書きを保存しました。',
@@ -104,7 +106,7 @@ export default function DraftEditor({
   const [opening, setOpening] = useState(false);
   const lock = useRef(false);
   const mounted = useRef(true);
-  const [status, setStatus] = useState('下書きを読み込んでいます…');
+  const [status, setStatus] = useState(LIST_LOADING);
   // The list may load before participation is known, so the closed wording is chosen at render.
   // The ordinary page shows the list as its own screen (#230 ①), so it is not 「左の」 there.
   const listWhere = ordinary ? '一覧から' : '左の一覧から';
@@ -827,7 +829,11 @@ export default function DraftEditor({
                 </li>
               ))}
             </ul>
-            {!list.length && !busy && !listError && (
+            {/* The status line announces the first read; the rows only hold the list's place. */}
+            {!list.length && !listError && status === LIST_LOADING && (
+              <LoadingSkeleton shape="rows" label="" announce={false} />
+            )}
+            {!list.length && !busy && !listError && status !== LIST_LOADING && (
               <p className="editor-list-empty">保存した下書きはまだありません。</p>
             )}
             {(!ordinary || list.length >= 20) && (
