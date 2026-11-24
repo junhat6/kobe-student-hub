@@ -323,18 +323,32 @@
   width: auto;
   padding-inline: 20px;
 }
+/* 記事の管理 is a plain divided list like Zenn・note's draft list, on phones too: the lab's
+   horizontal strip and the account page's bordered button must not reach these rows. */
 .draft-editor--ordinary .editor-layout--manage .editor-draft-list {
+  display: block;
   max-height: none;
   overflow: visible;
+  padding: 0;
   border-top: 1px solid #d6e3ed;
 }
 .draft-editor--ordinary .editor-layout--manage .editor-draft-list li {
+  min-width: 0;
+  max-width: none;
   margin: 0;
   border-bottom: 1px solid #d6e3ed;
 }
 .draft-editor--ordinary .editor-layout--manage .editor-draft-list button {
+  width: 100%;
+  height: auto;
+  border: 0;
   border-radius: 0;
   padding: 16px 8px;
+  background: transparent;
+  color: #263b4a;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-draft-list button:hover:not(:disabled) {
+  background: #edf3f7;
 }
 .draft-editor--ordinary .editor-layout--manage .editor-draft-list button > span {
   font-size: 16px;

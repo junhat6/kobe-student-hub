@@ -846,7 +846,12 @@ export default function DraftEditor({
           </div>
           <div
             className={
-              'editor-status' + (ordinary && QUIET_STATUS.has(shownStatus) ? ' sr-only' : '')
+              'editor-status' +
+              (ordinary &&
+              (QUIET_STATUS.has(shownStatus) ||
+                (writable && (status === LIST_READY || status === LIST_EMPTY)))
+                ? ' sr-only'
+                : '')
             }
             role="status"
             aria-live="polite"
@@ -951,11 +956,15 @@ export default function DraftEditor({
                       >
                         コード
                       </Button>
-                      <span>
-                        {composing
-                          ? '文字の変換を確定してから操作してください'
-                          : 'Markdownで書けます'}
-                      </span>
+                      {/* The ordinary page names the body 「Markdown本文」 already, so the hint
+                          appears only while a conversion blocks the buttons (原則1). */}
+                      {(composing || !ordinary) && (
+                        <span>
+                          {composing
+                            ? '文字の変換を確定してから操作してください'
+                            : 'Markdownで書けます'}
+                        </span>
+                      )}
                     </div>
                     <label className="editor-body-label" htmlFor="draft-body">
                       Markdown本文
@@ -980,10 +989,14 @@ export default function DraftEditor({
                     />
                   </>
                 )}
-                <div className="editor-writing-footer">
-                  <span>本文の容量 {(bytes / 1024).toFixed(1)}/256 KiB</span>
-                  {!ordinary && <span>画像・Mermaidは未対応</span>}
-                </div>
+                {/* The size matters only near the limit, so the ordinary page shows it from
+                    200 KiB; going over is still a visible alert (原則1・4). */}
+                {(!ordinary || bytes >= 200 * 1024) && (
+                  <div className="editor-writing-footer">
+                    <span>本文の容量 {(bytes / 1024).toFixed(1)}/256 KiB</span>
+                    {!ordinary && <span>画像・Mermaidは未対応</span>}
+                  </div>
+                )}
               </section>
               {invalid && (
                 <p role="alert" className="editor-error">

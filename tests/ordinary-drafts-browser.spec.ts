@@ -602,6 +602,15 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
   await expect(page.locator('.editor-status')).toHaveText(
     '一覧から下書きを開くか、新しく作成できます。',
   );
+  // The routine list status is announced only; the list itself shows what to do (原則1・6).
+  await expect(page.locator('.editor-status')).toHaveClass(/sr-only/);
+  // Rows span the list on phones too, as a divided list rather than a horizontal strip.
+  const row = page.getByRole('button', { name: '管理へ戻る前の編集', exact: true });
+  const [rowBox, listBox] = await Promise.all([
+    row.boundingBox(),
+    page.locator('.editor-draft-list').boundingBox(),
+  ]);
+  expect(rowBox && listBox && Math.abs(rowBox.width - listBox.width) <= 1).toBe(true);
   const { violations } = await new AxeBuilder({ page }).include('.draft-editor').analyze();
   expect(
     violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id),
@@ -610,5 +619,8 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
   await page.screenshot({ path: info.outputPath('ordinary-drafts-manage.png'), fullPage: true });
   await page.getByRole('button', { name: '管理へ戻る前の編集', exact: true }).click();
   await expect(title(page)).toHaveValue('管理へ戻る前の編集');
+  // A short body shows neither the size meter nor the Markdown hint (原則1・4).
+  await expect(page.locator('.editor-writing-footer')).toHaveCount(0);
+  await expect(page.getByText('Markdownで書けます', { exact: true })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath('ordinary-drafts-writing.png'), fullPage: true });
 });
