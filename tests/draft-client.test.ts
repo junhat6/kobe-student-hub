@@ -82,6 +82,36 @@ describe('private draft browser transport', () => {
     );
     await expect(client.read(id)).rejects.toThrow('下書きの操作結果を確認できませんでした。');
   });
+  it('reads without CSRF, body or Content-Type and refuses to send a malformed CSRF proof', async () => {
+    const fetcher = vi.fn(async (_p: RequestInfo | URL, _i?: RequestInit) => Response.json(value));
+    expect(await createDraftClient('bad token', fetcher as typeof fetch).read(id)).toEqual(value);
+    const [path, init] = fetcher.mock.calls[0]!;
+    expect(path).toBe('/api/private/drafts/' + id);
+    expect(init).toMatchObject({ method: 'GET', credentials: 'same-origin', cache: 'no-store' });
+    expect(init?.body).toBeUndefined();
+    const headers = new Headers(init?.headers);
+    expect(headers.get('Authorization')).toBeNull();
+    expect(headers.get('Content-Type')).toBeNull();
+    const mutation = vi.fn(async () => Response.json({ ...value, version: 2 }));
+    await expect(
+      createDraftClient('bad token', mutation as typeof fetch).save(value),
+    ).rejects.toBeInstanceOf(DraftClientError);
+    expect(mutation).not.toHaveBeenCalled();
+  });
+  it('accepts only 201 for creation and only 200 for reads, saves and deletion', async () => {
+    const empty = { ...value, title: '', body: '' };
+    await expect(
+      createDraftClient(csrf, (async () => Response.json(empty)) as typeof fetch).createEmpty(),
+    ).rejects.toBeInstanceOf(DraftClientError);
+    await expect(
+      createDraftClient(csrf, (async () =>
+        Response.json(value, { status: 201 })) as typeof fetch).read(id),
+    ).rejects.toBeInstanceOf(DraftClientError);
+    await expect(
+      createDraftClient(csrf, (async () =>
+        Response.json({ ...value, version: 2 }, { status: 201 })) as typeof fetch).save(value),
+    ).rejects.toBeInstanceOf(DraftClientError);
+  });
   it('bounds malformed and oversized responses and rejects unsafe paths before fetching', async () => {
     for (const make of [
       () => new Response('{', { headers: { 'Content-Type': 'application/json' } }),

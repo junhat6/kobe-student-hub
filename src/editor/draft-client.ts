@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { readBoundedJson } from '../shared/http-client';
 export interface DraftSummary {
   id: string;
   title: string;
@@ -57,87 +57,22 @@ export class DraftClientError extends Error {
 }
 /** Browser client only. Never persists private content or retries a mutation automatically. */
 export function createDraftClient(csrfToken: string, fetcher: typeof fetch = fetch) {
-  async function request(path: string, method = 'GET', body?: unknown): Promise<unknown> {
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let expired = false;
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const operation = (async () => {
-      const response = await fetcher(path, {
-        method,
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers:
-          body === undefined
-            ? { Accept: 'application/json' }
-            : {
-                Accept: 'application/json',
-                'Content-Type': 'application/json; charset=utf-8',
-                Authorization: proofAuthorization('csrf', csrfToken),
-              },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      });
-      if (expired) {
-        void response.body?.cancel().catch(() => {});
-        throw new DraftClientError();
-      }
-      if (
-        response.status !== (method === 'POST' ? 201 : 200) ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        throw new DraftClientError();
-      }
-      const length = response.headers.get('Content-Length');
-      if (length !== null && (!/^\d+$/.test(length) || Number(length) > LIMIT)) {
-        void response.body.cancel().catch(() => {});
-        throw new DraftClientError();
-      }
-      reader = response.body.getReader();
-      try {
-        const bytes = new Uint8Array(LIMIT);
-        let size = 0;
-        let count = 0;
-        for (;;) {
-          const next = await reader.read();
-          if (expired) throw new DraftClientError();
-          if (next.done) break;
-          if (++count > 65536 || size + next.value.byteLength > LIMIT) throw new DraftClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        return JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ) as unknown;
-      } finally {
-        if (reader) {
-          void reader.cancel().catch(() => {});
-          reader.releaseLock();
-        }
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new DraftClientError());
-      }, 10000);
-    });
-    try {
-      return await Promise.race([operation, deadline]);
-    } catch {
+  function request(
+    path: string,
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET',
+    body?: unknown,
+  ): Promise<unknown> {
+    // Only mutations carry a body and the CSRF proof; reads send neither.
+    return readBoundedJson(path, {
+      fetcher,
+      credentials: 'same-origin',
+      method,
+      ...(body === undefined ? {} : { body, csrf: csrfToken }),
+      status: method === 'POST' ? 201 : 200,
+      maxBytes: LIMIT,
+    }).catch(() => {
       throw new DraftClientError();
-    } finally {
-      clearTimeout(timer);
-      cancel();
-    }
+    });
   }
   const readId = (id: string) => {
     if (!validId(id)) throw new DraftClientError();
