@@ -55,6 +55,7 @@
 - playwright が途中から「browserType.launch: Executable doesn't exist …chromium_headless_shell-NNNN」で全滅したら、別 worktree が古い版の install で共有 cache を消したもの。`npx playwright install chromium chromium-headless-shell` で戻し `--last-failed` で回し直す（実装の失敗と数えない）
 - 表を作り直す migration（CHECK の変更など）は、他の表の trigger が本文でその表を読んでいると D1 が RENAME を止める（「error in trigger … no such table」）。その trigger を同じ batch で DROP し同じ文で作り直す。`auth_sessions` を変えたら、0004＋0012 を手で並べる fixture（`tests/helpers/order-schema.ts`・`coordinated-fixture.ts` と各 test の一覧）にも当てる（#269）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
+- 検証依頼を書いたら、同じ周回で Agent tool の別 context verifier を起動して結果まで見届ける（書くだけで終えると誰も検証せず Issue が止まる。#269）。指摘を直したら毎回新しい verifier で再確認する
 
 ## 4. 閉じる
 - commit 本文に `Loop: finish`・`Risk: R0|R1|R2`・`Closes #N`（R2 の実装 commit は `Refs #N` にして push し、verifier 合格後の commit か手で閉じる。`Closes` だと push と同時に閉じる）。main へ push（rebase してから。force push しない）
