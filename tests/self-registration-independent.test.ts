@@ -140,6 +140,7 @@ beforeAll(async () => {
     '0012_browser_session_order.sql',
     '0016_self_declared_enrollment.sql',
     '0017_self_registration.sql',
+    '0041_session_long_lifetime.sql',
   ]) {
     const source = readFileSync('migrations/' + file, 'utf8');
     const parts = source.includes('-- @statement')

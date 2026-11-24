@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { workerModules } from './helpers/worker-modules';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
@@ -299,7 +300,8 @@ describe('unconnected private draft HTTP boundary', () => {
   });
   it('rejects expiry, revocation and account epoch changes', async () => {
     expect(
-      (await req(undefined, 'GET', undefined, { 'X-Test-Now': String(NOW + 1800000) })).status,
+      (await req(undefined, 'GET', undefined, { 'X-Test-Now': String(NOW + SESSION_IDLE_MS) }))
+        .status,
     ).toBe(401);
     const db = await mf.getD1Database('DB');
     await db.prepare('UPDATE auth_sessions SET revoked_at_ms=?').bind(NOW).run();

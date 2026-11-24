@@ -76,6 +76,7 @@ describe('actual Worker scheduled auth maintenance', () => {
       '0004_private_sessions.sql',
       '0012_browser_session_order.sql',
       '0014_auth_maintenance.sql',
+      '0041_session_long_lifetime.sql',
     ]) {
       const text = readFileSync('migrations/' + file, 'utf8');
       for (const sql of text

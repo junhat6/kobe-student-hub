@@ -1,5 +1,12 @@
-export const SESSION_ABSOLUTE_MS = 28_800_000;
-export const SESSION_IDLE_MS = 1_800_000;
+const DAY_MS = 86_400_000;
+/**
+ * Long-lived login (#269, DECISIONS 2026-11-24 の1・replan#24 の案A): one login lasts up to a year,
+ * and 90 idle days end it. Shared-PC and lost-device risk is carried by the immediate revocations
+ * (logout, suspension, deletion, session_epoch, revoked_at_ms) and the per-write graduation check,
+ * none of which depend on these lengths. migrations/0041 raises the auth_sessions CHECK to match.
+ */
+export const SESSION_ABSOLUTE_MS = 365 * DAY_MS;
+export const SESSION_IDLE_MS = 90 * DAY_MS;
 export const TRIAL_GRANT_MAX_MS = 100 * 3_600_000;
 /**
  * Largest gap tolerated between this request's clock and a timestamp another

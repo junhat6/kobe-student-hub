@@ -5,14 +5,37 @@ import { AUTHORIZATION_HEADER, proofAuthorization } from '../../src/shared/auth-
 import migration from '../../migrations/0012_browser_session_order.sql';
 import sessionSchema from '../../migrations/0004_private_sessions.sql';
 import attempts from '../../migrations/0003_oauth_attempts.sql';
+import sessionLifetime from '../../migrations/0041_session_long_lifetime.sql';
 import { BrowserSessionCoordinator } from '../../worker/auth/browser-session';
 import {
   BrowserOAuthFlow,
   type OAuthIntent,
   isSameOriginPost,
 } from '../../worker/auth/browser-flow';
-import { SessionStore } from '../../worker/auth/sessions';
+import { SESSION_ABSOLUTE_MS, SessionStore } from '../../worker/auth/sessions';
 import type { VerifiedSchoolIdentity } from '../../worker/auth/google-identity';
+/** 0041: year-long auth_sessions CHECK and the context-extension trigger (#269). Idempotent. */
+async function applySessionLifetimeSchema(db: D1Database) {
+  if (
+    await db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='session_context_lifetime'",
+      )
+      .first()
+  )
+    return;
+  // A fixture that has not applied 0014 yet gets that index from 0014 later, not here.
+  const has0014 = await db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='auth_session_context'")
+    .first();
+  await db.batch(
+    sessionLifetime
+      .split(/^-- @statement\s*$/m)
+      .map((s) => s.replace(/^--.*$/gm, '').trim())
+      .filter((s) => s && (has0014 || !s.includes('auth_session_context')))
+      .map((s) => db.prepare(s)),
+  );
+}
 export async function ensureFixtureOrderSchema(db: D1Database) {
   const cols = (await db.prepare('PRAGMA table_info(auth_sessions)').all<{ name: string }>())
     .results;
@@ -22,7 +45,7 @@ export async function ensureFixtureOrderSchema(db: D1Database) {
       .split(/;\s*(?:\n|$)/)
       .filter((s) => s.trim()))
       await db.prepare(sql).run();
-  if (cols.some((c) => c.name === 'context_hash')) return;
+  if (cols.some((c) => c.name === 'context_hash')) return applySessionLifetimeSchema(db);
   if (
     !(await db
       .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='oauth_attempts'")
@@ -43,6 +66,7 @@ export async function ensureFixtureOrderSchema(db: D1Database) {
     const after = await db.prepare('PRAGMA table_info(auth_sessions)').all<{ name: string }>();
     if (!after.results.some((c) => c.name === 'context_hash')) throw e;
   }
+  await applySessionLifetimeSchema(db);
 }
 const config = (origin: string) => ({
   origin,
@@ -158,7 +182,11 @@ export async function createFixtureSession(
   try {
     if (!(await db.prepare('PRAGMA table_info(auth_sessions)').all()).results.length) return null;
     const now = clock();
-    if (!Number.isSafeInteger(now) || now < 0 || now >= Number.MAX_SAFE_INTEGER - 28800000)
+    if (
+      !Number.isSafeInteger(now) ||
+      now < 0 ||
+      now >= Number.MAX_SAFE_INTEGER - SESSION_ABSOLUTE_MS
+    )
       return null;
     const claim = await fixtureClaim(db, origin, now);
     if (!claim) return null;

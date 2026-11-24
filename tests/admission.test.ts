@@ -33,6 +33,7 @@ async function setup() {
     '0004_private_sessions.sql',
     '0012_browser_session_order.sql',
     '0013_local_admission.sql',
+    '0041_session_long_lifetime.sql',
   ]) {
     const text = readFileSync('migrations/' + file, 'utf8');
     const sql = text

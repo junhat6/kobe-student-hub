@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, it, expect, vi } from 'vitest';
 import { dispatchModerationEmails } from '../worker/moderation-email';
@@ -386,7 +387,8 @@ it('requires real sessions/CSRF and final live SQL after auth', async () => {
     ).status,
   ).toBe(401);
   expect(
-    (await req(reportPath(), 'GET', undefined, 2, { 'X-Test-Now': String(NOW + 1800000) })).status,
+    (await req(reportPath(), 'GET', undefined, 2, { 'X-Test-Now': String(NOW + SESSION_IDLE_MS) }))
+      .status,
   ).toBe(401);
   expect((await req(queue, 'GET', undefined, 1, { 'X-Test-Race': 'revoke' })).status).toBe(404);
   for (let n = 0; n < 23; n++) users[n] = await login(n);

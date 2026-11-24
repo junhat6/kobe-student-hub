@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
@@ -308,7 +309,8 @@ describe('explicit local public article likes with real session ownership', () =
     ])
       expect((await set(article, true, 0, h)).status).toBe(401);
     expect(
-      (await request(article, 'GET', 0, undefined, { 'X-Test-Now': String(NOW + 1800000) })).status,
+      (await request(article, 'GET', 0, undefined, { 'X-Test-Now': String(NOW + SESSION_IDLE_MS) }))
+        .status,
     ).toBe(401);
     const db = await mf.getD1Database('DB');
     for (const race of ['revoke', 'status', 'epoch', 'context']) {

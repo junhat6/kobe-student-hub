@@ -8,10 +8,18 @@ import {
 import {
   liveRestrictedSessionSql,
   liveSessionBindings,
+  SESSION_ABSOLUTE_MS,
   type SessionStorageProof,
 } from './session-guard';
 export const CONTEXT_COOKIE = '__Host-kobe-browser';
-const CONTEXT_LIFETIME_MS = 28_800_000;
+/**
+ * A context row that no login has used yet stays short, so anonymous bootstraps cannot hold the
+ * live-context cap for a year. A session insert extends its own context row to the session's
+ * expiry (trigger session_context_lifetime, migrations/0041). The cookie itself carries the
+ * session length so it is still sent while that extended row is live (#269).
+ */
+export const CONTEXT_PENDING_LIFETIME_MS = 28_800_000;
+export const CONTEXT_COOKIE_MAX_AGE_SECONDS = SESSION_ABSOLUTE_MS / 1000;
 export interface BrowserIssuanceLimits {
   maxLiveContexts: number;
   maxCommandsPerMinute: number;
@@ -97,7 +105,7 @@ export class BrowserSessionCoordinator {
       return null;
     }
     const n = this.clock();
-    return Number.isSafeInteger(n) && n >= 0 && n < Number.MAX_SAFE_INTEGER - CONTEXT_LIFETIME_MS
+    return Number.isSafeInteger(n) && n >= 0 && n < Number.MAX_SAFE_INTEGER - SESSION_ABSOLUTE_MS
       ? n
       : null;
   }
@@ -140,7 +148,7 @@ export class BrowserSessionCoordinator {
       .bind(
         hash,
         now,
-        now + CONTEXT_LIFETIME_MS,
+        now + CONTEXT_PENDING_LIFETIME_MS,
         now,
         this.limits.maxLiveContexts,
         this.limits.maxLiveContexts,
@@ -148,7 +156,7 @@ export class BrowserSessionCoordinator {
       .first();
     if (!inserted) return null;
     return {
-      setCookie: `${CONTEXT_COOKIE}=${raw}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${CONTEXT_LIFETIME_MS / 1000}`,
+      setCookie: `${CONTEXT_COOKIE}=${raw}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${CONTEXT_COOKIE_MAX_AGE_SECONDS}`,
     };
   }
   async command(

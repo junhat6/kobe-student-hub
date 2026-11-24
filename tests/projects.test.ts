@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
@@ -414,7 +415,7 @@ it('requires session CSRF and live final SQL after authorization', async () => {
   expect(
     (
       await req('/api/private/project-drafts', 'POST', f, 0, {
-        'X-Test-Now': String(NOW + 1800000),
+        'X-Test-Now': String(NOW + SESSION_IDLE_MS),
       })
     ).status,
   ).toBe(401);

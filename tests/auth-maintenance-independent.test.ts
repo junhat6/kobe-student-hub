@@ -25,6 +25,7 @@ async function db() {
     '0004_private_sessions.sql',
     '0012_browser_session_order.sql',
     '0014_auth_maintenance.sql',
+    '0041_session_long_lifetime.sql',
   ]) {
     const text = readFileSync('migrations/' + f, 'utf8');
     await d.batch(

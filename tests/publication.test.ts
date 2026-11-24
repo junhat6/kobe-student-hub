@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -368,7 +369,7 @@ describe('unconnected publication snapshot boundary with real local sessions and
       { headers: { ...headers(users[0]), 'Sec-Fetch-Site': 'cross-site' } },
       { method: 'GET' },
       { now: NOW - 1 },
-      { now: NOW + 1800000 },
+      { now: NOW + SESSION_IDLE_MS },
       { url: 'https://evil.invalid/private' },
       { now: 253402300800000 },
     ])

@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
@@ -266,7 +267,7 @@ describe('explicit first public profile creation with private HTTP boundary', ()
     ).toBe(401);
     expect(Date.now() - began).toBeLessThan(1000);
     expect(
-      (await request('GET', 9, undefined, { 'X-Test-Now': String(NOW + 1800000) })).status,
+      (await request('GET', 9, undefined, { 'X-Test-Now': String(NOW + SESSION_IDLE_MS) })).status,
     ).toBe(401);
   });
   it('emits private errors for invalid transport, paths, methods and configuration', async () => {

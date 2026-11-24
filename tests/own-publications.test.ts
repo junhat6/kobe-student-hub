@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -263,7 +264,7 @@ it('fails closed on malformed linkage, titles and storage, without hiding own re
 });
 it('requires current real session and final live authorization after initial proof', async () => {
   expect((await req(0, { Cookie: '' })).status).toBe(401);
-  expect((await req(0, { 'X-Test-Now': String(NOW + 1800000) })).status).toBe(401);
+  expect((await req(0, { 'X-Test-Now': String(NOW + SESSION_IDLE_MS) })).status).toBe(401);
   expect((await req(4, { 'X-Test-Final-Race': '1' })).status).toBe(503);
   for (let n = 0; n < 5; n++) users[n] = await login(n);
   for (const race of ['revoke', 'status', 'epoch', 'context']) {

@@ -45,6 +45,10 @@ async function migrate(db: any) {
   await db.batch(
     statements('migrations/0012_browser_session_order.sql', true).map((sql) => db.prepare(sql)),
   );
+  // 0041 widens the session CHECK to the year-long login the current SessionStore writes (#269).
+  await db.batch(
+    statements('migrations/0041_session_long_lifetime.sql', true).map((sql) => db.prepare(sql)),
+  );
 }
 async function pendingAttempt(
   db: D1Database,

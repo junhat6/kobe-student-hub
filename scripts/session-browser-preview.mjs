@@ -253,6 +253,7 @@ for (const f of [
   '0038_project_snapshot_columns_immutable.sql',
   '0039_media_bytes.sql',
   '0040_project_snapshot_rowid_immutable.sql',
+  '0041_session_long_lifetime.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

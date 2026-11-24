@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -312,7 +313,7 @@ describe('private article reports, atomic temporary hiding, and durable pending 
       { headers: { ...headers(users[1]), 'Sec-Fetch-Site': 'cross-site' } },
       { method: 'GET' },
       { now: NOW - 1 },
-      { now: NOW + 1800000 },
+      { now: NOW + SESSION_IDLE_MS },
       { url: 'https://evil.invalid/private' },
     ])
       expect(await report('auth', users[1], { reason: 'r' }, extra)).toBeNull();

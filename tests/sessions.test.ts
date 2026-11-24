@@ -91,7 +91,7 @@ describe('private opaque sessions and request-bound CSRF', () => {
       'Secure',
       'HttpOnly',
       'SameSite=Lax',
-      'Max-Age=28800',
+      'Max-Age=31536000',
     ])
       expect(a.setCookie).toContain(flag);
     expect(a.setCookie).not.toMatch(/subject|@|Domain=/);
@@ -175,6 +175,91 @@ describe('private opaque sessions and request-bound CSRF', () => {
     });
     expect(await auth(a)).toBeNull();
     expect(await auth(other)).not.toBeNull();
+  });
+  it('year-long login: fixed lengths, matching cookies and a context that lives as long as the session (#269)', async () => {
+    const DAY = 86_400_000;
+    expect(SESSION_ABSOLUTE_MS).toBe(365 * DAY);
+    expect(SESSION_IDLE_MS).toBe(90 * DAY);
+    const a = (await create())!;
+    for (const c of [a.setCookie, a.contextCookie]) {
+      for (const flag of ['__Host-kobe-', 'Path=/', 'Secure', 'HttpOnly', 'SameSite=Lax'])
+        expect(c).toContain(flag);
+      expect(c).toMatch(/; Max-Age=31536000(?:;|$)/);
+      expect(c).not.toMatch(/Domain=|Expires=/);
+    }
+    const db = await mf.getD1Database('DB');
+    const row = (await db
+      .prepare(
+        'SELECT s.created_at_ms created,s.expires_at_ms session,c.expires_at_ms context FROM auth_sessions s JOIN auth_browser_contexts c ON c.context_hash=s.context_hash ORDER BY s.rowid DESC LIMIT 1',
+      )
+      .first<{ created: number; session: number; context: number }>())!;
+    expect(row.session).toBe(row.created + SESSION_ABSOLUTE_MS);
+    // The context row was bootstrapped for 8 hours; the session insert extended it (0041 trigger).
+    expect(row.context).toBe(row.session);
+  });
+  it('idle and absolute deadlines are exact at the long lengths (#269)', async () => {
+    // Idle: L+IDLE-1 still passes, L+IDLE is refused, for L = creation and L = the last touch.
+    const a = (await create())!,
+      b = (await create())!;
+    expect(await auth(b, { now: NOW + SESSION_IDLE_MS })).toBeNull();
+    expect(await auth(a, { now: NOW + SESSION_IDLE_MS - 1 })).not.toBeNull();
+    const touched = NOW + SESSION_IDLE_MS - 1,
+      c = (await create())!;
+    expect(await auth(c, { now: touched })).not.toBeNull();
+    expect(await auth(c, { now: touched + SESSION_IDLE_MS - 1 })).not.toBeNull();
+    expect(await auth(a, { now: touched + SESSION_IDLE_MS })).toBeNull();
+    // Absolute: touched within every idle window, the session lives to C+ABS-1 and not to C+ABS.
+    const d = (await create())!;
+    let at = NOW;
+    while (at + SESSION_IDLE_MS - 1 < NOW + SESSION_ABSOLUTE_MS - 1) {
+      at += SESSION_IDLE_MS - 1;
+      expect(await auth(d, { now: at })).not.toBeNull();
+    }
+    expect(await auth(d, { now: NOW + SESSION_ABSOLUTE_MS - 1 })).not.toBeNull();
+    expect(await auth(d, { now: NOW + SESSION_ABSOLUTE_MS })).toBeNull();
+  });
+  it('logout, suspension, epoch, revoked_at_ms and deletion end a months-old session at once (#269)', async () => {
+    const db = await mf.getD1Database('DB');
+    const LATER = NOW + 200 * 86_400_000;
+    const aged = async (who = 'a') => {
+      const s = (await create({ identity: identity(who) }))!;
+      for (let at = NOW + 60 * 86_400_000; at < LATER; at += 60 * 86_400_000)
+        expect(await auth(s, { now: at })).not.toBeNull();
+      expect(await auth(s, { now: LATER })).not.toBeNull();
+      return s;
+    };
+    const loggedOut = await aged();
+    expect(
+      await call({ action: 'logout', method: 'POST', headers: headers(loggedOut), now: LATER }),
+    ).toEqual({ loggedOut: true });
+    expect(await auth(loggedOut, { now: LATER + 1 })).toBeNull();
+    const revoked = await aged();
+    await db
+      .prepare(
+        'UPDATE auth_sessions SET revoked_at_ms=? WHERE revoked_at_ms IS NULL AND last_seen_ms=?',
+      )
+      .bind(LATER, LATER)
+      .run();
+    expect(await auth(revoked, { now: LATER + 1 })).toBeNull();
+    const epoch = await aged();
+    await db
+      .prepare("UPDATE private_accounts SET session_epoch=session_epoch+1 WHERE id='account-a'")
+      .run();
+    expect(await auth(epoch, { now: LATER + 1 })).toBeNull();
+    const suspended = await aged();
+    await db.prepare("UPDATE private_accounts SET status='suspended' WHERE id='account-a'").run();
+    expect(await auth(suspended, { now: LATER + 1 })).toBeNull();
+    await db.prepare("UPDATE private_accounts SET status='active' WHERE id='account-a'").run();
+    expect(await auth(suspended, { now: LATER + 1 })).toBeNull();
+    await db
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('account-long-delete','subject-long-delete',?,'active',?)",
+      )
+      .bind(identity('long-delete').email, NOW)
+      .run();
+    const deleted = await aged('long-delete');
+    await db.prepare("DELETE FROM private_accounts WHERE id='account-long-delete'").run();
+    expect(await auth(deleted, { now: LATER + 1 })).toBeNull();
   });
   it('rejects at the idle deadline and before creation/after a backwards clock', async () => {
     const a = (await create())!;

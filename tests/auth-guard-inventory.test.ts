@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   liveSessionSql,
   liveRestrictedSessionSql,
+  SESSION_IDLE_MS,
   type SessionStorageProof,
 } from '../worker/auth/session-guard';
 import {
@@ -446,7 +447,7 @@ describe('independent private SQL guard inventory', () => {
       fresh,
       fresh,
       fresh,
-      fresh - 1800000,
+      fresh - SESSION_IDLE_MS,
       fresh,
       'owner',
       fresh,
@@ -469,7 +470,7 @@ describe('independent private SQL guard inventory', () => {
       fresh,
       fresh,
       fresh,
-      fresh - 1800000,
+      fresh - SESSION_IDLE_MS,
       fresh,
       'owner',
       2,

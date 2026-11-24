@@ -99,7 +99,7 @@ export class SelfRegistrationStore {
           15,
         ),
         statement(
-          `INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash) SELECT ?16,receipt.account_id,receipt.resulting_epoch,?1,?1,min(?17,context.expires_at_ms),context.context_hash,context.generation,receipt.state_hash FROM auth_self_registration_commits receipt JOIN auth_browser_contexts context ON context.context_hash=?4 WHERE receipt.commit_id=?10 AND EXISTS(SELECT 1 FROM private_enrollment_periods period WHERE period.owner_account_id=receipt.account_id) AND ${committed} RETURNING account_id`,
+          `INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,context_hash,context_generation,attempt_hash) SELECT ?16,receipt.account_id,receipt.resulting_epoch,?1,?1,?17,context.context_hash,context.generation,receipt.state_hash FROM auth_self_registration_commits receipt JOIN auth_browser_contexts context ON context.context_hash=?4 WHERE receipt.commit_id=?10 AND EXISTS(SELECT 1 FROM private_enrollment_periods period WHERE period.owner_account_id=receipt.account_id) AND ${committed} RETURNING account_id`,
           17,
         ),
         // A failed/no-op intermediate statement must not commit an orphan account, declaration or receipt.

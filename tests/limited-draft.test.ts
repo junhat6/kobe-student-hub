@@ -364,9 +364,10 @@ it('database execution clock rejects naturally expired grant after bind', async 
   ).toBeNull();
 });
 
-it('trial grant permits at most 100 hours while session absolute lifetime stays 8 hours', () => {
+it('trial grant permits at most 100 hours, inside the year-long session absolute lifetime', () => {
   expect(TRIAL_GRANT_MAX_MS).toBe(100 * 3600000);
-  expect(SESSION_ABSOLUTE_MS).toBe(8 * 3600000);
+  expect(SESSION_ABSOLUTE_MS).toBe(365 * 86_400_000);
+  expect(TRIAL_GRANT_MAX_MS).toBeLessThan(SESSION_ABSOLUTE_MS);
   expect(
     readSessionRestriction(() => ({ ...policy, expiresAtMs: N + TRIAL_GRANT_MAX_MS }), N)
       ?.expiresAtMs,
@@ -376,7 +377,7 @@ it('trial grant permits at most 100 hours while session absolute lifetime stays 
   ).toThrow();
   expect(() => readSessionRestriction(() => ({ ...policy, expiresAtMs: N }), N)).toThrow();
 });
-it('100-hour grant issues at most an eight-hour session without changing the pending account', async () => {
+it('100-hour grant issues a session that ends with the grant without changing the pending account', async () => {
   const db = await mf.getD1Database('DB');
   const expiry = N + TRIAL_GRANT_MAX_MS;
   await db
@@ -395,7 +396,8 @@ it('100-hour grant issues at most an eight-hour session without changing the pen
       "SELECT expires_at_ms FROM auth_sessions WHERE account_id='account-a' ORDER BY rowid DESC LIMIT 1",
     )
     .first<{ expires_at_ms: number }>();
-  expect(row?.expires_at_ms).toBe(N + SESSION_ABSOLUTE_MS);
+  // The grant, not the year-long login, bounds a trial session (#269).
+  expect(row?.expires_at_ms).toBe(expiry);
   expect(
     await db
       .prepare("SELECT status,session_epoch FROM private_accounts WHERE id='account-a'")

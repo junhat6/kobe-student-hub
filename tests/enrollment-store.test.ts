@@ -1,3 +1,4 @@
+import { SESSION_IDLE_MS } from '../worker/auth/sessions';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
@@ -89,6 +90,7 @@ beforeAll(async () => {
     '0004_private_sessions.sql',
     '0012_browser_session_order.sql',
     '0016_self_declared_enrollment.sql',
+    '0041_session_long_lifetime.sql',
   ]) {
     const text = readFileSync('migrations/' + file, 'utf8');
     const statements = text
@@ -294,7 +296,7 @@ describe('private self-declared enrollment D1 and HTTP boundary', () => {
     );
     expect(Date.now() - began).toBeLessThan(1000);
     expect(
-      (await request('GET', 8, undefined, { 'X-Test-Now': String(NOW + 1800000) })).status,
+      (await request('GET', 8, undefined, { 'X-Test-Now': String(NOW + SESSION_IDLE_MS) })).status,
     ).toBe(401);
     expect(await rows()).toEqual(before);
   });

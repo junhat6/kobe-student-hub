@@ -1,19 +1,40 @@
 import { readFileSync } from 'node:fs';
+const statements = (file: string) =>
+  readFileSync('migrations/' + file, 'utf8')
+    .split(/^-- @statement\s*$/m)
+    .map((s) => s.replace(/^--.*$/gm, '').trim())
+    .filter(Boolean);
+/**
+ * 0041 rebuilds auth_sessions with the year-long CHECK and adds the context-extension trigger.
+ * Every fixture that assembles 0004 + 0012 by hand needs it, or a session insert fails the 8h CHECK.
+ */
+export async function applySessionLifetimeSchema(db: Pick<D1Database, 'prepare' | 'batch'>) {
+  if (
+    await db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='session_context_lifetime'",
+      )
+      .first()
+  )
+    return;
+  // A fixture that has not applied 0014 yet gets that index from 0014 later, not here.
+  const has0014 = await db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='auth_session_context'")
+    .first();
+  await db.batch(
+    statements('0041_session_long_lifetime.sql')
+      .filter((s) => has0014 || !s.includes('auth_session_context'))
+      .map((s) => db.prepare(s)),
+  );
+}
 export async function applyOrderSchema(db: Pick<D1Database, 'prepare' | 'batch'>) {
   if (
-    (await db.prepare('PRAGMA table_info(auth_sessions)').all<{ name: string }>()).results.some(
+    !(await db.prepare('PRAGMA table_info(auth_sessions)').all<{ name: string }>()).results.some(
       (c) => c.name === 'context_hash',
     )
   )
-    return;
-  const sql = readFileSync('migrations/0012_browser_session_order.sql', 'utf8');
-  await db.batch(
-    sql
-      .split(/^-- @statement\s*$/m)
-      .map((s) => s.replace(/^--.*$/gm, '').trim())
-      .filter(Boolean)
-      .map((s) => db.prepare(s)),
-  );
+    await db.batch(statements('0012_browser_session_order.sql').map((s) => db.prepare(s)));
+  await applySessionLifetimeSchema(db);
 }
 
 export async function applySelfRegistrationSchema(db: Pick<D1Database, 'prepare' | 'batch'>) {
