@@ -266,6 +266,19 @@ describe('explicit saved-version publication client', () => {
         Response.json({ contentId })) as typeof fetch).publish(draftId, 1, metadata, true),
     ).rejects.toBeInstanceOf(PublicationClientError);
   });
+  it('reads an article that arrives split across many stream chunks (#189 7段目 verifier L1)', async () => {
+    const article = { entry: receipt.entry, author: receipt.author };
+    const bytes = new TextEncoder().encode(JSON.stringify(article));
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        for (let i = 0; i < bytes.length; i += 7) c.enqueue(bytes.subarray(i, i + 7));
+        c.close();
+      },
+    });
+    const f = (async () =>
+      new Response(stream, { headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+    expect(await createPublicationClient('', f).readArticle(contentId)).toEqual(article);
+  });
   it('never retries an uncertain publication or accepts its late acknowledgement', async () => {
     vi.useFakeTimers();
     let release: (r: Response) => void = () => {};
