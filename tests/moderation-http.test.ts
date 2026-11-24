@@ -1,3 +1,4 @@
+import { SESSION_CLOCK_SKEW_MS } from '../worker/auth/session-guard';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -317,7 +318,7 @@ describe('unconnected report receipt and read-only operator HTTP boundary', () =
         .status,
     ).toBe(401);
     expect(Date.now() - began).toBeLessThan(1000);
-    for (const now of [NOW - 1, NOW + 1800000])
+    for (const now of [NOW - SESSION_CLOCK_SKEW_MS - 1, NOW + 1800000])
       expect(
         (await request(path(id), 'GET', users[0], undefined, { 'X-Test-Now': String(now) })).status,
       ).toBe(401);

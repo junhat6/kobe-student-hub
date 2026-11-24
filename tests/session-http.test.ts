@@ -1,7 +1,11 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
-import { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from '../worker/auth/sessions';
+import {
+  SESSION_ABSOLUTE_MS,
+  SESSION_CLOCK_SKEW_MS,
+  SESSION_IDLE_MS,
+} from '../worker/auth/sessions';
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1800000000000;
 let mf: Miniflare;
@@ -234,7 +238,7 @@ describe('unconnected existing-session and current-token logout HTTP boundary', 
   });
   it('rejects idle/absolute expiration, revoked tokens and clock rollback', async () => {
     const expiring = await session('2');
-    for (const now of [NOW - 1, NOW + SESSION_IDLE_MS]) {
+    for (const now of [NOW - SESSION_CLOCK_SKEW_MS - 1, NOW + SESSION_IDLE_MS]) {
       const r = await request('/api/private/session', 'GET', expiring, {
         'X-Test-Now': String(now),
       });

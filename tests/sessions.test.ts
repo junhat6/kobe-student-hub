@@ -1,7 +1,11 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
-import { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from '../worker/auth/sessions';
+import {
+  SESSION_ABSOLUTE_MS,
+  SESSION_CLOCK_SKEW_MS,
+  SESSION_IDLE_MS,
+} from '../worker/auth/sessions';
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1_800_000_000_000;
 const identity = (who = 'a') => ({
@@ -174,11 +178,17 @@ describe('private opaque sessions and request-bound CSRF', () => {
   });
   it('rejects at the idle deadline and before creation/after a backwards clock', async () => {
     const a = (await create())!;
-    expect(await auth(a, { now: NOW - 1 })).toBeNull();
+    expect(await auth(a, { now: NOW - SESSION_CLOCK_SKEW_MS - 1 })).toBeNull();
     expect(await auth(a, { now: NOW + SESSION_IDLE_MS })).toBeNull();
     const b = (await create())!;
-    expect(await auth(b, { now: NOW + 1000 })).not.toBeNull();
+    expect(await auth(b, { now: NOW + SESSION_CLOCK_SKEW_MS + 1000 })).not.toBeNull();
     expect(await auth(b, { now: NOW + 999 })).toBeNull();
+    // A concurrent request whose clock trails creation or the last touch by no more
+    // than the tolerated skew is the same live session, not a rollback.
+    const c = (await create())!;
+    expect(await auth(c, { now: NOW - SESSION_CLOCK_SKEW_MS })).not.toBeNull();
+    expect(await auth(c, { now: NOW + 1000 })).not.toBeNull();
+    expect(await auth(c, { now: NOW + 1000 - SESSION_CLOCK_SKEW_MS })).not.toBeNull();
   });
   it('activity can renew idle time but never extend the absolute deadline', async () => {
     const a = (await create())!;

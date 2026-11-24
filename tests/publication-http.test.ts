@@ -1,3 +1,4 @@
+import { SESSION_CLOCK_SKEW_MS } from '../worker/auth/session-guard';
 import { workerModules } from './helpers/worker-modules';
 import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
@@ -286,7 +287,7 @@ describe('unconnected private publication HTTP receipts', () => {
       (await request(d.id, 'POST', 0, undefined, { Cookie: '', 'X-Test-Body': 'late' })).status,
     ).toBe(401);
     expect(Date.now() - began).toBeLessThan(1000);
-    for (const now of [NOW - 1, NOW + 1800000])
+    for (const now of [NOW - SESSION_CLOCK_SKEW_MS - 1, NOW + 1800000])
       expect((await request(d.id, 'GET', 0, undefined, { 'X-Test-Now': String(now) })).status).toBe(
         401,
       );

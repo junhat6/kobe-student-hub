@@ -3,9 +3,11 @@ import { build } from 'esbuild';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { SESSION_IDLE_MS } from '../worker/auth/sessions';
+import { SESSION_CLOCK_SKEW_MS, SESSION_IDLE_MS } from '../worker/auth/sessions';
 
 const T = 1800000000000;
+// Gaps beyond the tolerated clock skew between concurrent requests.
+const D = SESSION_CLOCK_SKEW_MS;
 let mf: Miniflare;
 const gates = new Map<string, ReturnType<typeof gate>>();
 function gate() {
@@ -119,28 +121,28 @@ afterAll(async () => {
 it('retries a reordered lookup once with a fresh clock and the full atomic predicate', async () => {
   const current = await session(),
     hold = latch('one-retry');
-  const older = request([T + 10, T + 21], current.cookie, ['one-retry']);
+  const older = request([T + 10, T + D + 21], current.cookie, ['one-retry']);
   await hold.ready;
-  expect((await request(T + 20, current.cookie)).status).toBe(200);
+  expect((await request(T + D + 20, current.cookie)).status).toBe(200);
   hold.release();
   const result = await older;
   expect(result.status).toBe(200);
   expect(Object.keys((await result.json()) as object)).toEqual(['csrfToken']);
   expect(result.headers.get('X-Fixture-Lookups')).toBe('2');
   expect(result.headers.get('X-Fixture-Ahead-Reads')).toBe('0');
-  expect(await lastSeen(current.hash)).toBe(T + 21);
+  expect(await lastSeen(current.hash)).toBe(T + D + 21);
 });
 
 it('bounds repeated reordering to one retry and reports unavailable without a third touch or actor', async () => {
   const current = await session(),
     first = latch('twice-first'),
     second = latch('twice-second');
-  const older = request([T + 10, T + 30], current.cookie, ['twice-first', 'twice-second']);
+  const older = request([T + 10, T + D + 30], current.cookie, ['twice-first', 'twice-second']);
   await first.ready;
-  expect((await request(T + 20, current.cookie)).status).toBe(200);
+  expect((await request(T + D + 20, current.cookie)).status).toBe(200);
   first.release();
   await second.ready;
-  expect((await request(T + 40, current.cookie)).status).toBe(200);
+  expect((await request(T + 2 * D + 40, current.cookie)).status).toBe(200);
   second.release();
   const result = await older;
   expect(result.status).toBe(503);
@@ -148,12 +150,12 @@ it('bounds repeated reordering to one retry and reports unavailable without a th
   expect(result.headers.get('X-Fixture-Lookups')).toBe('2');
   expect(result.headers.get('X-Fixture-Ahead-Reads')).toBe('1');
   expect(result.headers.getSetCookie()).toEqual([]);
-  expect(await lastSeen(current.hash)).toBe(T + 40);
+  expect(await lastSeen(current.hash)).toBe(T + 2 * D + 40);
 });
 
 it('keeps genuine rollback unavailable with no actor, cookie write or activity regression', async () => {
   const current = await session();
-  expect((await request(T + 100, current.cookie)).status).toBe(200);
+  expect((await request(T + D + 100, current.cookie)).status).toBe(200);
   const rollback = await request(T + 90, current.cookie);
   expect(rollback.status).toBe(503);
   expect(await rollback.json()).toEqual({ error: 'session_unavailable' });
@@ -162,7 +164,39 @@ it('keeps genuine rollback unavailable with no actor, cookie write or activity r
     await (await request(T + 90, current.cookie, undefined, 'authenticate')).json(),
   ).toBeNull();
   expect((await request([T + 95, T + 94], current.cookie)).status).toBe(503);
+  expect(await lastSeen(current.hash)).toBe(T + D + 100);
+});
+
+it('accepts concurrent requests whose clocks trail the last touch within the skew, without moving activity back', async () => {
+  const current = await session();
+  expect((await request(T + 100, current.cookie)).status).toBe(200);
+  const results = await Promise.all(
+    [T + 99, T + 40, T + 100 - D, T + 100, T + 60].map((at) => request(at, current.cookie, [])),
+  );
+  for (const result of results) {
+    expect(result.status).toBe(200);
+    expect(result.headers.get('X-Fixture-Lookups')).toBe('1');
+    expect(result.headers.get('X-Fixture-Ahead-Reads')).toBe('0');
+  }
   expect(await lastSeen(current.hash)).toBe(T + 100);
+  const beyond = await request(T + 99 - D, current.cookie);
+  expect(beyond.status).toBe(503);
+  expect(await lastSeen(current.hash)).toBe(T + 100);
+});
+
+it('keeps idle and absolute expiry strict on the request clock inside the skew', async () => {
+  const current = await session();
+  expect((await request(T + 100, current.cookie)).status).toBe(200);
+  expect((await request(T + 100 + SESSION_IDLE_MS, current.cookie)).status).toBe(401);
+  const other = await session();
+  await (
+    await db()
+  )
+    .prepare('UPDATE auth_sessions SET expires_at_ms=? WHERE token_hash=?')
+    .bind(T + 50, other.hash)
+    .run();
+  expect((await request(T + 50, other.cookie)).status).toBe(401);
+  expect((await request(T + 49, other.cookie)).status).toBe(200);
 });
 
 for (const changed of [
@@ -176,11 +210,13 @@ for (const changed of [
   it(`rechecks ${changed} on retry and timing classification instead of returning an actor`, async () => {
     const current = await session(),
       hold = latch('changed-' + changed);
-    const older = request([T + 10, T + (changed === 'absolute-expiry' ? 30 : 15)], current.cookie, [
-      'changed-' + changed,
-    ]);
+    const older = request(
+      [T + 10, T + D + (changed === 'absolute-expiry' ? 30 : 15)],
+      current.cookie,
+      ['changed-' + changed],
+    );
     await hold.ready;
-    expect((await request(T + 20, current.cookie)).status).toBe(200);
+    expect((await request(T + D + 20, current.cookie)).status).toBe(200);
     const database = await db();
     if (changed === 'revoked')
       await database
@@ -200,7 +236,7 @@ for (const changed of [
     else if (changed === 'absolute-expiry')
       await database
         .prepare('UPDATE auth_sessions SET expires_at_ms=? WHERE token_hash=?')
-        .bind(T + 25, current.hash)
+        .bind(T + D + 25, current.hash)
         .run();
     else
       await database
@@ -217,17 +253,17 @@ for (const changed of [
     expect(await result.json()).toEqual({ error: 'authentication_required' });
     expect(result.headers.get('X-Fixture-Lookups')).toBe('2');
     expect(result.headers.get('X-Fixture-Ahead-Reads')).toBe('1');
-    expect(await lastSeen(current.hash)).toBe(T + 20);
+    expect(await lastSeen(current.hash)).toBe(T + D + 20);
   });
 
 it('does not renew an idle-expired session during the fresh-clock retry', async () => {
   const current = await session(),
     hold = latch('idle-expiry');
-  const older = request([T + 10, T + SESSION_IDLE_MS + 21], current.cookie, ['idle-expiry']);
+  const older = request([T + 10, T + D + SESSION_IDLE_MS + 21], current.cookie, ['idle-expiry']);
   await hold.ready;
-  expect((await request(T + 20, current.cookie)).status).toBe(200);
+  expect((await request(T + D + 20, current.cookie)).status).toBe(200);
   hold.release();
   const result = await older;
   expect(result.status).toBe(401);
-  expect(await lastSeen(current.hash)).toBe(T + 20);
+  expect(await lastSeen(current.hash)).toBe(T + D + 20);
 });

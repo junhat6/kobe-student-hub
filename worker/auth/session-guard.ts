@@ -1,6 +1,15 @@
 export const SESSION_ABSOLUTE_MS = 28_800_000;
 export const SESSION_IDLE_MS = 1_800_000;
 export const TRIAL_GRANT_MAX_MS = 100 * 3_600_000;
+/**
+ * Largest gap tolerated between this request's clock and a timestamp another
+ * valid request already wrote (session creation or the last touch). Concurrent
+ * requests run on isolates whose clocks differ by milliseconds, so a strict
+ * `<= now` turned a just-touched session into a false "unavailable" (#268).
+ * The tolerance never extends idle or absolute expiry, which stay strict on `now`;
+ * a rollback larger than this stays unavailable.
+ */
+export const SESSION_CLOCK_SKEW_MS = 5_000;
 export interface SessionStorageProof {
   tokenHash: string;
   accountId: string;
@@ -10,7 +19,7 @@ export interface SessionStorageProof {
   restriction?: SessionRestrictionReader;
 }
 /** All final private statements use the same current authority, never a preflight actor alone. */
-export const liveSessionSql = `EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id JOIN auth_browser_contexts c ON c.context_hash=s.context_hash WHERE s.token_hash=? AND s.account_id=? AND s.context_hash=? AND s.context_generation=c.generation AND c.created_at_ms<=? AND c.expires_at_ms>? AND a.status='active' AND a.session_epoch=s.account_epoch AND s.revoked_at_ms IS NULL AND s.created_at_ms<=? AND s.last_seen_ms<=? AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
+export const liveSessionSql = `EXISTS(SELECT 1 FROM auth_sessions s JOIN private_accounts a ON a.id=s.account_id JOIN auth_browser_contexts c ON c.context_hash=s.context_hash WHERE s.token_hash=? AND s.account_id=? AND s.context_hash=? AND s.context_generation=c.generation AND c.created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>? AND a.status='active' AND a.session_epoch=s.account_epoch AND s.revoked_at_ms IS NULL AND s.created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND s.last_seen_ms<=?+${SESSION_CLOCK_SKEW_MS} AND s.last_seen_ms>? AND s.expires_at_ms>?)`;
 export function liveSessionBindings(p: SessionStorageProof) {
   const now = p.clock();
   if (

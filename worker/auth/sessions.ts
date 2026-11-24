@@ -16,6 +16,7 @@ import {
 } from './browser-session';
 import {
   SESSION_ABSOLUTE_MS,
+  SESSION_CLOCK_SKEW_MS,
   SESSION_IDLE_MS,
   type SessionStorageProof,
   type SessionRestrictionReader,
@@ -23,7 +24,7 @@ import {
   sessionRestrictionSql,
   sessionRestrictionBindings,
 } from './session-guard';
-export { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from './session-guard';
+export { SESSION_ABSOLUTE_MS, SESSION_CLOCK_SKEW_MS, SESSION_IDLE_MS } from './session-guard';
 const NAME = '__Host-kobe-session';
 const validToken = (v: string) => /^[A-Za-z0-9_-]{43}$/.test(v);
 const cookie = (value: string, age: number) =>
@@ -164,8 +165,8 @@ export class SessionStore {
     const now = this.now();
     if (now === null) return { kind: 'unavailable' };
     const predicate = `WHERE token_hash=? AND revoked_at_ms IS NULL
-    AND context_hash=? AND EXISTS(SELECT 1 FROM auth_browser_contexts c WHERE c.context_hash=auth_sessions.context_hash AND c.generation=auth_sessions.context_generation AND c.created_at_ms<=? AND c.expires_at_ms>?)
-    AND created_at_ms<=? AND last_seen_ms<=? AND last_seen_ms>? AND expires_at_ms>?
+    AND context_hash=? AND EXISTS(SELECT 1 FROM auth_browser_contexts c WHERE c.context_hash=auth_sessions.context_hash AND c.generation=auth_sessions.context_generation AND c.created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>?)
+    AND created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND last_seen_ms<=?+${SESSION_CLOCK_SKEW_MS} AND last_seen_ms>? AND expires_at_ms>?
     AND EXISTS(SELECT 1 FROM private_accounts a WHERE a.id=auth_sessions.account_id AND a.status=${this.restriction ? "'pending'" : "'active'"} AND a.session_epoch=auth_sessions.account_epoch ${this.restriction ? 'AND ' + sessionRestrictionSql('a') : 'AND ? IS NULL AND ? IS NULL AND ? IS NULL AND ?>=0 AND ? IS NULL'})`;
     const bindings = (at: number) => [
       digest,
@@ -181,15 +182,17 @@ export class SessionStore {
     const lookup = (at: number) =>
       this.db
         .prepare(
-          `UPDATE auth_sessions SET last_seen_ms=? ${predicate} RETURNING account_id,context_generation`,
+          `UPDATE auth_sessions SET last_seen_ms=max(last_seen_ms,?) ${predicate} RETURNING account_id,context_generation`,
         )
         .bind(at, ...bindings(at))
         .first<{ account_id: string; context_generation: number }>();
     let checkedAt = now,
       row = await lookup(checkedAt);
     if (!row) {
-      // Another valid request may have touched the row after this request sampled
-      // its clock. Retry the full atomic authority check once with a fresh sample.
+      // Another valid request may have touched the row with a clock more than
+      // SESSION_CLOCK_SKEW_MS ahead of this sample. Retry the full atomic authority
+      // check once with a fresh sample. Smaller gaps already pass the predicate,
+      // and max() keeps last_seen_ms from moving backwards.
       const fresh = this.now();
       if (fresh === null || fresh < checkedAt) return { kind: 'unavailable' };
       checkedAt = fresh;
@@ -199,7 +202,10 @@ export class SessionStore {
         // cannot touch or authorize a row. Every other authority condition stays.
         const ahead = await this.db
           .prepare(
-            `SELECT 1 AS present FROM auth_sessions ${predicate.replace('last_seen_ms<=?', 'last_seen_ms>?')} LIMIT 1`,
+            `SELECT 1 AS present FROM auth_sessions ${predicate.replace(
+              `last_seen_ms<=?+${SESSION_CLOCK_SKEW_MS}`,
+              `last_seen_ms>?+${SESSION_CLOCK_SKEW_MS}`,
+            )} LIMIT 1`,
           )
           .bind(...bindings(checkedAt))
           .first<{ present: number }>();
