@@ -780,7 +780,12 @@ export default function DraftEditor({
             <>
               <section className="editor-writing-card" aria-label="下書きの編集">
                 <div className="editor-title-head">
-                  <label className="editor-title-label" htmlFor="draft-title">
+                  {/* Zenn・note show the title as the page's big first line with no field label;
+                      the label stays for assistive technology (#230). */}
+                  <label
+                    className={'editor-title-label' + (ordinary ? ' sr-only' : '')}
+                    htmlFor="draft-title"
+                  >
                     タイトル
                   </label>
                   <small id="draft-title-count">{Array.from(text.title).length}/200文字</small>
@@ -793,7 +798,7 @@ export default function DraftEditor({
                   className="editor-title"
                   value={text.title}
                   maxLength={400}
-                  placeholder="たとえば、初めてのチーム制作で学んだこと"
+                  placeholder={ordinary ? 'タイトル' : 'たとえば、初めてのチーム制作で学んだこと'}
                   onCompositionStart={startComposition}
                   onCompositionEnd={endComposition}
                   onChange={(event) => {
@@ -903,41 +908,6 @@ export default function DraftEditor({
                   {!ordinary && <span>画像・Mermaidは未対応</span>}
                 </div>
               </section>
-              {ordinary && draft && writable && (
-                <ShopReviewGuide
-                  disabled={editingLocked || composing || busy || publicationBusy}
-                  onInsert={() => {
-                    cancelAutosave();
-                    setText((t) => ({ ...t, body: withShopReviewTemplate(t.body) }));
-                  }}
-                />
-              )}
-              {ordinary && draft && writable && (
-                <AgentWritingPanel
-                  key={'agent-' + draft.id}
-                  current={text}
-                  disabled={editingLocked || composing || busy || publicationBusy}
-                  onApply={applyAgentArticle}
-                  canUndo={beforeAgent?.draftId === draft.id}
-                  onUndo={undoAgentArticle}
-                />
-              )}
-              {ordinary && draft && writable && (
-                <MediaAttachments
-                  key={draft.id + csrfToken}
-                  kind="articles"
-                  draft={draft}
-                  csrfToken={csrfToken}
-                  fetcher={fetcher}
-                  disabled={workBusy || publicationBusy || editingLocked}
-                  onBusy={onMediaBusy}
-                  onUncertain={onMediaUncertain}
-                  onInsert={(value) => {
-                    cancelAutosave();
-                    setText((t) => ({ ...t, body: t.body + value }));
-                  }}
-                />
-              )}
               {invalid && (
                 <p role="alert" className="editor-error">
                   {invalid}
@@ -977,6 +947,45 @@ export default function DraftEditor({
                   下書きを保存
                 </Button>
               </div>
+              {/* The writing card holds only the title and the body; the helpers sit below the
+                  save button, outside the text (#230 ②). */}
+              {ordinary && draft && writable && (
+                <section className="editor-helpers" aria-labelledby="editor-helpers-heading">
+                  <h3 id="editor-helpers-heading">書くのを助ける道具</h3>
+
+                  <ShopReviewGuide
+                    disabled={editingLocked || composing || busy || publicationBusy}
+                    onInsert={() => {
+                      cancelAutosave();
+                      setText((t) => ({ ...t, body: withShopReviewTemplate(t.body) }));
+                    }}
+                  />
+
+                  <AgentWritingPanel
+                    key={'agent-' + draft.id}
+                    current={text}
+                    disabled={editingLocked || composing || busy || publicationBusy}
+                    onApply={applyAgentArticle}
+                    canUndo={beforeAgent?.draftId === draft.id}
+                    onUndo={undoAgentArticle}
+                  />
+
+                  <MediaAttachments
+                    key={draft.id + csrfToken}
+                    kind="articles"
+                    draft={draft}
+                    csrfToken={csrfToken}
+                    fetcher={fetcher}
+                    disabled={workBusy || publicationBusy || editingLocked}
+                    onBusy={onMediaBusy}
+                    onUncertain={onMediaUncertain}
+                    onInsert={(value) => {
+                      cancelAutosave();
+                      setText((t) => ({ ...t, body: t.body + value }));
+                    }}
+                  />
+                </section>
+              )}
               {writable && (
                 <PublicationComposer
                   surface={ordinary ? 'ordinary' : 'lab'}

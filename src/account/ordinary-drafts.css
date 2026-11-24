@@ -256,3 +256,50 @@
   /* Clears the sticky site header (64px) so the panel's own heading is not hidden under it. */
   scroll-margin-top: 80px;
 }
+/* Zenn・note: the title is the page's big first line and the body fills the screen; the
+   helpers (お店のレビュー・AIエージェント・画像) sit below the save button, outside the text (#230 ②). */
+.draft-editor--ordinary .editor-title-head {
+  justify-content: flex-end;
+}
+.draft-editor--ordinary .editor-title {
+  font-size: 32px;
+  line-height: 1.45;
+  padding: 4px 0 12px;
+  border-bottom-color: transparent;
+}
+.draft-editor--ordinary .editor-title:focus-visible {
+  outline-offset: 6px;
+}
+.draft-editor--ordinary .editor-title::placeholder {
+  font-size: 26px;
+  font-weight: 700;
+  color: #8a99a5;
+}
+.draft-editor--ordinary #draft-body {
+  min-height: max(420px, 60vh);
+}
+.draft-editor--ordinary .editor-helpers {
+  margin-top: 8px;
+  display: grid;
+  gap: 12px;
+}
+.draft-editor--ordinary .editor-helpers > :not(h3) {
+  margin: 0;
+}
+.draft-editor--ordinary .editor-helpers > h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-muted, #636d79);
+  margin: 0;
+}
+@media (max-width: 720px) {
+  .draft-editor--ordinary .editor-title {
+    font-size: 22px;
+  }
+  .draft-editor--ordinary .editor-title::placeholder {
+    font-size: 20px;
+  }
+  .draft-editor--ordinary #draft-body {
+    min-height: max(360px, 55vh);
+  }
+}
