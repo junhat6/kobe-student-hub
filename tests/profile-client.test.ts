@@ -103,6 +103,31 @@ describe('explicit public profile browser client', () => {
     ).rejects.toBeInstanceOf(ProfileClientError);
     expect(never).not.toHaveBeenCalled();
   });
+  it('keeps an update 422 generic rather than stale', async () => {
+    const error = await createProfileClient(csrf, (async () =>
+      Response.json({ error: 'invalid' }, { status: 422 })) as typeof fetch)
+      .update(input, value, true)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ProfileClientError);
+    expect(error).not.toBeInstanceOf(ProfileConflictError);
+  });
+  it('accepts a valid profile padded to 16384 bytes and refuses the same one byte over', async () => {
+    const legal = { ...value, displayName: 'い'.repeat(80), bio: 'あ'.repeat(800) };
+    const padded = (bytes: number) => {
+      const json = JSON.stringify({ profile: legal });
+      return json + ' '.repeat(bytes - new TextEncoder().encode(json).length);
+    };
+    const read = (bytes: number) =>
+      createProfileClient(
+        csrf,
+        (async () =>
+          new Response(padded(bytes), {
+            headers: { 'Content-Type': 'application/json' },
+          })) as typeof fetch,
+      ).read();
+    expect(await read(16384)).toEqual(legal);
+    await expect(read(16385)).rejects.toBeInstanceOf(ProfileClientError);
+  });
   it('never retries an uncertain update or accepts its late receipt', async () => {
     vi.useFakeTimers();
     let release: (value: Response) => void = () => {};
