@@ -77,6 +77,7 @@ export default function DraftEditor({
   const [listError, setListError] = useState(false);
   const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [text, setText] = useState({ title: '', body: '' });
+  const [publishRequest, setPublishRequest] = useState(0);
   const [mutationPending, setMutationPending] = useState(false);
   const [preparationDirty, setPreparationDirty] = useState(false);
   const [publicationUncertain, setPublicationUncertain] = useState(false);
@@ -724,14 +725,16 @@ export default function DraftEditor({
           {(!ordinary || list.length >= 20) && (
             <p className="editor-list-limit">更新が新しい20件まで表示します。</p>
           )}
-          <div className="editor-publish-note">
-            <h2>公開について</h2>
-            <p>
-              {ordinary
-                ? '下書きは本人だけに表示されます。公開するには、保存済みの版とプロフィールを確認してください。'
-                : '確認した保存済みの版だけを、ローカル内で試験公開できます。本番への公開ではありません。'}
-            </p>
-          </div>
+          {/* The ordinary page says 「本人だけに表示」 in the heading and keeps publishing behind
+              the 「公開する」 button beside the save state (#230), so this note is the lab's only. */}
+          {!ordinary && (
+            <div className="editor-publish-note">
+              <h2>公開について</h2>
+              <p>
+                確認した保存済みの版だけを、ローカル内で試験公開できます。本番への公開ではありません。
+              </p>
+            </div>
+          )}
         </aside>
         <EditorRegion className="editor-main" id="editor-main" tabIndex={-1}>
           <div className="editor-main-heading">
@@ -746,9 +749,22 @@ export default function DraftEditor({
               </h2>
             </div>
             {draft && (
-              <span className={'editor-save-state ' + (dirty ? 'is-dirty' : '')}>
-                {dirty ? '未保存の変更あり' : '保存済み'}
-              </span>
+              <div className="editor-heading-actions">
+                <span className={'editor-save-state ' + (dirty ? 'is-dirty' : '')}>
+                  {dirty ? '未保存の変更あり' : '保存済み'}
+                </span>
+                {/* Zenn・note keep 「公開する」 at the top right of the writing screen; the panel
+                    with tags, summary and readers opens only after it is pressed (#230). */}
+                {ordinary && writable && (
+                  <Button
+                    className="editor-primary editor-publish-open"
+                    disabled={busy || publicationBusy || deletionOpen}
+                    onClick={() => setPublishRequest((n) => n + 1)}
+                  >
+                    公開する
+                  </Button>
+                )}
+              </div>
             )}
           </div>
           <div
@@ -975,6 +991,7 @@ export default function DraftEditor({
                   onUnsavedPreparation={onUnsavedPreparation}
                   onSuggestionUsed={onSuggestionUsed}
                   suggestionVolatile={agentSuggestionPending}
+                  openRequest={publishRequest}
                   suggested={
                     agentMetadata?.draftId === draft.id
                       ? agentMetadata.metadata

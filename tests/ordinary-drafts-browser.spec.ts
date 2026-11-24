@@ -173,14 +173,11 @@ test('ordinary signup asks for a profile first, then drafts save and reopen', as
   await expect(page.locator('header')).toHaveCount(1);
   await expect(page.locator('footer')).toHaveCount(1);
   await expect(page.locator('.editor-header,.editor-footer,.editor-local-notice')).toHaveCount(0);
-  await expect(
-    page.getByText(
-      '下書きは本人だけに表示されます。公開するには、保存済みの版とプロフィールを確認してください。',
-      {
-        exact: true,
-      },
-    ),
-  ).toBeVisible();
+  // #230: the heading says the drafts are the owner's only; the lab's long 「公開について」
+  // note is gone, and publishing waits behind 「公開する」 once a draft is open.
+  await expect(page.locator('.editor-side-heading')).toContainText('本人だけに表示');
+  await expect(page.locator('.editor-publish-note')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '公開する', exact: true })).toHaveCount(0);
   await expect(page.locator('.publication-composer')).toHaveCount(0);
   await create(page);
   await title(page).fill('AIと技術を選んだ理由');

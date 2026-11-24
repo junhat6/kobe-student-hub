@@ -225,3 +225,34 @@
 .draft-editor--ordinary .editor-draft-list .is-active {
   border-color: var(--accent, #2f7bf5);
 }
+/* Save state and 「公開する」 sit together at the top right of the writing screen (#230). */
+.draft-editor--ordinary .editor-main-heading {
+  flex-wrap: wrap;
+}
+/* The heading keeps its words whole; when the actions do not fit beside it they move to the
+   next line at the right instead of splitting 「書き残そう。」. */
+.draft-editor--ordinary .editor-main-heading > div:first-child {
+  flex: 1 1 auto;
+}
+.draft-editor--ordinary .editor-main-heading h2 {
+  word-break: keep-all;
+}
+.draft-editor--ordinary .editor-heading-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.draft-editor--ordinary .editor-publish-open {
+  font-size: 14px;
+  font-weight: 750;
+  padding: 8px 18px;
+  white-space: nowrap;
+}
+.draft-editor--ordinary .publication-composer > details {
+  /* Clears the sticky site header (64px) so the panel's own heading is not hidden under it. */
+  scroll-margin-top: 80px;
+}

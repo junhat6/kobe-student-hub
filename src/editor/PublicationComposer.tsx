@@ -36,6 +36,8 @@ interface Props {
   onSuggestionUsed?: () => void;
   /** The suggestion exists only in this page (a pasted file), so leaving loses it. */
   suggestionVolatile?: boolean;
+  /** Bumped by the editor's 「公開する」 button: open this panel and move the reader to it. */
+  openRequest?: number;
 }
 class SavedPreviewBoundary extends React.Component<
   { children: React.ReactNode },
@@ -67,7 +69,17 @@ export default function PublicationComposer({
   suggested = null,
   onSuggestionUsed,
   suggestionVolatile = false,
+  openRequest = 0,
 }: Props) {
+  const panel = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const details = panel.current;
+    if (!openRequest || !details) return;
+    details.open = true;
+    details.scrollIntoView({ block: 'start' });
+    // Focus the heading the reader landed on, so keyboard and screen-reader users arrive too.
+    details.querySelector('summary')?.focus({ preventScroll: true });
+  }, [openRequest]);
   const ordinary = surface === 'ordinary';
   const [optionalOpen, setOptionalOpen] = useState(false);
   const client = useMemo(() => createPublicationClient(csrfToken, fetcher), [csrfToken, fetcher]);
@@ -377,7 +389,7 @@ export default function PublicationComposer({
           AIの概要・タグの候補あり・この画面を離れると消えます
         </p>
       )}
-      <details>
+      <details ref={panel}>
         <summary>
           {ordinary
             ? receipt

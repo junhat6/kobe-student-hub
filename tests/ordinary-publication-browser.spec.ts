@@ -84,8 +84,34 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
     .fill('## 条件\n\nこの文章は公開する保存版です。');
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
-  await page.getByText('記事を公開する', { exact: true }).click();
+  // #230: like Zenn・note, 「公開する」 sits beside the save state at the top right; the panel
+  // with summary and tags opens only after it is pressed, and the reader is moved to it.
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
+  const panelHeading = composer.locator('details > summary').first();
+  await expect(composer.getByLabel('記事の概要（300文字以内）')).toBeHidden();
+  const publishOpen = page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true });
+  const [openBox, saveBox] = await Promise.all([
+    publishOpen.boundingBox(),
+    page.locator('.editor-save-state').boundingBox(),
+  ]);
+  expect(
+    Math.abs(openBox!.y + openBox!.height / 2 - (saveBox!.y + saveBox!.height / 2)),
+  ).toBeLessThan(4);
+  await publishOpen.click();
+  await expect(panelHeading).toBeFocused();
+  await expect(panelHeading).toBeInViewport();
+  // The panel's heading is not hidden under the sticky site header.
+  const [headerBox, headingBox] = await Promise.all([
+    page.locator('.site-header').boundingBox(),
+    panelHeading.boundingBox(),
+  ]);
+  expect(headingBox!.y).toBeGreaterThanOrEqual(
+    (await page.locator('.site-header').evaluate((h) => getComputedStyle(h).position)) === 'sticky'
+      ? headerBox!.height
+      : 0,
+  );
   await composer.getByLabel('記事の概要（300文字以内）').fill('条件・判断・確認の記録');
   await composer.getByLabel('タグ（5件まで）').fill('AI');
   await composer.getByText('読者向けの補足（任意）', { exact: true }).click();
