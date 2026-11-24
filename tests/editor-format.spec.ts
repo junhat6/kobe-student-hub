@@ -185,6 +185,36 @@ test('the title counter sits beside the title and the body footer only shows the
   await expect(footer).toContainText('本文の容量 0.0/256 KiB');
   await expect(footer).not.toContainText('文字');
 });
+test('a long title wraps whole, grows with its lines and stays one line of text (#281)', async ({
+  page,
+}, info) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
+  const title = page.getByLabel('タイトル', { exact: true });
+  await title.fill('短い題');
+  const oneLine = (await title.boundingBox())!.height;
+  const long =
+    '架空の記事タイトル：Gitのブランチ運用で迷ったことと、チームで決めた約束ごとの話'.repeat(2);
+  await title.fill(long);
+  // Every character is visible: nothing scrolls inside the field, and it grew instead.
+  const fit = await title.evaluate((element) => ({
+    clipped: element.scrollHeight > element.clientHeight + 1,
+    sideways: element.scrollWidth > element.clientWidth + 1,
+  }));
+  expect(fit).toEqual({ clipped: false, sideways: false });
+  expect((await title.boundingBox())!.height).toBeGreaterThan(oneLine * 1.5);
+  // Enter adds no line break, and pasted line breaks become spaces.
+  await title.press('End');
+  await title.press('Enter');
+  await expect(title).toHaveValue(long);
+  await title.fill('一行目\n二行目\r\n三行目');
+  await expect(title).toHaveValue('一行目 二行目 三行目');
+  await title.fill('短い題');
+  await expect.poll(async () => (await title.boundingBox())!.height).toBe(oneLine);
+  await title.fill(long);
+  await page.screenshot({ path: info.outputPath('long-title.png') });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 test('preview links only the URL of a bare link written inside Japanese brackets and punctuation (#258)', async ({
   page,
 }, info) => {

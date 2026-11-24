@@ -188,7 +188,7 @@ export default function DraftEditor({
   const agentDrafts = useAgentDrafts(ordinary && AGENT_MCP_RELEASE_ENABLED, fetcher, list);
   const compositionRef = useRef(false);
   const pendingFormat = useRef<MarkdownFormat | null>(null);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const currentText = useRef(text);
   currentText.current = text;
@@ -679,6 +679,22 @@ export default function DraftEditor({
     pendingFormat.current = result;
     setText((t) => ({ ...t, body: result.body }));
   }
+  // The title wraps and grows with its lines, like Zenn・note, so a long title can be reread
+  // whole on a phone instead of being cut at the right edge (#281).
+  const titleValue = text.title;
+  useLayoutEffect(() => {
+    const area = titleRef.current;
+    if (!area) return;
+    const fit = () => {
+      area.style.height = 'auto';
+      const style = getComputedStyle(area);
+      const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+      area.style.height = `${area.scrollHeight + borders}px`;
+    };
+    fit();
+    addEventListener('resize', fit);
+    return () => removeEventListener('resize', fit);
+  }, [titleValue, draft?.id]);
   useLayoutEffect(() => {
     const selection = pendingFormat.current;
     if (!selection) return;
@@ -936,21 +952,33 @@ export default function DraftEditor({
                     {Array.from(text.title).length}/200文字
                   </small>
                 </div>
-                <input
+                {/* A one-line value shown wrapped: Enter never adds a line break and pasted
+                    line breaks become spaces, so the saved title stays one line (#281). */}
+                <textarea
                   id="draft-title"
                   aria-describedby="draft-title-count"
                   disabled={editingLocked}
                   ref={titleRef}
                   className="editor-title"
+                  rows={1}
                   value={text.title}
                   maxLength={400}
                   placeholder={ordinary ? 'タイトル' : 'たとえば、初めてのチーム制作で学んだこと'}
                   onCompositionStart={startComposition}
                   onCompositionEnd={endComposition}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === 'Enter' &&
+                      !event.nativeEvent.isComposing &&
+                      event.keyCode !== 229
+                    )
+                      event.preventDefault();
+                  }}
                   onChange={(event) => {
                     cancelAutosave();
                     pendingFormat.current = null;
-                    setText((t) => ({ ...t, title: event.target.value }));
+                    const title = event.target.value.replace(/\r\n?|\n/g, ' ');
+                    setText((t) => ({ ...t, title }));
                   }}
                 />
                 <div className="editor-tabs" aria-label="表示の切り替え">

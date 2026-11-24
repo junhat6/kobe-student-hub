@@ -315,6 +315,10 @@
   border: 0;
   border-radius: 0;
   border-bottom: 1px solid #d6e3ed;
+  /* Grows with the wrapped title from script; the drag handle would fight that (#281). */
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .editor-title::placeholder {
   font-size: 18px;

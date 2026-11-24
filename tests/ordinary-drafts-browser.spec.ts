@@ -669,6 +669,14 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
     title(page).boundingBox(),
   ]);
   expect(counterBox && titleBox && counterBox.y + counterBox.height <= titleBox.y - 9).toBe(true);
+  // The long title wraps and grows, so all of it can be reread on a phone (#281).
+  expect(
+    await title(page).evaluate(
+      (element) =>
+        element.scrollHeight <= element.clientHeight + 1 &&
+        element.scrollWidth <= element.clientWidth + 1,
+    ),
+  ).toBe(true);
   await page.screenshot({
     path: info.outputPath('ordinary-drafts-title-count.png'),
     fullPage: true,
