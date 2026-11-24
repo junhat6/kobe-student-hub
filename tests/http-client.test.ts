@@ -105,7 +105,7 @@ describe('readBoundedJson — the one bounded transport', () => {
     expect(never).not.toHaveBeenCalled();
   });
 
-  it('accepts only the exact status and JSON type, and names 404 and 401 without the body', async () => {
+  it('accepts only the exact status and JSON type, and names 404, 401 and 409 without the body', async () => {
     const run = (r: Response, status?: number) =>
       failure('/api/x', {
         fetcher: (async () => r) as typeof fetch,
@@ -115,6 +115,7 @@ describe('readBoundedJson — the one bounded transport', () => {
       });
     expect(await run(json('"PRIVATE"', { status: 404 }))).toBe('missing');
     expect(await run(json('"PRIVATE"', { status: 401 }))).toBe('signed-out');
+    expect(await run(json('"PRIVATE"', { status: 409 }))).toBe('conflict');
     expect(await run(json('"PRIVATE"', { status: 503 }))).toBe('unavailable');
     expect(await run(json('{}', { status: 200 }), 201)).toBe('unavailable');
     expect(await run(json('{}', { status: 201 }))).toBe('unavailable');

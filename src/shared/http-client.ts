@@ -5,9 +5,10 @@ import { proofAuthorization } from './auth-proof';
  * carries a URL, body, header or identity.
  * - `missing`: the server answered 404 (absent or not public, reason withheld)
  * - `signed-out`: the server answered 401
+ * - `conflict`: the server answered 409 (a state the caller can explain, such as a limit)
  * - `unavailable`: anything else (network, timeout, abort, wrong status/type/size, bad JSON)
  */
-export type BoundedReadFailure = 'missing' | 'signed-out' | 'unavailable';
+export type BoundedReadFailure = 'missing' | 'signed-out' | 'conflict' | 'unavailable';
 export class BoundedReadError extends Error {
   constructor(readonly kind: BoundedReadFailure = 'unavailable') {
     super('応答を確認できませんでした。');
@@ -116,7 +117,9 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
           ? 'missing'
           : answered && response.status === 401
             ? 'signed-out'
-            : 'unavailable',
+            : answered && response.status === 409
+              ? 'conflict'
+              : 'unavailable',
       );
     }
     const length = response.headers.get('Content-Length');

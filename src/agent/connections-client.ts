@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { proofAuthorization } from '../shared/auth-proof';
+import {
+  boundedReadFailure,
+  readBoundedJson,
+  type BoundedReadFailure,
+} from '../shared/http-client';
 
 /** The student's own AI agent connections. Server identity and ownership stay authoritative. */
 export interface AgentConnection {
@@ -67,74 +71,87 @@ function parseState(value: unknown): AgentConnectionsState | null {
   };
 }
 
-async function readJson(response: Response): Promise<unknown> {
-  if (!/^application\/json/i.test(response.headers.get('Content-Type') ?? '')) return null;
-  const body = await response.text();
-  if (body.length > 256 * 1024) return null;
-  return JSON.parse(body);
+const BASE = '/api/private/agent-connections';
+/** Every answer here is a small private DTO; the list is capped at 20 + 100 + 100 rows. */
+const MAX_BYTES = 262144;
+const requestId = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * The bounded transport (src/shared/http-client.ts): session cookie, no-store, no redirect,
+ * exact 200, JSON only, size and time caps. Changes also carry the CSRF proof and are never
+ * retried. Failures come back as a kind only, never with a body, URL or identity.
+ */
+async function call(
+  path: string,
+  fetcher: typeof fetch,
+  options: { method?: 'DELETE' | 'POST'; body?: unknown; csrf?: string; signal?: AbortSignal },
+): Promise<{ value: unknown } | { failure: BoundedReadFailure }> {
+  try {
+    return {
+      value: await readBoundedJson(path, {
+        fetcher,
+        credentials: 'same-origin',
+        method: options.method ?? 'GET',
+        ...(options.body === undefined ? {} : { body: options.body }),
+        ...(options.csrf === undefined ? {} : { csrf: options.csrf }),
+        maxBytes: MAX_BYTES,
+        signal: options.signal,
+      }),
+    };
+  } catch (error) {
+    return { failure: boundedReadFailure(error) };
+  }
 }
 
-const BASE = '/api/private/agent-connections';
-const READ: RequestInit = {
-  credentials: 'same-origin',
-  cache: 'no-store',
-  redirect: 'error',
-  headers: { Accept: 'application/json' },
-};
 /** Reading needs only the session cookie; changes also carry the CSRF proof. */
 export async function listAgentConnections(
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<AgentConnectionsState | null> {
-  const response = await fetcher(BASE, { ...READ, signal });
-  return response.ok ? parseState(await readJson(response)) : null;
+  const result = await call(BASE, fetcher, { signal });
+  return 'value' in result ? parseState(result.value) : null;
 }
 
 export function createAgentConnectionsClient(csrfToken: string, fetcher: typeof fetch = fetch) {
-  const base = BASE;
-  const write = (method: string, body?: unknown): RequestInit => ({
-    method,
-    credentials: 'same-origin',
-    cache: 'no-store',
-    redirect: 'error',
-    headers: {
-      Accept: 'application/json',
-      Authorization: proofAuthorization('csrf', csrfToken),
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  const read = READ;
   return {
     list: (signal?: AbortSignal) => listAgentConnections(fetcher, signal),
     async revoke(id: string): Promise<boolean> {
       if (!uuid.test(id)) return false;
-      const response = await fetcher(base + '/' + id, write('DELETE'));
-      return response.ok;
+      const result = await call(BASE + '/' + id, fetcher, { method: 'DELETE', csrf: csrfToken });
+      if (!('value' in result)) return false;
+      const v = result.value as Record<string, unknown> | null;
+      return Boolean(v && typeof v === 'object' && v.revoked === true);
     },
     async readRequest(
-      requestId: string,
+      id: string,
       signal?: AbortSignal,
     ): Promise<ConsentRequest | 'signed-out' | 'unavailable'> {
-      if (!/^[A-Za-z0-9_-]{43}$/.test(requestId)) return 'unavailable';
-      const response = await fetcher(base + '/requests/' + requestId, { ...read, signal });
-      if (response.status === 401) return 'signed-out';
-      if (!response.ok) return 'unavailable';
-      const v = (await readJson(response)) as Record<string, unknown> | null;
-      return v && text(v.clientName, 100) && text(v.destination, 300) && text(v.scope, 40)
+      if (!requestId.test(id)) return 'unavailable';
+      const result = await call(BASE + '/requests/' + id, fetcher, { signal });
+      if (!('value' in result))
+        return result.failure === 'signed-out' ? 'signed-out' : 'unavailable';
+      const v = result.value as Record<string, unknown> | null;
+      return v &&
+        typeof v === 'object' &&
+        text(v.clientName, 100) &&
+        text(v.destination, 300) &&
+        text(v.scope, 40)
         ? { clientName: v.clientName, destination: v.destination, scope: v.scope }
         : 'unavailable';
     },
     async decide(
-      requestId: string,
+      id: string,
       decision: 'allow' | 'deny',
     ): Promise<{ redirectTo: string } | 'too-many' | 'unavailable'> {
-      if (!/^[A-Za-z0-9_-]{43}$/.test(requestId)) return 'unavailable';
-      const response = await fetcher(base + '/requests/' + requestId, write('POST', { decision }));
-      if (response.status === 409) return 'too-many';
-      if (!response.ok) return 'unavailable';
-      const v = (await readJson(response)) as Record<string, unknown> | null;
-      if (!v || typeof v.redirectTo !== 'string') return 'unavailable';
+      if (!requestId.test(id)) return 'unavailable';
+      const result = await call(BASE + '/requests/' + id, fetcher, {
+        method: 'POST',
+        body: { decision },
+        csrf: csrfToken,
+      });
+      if (!('value' in result)) return result.failure === 'conflict' ? 'too-many' : 'unavailable';
+      const v = result.value as Record<string, unknown> | null;
+      if (!v || typeof v !== 'object' || typeof v.redirectTo !== 'string') return 'unavailable';
       try {
         const url = new URL(v.redirectTo);
         return url.protocol === 'https:' || url.protocol === 'http:'

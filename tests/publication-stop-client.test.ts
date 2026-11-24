@@ -68,6 +68,10 @@ it('rejects wrong target/version, impossible marker state, excess fields or fals
   await expect(
     createPublicationStopClient(f as typeof fetch).stop('article', id, 1, csrf, false),
   ).rejects.toBeInstanceOf(PublicationStopClientError);
+  for (const bad of ['', 'short', 'a'.repeat(42) + '!', 'a'.repeat(44)])
+    await expect(
+      createPublicationStopClient(f as typeof fetch).stop('article', id, 1, bad, true),
+    ).rejects.toBeInstanceOf(PublicationStopClientError);
   await expect(
     createPublicationStopClient(f as typeof fetch).read('article', '../private'),
   ).rejects.toBeInstanceOf(PublicationStopClientError);
