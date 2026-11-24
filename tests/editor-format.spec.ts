@@ -185,3 +185,28 @@ test('the title counter sits beside the title and the body footer only shows the
   await expect(footer).toContainText('本文の容量 0.0/256 KiB');
   await expect(footer).not.toContainText('文字');
 });
+test('preview links only the URL of a bare link written inside Japanese brackets and punctuation (#258)', async ({
+  page,
+}, info) => {
+  await open(
+    page,
+    '下書き画面（https://example.com/drafts）にこの下書きが表示されるか\n\n参考：https://example.com/page、詳しくは次節。\n\n「https://example.com/quote」を開く',
+  );
+  await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
+  const preview = page.locator('.editor-preview');
+  await expect(preview.locator('a')).toHaveText([
+    'https://example.com/drafts',
+    'https://example.com/page',
+    'https://example.com/quote',
+  ]);
+  expect(
+    await preview.locator('a').evaluateAll((links) => links.map((a) => a.getAttribute('href'))),
+  ).toEqual([
+    'https://example.com/drafts',
+    'https://example.com/page',
+    'https://example.com/quote',
+  ]);
+  await expect(preview).toContainText('）にこの下書きが表示されるか');
+  await preview.screenshot({ path: info.outputPath('autolink-preview.png') });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

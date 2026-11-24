@@ -7,6 +7,7 @@ import { mediaId } from './shared/media';
 import './editor/media.css';
 import ExternalEmbed from './ExternalEmbed';
 import { parseEmbed } from './shared/embed';
+import remarkCjkAutolink from './shared/remark-cjk-autolink';
 export default function MarkdownRenderer({
   body,
   privateMedia,
@@ -16,7 +17,7 @@ export default function MarkdownRenderer({
 }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkCjkAutolink]}
       rehypePlugins={[rehypeHighlight]}
       skipHtml
       components={{

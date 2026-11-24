@@ -53,7 +53,7 @@
       "risk": "R1",
       "status": "pass",
       "production": "unknown",
-      "evidence": "#147/#172: 通常記事は任意欄が空でも想定読者・前提知識・読後を本文の前に表示（空の欄は1行「想定読者・前提知識・読んだあとに：記載なし」にまとめ、モバイルでも枠は120px未満）— tests/ordinary-discovery-browser.spec.ts（空欄・本文より前）, tests/ordinary-publication-browser.spec.ts（記入値）; GFM/コード強調/コピー/raw HTML無効/横スクロール — tests/code-copy.spec.ts, tests/discovery.spec.ts; PC(1280)/モバイル(390) を Playwright で確認"
+      "evidence": "#147/#172: 通常記事は任意欄が空でも想定読者・前提知識・読後を本文の前に表示（空の欄は1行「想定読者・前提知識・読んだあとに：記載なし」にまとめ、モバイルでも枠は120px未満）— tests/ordinary-discovery-browser.spec.ts（空欄・本文より前）, tests/ordinary-publication-browser.spec.ts（記入値）; GFM/コード強調/コピー/raw HTML無効/横スクロール — tests/code-copy.spec.ts, tests/discovery.spec.ts; #258: 和文の括弧・句読点・鉤括弧に続く裸の URL は URL だけをリンクにする — tests/markdown-autolink.test.tsx, tests/editor-format.spec.ts（下書きプレビュー PC/モバイル）; PC(1280)/モバイル(390) を Playwright で確認"
     },
     {
       "id": "C04",
