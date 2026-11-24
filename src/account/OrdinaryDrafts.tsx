@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Link, useBlocker } from 'react-router-dom';
+import { Link, useBlocker, useSearchParams } from 'react-router-dom';
 import AccountSessionBoundary from './AccountSessionBoundary';
 import DraftEditor from '../editor/DraftEditor';
+import OwnPublications from '../editor/OwnPublications';
 import './account.css';
 import './ordinary-drafts.css';
 import ProfileFirst from './ProfileFirst';
@@ -12,13 +13,18 @@ function OwnDrafts({
   fetcher,
   rescue,
   onNavigationRiskChange,
+  onPublicationRiskChange,
 }: {
   csrfToken: string;
   fetcher: typeof fetch;
   rescue: Parameters<typeof DraftEditor>[0]['rescue'];
   onNavigationRiskChange: (value: boolean) => void;
+  onPublicationRiskChange: (value: boolean) => void;
 }) {
   const participation = useOwnParticipation(csrfToken, fetcher);
+  // #270: 公開中 is a tab of this screen (as on Zenn・note), kept in the URL so it can be
+  // reloaded, shared with oneself and reached with the back button. Unknown values mean 下書き.
+  const published = useSearchParams()[0].get('tab') === 'published';
   return (
     <>
       <ParticipationNotice participation={participation} place="drafts" />
@@ -30,6 +36,17 @@ function OwnDrafts({
           rescue={rescue}
           writable={!writesClosed(participation)}
           onNavigationRiskChange={onNavigationRiskChange}
+          manageTab={published ? 'published' : 'drafts'}
+          publishedPanel={
+            published && (
+              <OwnPublications
+                csrfToken={csrfToken}
+                fetcher={fetcher}
+                surface="ordinary"
+                onNavigationRiskChange={onPublicationRiskChange}
+              />
+            )
+          }
         />
       </ProfileFirst>
     </>
@@ -38,14 +55,20 @@ function OwnDrafts({
 /** Route protection belongs to the ordinary data router, outside session visibility changes. */
 export default function OrdinaryDrafts() {
   const risk = useRef(false),
-    rescueRisk = useRef(false);
+    rescueRisk = useRef(false),
+    publicationRisk = useRef(false);
   const onNavigationRiskChange = useCallback((value: boolean) => {
     risk.current = value;
+  }, []);
+  const onPublicationRiskChange = useCallback((value: boolean) => {
+    publicationRisk.current = value;
   }, []);
   const onRescueChange = useCallback((value: boolean) => {
     rescueRisk.current = value;
   }, []);
-  const blocker = useBlocker(useCallback(() => risk.current || rescueRisk.current, []));
+  const blocker = useBlocker(
+    useCallback(() => risk.current || rescueRisk.current || publicationRisk.current, []),
+  );
   useEffect(() => {
     if (blocker.state !== 'blocked') return;
     if (
@@ -76,6 +99,7 @@ export default function OrdinaryDrafts() {
             fetcher={fetcher}
             rescue={rescue}
             onNavigationRiskChange={onNavigationRiskChange}
+            onPublicationRiskChange={onPublicationRiskChange}
           />
         )}
       </AccountSessionBoundary>

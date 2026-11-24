@@ -44,7 +44,7 @@ async function register(page: Page, info: TestInfo) {
 }
 async function article(page: Page, info: TestInfo) {
   await register(page, info);
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill('架空の画像付き記事');
   await page

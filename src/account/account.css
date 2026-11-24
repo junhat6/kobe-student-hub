@@ -410,7 +410,7 @@
   margin: 12px 0 0;
   padding: 0;
 }
-.account-home .own-publications li {
+:is(.account-home, .ordinary-drafts) .own-publications li {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
@@ -422,17 +422,17 @@
   border-radius: 0;
   margin: 0;
 }
-.account-home .own-publications-row {
+:is(.account-home, .ordinary-drafts) .own-publications-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.account-home .own-publications-row strong a {
+:is(.account-home, .ordinary-drafts) .own-publications-row strong a {
   color: var(--ink, #141a22);
 }
-.account-home .own-publications-row strong a:hover {
+:is(.account-home, .ordinary-drafts) .own-publications-row strong a:hover {
   color: var(--accent-strong, #1659c7);
   text-decoration: underline;
 }
@@ -441,18 +441,18 @@
   font-weight: 700;
   color: var(--ink-muted, #636d79);
 }
-.account-home .own-publications-state {
+:is(.account-home, .ordinary-drafts) .own-publications-state {
   padding: 0 8px;
   border-radius: 999px;
   font-size: 12px;
   background: #e7f6ec;
   color: #1c6b3a;
 }
-.account-home .own-publications-state-hidden {
+:is(.account-home, .ordinary-drafts) .own-publications-state-hidden {
   background: #fff4e0;
   color: #8a5300;
 }
-.account-home .own-publications-state-deleted {
+:is(.account-home, .ordinary-drafts) .own-publications-state-deleted {
   background: var(--tint, #f0f3f7);
   color: var(--ink-muted, #636d79);
 }
@@ -462,7 +462,7 @@
   font-size: 13px !important;
   color: var(--ink-muted, #636d79);
 }
-.account-home .own-publications-actions {
+:is(.account-home, .ordinary-drafts) .own-publications-actions {
   grid-column: 2;
   grid-row: 1 / span 2;
 }
@@ -470,12 +470,12 @@
   padding: 24px 0 8px;
   text-align: center;
 }
-.account-home .own-publications-scope {
+:is(.account-home, .ordinary-drafts) .own-publications-scope {
   margin: 12px 0 0;
   font-size: 13px !important;
   color: var(--ink-muted, #636d79);
 }
-.account-home .own-publications-scope a {
+:is(.account-home, .ordinary-drafts) .own-publications-scope a {
   color: var(--accent-strong, #1659c7);
   text-decoration: underline;
 }
@@ -489,15 +489,15 @@
     padding: 18px;
     border-radius: 16px;
   }
-  .account-home .own-publications li {
+  :is(.account-home, .ordinary-drafts) .own-publications li {
     grid-template-columns: 1fr;
   }
-  .account-home .own-publications-actions {
+  :is(.account-home, .ordinary-drafts) .own-publications-actions {
     grid-column: 1;
     grid-row: auto;
   }
   /* Keep the kind icon beside the title instead of alone on its own line. */
-  .account-home .own-publications-row > strong {
+  :is(.account-home, .ordinary-drafts) .own-publications-row > strong {
     flex: 1 1 calc(100% - 30px);
     min-width: 0;
   }
@@ -507,9 +507,9 @@
   padding: 0;
   border: 0;
 }
-.account-home .own-publications-row a,
-.account-home .own-publications-scope a,
-.account-home .own-publications-empty a:not(.primary) {
+:is(.account-home, .ordinary-drafts) .own-publications-row a,
+:is(.account-home, .ordinary-drafts) .own-publications-scope a,
+:is(.account-home, .ordinary-drafts) .own-publications-empty a:not(.primary) {
   min-height: 0;
   padding: 0;
   border: 0;
@@ -518,16 +518,16 @@
   display: inline;
   font-size: inherit;
 }
-.account-home .own-publications-row a {
+:is(.account-home, .ordinary-drafts) .own-publications-row a {
   text-decoration: none;
 }
 /* The title is the row's main link: give it a 44px tap height without growing the text. */
-.account-home .own-publications-row strong a {
+:is(.account-home, .ordinary-drafts) .own-publications-row strong a {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
 }
-.account-home .own-publications-empty a.primary {
+:is(.account-home, .ordinary-drafts) .own-publications-empty a.primary {
   color: #fff;
   text-decoration: none;
   border: 0;
@@ -641,7 +641,7 @@
   align-items: center;
   gap: 8px;
 }
-.account-home .own-publications-kind {
+:is(.account-home, .ordinary-drafts) .own-publications-kind {
   display: inline-flex;
   color: var(--ink-muted, #636d79);
   background: none;

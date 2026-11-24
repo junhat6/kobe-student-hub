@@ -48,7 +48,7 @@ async function register(page: Page, info: TestInfo) {
   await expect(page).toHaveURL(ORIGIN + '/account');
   await createProfileOnAccount(page);
   await page.unroute(provider);
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await expect(newDraft(page)).toBeEnabled();
 }
 async function createSaved(page: Page, name: string) {

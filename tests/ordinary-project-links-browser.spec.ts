@@ -31,7 +31,7 @@ async function register(page: Page, info: TestInfo) {
 
 async function publishArticle(page: Page, title: string) {
   await page.goto('/account');
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill(title);
   await page.getByLabel('Markdown本文', { exact: true }).fill('## 作り方\n\n架空の制作記録です。');

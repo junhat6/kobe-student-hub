@@ -34,7 +34,7 @@ async function registerWithProfile(page: Page, info: TestInfo, tag: string) {
 
 /** Saves a fictional draft and stops right before the final publish click. */
 async function prepareArticle(page: Page, title: string) {
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill(title);
   await page.getByLabel('Markdown本文', { exact: true }).fill('## 草\n\n架空の公開記録です。');

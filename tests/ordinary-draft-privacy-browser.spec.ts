@@ -40,7 +40,7 @@ async function signIn(page: Page, actor: string, mode: 'signup' | 'login') {
   }
   await expect(page).toHaveURL(ORIGIN + '/account');
   if (mode === 'signup') await createProfileOnAccount(page);
-  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '記事の管理', exact: true })).toBeVisible();
   await page.unroute(provider);
 }
 async function separateBrowser(browser: Browser, page: Page): Promise<BrowserContext> {
@@ -57,7 +57,7 @@ async function noBrowserCopy(page: Page) {
   expect(new URL(page.url()).hash).toBe('');
 }
 async function startDraft(page: Page, heading: string, text: string) {
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/drafts');
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await expect(title(page)).toBeEditable();
@@ -85,7 +85,7 @@ test('a draft resumes in a separate browser and later edits come back to the fir
     await second.goto('/drafts');
     await expect(second.getByRole('button', { name: heading, exact: true })).toHaveCount(0);
     await signIn(second, actor, 'login');
-    await second.getByRole('link', { name: '記事を書く', exact: true }).click();
+    await second.getByRole('link', { name: '記事の管理', exact: true }).click();
     await second.getByRole('button', { name: heading, exact: true }).click();
     await expect(body(second)).toHaveValue(/一台目で書いた/);
     await body(second).fill(
@@ -130,7 +130,7 @@ test('a draft is invisible to another account, a guest and every public page', a
   try {
     const peer = await peerContext.newPage();
     await signIn(peer, `fictional-draft-peer-${info.project.name}-${key}`, 'signup');
-    await peer.getByRole('link', { name: '記事を書く', exact: true }).click();
+    await peer.getByRole('link', { name: '記事の管理', exact: true }).click();
     await expect(peer.getByText('保存した下書きはまだありません。', { exact: true })).toBeVisible();
     await expect(peer.locator('main')).not.toContainText(heading);
     expect(await (await peer.request.get('/api/private/drafts')).json()).toEqual([]);

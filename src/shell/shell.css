@@ -392,3 +392,51 @@
     transition: none;
   }
 }
+/* #270: one trail for the private area, so each own screen says where it sits. */
+.breadcrumbs {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #596e7d;
+}
+.breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.breadcrumbs li {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.breadcrumbs li + li::before {
+  content: '›' / '';
+  margin: 0 8px;
+  color: #8a9aa6;
+}
+.breadcrumbs a {
+  color: #175f91;
+  text-decoration: none;
+}
+.breadcrumbs a:hover {
+  text-decoration: underline;
+}
+.breadcrumbs [aria-current='page'] {
+  color: #263b4a;
+  font-weight: 650;
+}
+@media (max-width: 720px) {
+  /* A 44px touch target on phones, without making the trail look taller than its text. */
+  .breadcrumbs {
+    margin: -10px 0 6px;
+  }
+  .breadcrumbs a,
+  .breadcrumbs [aria-current='page'] {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

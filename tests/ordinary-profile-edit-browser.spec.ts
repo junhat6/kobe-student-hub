@@ -53,7 +53,7 @@ test('explicit profile edit keeps its public author URL and exposes only confirm
   await region.getByLabel('自己紹介', { exact: true }).fill('更新した公開紹介');
   await save(page);
   await expect(region.getByRole('status')).toHaveText('プロフィールを保存しました。');
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill('架空プロフィール更新の制作ノート');
   await page.getByLabel('Markdown本文', { exact: true }).fill('自分で確認した架空の制作本文です。');

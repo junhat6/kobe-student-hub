@@ -7,6 +7,7 @@ import './account.css';
 import './ordinary-drafts.css';
 import ProfileFirst from './ProfileFirst';
 import { ParticipationNotice, useOwnParticipation, writesClosed } from './participation';
+import Breadcrumbs, { MY_PAGE_TRAIL } from '../shell/Breadcrumbs';
 
 function OwnProjects({
   csrfToken,
@@ -46,6 +47,7 @@ export default function OrdinaryProjects() {
   );
   return (
     <section className="account-page account-page-wide">
+      <Breadcrumbs items={[...MY_PAGE_TRAIL, { label: '作品の登録' }]} />
       <AccountSessionBoundary
         variant="authoring"
         title="作品"

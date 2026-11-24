@@ -101,7 +101,7 @@ function AccountMenu() {
               {profile && (
                 <MenuLink to={`/students/${profile.id}`}>公開プロフィールを見る</MenuLink>
               )}
-              <MenuLink to="/drafts">下書き</MenuLink>
+              <MenuLink to="/drafts">記事の管理</MenuLink>
               <MenuLink to="/history">閲覧履歴</MenuLink>
               <Menu.Separator className="menu-separator" />
               <Menu.Item

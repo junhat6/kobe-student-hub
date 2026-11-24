@@ -49,12 +49,12 @@ async function register(page: Page, info: TestInfo, suffix = 'a', profile = true
     return actor;
   }
   await createProfileOnAccount(page);
-  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '記事の管理', exact: true })).toBeVisible();
   await page.unroute(provider);
   return actor;
 }
 async function enterDrafts(page: Page) {
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/drafts');
   await expect(newDraft(page)).toBeEnabled();
 }
@@ -575,14 +575,29 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
 }, info) => {
   await register(page, info);
   await enterDrafts(page);
-  // 記事の管理: the list is the screen, with 下書き current and 公開中 leading to the account.
+  // 記事の管理: the list is the screen, with 下書き current and 公開中 switching in place (#270).
   const tabs = page.getByRole('navigation', { name: '記事の種類' });
+  const trail = page.getByRole('navigation', { name: '現在地' });
   await expect(page.getByRole('heading', { name: '記事の管理', level: 2 })).toBeVisible();
-  await expect(tabs.getByText('下書き', { exact: true })).toHaveAttribute('aria-current', 'page');
-  await expect(tabs.getByRole('link', { name: '公開中', exact: true })).toHaveAttribute(
+  await expect(trail.getByRole('link', { name: 'マイページ', exact: true })).toHaveAttribute(
     'href',
-    '/account#publications',
+    '/account',
   );
+  await expect(trail.getByText('記事の管理', { exact: true })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(tabs.getByText('下書き', { exact: true })).toHaveAttribute('aria-current', 'page');
+  await tabs.getByRole('link', { name: '公開中', exact: true }).click();
+  await expect(page).toHaveURL(/\/drafts\?tab=published$/);
+  await expect(tabs.getByText('公開中', { exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('region', { name: '自分の公開記録', exact: true })).toBeVisible();
+  await expect(page.getByText('まだ公開した記事・作品はありません。')).toBeVisible();
+  await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toBeHidden();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/drafts$/);
+  await expect(tabs.getByText('下書き', { exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('region', { name: '自分の公開記録', exact: true })).toHaveCount(0);
   await expect(title(page)).toHaveCount(0);
   await create(page);
   // Writing: the list is gone from view and assistive technology; the back control replaces it.

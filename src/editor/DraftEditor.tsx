@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Link } from 'react-router-dom';
+import Breadcrumbs, { MY_PAGE_TRAIL } from '../shell/Breadcrumbs';
 import MarkdownRenderer from '../MarkdownRenderer';
 import { createDraftClient, type EditorDraft, type DraftSummary } from './draft-client';
 import type { RescueChannel } from '../account/AccountSessionBoundary';
@@ -62,6 +63,8 @@ export default function DraftEditor({
   onNavigationRiskChange,
   rescue,
   writable = true,
+  manageTab = 'drafts',
+  publishedPanel,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
@@ -70,8 +73,12 @@ export default function DraftEditor({
   rescue?: RescueChannel;
   /** False only for a server-confirmed period outside participation: read and delete remain. */
   writable?: boolean;
+  /** 記事の管理's tab (#270): 公開中 swaps the draft list for the publications in place. */
+  manageTab?: 'drafts' | 'published';
+  publishedPanel?: React.ReactNode;
 }) {
   const ordinary = variant === 'ordinary';
+  const showPublished = ordinary && manageTab === 'published' && Boolean(publishedPanel);
   const EditorRegion = ordinary ? 'section' : 'main';
   const client = useMemo(() => createDraftClient(csrfToken, fetcher), [csrfToken, fetcher]);
   const [list, setList] = useState<DraftSummary[]>([]);
@@ -713,6 +720,7 @@ export default function DraftEditor({
           aria-label="自分の下書き"
           hidden={ordinary && Boolean(draft)}
         >
+          {ordinary && <Breadcrumbs items={[...MY_PAGE_TRAIL, { label: '記事の管理' }]} />}
           <div className="editor-side-heading">
             {ordinary ? (
               <h2 ref={manageHeading} tabIndex={-1}>
@@ -725,77 +733,97 @@ export default function DraftEditor({
           </div>
           {ordinary && (
             <nav className="editor-manage-tabs" aria-label="記事の種類">
-              <span aria-current="page">下書き</span>
-              <Link to="/account#publications">公開中</Link>
+              {showPublished ? (
+                <>
+                  <Link to="/drafts">下書き</Link>
+                  <span aria-current="page">公開中</span>
+                </>
+              ) : (
+                <>
+                  <span aria-current="page">下書き</span>
+                  <Link to="/drafts?tab=published">公開中</Link>
+                </>
+              )}
             </nav>
           )}
-          {writable && (
-            <Button
-              ref={newDraftButton}
-              aria-label="新しい下書き"
-              className="editor-primary editor-new"
-              disabled={busy || publicationBusy || deletionOpen}
-              onClick={() => void create()}
-            >
-              ＋ 新しい下書き
-            </Button>
-          )}
-          <div className="editor-list-heading">
-            <h2>保存した下書き</h2>
-            {(!ordinary || listError) && (
+          {showPublished && <div className="editor-manage-published">{publishedPanel}</div>}
+          {/* The draft list stays mounted behind 公開中 so its state and focus targets survive. */}
+          <div className="editor-manage-drafts" hidden={showPublished}>
+            {writable && (
               <Button
-                className="editor-link-button"
-                disabled={busy || publicationBusy || deletion === 'confirm'}
-                onClick={() => void refresh()}
+                ref={newDraftButton}
+                aria-label="新しい下書き"
+                className="editor-primary editor-new"
+                disabled={busy || publicationBusy || deletionOpen}
+                onClick={() => void create()}
               >
-                一覧を更新
+                ＋ 新しい下書き
               </Button>
             )}
-          </div>
-          {listError && (
-            <p className="editor-list-error" role="alert">
-              一覧を読み込めない、または更新が必要です。
-              {ordinary && !draft ? '一覧を更新してください。' : '編集内容は消えていません。'}
-            </p>
-          )}
-          <ul className="editor-draft-list">
-            {list.map((item) => (
-              <li key={item.id}>
-                {/* The name is the title alone; the date and version are a description, so the
-                    visible words and the accessible name never disagree (WCAG 2.5.3). */}
+            <div className="editor-list-heading">
+              <h2>保存した下書き</h2>
+              {(!ordinary || listError) && (
                 <Button
-                  disabled={busy || publicationBusy || deletionOpen}
-                  aria-current={draft?.id === item.id ? 'true' : undefined}
-                  aria-describedby={'draft-stamp-' + item.id}
-                  onClick={() => void choose(item.id)}
+                  className="editor-link-button"
+                  disabled={busy || publicationBusy || deletion === 'confirm'}
+                  onClick={() => void refresh()}
                 >
-                  <span>{item.title || '無題の下書き'}</span>
-                  <small id={'draft-stamp-' + item.id} aria-hidden="true">
-                    {stamp(item.updatedAt)} · 版 {item.version}
-                    {agentDrafts?.agentDraftIds.includes(item.id) ? ' · AIエージェントが作成' : ''}
-                  </small>
+                  一覧を更新
                 </Button>
-              </li>
-            ))}
-          </ul>
-          {!list.length && !busy && !listError && (
-            <p className="editor-list-empty">保存した下書きはまだありません。</p>
-          )}
-          {(!ordinary || list.length >= 20) && (
-            <p className="editor-list-limit">更新が新しい20件まで表示します。</p>
-          )}
-          {/* The ordinary page says 「本人だけに表示」 in the heading and keeps publishing behind
-              the 「公開する」 button beside the save state (#230), so this note is the lab's only. */}
-          {!ordinary && (
-            <div className="editor-publish-note">
-              <h2>公開について</h2>
-              <p>
-                確認した保存済みの版だけを、ローカル内で試験公開できます。本番への公開ではありません。
-              </p>
+              )}
             </div>
-          )}
+            {listError && (
+              <p className="editor-list-error" role="alert">
+                一覧を読み込めない、または更新が必要です。
+                {ordinary && !draft ? '一覧を更新してください。' : '編集内容は消えていません。'}
+              </p>
+            )}
+            <ul className="editor-draft-list">
+              {list.map((item) => (
+                <li key={item.id}>
+                  {/* The name is the title alone; the date and version are a description, so the
+                    visible words and the accessible name never disagree (WCAG 2.5.3). */}
+                  <Button
+                    disabled={busy || publicationBusy || deletionOpen}
+                    aria-current={draft?.id === item.id ? 'true' : undefined}
+                    aria-describedby={'draft-stamp-' + item.id}
+                    onClick={() => void choose(item.id)}
+                  >
+                    <span>{item.title || '無題の下書き'}</span>
+                    <small id={'draft-stamp-' + item.id} aria-hidden="true">
+                      {stamp(item.updatedAt)} · 版 {item.version}
+                      {agentDrafts?.agentDraftIds.includes(item.id)
+                        ? ' · AIエージェントが作成'
+                        : ''}
+                    </small>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {!list.length && !busy && !listError && (
+              <p className="editor-list-empty">保存した下書きはまだありません。</p>
+            )}
+            {(!ordinary || list.length >= 20) && (
+              <p className="editor-list-limit">更新が新しい20件まで表示します。</p>
+            )}
+            {/* The ordinary page says 「本人だけに表示」 in the heading and keeps publishing behind
+              the 「公開する」 button beside the save state (#230), so this note is the lab's only. */}
+            {!ordinary && (
+              <div className="editor-publish-note">
+                <h2>公開について</h2>
+                <p>
+                  確認した保存済みの版だけを、ローカル内で試験公開できます。本番への公開ではありません。
+                </p>
+              </div>
+            )}
+          </div>
         </aside>
-        <EditorRegion className="editor-main" id="editor-main" tabIndex={-1}>
+        <EditorRegion
+          className="editor-main"
+          id="editor-main"
+          tabIndex={-1}
+          hidden={showPublished && !draft}
+        >
           {ordinary && draft && (
             <div className="editor-writing-nav">
               <Button

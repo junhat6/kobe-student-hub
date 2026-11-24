@@ -79,7 +79,7 @@ test('J1–J5 screens fit the width, have 44px targets and visible keyboard focu
     const ownerPage = await owner.context.newPage();
     await ownerPage.setViewportSize(page.viewportSize()!);
     await check(ownerPage, '/account', () =>
-      expect(ownerPage.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible(),
+      expect(ownerPage.getByRole('link', { name: '記事の管理', exact: true })).toBeVisible(),
     );
     await check(ownerPage, '/drafts', () =>
       expect(ownerPage.getByRole('button', { name: 'モバイルの記事-' + key })).toBeVisible(),

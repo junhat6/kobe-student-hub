@@ -6,6 +6,7 @@ import './account.css';
 import { authoringUiEnabled } from './routes';
 import ProfileEditor, { type ProfileState } from './ProfileEditor';
 import Icon from '../shared/Icon';
+import Breadcrumbs, { MY_PAGE_TRAIL } from '../shell/Breadcrumbs';
 import OwnPublications from '../editor/OwnPublications';
 import OwnNotifications from './OwnNotifications';
 import EditorialTaste from './EditorialTaste';
@@ -36,16 +37,18 @@ function returnArticle(state: unknown): string | null {
 function AccountActions({ participation }: { participation: ParticipationState }) {
   return (
     <nav className="account-actions" aria-label="マイページの操作">
+      {/* #270: this is where drafts and published articles are listed, so it is named after
+          that screen rather than 「記事を書く」, which hid that the draft list lives there. */}
       {writesClosed(participation) ? (
         <Link className="account-action" to="/drafts">
           <Icon name="doc" />
-          下書き
+          記事の管理
         </Link>
       ) : (
         <>
           <Link className="account-action account-action-main" to="/drafts">
-            <Icon name="pencil" />
-            記事を書く
+            <Icon name="doc" />
+            記事の管理
           </Link>
           <Link className="account-action" to="/works/new">
             <Icon name="cube" />
@@ -165,6 +168,7 @@ export default function AccountPage() {
   );
   return (
     <section className="account-page account-home">
+      {authoringUiEnabled && <Breadcrumbs items={[MY_PAGE_TRAIL[0], { label: 'マイページ' }]} />}
       <AccountSessionBoundary
         title={authoringUiEnabled ? 'マイページ' : undefined}
         signedOutContent={

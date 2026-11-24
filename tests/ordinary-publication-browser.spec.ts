@@ -76,7 +76,7 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   await profile.getByLabel('自己紹介', { exact: true }).fill('架空の制作プロフィール');
   await profile.getByRole('button', { name: '公開する', exact: true }).click();
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill(title);
   await page

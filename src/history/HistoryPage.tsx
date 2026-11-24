@@ -7,6 +7,7 @@ import { createReadingHistoryClient } from './client';
 import type { ReadingHistoryEntry, ReadingReference, ReadingHistoryPage } from './types';
 import '../account/account.css';
 import './history.css';
+import Breadcrumbs, { MY_PAGE_TRAIL } from '../shell/Breadcrumbs';
 
 const PAGE = 20;
 /** Show the cap only once the owner's total is this close to it (YouTube・Chrome never mention one). */
@@ -238,6 +239,7 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
 export default function HistoryPage() {
   return (
     <section className="account-page">
+      <Breadcrumbs items={[...MY_PAGE_TRAIL, { label: '閲覧履歴' }]} />
       <AccountSessionBoundary
         title="閲覧履歴"
         signedOutContent={

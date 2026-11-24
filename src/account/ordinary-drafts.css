@@ -395,3 +395,14 @@
   font-weight: 650;
   color: #175f91;
 }
+/* #270: 公開中 is a tab of 記事の管理, so the publications replace the draft list in place. */
+.draft-editor--ordinary .editor-manage-drafts[hidden],
+.draft-editor--ordinary .editor-main[hidden] {
+  display: none;
+}
+.draft-editor--ordinary .editor-manage-published .own-publications {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}

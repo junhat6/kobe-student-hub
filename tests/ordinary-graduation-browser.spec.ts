@@ -33,7 +33,7 @@ async function publishAndKeepDraft(page: Page) {
   await profile.getByLabel('表示名', { exact: true }).fill('架空の卒業生');
   await profile.getByRole('button', { name: '公開する', exact: true }).click();
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await page.getByLabel('タイトル', { exact: true }).fill(TITLE);
   await page.getByLabel('Markdown本文', { exact: true }).fill('在学中に公開した架空の本文です。');
@@ -97,14 +97,15 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
   await correctYears(page, '2024', '2025');
   const notice = page.getByRole('note', { name: '新しい投稿について' });
   await expect(notice.getByRole('heading', { name: '卒業予定を過ぎています' })).toBeVisible();
-  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toHaveCount(0);
+  // The list stays reachable (#270), but not as the main 「書く」 action.
+  await expect(page.locator('.account-action-main')).toHaveCount(0);
   await expect(page.getByRole('link', { name: '作品を登録', exact: true })).toHaveCount(0);
   expect(await noHorizontalScroll(page)).toBe(true);
   await expectNoSeriousAxe(page);
   await page.screenshot({ path: info.outputPath('graduated-account.png'), fullPage: true });
 
   // Drafts: readable and deletable, but no create, save or publish that would always fail.
-  await page.getByRole('link', { name: '下書き', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/drafts');
   await expect(
     page
@@ -189,6 +190,6 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
   // Correcting a mistaken year reopens writing at once, without reloading.
   await correctYears(page, '2026', '2028');
   await expect(page.getByRole('note', { name: '新しい投稿について' })).toHaveCount(0);
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await expect(page.getByRole('button', { name: '新しい下書き', exact: true })).toBeEnabled();
 });

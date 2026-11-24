@@ -23,7 +23,7 @@ async function register(page: Page, info: TestInfo, who = 'a') {
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/account');
   await createProfileOnAccount(page);
-  await expect(page.getByRole('link', { name: '記事を書く', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '記事の管理', exact: true })).toBeVisible();
   await page.unroute(provider);
 }
 const recorded = (page: Page) =>

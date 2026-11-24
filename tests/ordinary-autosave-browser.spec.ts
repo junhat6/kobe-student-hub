@@ -39,7 +39,7 @@ async function register(page: Page, info: TestInfo) {
   await page.unroute(provider);
 }
 async function article(page: Page) {
-  await page.getByRole('link', { name: '記事を書く', exact: true }).click();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
   await expect(title(page)).toBeEditable();
 }
