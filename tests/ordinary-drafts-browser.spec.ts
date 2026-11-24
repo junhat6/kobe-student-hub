@@ -642,5 +642,24 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
   // A short body shows neither the size meter nor the Markdown hint (原則1・4).
   await expect(page.locator('.editor-writing-footer')).toHaveCount(0);
   await expect(page.getByText('Markdownで書けます', { exact: true })).toHaveCount(0);
+  // A short title keeps its count for assistive technology only, so the focused field's
+  // outline has nothing to cover (#279).
+  await title(page).focus();
+  const counter = page.locator('#draft-title-count');
+  await expect(title(page)).toHaveAccessibleDescription('9/200文字');
+  await expect(counter).toHaveClass(/sr-only/);
   await page.screenshot({ path: info.outputPath('ordinary-drafts-writing.png'), fullPage: true });
+  // Near the limit the count shows, clear of the focus outline (3px wide, 6px offset).
+  await title(page).fill('あ'.repeat(185));
+  await expect(counter).toBeVisible();
+  await expect(counter).toHaveText('185/200文字');
+  const [counterBox, titleBox] = await Promise.all([
+    counter.boundingBox(),
+    title(page).boundingBox(),
+  ]);
+  expect(counterBox && titleBox && counterBox.y + counterBox.height <= titleBox.y - 9).toBe(true);
+  await page.screenshot({
+    path: info.outputPath('ordinary-drafts-title-count.png'),
+    fullPage: true,
+  });
 });

@@ -260,6 +260,11 @@
 .draft-editor--ordinary .editor-title-head {
   justify-content: flex-end;
 }
+/* The focused title's outline reaches 9px above the field (3px wide + 6px offset); keep the
+   near-limit count clear of it (#279). */
+.draft-editor--ordinary .editor-title-head:has(small:not(.sr-only)) {
+  margin-bottom: 12px;
+}
 .draft-editor--ordinary .editor-title {
   font-size: 32px;
   line-height: 1.45;

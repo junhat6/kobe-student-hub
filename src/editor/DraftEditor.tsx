@@ -45,6 +45,8 @@ const stamp = (n: number) =>
     hour: '2-digit',
     minute: '2-digit',
   }).format(n);
+/** The ordinary writing screen shows the title count only from here up to the 200 limit (#279). */
+const TITLE_COUNT_SHOWN_FROM = 180;
 /** Routine progress and success are announced only; failures and warnings stay visible (原則6). */
 const LIST_READY = '左の一覧から下書きを開くか、新しく作成できます。',
   LIST_EMPTY = '新しい下書きを作成して、書き始めましょう。';
@@ -902,7 +904,18 @@ export default function DraftEditor({
                   >
                     タイトル
                   </label>
-                  <small id="draft-title-count">{Array.from(text.title).length}/200文字</small>
+                  {/* The writing screen shows the count only near the limit, like X; until then
+                      it stays for assistive technology and never collides with the focus ring (#279). */}
+                  <small
+                    id="draft-title-count"
+                    className={
+                      ordinary && Array.from(text.title).length < TITLE_COUNT_SHOWN_FROM
+                        ? 'sr-only'
+                        : undefined
+                    }
+                  >
+                    {Array.from(text.title).length}/200文字
+                  </small>
                 </div>
                 <input
                   id="draft-title"
