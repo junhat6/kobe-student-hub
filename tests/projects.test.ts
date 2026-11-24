@@ -815,6 +815,22 @@ it('publishes 制作中／完成 on the snapshot and lets only the owner switch 
       .bind(damagedId)
       .first<{ stage: string }>())!.stage,
   ).toBe('complete');
+  // A row only the decoder refuses (a blank title) is refused by the receipt check, also without a write.
+  const blank = await create({ ...f, title: 'Blank later' });
+  const blankId = ((await (await publish(blank)).json()) as { projectId: string }).projectId;
+  await withProjectSnapshotUnlocked(db, () =>
+    db.prepare("UPDATE project_publications SET title='   ' WHERE id=?").bind(blankId).run(),
+  );
+  expect(
+    (await req('/api/private/project-publications/' + blank.id, 'PUT', { stage: 'in_progress' }))
+      .status,
+  ).toBe(404);
+  expect(
+    (await db
+      .prepare('SELECT stage FROM project_publications WHERE id=?')
+      .bind(blankId)
+      .first<{ stage: string }>())!.stage,
+  ).toBe('complete');
   // The column only holds the two stages, also for direct writes.
   await expect(
     db.prepare("UPDATE project_publications SET stage='done' WHERE id=?").bind(legacyId).run(),
