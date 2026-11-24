@@ -118,7 +118,8 @@ describe('private draft browser transport', () => {
       () => new Response('{}', { headers: { 'Content-Type': 'text/html' } }),
       () => new Response('x'.repeat(2097153), { headers: { 'Content-Type': 'application/json' } }),
       () =>
-        new Response('{}', {
+        // A valid DTO, so only the declared length can reject it.
+        new Response(JSON.stringify(value), {
           headers: { 'Content-Type': 'application/json', 'Content-Length': '2097153' },
         }),
     ])

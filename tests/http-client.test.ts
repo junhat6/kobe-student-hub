@@ -216,6 +216,20 @@ describe('readBoundedJson — the one bounded transport', () => {
     ).toBe(1);
   });
 
+  it('caps stream chunks at 65536 by default for callers that do not set maxChunks', async () => {
+    const space = new TextEncoder().encode(' '),
+      one = new TextEncoder().encode('1');
+    const read = (spaces: number) =>
+      readBoundedJson('/api/x', {
+        fetcher: (async () =>
+          streamed([...Array.from({ length: spaces }, () => space), one])) as typeof fetch,
+        credentials: 'omit',
+        maxBytes: 2097152,
+      });
+    expect(await read(65535)).toBe(1);
+    await expect(read(65536)).rejects.toBeInstanceOf(BoundedReadError);
+  });
+
   it('requires the streamed size to equal Content-Length only when exactLength is asked', async () => {
     const short = () => json('{"a":1}', { headers: { 'Content-Length': '64' } });
     const read = (exactLength?: boolean) =>
