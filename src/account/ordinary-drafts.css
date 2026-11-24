@@ -303,3 +303,82 @@
     min-height: max(360px, 55vh);
   }
 }
+/* 記事の管理 and the writing screen are separate screens, as in Zenn・note (#230 ①). */
+.draft-editor--ordinary .editor-layout--manage,
+.draft-editor--ordinary .editor-layout--writing {
+  display: block;
+}
+.draft-editor--ordinary .editor-sidebar[hidden],
+.draft-editor--ordinary .editor-main-heading[hidden] {
+  display: none;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-sidebar {
+  max-width: 760px;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-main {
+  max-width: 760px;
+  margin-top: 16px;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-new {
+  width: auto;
+  padding-inline: 20px;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-draft-list {
+  max-height: none;
+  overflow: visible;
+  border-top: 1px solid #d6e3ed;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-draft-list li {
+  margin: 0;
+  border-bottom: 1px solid #d6e3ed;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-draft-list button {
+  border-radius: 0;
+  padding: 16px 8px;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-draft-list button > span {
+  font-size: 16px;
+}
+.draft-editor--ordinary .editor-layout--manage .editor-draft-list small {
+  font-size: 12px;
+}
+.draft-editor--ordinary .editor-side-heading h2:focus {
+  outline: none;
+}
+.draft-editor--ordinary .editor-side-heading h2:focus-visible {
+  outline: 3px solid #076db3;
+}
+.draft-editor--ordinary .editor-manage-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 20px;
+  border-bottom: 1px solid #d6e3ed;
+}
+.draft-editor--ordinary .editor-manage-tabs > * {
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 650;
+  color: #455f73;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+}
+.draft-editor--ordinary .editor-manage-tabs > [aria-current='page'] {
+  color: #10283f;
+  border-bottom-color: #076db3;
+}
+.draft-editor--ordinary .editor-manage-tabs > a:hover {
+  color: #076db3;
+}
+.draft-editor--ordinary .editor-writing-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.draft-editor--ordinary .editor-writing-nav .editor-link-button {
+  font-size: 14px;
+  font-weight: 650;
+  color: #175f91;
+}

@@ -311,8 +311,9 @@ test('committed deletion with lost acknowledgement stays unknown despite list ab
   await assertPrivate(page, 'ACKを失っても手元に残る');
   await expect(save(page)).toBeDisabled();
   await expect(remove(page)).toHaveCount(0);
-  await page.getByRole('button', { name: '一覧を更新', exact: true }).click();
-  await expect(page.locator('.editor-draft-list li')).toHaveCount(0);
+  // While the result is unknown the writing screen stays and 「← 記事の管理」 is closed, so the
+  // list absence cannot be mistaken for a confirmed deletion (#230 ①).
+  await expect(page.getByRole('button', { name: '← 記事の管理', exact: true })).toBeDisabled();
   await expect(unknown(page)).toBeVisible();
   await page.getByRole('button', { name: '保存済みの版を確認', exact: true }).click();
   await expect(

@@ -114,7 +114,7 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
     0,
   );
   await expect(page.locator('.editor-status')).toHaveText(
-    '左の一覧から下書きを開くと、読み返したり削除したりできます。',
+    '一覧から下書きを開くと、読み返したり削除したりできます。',
   );
   await expect(page.getByRole('region', { name: '下書きのセッション確認' })).toContainText(
     'ログインを確認しました。',

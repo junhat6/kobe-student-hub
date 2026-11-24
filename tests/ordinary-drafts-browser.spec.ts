@@ -254,7 +254,8 @@ test('browser Forward cancel retains edits and reload or close asks before losin
   await expect(page).toHaveURL(ORIGIN + '/');
   await page.goBack();
   await expect(page).toHaveURL(ORIGIN + '/drafts');
-  await page.getByRole('button', { name: '無題の下書き', exact: true }).click();
+  // Back returns to the writing screen of the same draft; the list is its own screen (#230 ①).
+  await expect(title(page)).toBeEditable();
   await title(page).fill('Forwardでも残す');
   await confirmNavigation(page, () => page.evaluate(() => history.forward()));
   await expect(page).toHaveURL(ORIGIN + '/drafts');
@@ -562,4 +563,52 @@ test('kept text is never applied to another account and can be discarded', async
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'この文章を破棄', exact: true }).click();
   await expect(rescueBox(page)).toHaveCount(0);
+});
+
+test('記事の管理 and the writing screen are separate, and leaving asks before dropping edits', async ({
+  page,
+}, info) => {
+  await register(page, info);
+  await enterDrafts(page);
+  // 記事の管理: the list is the screen, with 下書き current and 公開中 leading to the account.
+  const tabs = page.getByRole('navigation', { name: '記事の種類' });
+  await expect(page.getByRole('heading', { name: '記事の管理', level: 2 })).toBeVisible();
+  await expect(tabs.getByText('下書き', { exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(tabs.getByRole('link', { name: '公開中', exact: true })).toHaveAttribute(
+    'href',
+    '/account#publications',
+  );
+  await expect(title(page)).toHaveCount(0);
+  await create(page);
+  // Writing: the list is gone from view and assistive technology; the back control replaces it.
+  await expect(page.getByRole('heading', { name: '記事の管理' })).toHaveCount(0);
+  await expect(page.locator('.editor-sidebar')).toBeHidden();
+  await title(page).fill('管理へ戻る前の編集');
+  const back = page.getByRole('button', { name: '← 記事の管理', exact: true });
+  const asked = page.waitForEvent('dialog');
+  const clicked = back.click();
+  const dialog = await asked;
+  expect(dialog.message()).toBe(
+    '未保存の編集があります。記事の管理へ戻ると、この画面の変更は失われます。移動しますか？',
+  );
+  await dialog.dismiss();
+  await clicked;
+  await expect(title(page)).toHaveValue('管理へ戻る前の編集');
+  await save(page).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await back.click();
+  await expect(page.getByRole('heading', { name: '記事の管理', level: 2 })).toBeFocused();
+  await expect(title(page)).toHaveCount(0);
+  await expect(page.locator('.editor-status')).toHaveText(
+    '一覧から下書きを開くか、新しく作成できます。',
+  );
+  const { violations } = await new AxeBuilder({ page }).include('.draft-editor').analyze();
+  expect(
+    violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id),
+  ).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('ordinary-drafts-manage.png'), fullPage: true });
+  await page.getByRole('button', { name: '管理へ戻る前の編集', exact: true }).click();
+  await expect(title(page)).toHaveValue('管理へ戻る前の編集');
+  await page.screenshot({ path: info.outputPath('ordinary-drafts-writing.png'), fullPage: true });
 });

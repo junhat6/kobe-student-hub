@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@base-ui/react/button';
+import { Link } from 'react-router-dom';
 import MarkdownRenderer from '../MarkdownRenderer';
 import { createDraftClient, type EditorDraft, type DraftSummary } from './draft-client';
 import type { RescueChannel } from '../account/AccountSessionBoundary';
@@ -94,10 +95,14 @@ export default function DraftEditor({
   const mounted = useRef(true);
   const [status, setStatus] = useState('下書きを読み込んでいます…');
   // The list may load before participation is known, so the closed wording is chosen at render.
+  // The ordinary page shows the list as its own screen (#230 ①), so it is not 「左の」 there.
+  const listWhere = ordinary ? '一覧から' : '左の一覧から';
   const shownStatus = writable
-    ? status
+    ? status === LIST_READY
+      ? listWhere + '下書きを開くか、新しく作成できます。'
+      : status
     : status === LIST_READY
-      ? '左の一覧から下書きを開くと、読み返したり削除したりできます。'
+      ? listWhere + '下書きを開くと、読み返したり削除したりできます。'
       : status === LIST_EMPTY
         ? '保存した下書きはありません。'
         : status;
@@ -122,7 +127,9 @@ export default function DraftEditor({
   const deleteButton = useRef<HTMLButtonElement>(null),
     deleteCancel = useRef<HTMLButtonElement>(null);
   const newDraftButton = useRef<HTMLButtonElement>(null),
-    focusAfterDelete = useRef(false);
+    focusAfterDelete = useRef(false),
+    manageHeading = useRef<HTMLHeadingElement>(null),
+    focusAfterLeave = useRef(false);
   const deletionOpen = ordinary && deletion !== 'idle',
     editingLocked =
       opening || !writable || (ordinary && (deletion === 'confirm' || deletion === 'pending'));
@@ -136,6 +143,12 @@ export default function DraftEditor({
       (newDraftButton.current ?? document.getElementById('editor-main'))?.focus();
     }
   }, [ordinary, busy, draft]);
+  useEffect(() => {
+    if (ordinary && !draft && focusAfterLeave.current) {
+      focusAfterLeave.current = false;
+      manageHeading.current?.focus();
+    }
+  }, [ordinary, draft]);
   const [composing, setComposing] = useState(false);
   // Text before the last agent import and the publication fields the agent suggested. Both are
   // kept only in memory for the open draft; the ordinary save remains the only write.
@@ -322,15 +335,16 @@ export default function DraftEditor({
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [navigationRisk]);
-  function maySwitch() {
+  function maySwitch(leaving = false) {
+    const away = leaving ? '記事の管理へ戻ると' : '別の下書きへ移ると';
     return (
       (!dirty && !preparationUnsaved.current && !agentSuggestionPending) ||
       window.confirm(
         !dirty && !preparationUnsaved.current
-          ? 'AIの出力の概要・タグなどをまだ入れていません。別の下書きへ移ると、この候補は消えます。移動しますか？'
+          ? `AIの出力の概要・タグなどをまだ入れていません。${away}、この候補は消えます。移動しますか？`
           : ordinary
-            ? '未保存の編集があります。別の下書きへ移ると、この画面の変更は失われます。移動しますか？'
-            : '未保存の編集・公開情報があります。別の下書きへ移ると、この画面の変更は失われます。移動しますか？',
+            ? `未保存の編集があります。${away}、この画面の変更は失われます。移動しますか？`
+            : `未保存の編集・公開情報があります。${away}、この画面の変更は失われます。移動しますか？`,
       )
     );
   }
@@ -376,6 +390,25 @@ export default function DraftEditor({
         : '下書きを作成しました。タイトルや本文を書いてみましょう。',
     );
     requestAnimationFrame(() => titleRef.current?.focus());
+  }
+  /** Back to 記事の管理 (#230 ①). Same guards as switching drafts; nothing is sent or deleted. */
+  function leave() {
+    if (!ordinary || !draft || lock.current || publicationLock.current || deletionOpen) return;
+    if (!maySwitch(true)) return;
+    cancelAutosave();
+    pendingFormat.current = null;
+    compositionRef.current = false;
+    setComposing(false);
+    setBeforeAgent(null);
+    setAgentMetadata(null);
+    focusAfterLeave.current = true;
+    setDraft(null);
+    setText({ title: '', body: '' });
+    setLatest(null);
+    setProblem(false);
+    setAutosavePaused(false);
+    setPreview(false);
+    setStatus(list.length ? LIST_READY : LIST_EMPTY);
   }
   async function choose(id: string) {
     if (lock.current || publicationLock.current || deletionOpen || !maySwitch()) return;
@@ -666,12 +699,35 @@ export default function DraftEditor({
           </div>
         </>
       )}
-      <div className="editor-layout">
-        <aside className="editor-sidebar" aria-label="自分の下書き">
+      {/* Zenn・note keep 記事の管理 (the list) and the writing screen apart: the ordinary page
+          shows one or the other. The list stays in the DOM while writing so its state survives. */}
+      <div
+        className={
+          'editor-layout' +
+          (ordinary ? (draft ? ' editor-layout--writing' : ' editor-layout--manage') : '')
+        }
+      >
+        <aside
+          className="editor-sidebar"
+          aria-label="自分の下書き"
+          hidden={ordinary && Boolean(draft)}
+        >
           <div className="editor-side-heading">
-            {ordinary ? <h2>自分の下書き</h2> : <h1>下書き</h1>}
+            {ordinary ? (
+              <h2 ref={manageHeading} tabIndex={-1}>
+                記事の管理
+              </h2>
+            ) : (
+              <h1>下書き</h1>
+            )}
             <span>本人だけに表示</span>
           </div>
+          {ordinary && (
+            <nav className="editor-manage-tabs" aria-label="記事の種類">
+              <span aria-current="page">下書き</span>
+              <Link to="/account#publications">公開中</Link>
+            </nav>
+          )}
           {writable && (
             <Button
               ref={newDraftButton}
@@ -737,7 +793,28 @@ export default function DraftEditor({
           )}
         </aside>
         <EditorRegion className="editor-main" id="editor-main" tabIndex={-1}>
-          <div className="editor-main-heading">
+          {ordinary && draft && (
+            <div className="editor-writing-nav">
+              <Button
+                className="editor-link-button editor-back"
+                disabled={busy || publicationBusy || deletionOpen}
+                onClick={leave}
+              >
+                ← 記事の管理
+              </Button>
+              {writable && (
+                <Button
+                  className="editor-link-button"
+                  aria-label="新しい下書き"
+                  disabled={busy || publicationBusy || deletionOpen}
+                  onClick={() => void create()}
+                >
+                  ＋ 新しい下書き
+                </Button>
+              )}
+            </div>
+          )}
+          <div className="editor-main-heading" hidden={ordinary && !draft}>
             <div>
               {!ordinary && <p className="editor-eyebrow">YOUR WORDS, YOUR PACE</p>}
               <h2>
@@ -1099,9 +1176,9 @@ export default function DraftEditor({
                 </section>
               )}
             </>
-          ) : (
+          ) : ordinary ? null : (
             <section className="editor-welcome">
-              {!ordinary && <span aria-hidden="true">✎</span>}
+              <span aria-hidden="true">✎</span>
               {writable ? (
                 <>
                   <h3>小さな経験も、次の誰かのヒントに。</h3>
