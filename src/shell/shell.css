@@ -181,6 +181,25 @@
     padding: 0 14px;
   }
 }
+/* #264: signed in, a phone has 書く・ベル・アバター on the right, and with the name beside the
+   logo they no longer fit one line, so the header grew to three rows. Keep the logo, hide the
+   name visually (it stays the link's accessible name) so the header stays at two rows. */
+@media (max-width: 480px) {
+  .site-header-row.is-signed-in .brand {
+    min-width: 44px;
+  }
+  .site-header-row.is-signed-in .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .menu-popup {
     transition: none;

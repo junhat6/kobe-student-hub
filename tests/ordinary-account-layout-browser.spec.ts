@@ -80,6 +80,27 @@ test('my page splits into the person and their activity on a wide screen only', 
       expect(Math.abs(pub!.x - p!.x)).toBeLessThan(2);
       expect(pub!.y).toBeGreaterThan(p!.y + p!.height);
     }
+    // #264: signed in, the logo and 書く・ベル・アバター share one row at both widths, so the
+    // header is at most two rows on a phone; the hidden name still names the home link.
+    const brand = page
+      .getByRole('banner')
+      .getByRole('link', { name: 'Kobe Student Hub', exact: true });
+    const avatar = page.getByRole('button', { name: 'アカウントメニュー' });
+    const write = page.getByRole('button', { name: '書く' });
+    await expect(brand).toBeVisible();
+    const [b, av, w] = await Promise.all([
+      brand.boundingBox(),
+      avatar.boundingBox(),
+      write.boundingBox(),
+    ]);
+    for (const control of [av!, w!])
+      expect(Math.abs(control.y + control.height / 2 - (b!.y + b!.height / 2))).toBeLessThan(4);
+    expect(b!.x + b!.width).toBeLessThanOrEqual(w!.x);
+    if (!wide) {
+      const header = await page.locator('.site-header').boundingBox();
+      expect(header!.height).toBeLessThan(130);
+    }
+
     // No sideways scroll at either width.
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

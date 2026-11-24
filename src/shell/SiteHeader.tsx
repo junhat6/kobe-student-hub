@@ -119,12 +119,14 @@ export default function SiteHeader() {
   const { viewer } = useViewer();
   return (
     <header className="site-header">
-      <div className="shell site-header-row">
+      <div
+        className={'shell site-header-row' + (viewer.status === 'signed-in' ? ' is-signed-in' : '')}
+      >
         <Link to="/" className="brand">
           <span className="brand-icon" aria-hidden="true">
             k.
           </span>
-          <span>
+          <span className="brand-name">
             Kobe Student Hub<small>知る。つくる。分かち合う。</small>
           </span>
         </Link>
