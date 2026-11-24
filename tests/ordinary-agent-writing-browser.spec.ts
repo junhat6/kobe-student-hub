@@ -79,10 +79,12 @@ test('a student hands the draft to their own agent, imports its file, and publis
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(
     '自分で書き始めたタイトル',
   );
-  // #200: the hint names the entry the student actually sees below (「記事を公開する」).
-  await expect(check).toContainText('下の「記事を公開する」');
+  // #200/#267: the hint names the entry the student actually sees, the top-right 「公開する」.
+  await expect(check).toContainText('右上の「公開する」');
   await expect(check).not.toContainText('「公開の準備」');
-  await expect(page.getByText('記事を公開する', { exact: true })).toBeVisible();
+  await expect(
+    page.locator('.editor-main-heading').getByRole('button', { name: '公開する', exact: true }),
+  ).toBeVisible();
   await check.getByRole('button', { name: '下書きに反映', exact: true }).click();
   await expect(page.locator('.editor-preview')).toContainText('AGENT_IMPORTED_BODY');
   // The duplicated `# title` heading is dropped from the body.
@@ -127,7 +129,10 @@ test('a student hands the draft to their own agent, imports its file, and publis
   expect(await beforePublish.text()).not.toContain('架空のエージェント記事-' + info.project.name);
 
   // 5. The reader-facing fields come from the file only when the student asks.
-  await page.getByText('記事を公開する', { exact: true }).click();
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   const summary = composer.getByLabel('記事の概要（300文字以内）');
   await expect(summary).toHaveValue('');
@@ -186,7 +191,7 @@ test('the agents guide and the writing kit are public', async ({ page }, info) =
     ORIGIN + '/agent-kit/ksh-article/SKILL.md',
   );
   // #200: the guide names the real publish entry, not a 「公開の準備」 that the draft screen lacks.
-  await expect(page.getByRole('main')).toContainText('「記事を公開する」を開くと入れられます');
+  await expect(page.getByRole('main')).toContainText('右上の「公開する」を押すと入れられます');
   await expect(page.getByRole('main')).not.toContainText('「公開の準備」');
   // #259: only the claude.ai connector is marked as checked in production; the CLIs stay unchecked.
   const setup = page.locator('details.agents-more', { hasText: 'AIごとの登録方法' });

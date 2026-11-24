@@ -131,6 +131,10 @@
 /* Publishing is the goal of writing: make it the clearest next step. */
 .draft-editor--ordinary .publication-composer {
   margin: 24px 0 0;
+  /* The panel draws its own frame; while it is closed (#267) nothing else may show a line. */
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 .draft-editor--ordinary .publication-composer > details {
   border: 1px solid #c9daf7;
@@ -155,20 +159,14 @@
 .draft-editor--ordinary .publication-composer > details > summary::-webkit-details-marker {
   display: none;
 }
+/* The panel is on the page only while open (#267): its heading row carries the way out. */
 .draft-editor--ordinary .publication-composer > details > summary::after {
-  content: '公開設定を開く →';
-  /* On a narrow screen the button moves to its own line instead of
-     splitting the heading or dropping the arrow alone (#190). */
+  content: '閉じる';
   white-space: nowrap;
   font-size: 13px;
   font-weight: 700;
   padding: 8px 14px;
   border-radius: 999px;
-  background: var(--accent-strong, #1659c7);
-  color: #fff;
-}
-.draft-editor--ordinary .publication-composer > details[open] > summary::after {
-  content: '閉じる';
   background: var(--surface, #fff);
   color: var(--ink-soft, #46525f);
   border: 1px solid var(--line, #e2e7ee);

@@ -39,7 +39,10 @@ async function publishAndKeepDraft(page: Page) {
   await page.getByLabel('Markdown本文', { exact: true }).fill('在学中に公開した架空の本文です。');
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
-  await page.getByText('記事を公開する', { exact: true }).click();
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   await composer.getByLabel('記事の概要（300文字以内）').fill('卒業前に公開した記録');
   await composer.getByRole('checkbox').check();

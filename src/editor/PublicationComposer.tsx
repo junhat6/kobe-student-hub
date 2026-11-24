@@ -38,6 +38,8 @@ interface Props {
   suggestionVolatile?: boolean;
   /** Bumped by the editor's 「公開する」 button: open this panel and move the reader to it. */
   openRequest?: number;
+  /** Called after the reader closes the panel, so focus can return to the opener. */
+  onClosed?: () => void;
 }
 class SavedPreviewBoundary extends React.Component<
   { children: React.ReactNode },
@@ -70,12 +72,19 @@ export default function PublicationComposer({
   onSuggestionUsed,
   suggestionVolatile = false,
   openRequest = 0,
+  onClosed,
 }: Props) {
   const panel = useRef<HTMLDetailsElement>(null);
+  // The ordinary writing screen has one entry to publishing: 「公開する」 at the top right. The
+  // panel stays out of the page until that is pressed and leaves again when closed (#267).
+  const [panelOpen, setPanelOpen] = useState(false);
   useEffect(() => {
     const details = panel.current;
     if (!openRequest || !details) return;
+    // Unhide synchronously so the scroll and focus below land on a rendered element.
+    details.hidden = false;
     details.open = true;
+    setPanelOpen(true);
     details.scrollIntoView({ block: 'start' });
     // Focus the heading the reader landed on, so keyboard and screen-reader users arrive too.
     details.querySelector('summary')?.focus({ preventScroll: true });
@@ -389,7 +398,16 @@ export default function PublicationComposer({
           AIの概要・タグの候補あり・この画面を離れると消えます
         </p>
       )}
-      <details ref={panel}>
+      <details
+        ref={panel}
+        hidden={ordinary && !panelOpen}
+        onToggle={(event) => {
+          if (!ordinary) return;
+          const open = event.currentTarget.open;
+          setPanelOpen(open);
+          if (!open) onClosed?.();
+        }}
+      >
         <summary>
           {ordinary
             ? receipt

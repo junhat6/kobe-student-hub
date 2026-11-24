@@ -79,6 +79,7 @@ export default function DraftEditor({
   const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [text, setText] = useState({ title: '', body: '' });
   const [publishRequest, setPublishRequest] = useState(0);
+  const publishOpener = useRef<HTMLButtonElement>(null);
   const [mutationPending, setMutationPending] = useState(false);
   const [preparationDirty, setPreparationDirty] = useState(false);
   const [publicationUncertain, setPublicationUncertain] = useState(false);
@@ -358,7 +359,7 @@ export default function DraftEditor({
     setPreview(true);
     setStatus(
       hasMetadata(article.metadata)
-        ? 'AIの出力を下書きに反映しました。概要・タグなどは「記事を公開する」の「AIの出力から入れる」で入れてください。この画面を離れると消えます。'
+        ? 'AIの出力を下書きに反映しました。概要・タグなどは、右上の「公開する」を押して「AIの出力から入れる」で入れてください。この画面を離れると消えます。'
         : 'AIの出力を下書きに反映しました。プレビューで読み、違うところを直してください。',
     );
   }
@@ -834,6 +835,7 @@ export default function DraftEditor({
                     with tags, summary and readers opens only after it is pressed (#230). */}
                 {ordinary && writable && (
                   <Button
+                    ref={publishOpener}
                     className="editor-primary editor-publish-open"
                     disabled={busy || publicationBusy || deletionOpen}
                     onClick={() => setPublishRequest((n) => n + 1)}
@@ -1091,6 +1093,7 @@ export default function DraftEditor({
                   onSuggestionUsed={onSuggestionUsed}
                   suggestionVolatile={agentSuggestionPending}
                   openRequest={publishRequest}
+                  onClosed={() => publishOpener.current?.focus()}
                   suggested={
                     agentMetadata?.draftId === draft.id
                       ? agentMetadata.metadata

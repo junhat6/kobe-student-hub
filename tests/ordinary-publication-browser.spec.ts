@@ -89,6 +89,8 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   const panelHeading = composer.locator('details > summary').first();
   await expect(composer.getByLabel('記事の概要（300文字以内）')).toBeHidden();
+  // #267: no second entry below the editor; the panel heading appears only after the press.
+  await expect(panelHeading).toBeHidden();
   const publishOpen = page
     .locator('.editor-main-heading')
     .getByRole('button', { name: '公開する', exact: true });
@@ -144,17 +146,24 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   expect(articlePath).toMatch(/^\/articles\/[0-9a-f-]{36}$/);
   expect(await publicIds()).toContain(articlePath!.slice('/articles/'.length));
   // #190: on a 390px phone the published heading must not split mid-word ("更新す／る");
-  // the open/close pill moves to its own line instead.
+  // the close pill moves to its own line instead.
   const summary = composer.locator('details > summary').first();
   await expect(summary).toHaveText('記事を公開・更新する');
-  await summary.click(); // closed: the pill is the longer 「公開設定を開く →」
   const headingLines = await summary.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
     return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
   });
   expect(headingLines).toBe(1);
+  // #267: one entry to publishing. Closing takes the panel off the page and returns focus to
+  // the top-right 「公開する」, which brings the same panel back.
   await summary.click();
+  await expect(summary).toBeHidden();
+  const publishAgain = page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true });
+  await expect(publishAgain).toBeFocused();
+  await publishAgain.click();
   await expect(publicLink).toBeVisible();
   return articlePath!;
 }

@@ -37,7 +37,10 @@ async function publishArticle(page: Page, title: string) {
   await page.getByLabel('Markdown本文', { exact: true }).fill('## 作り方\n\n架空の制作記録です。');
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
-  await page.getByText('記事を公開する', { exact: true }).click();
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   await composer.getByLabel('記事の概要（300文字以内）').fill('作品の制作記録');
   await composer.getByRole('checkbox').check();

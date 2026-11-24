@@ -232,7 +232,10 @@ test('article image stays private until explicit saved-version publication and f
   expect((await page.request.get('/api/media/' + image.id)).status()).toBe(404);
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
-  await page.getByText('記事を公開する', { exact: true }).click();
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   await expect(composer.getByRole('region', { name: '公開する画像の確認' })).toContainText('1枚');
   await composer.getByLabel('記事の概要（300文字以内）').fill('画像で説明する保存版');

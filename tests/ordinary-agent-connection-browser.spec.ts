@@ -141,7 +141,10 @@ test('a student allows their own agent, sees its draft marked, uses its suggesti
   expect(await noHorizontalScroll(page)).toBe(true);
   await item.getByRole('button').click();
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(title);
-  await page.getByText('記事を公開する', { exact: true }).click();
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
   const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
   const notice = composer.locator('.publication-secret-notice');
   await expect(notice).toContainText('公開前に確かめてください');
