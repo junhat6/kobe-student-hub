@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   formatRecord,
   formatReport,
+  lastDeparted,
   nextTrain,
+  openTrain,
   parseRecord,
   summarize,
   trainAt,
@@ -14,6 +16,11 @@ import {
   parseMediaAudit,
   // @ts-expect-error plain ESM script without type declarations
 } from '../scripts/loop/media-audit.mjs';
+
+import {
+  releaseWake,
+  // @ts-expect-error plain ESM script without type declarations
+} from '../scripts/loop/precheck.mjs';
 
 const jst = (s: string) => new Date(`${s}+09:00`);
 
@@ -184,5 +191,69 @@ describe('media audit in the release record', () => {
       '照合できず（本番 D1 に届きません）',
     );
     expect(formatRecord(record)).not.toContain('media 照合');
+  });
+});
+
+describe('unfinished trains (2026-11-24: a train runs until it ships)', () => {
+  const ev = {
+    id: 'evening',
+    label: '夜便',
+    hour: 20,
+    day: '2026-11-24',
+    slot: '2026-11-24 evening',
+  };
+  const rec = (outcome: string, extra: object = {}) => ({
+    v: 1,
+    startedAt: '2026-11-24T11:00:00.000Z',
+    finishedAt: '2026-11-24T11:30:00.000Z',
+    train: ev,
+    outcome,
+    ...extra,
+  });
+
+  it.each([
+    ['2026-11-24T20:00:00', '2026-11-24 evening'],
+    ['2026-11-24T23:59:00', '2026-11-24 evening'],
+    ['2026-11-25T07:59:00', '2026-11-24 evening'],
+    ['2026-11-25T08:00:00', '2026-11-25 morning'],
+    ['2026-11-25T19:00:00', '2026-11-25 morning'],
+  ])('at %s the last departed train is %s', (at, slot) =>
+    expect(lastDeparted(jst(at)).slot).toBe(slot),
+  );
+
+  it.each([
+    ['ci_failed', {}, true],
+    ['deploy_failed', {}, true],
+    ['skipped', { blocker: 'main_health' }, true],
+    ['skipped', { blocker: 'rc_running' }, true],
+    ['skipped', { blocker: 'p0' }, false],
+    ['skipped', { blocker: 'agent' }, false],
+    ['released', {}, false],
+  ])('%s %o is open: %s', (outcome, extra, open) => {
+    const at = jst('2026-11-24T23:00:00');
+    expect(Boolean(openTrain([rec(outcome, extra)], at))).toBe(open);
+    // precheck.mjs は同じ判定を自前で持つ。食い違わないこと
+    const wake = releaseWake(at, { records: [rec(outcome, extra)], busy: '', followupMin: 90 });
+    expect(wake.wake).toBe(open);
+  });
+
+  it('a later success closes the train', () => {
+    const late = rec('released', { startedAt: '2026-11-24T13:00:00.000Z' });
+    expect(openTrain([late, rec('ci_failed')], jst('2026-11-24T23:00:00'))).toBeUndefined();
+  });
+
+  it('the next departure hands over: the old train is no longer continued', () => {
+    expect(openTrain([rec('ci_failed')], jst('2026-11-25T08:10:00'))).toBeUndefined();
+  });
+
+  it('precheck wakes on departure, leaves a fresh failure to its agent, and never while CI runs', () => {
+    const w = (at: string, records: object[], busy = '') =>
+      releaseWake(jst(at), { records, busy, followupMin: 90 }).wake;
+    expect(w('2026-11-24T20:00:00', [])).toBe(true); // 発車
+    expect(w('2026-11-24T21:40:00', [])).toBe(true); // Mac が眠っていて遅れた発車
+    expect(w('2026-11-24T22:10:00', [])).toBe(false); // 窓を過ぎ、記録も無い
+    expect(w('2026-11-24T20:50:00', [rec('ci_failed')])).toBe(false); // 失敗から 20 分：前の agent が直している
+    expect(w('2026-11-24T21:00:00', [rec('ci_failed')], 'rc の full CI が実行中')).toBe(false);
+    expect(w('2026-11-24T22:00:00', [])).toBe(false);
   });
 });

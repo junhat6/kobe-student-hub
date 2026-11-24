@@ -25,6 +25,7 @@ if (a[0] === 'api' && a[1].includes('/check-runs')) {
   }
   out(process.env.FAKE_API_ANSWER || 'null null null');
 }
+if (a[0] === 'api' && a.some((x) => x.includes('issues/211/comments'))) out(process.env.FAKE_LOG_COMMENTS || '');
 if (a[0] === 'run' && a[1] === 'list' && a.includes('main-health.yml')) out('completed success');
 if (a[0] === 'run' && a[1] === 'list' && a.includes('ci.yml')) out('0');
 if (a[0] === 'run' && a[1] === 'view') out('verify: npm test');
@@ -67,8 +68,8 @@ beforeEach(() => {
 
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-function release(env: Record<string, string>) {
-  const r = spawnSync(process.execPath, [SCRIPT], {
+function release(env: Record<string, string>, args: string[] = []) {
+  const r = spawnSync(process.execPath, [SCRIPT, ...args], {
     cwd: work,
     encoding: 'utf8',
     timeout: 60_000,
@@ -115,5 +116,75 @@ describe('release.mjs when gh cannot reach GitHub (#212)', () => {
     expect(r.records).toHaveLength(1);
     expect(r.records[0]).toMatchObject({ outcome: 'ci_failed' });
     expect(r.records[0].reason).toMatch(/失敗: verify: npm test/);
+  });
+});
+
+// release-log の既存コメント（gh api … -q '.[] | {body, url} | @json' の出力の形）
+const logComment = (rec: object) =>
+  JSON.stringify({
+    body: `<!-- ksh-release-record v1 -->\n### x\n\n\`\`\`json\n${JSON.stringify(rec)}\n\`\`\``,
+    url: 'https://example.test/issues/211#issuecomment-0',
+  });
+const evening = {
+  id: 'evening',
+  label: '夜便',
+  hour: 20,
+  day: '2026-11-24',
+  slot: '2026-11-24 evening',
+};
+
+describe('release.mjs --continue（便は始めたら出しきる、2026-11-24）', () => {
+  const late = { KSH_RELEASE_NOW: '2026-11-24T22:40:00+09:00' }; // 夜便の窓（〜21:59）の後
+
+  it('runs a failed train again after its window and records it under the same train', () => {
+    const r = release(
+      {
+        ...late,
+        FAKE_LOG_COMMENTS: logComment({
+          v: 1,
+          startedAt: '2026-11-24T11:00:00.000Z',
+          finishedAt: '2026-11-24T11:30:00.000Z',
+          train: evening,
+          outcome: 'ci_failed',
+        }),
+        FAKE_API_ANSWER: 'completed failure https://example.test/actions/runs/43',
+      },
+      ['--continue'],
+    );
+    expect(r.stdout).toMatch(/2026-11-24 の夜便の続きとして走らせます（前回: ci_failed）/);
+    expect(r.records).toHaveLength(1);
+    expect(r.records[0]).toMatchObject({
+      outcome: 'ci_failed',
+      continued: true,
+      train: { slot: '2026-11-24 evening' },
+    });
+    expect(r.records[0].hotfix).toBeUndefined();
+    expect(r.records[0].reason).toMatch(/--continue/);
+  });
+
+  it('refuses to continue a train that already shipped', () => {
+    const r = release(
+      {
+        ...late,
+        FAKE_LOG_COMMENTS: logComment({
+          v: 1,
+          startedAt: '2026-11-24T11:00:00.000Z',
+          finishedAt: '2026-11-24T11:30:00.000Z',
+          train: evening,
+          outcome: 'released',
+        }),
+      },
+      ['--continue'],
+    );
+    expect(r.status).toBe(5);
+    expect(r.stderr).toMatch(/出しきれています/);
+    expect(r.records).toHaveLength(0);
+  });
+
+  it('points at --continue when run outside the window without it', () => {
+    const r = release(late);
+    expect(r.status).toBe(5);
+    expect(r.stderr).toMatch(/--continue/);
+    expect(r.records).toHaveLength(0);
   });
 });

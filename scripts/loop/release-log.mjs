@@ -66,6 +66,35 @@ export function trainAt(date = new Date()) {
   return undefined;
 }
 
+// 直近に発車した定時便（窓の中かどうかを問わない）。07:00 なら前日の夜便。
+export function lastDeparted(date = new Date()) {
+  const { day, hour } = jstParts(date);
+  const today = [...TRAINS].reverse().find((t) => t.hour <= hour);
+  if (today) return { ...today, day, slot: `${day} ${today.id}` };
+  const y = jstDay(new Date(date.getTime() - 86_400_000));
+  const t = TRAINS[TRAINS.length - 1];
+  return { ...t, day: y, slot: `${y} ${t.id}` };
+}
+
+// 見送りのうち、原因が片付けば同じ便で出し直すもの（main-health 赤は mend が直し、rc 実行中は待てば空く）
+export const RETRYABLE_BLOCKERS = ['main_health', 'rc_running'];
+
+// 出しきれていない便（オーナー方針 2026-11-24: 便は始めたら本番に出るまで回す）。
+// 直近に発車した便に記録があり、最後の記録が失敗か「待てば出せる見送り」なら、その便と最後の記録を返す。
+// 次の便が発車したら、前の便は次の便に引き継がれる（ここでは返さない）。
+export function openTrain(records, date = new Date()) {
+  const t = lastDeparted(date);
+  const mine = records
+    .filter((r) => r.train?.slot === t.slot)
+    .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+  const last = mine.at(-1);
+  if (!last) return undefined;
+  const ok = OUTCOMES[last.outcome]?.ok;
+  if (ok && !(last.outcome === 'skipped' && RETRYABLE_BLOCKERS.includes(last.blocker)))
+    return undefined;
+  return { train: t, last };
+}
+
 // 次の定時便の発車時刻（表示用）
 export function nextTrain(date = new Date()) {
   const { hour, minute } = jstParts(date);
@@ -100,7 +129,11 @@ const link = (text, url) => (url ? `[${text}](${url})` : text);
 // 記録 1 件をコメント本文にする
 export function formatRecord(r) {
   const o = OUTCOMES[r.outcome] ?? OUTCOMES.error;
-  const kind = r.train?.label ?? (r.hotfix ? '臨時便' : '手動');
+  const kind = r.train
+    ? `${r.train.label}${r.continued ? '（続き）' : ''}`
+    : r.hotfix
+      ? '臨時便'
+      : '手動';
   const version = r.tag ? `${r.tag}（\`${r.short}\`）` : r.short ? `\`${r.short}\`` : '—';
   const rows = [
     ['結果', `${o.icon} ${r.outcome} — ${o.text}`],
@@ -219,7 +252,7 @@ export function logIssue({ create = false } = {}) {
     [
       'リリース列車（`npm run release`）が 1 回ごとに結果をコメントで残す場所です。',
       '',
-      '- 定時便: 毎日 08:00 / 20:00 JST。窓の外は `--hotfix "<理由>"` の臨時便だけ。',
+      '- 定時便: 毎日 08:00 / 20:00 JST。窓の外は、出しきれていない便の続き（`--continue`）と `--hotfix "<理由>"` の臨時便だけ。',
       '- 集計: `npm run release:report -- --days 7`',
       '- 手順と判断: `.claude/skills/release/SKILL.md`、`docs/RELEASE.md`',
       '',

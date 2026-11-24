@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// npm run release -- [--sha <sha>] [--deploy] [--plan] [--hotfix "<理由>"] [--skip "<理由>"]
+// npm run release -- [--sha <sha>] [--deploy] [--plan] [--continue] [--hotfix "<理由>"] [--skip "<理由>"]
 //
 // 便: 昇格と deploy は 08:00 / 20:00 JST の定時便の窓（発車から 2 時間）でだけ行う。窓の外は
 //     --hotfix "<理由>" を付けた臨時便だけ（オーナー方針 2026-11-22。scripts/loop/release-log.mjs）。
+// 続き: 便は始めたら本番に出るまで回す（オーナー方針 2026-11-24）。CI 赤などで落ちた便を直して出し直すときは
+//     --continue を付ける。窓を過ぎていても、次の便が発車するまでは同じ便の続きとして走り、記録も同じ便に入る。
 // 記録: --plan 以外は、成功・見送り・失敗のどれでも結果を release-log Issue に 1 件残す。
 //     --skip "<理由>" は、agent が判断で見送った便（R2 の独立検証待ちなど）を記録だけして終える。
 //
@@ -20,7 +22,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { smoke } from './loop/smoke.mjs';
-import { nextTrain, recordRelease, trainAt } from './loop/release-log.mjs';
+import { nextTrain, openTrain, readRecords, recordRelease, trainAt } from './loop/release-log.mjs';
 
 const REPO = process.env.KSH_REPO || 'junhat6/kobe-student-hub';
 const CHECK = 'verify';
@@ -156,10 +158,31 @@ async function main() {
     return;
   }
 
-  // 便の窓の外は、理由つきの臨時便だけ
+  // 便の窓の外は、出しきれていない便の続き（--continue）か、理由つきの臨時便だけ
+  if (!rec.train && hotfix === undefined && flag('--continue')) {
+    let open;
+    try {
+      open = openTrain(readRecords(), now);
+    } catch (e) {
+      console.error(
+        `[release] 中止: release-log を読めず、続ける便を確かめられません: ${String(e.message).split('\n')[0]}`,
+      );
+      process.exit(5);
+    }
+    if (open) {
+      rec.train = open.train;
+      rec.continued = true;
+      log(
+        `${open.train.day} の${open.train.label}の続きとして走らせます（前回: ${open.last.outcome}${open.last.short ? ` ${open.last.short}` : ''}）。`,
+      );
+    }
+  }
   if (!rec.train && hotfix === undefined) {
     console.error(
       `[release] 中止: いまは定時便（08:00 / 20:00 JST、発車から 2 時間）の窓の外です。次は${nextTrain(now)}。` +
+        (flag('--continue')
+          ? '直近の便は出しきれています（または記録がありません）。'
+          : '落ちた便を直して出し直すなら --continue、') +
         '緊急の修正なら --hotfix "<理由>" を付けて臨時便にしてください。',
     );
     process.exit(5);
@@ -182,7 +205,10 @@ async function main() {
     rec.migrations = migrations;
   }
 
-  if (opt('--skip')) finish('skipped', opt('--skip'));
+  if (opt('--skip')) {
+    rec.blocker = 'agent';
+    finish('skipped', opt('--skip'));
+  }
   const gate = gates(release === sha);
   if (gate) finish('skipped', gate);
 
@@ -202,7 +228,7 @@ async function main() {
       rec.ci = { status: s.status, conclusion: s.conclusion, url: s.url, reused: false };
       if (s.conclusion !== 'success')
         die(
-          `CI が通りませんでした（${s.status}/${s.conclusion ?? '-'}${s.status === 'completed' ? `。${failedSteps(s.url)}` : ''}）。main で直してから再実行してください。${s.url ?? ''}`,
+          `CI が通りませんでした（${s.status}/${s.conclusion ?? '-'}${s.status === 'completed' ? `。${failedSteps(s.url)}` : ''}）。原因を main で直し、npm run release -- --deploy --continue で同じ便を出しきってください。${s.url ?? ''}`,
           1,
           'ci_failed',
         );
@@ -232,8 +258,11 @@ async function main() {
 // 列車を止める条件のうち、機械で判定できるもの（R2 の独立検証・migration の形は agent が見て --skip で残す）
 function gates(nothingToShip) {
   // 出すものが無い便は見送り。--sha で今の release を名指しした --deploy だけは「出し直し」として通す
-  if (nothingToShip && !(flag('--deploy') && opt('--sha')))
+  // rec.blocker は機械で読む見送りの種類。main_health と rc_running は「原因が片付けば同じ便で出し直す」
+  if (nothingToShip && !(flag('--deploy') && opt('--sha'))) {
+    rec.blocker = 'no_change';
     return '変更なし（release は main と同じ）';
+  }
   const q = (a) => {
     try {
       return sh('gh', a);
@@ -257,8 +286,10 @@ function gates(nothingToShip) {
     '-q',
     '.[0] | "\\(.status) \\(.conclusion)"',
   ]).split(' ');
-  if (status === 'completed' && conclusion === 'failure')
-    return 'main-health が赤（mend が直してから）';
+  if (status === 'completed' && conclusion === 'failure') {
+    rec.blocker = 'main_health';
+    return 'main-health が赤（mend が直してから、同じ便の続きで出す）';
+  }
   const p0 = q([
     'issue',
     'list',
@@ -273,7 +304,10 @@ function gates(nothingToShip) {
     '-q',
     'map(.number) | join(",")',
   ]);
-  if (p0 && !hotfix) return `open な P0 Issue がある（#${p0.split(',').join(', #')}）`;
+  if (p0 && !hotfix) {
+    rec.blocker = 'p0';
+    return `open な P0 Issue がある（#${p0.split(',').join(', #')}）`;
+  }
   const rcRunning = q([
     'run',
     'list',
@@ -288,7 +322,10 @@ function gates(nothingToShip) {
     '-q',
     '[.[] | select(.status != "completed" and (.headBranch | startswith("rc/")))] | length',
   ]);
-  if (rcRunning && rcRunning !== '0') return '別の列車の full CI が実行中';
+  if (rcRunning && rcRunning !== '0') {
+    rec.blocker = 'rc_running';
+    return '別の列車の full CI が実行中';
+  }
   return undefined;
 }
 

@@ -2,6 +2,15 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-24 — 定時便は始めたら本番に出るまで回す（オーナー方針）
+
+きっかけ：11-24 の朝便・夜便がどちらも full CI の赤で「記録して終わり」になり、本番が r2026.11.23.2 のまま 75 commit・migration 6 本が止まった。原因の修正（#266）は 20:38 に main に入っていたが、手順が「最小の修正を main に push。昇格は次の列車」だったので、誰も出し直さなかった。
+
+1. **便は始めたら出しきる。** CI 赤・deploy 失敗・smoke 失敗は、原因を main で直して同じ便を出し直す。止まってよいのは権限が無いとき（課金・契約＝R3）だけで、そのときは `needs-human` に止まった場所を書く。
+2. **窓を過ぎた出し直しは `--continue`。** `npm run release -- --deploy --continue` は、直近の便の最後の記録が失敗（または main-health 赤・rc 実行中の見送り）なら、窓の外でも次の便の発車までは同じ便として走る。`--hotfix` を使わない理由：臨時便の集計に混ざり、「定時便が出しきれたか」が記録から読めなくなる。次の便の発車で打ち切る理由：同じ変更を2つの便が取り合わないため（次の便がそのまま引き継ぐ）。
+3. **automation が拾い直す。** `ksh release` を `0 8,20 * * *` から `0 * * * *` にし、precheck `release` が「発車（窓の中で記録なし）」と「出しきれていない便を最後の記録から 90 分だれも動かしていない」ときだけ agent を起こす。rc の full CI か release.yml が動いている間は起こさない。担当の agent が途中で止まる（API エラー・context 切れ）と、以前は次の便まで12時間誰も見なかったため。90 分は、CI 赤から原因を直して再実行するまでを前の agent に任せる猶予。
+4. 見送りの種類を記録に `blocker`（`no_change`・`p0`・`main_health`・`rc_running`・`agent`）として残す。続けてよいのは `main_health` と `rc_running` だけ（P0 は finish が受け持ち、agent の判断の見送りは理由つきの終わり方なので続けない）。
+
 ## 2026-11-23 — 記事の埋め込み（Google マップ・Instagram を足す。同日の「引用」の3を置き換える）
 
 オーナー（服部）の方向性：本人の写真だけでは記事が映えず、毎回撮るのも手間なので、記事で埋め込みを使えるようにする。想定は公式 SNS の埋め込みと Google マップの公式の埋め込み機能など、権利的に安全なもの。Google マップに投稿された他人の写真を記事に載せるのは無し（転載になる）。口コミは、本人が主に書いた文章に、一部の引用（出典つき）か口コミへのリンクを添える形。同日の「記事での外部の文章・画像の引用」の3（埋め込みは YouTube だけ）をこれで置き換える。1・2・4〜6 はそのまま。

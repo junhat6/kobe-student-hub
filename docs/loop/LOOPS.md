@@ -173,7 +173,7 @@ patrol は旅が最後まで行けるかを採点して Issue にするだけで
 | 項目 | 内容 |
 | --- | --- |
 | 担当 | release レーン（loop-infra が実装・運用） |
-| 起動 | Orca automation `ksh release`：**毎日 08:00 と 20:00（JST）の定時便**（`0 8,20 * * *`、窓は発車から2時間）。窓の外は緊急の修正などの臨時便だけ（`npm run release -- --deploy --hotfix "<理由>"`）。手順と判断は release skill（`.claude/skills/release/SKILL.md`） |
+| 起動 | Orca automation `ksh release`：**毎日 08:00 と 20:00（JST）の定時便**（窓は発車から2時間）。automation は毎時起き、precheck が発車と「出しきれていない便の続き」のときだけ agent を起こす。便は始めたら本番に出るまで回す（2026-11-24。落ちたら直して `--continue`）。窓の外は、落ちた便の続きと、緊急の修正などの臨時便だけ（`npm run release -- --deploy --hotfix "<理由>"`）。手順と判断は release skill（`.claude/skills/release/SKILL.md`） |
 | precheck | `node scripts/loop/precheck.mjs release` は常に通す（定時便は必ず起こし、見送りも記録する）。止める条件は `npm run release` が判定する：未リリースの commit が無い、main-health が赤、リリースCIが実行中、open な `P0` Issue がある（UX巡回の S1 で列車を止める。臨時便は除く）。R2 commit の独立検証が Issue 上で済んでいないなどの判断は agent が見て `--skip "<理由>"` で残す |
 | 手順 | `npm run release -- --deploy`：選んだSHA → `rc/<sha7>` → CI verify green → release へ fast-forward → tag → GitHub Release → D1 migration（ブックマーク記録後）→ 本番 deploy → smoke → 失敗なら直前の版へ戻す。CI 用 token があれば deploy は GitHub Actions が行い、release スクリプトがそれを見届ける（詳細は [RELEASE.md](../RELEASE.md)） |
 | 出力 | tag、GitHub Release（commit trailer から自動生成した変更点）、**Issue `release-log` への便ごとの記録**（いつ・版・含む commit と migration・CI・deploy・smoke・失敗の理由。集計は `npm run release:report`）、本番に対する patrol 1回の起動 |
@@ -238,7 +238,7 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh polish` | `30 10-22/3 * * *` | main-health 非赤・open P0 なし・`polish-log` の最新コメントから2時間以上 | prompts/polish.md |
 | `ksh garden` | `0 5 * * *` | `garden-log` Issue 最新コメントの sha 以降に main への commit | prompts/garden.md |
 | `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
-| `ksh release` | `0 8,20 * * *`（missed-run grace 100分） | 常に通す（止める条件は `npm run release` が判定して記録） | `.claude/skills/release/SKILL.md` |
+| `ksh release` | `0 * * * *`（missed-run grace 100分） | 定時便の発車（窓の中で記録なし）か、出しきれていない便を 90 分だれも動かしていないとき（rc の CI・release.yml の実行中は除く）。止める条件は `npm run release` が判定して記録 | `.claude/skills/release/SKILL.md` |
 | `ksh editor` | `15 9,21 * * *` | 材料の inbox に未処理がある、または `editor-log` の最新から20時間以上 | prompts/editor.md（オーナーのレビュー → 好みの台帳 → 次の執筆。材料 → 下書き） |
 | `ksh tidy` | `45 * * * *` | precheck 自体が仕事：終わった run と 6 時間止まった run の worktree を安全確認つきで消し、必ず exit 1（agent は起こさない）。点検は garden | [ORCA.md](ORCA.md#3-後片付けksh-tidy-と-prune-worktreesmjs) |
 

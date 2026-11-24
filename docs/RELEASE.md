@@ -39,7 +39,8 @@ PR に CI を付けない理由。いまはセッションの数だけ並行し�
 ## 便と記録（2026-11-22 オーナー決定）
 
 - **定時便**：毎日 **08:00（朝便）と 20:00（夜便）JST**。Orca automation `ksh release` が起こす。便の窓は発車から 2 時間（08:00〜09:59、20:00〜21:59）。
-- **臨時便**：窓の外の昇格・deploy は、`--hotfix "<理由>"` を付けたときだけ通る（緊急の修正、壊れた本番の復旧など）。付けなければ `npm run release` が exit 5 で止め、次の便を案内する。臨時便は open な `P0` があっても出せる。
+- **便は出しきる（2026-11-24 オーナー方針）**：始めた便は本番に出るまで回す。CI 赤・deploy 失敗のときは原因を main で直し、`npm run release -- --deploy --continue` で同じ便を出し直す。`--continue` は窓を過ぎても、次の便が発車するまでは通り、記録は同じ便に「（続き）」として入る。担当の agent が途中で止まっても、`ksh release` が毎時 precheck で「出しきれていない便を 90 分だれも動かしていない」ことを見つけて続きの agent を起こす。止まってよいのは権限が無いとき（課金・契約）だけで、そのときは `needs-human` に止まった場所を書く。
+- **臨時便**：窓の外の昇格・deploy は、`--continue`（落ちた便の続き）か `--hotfix "<理由>"` を付けたときだけ通る（緊急の修正、壊れた本番の復旧など）。付けなければ `npm run release` が exit 5 で止め、次の便を案内する。臨時便は open な `P0` があっても出せる。
 - **見送り**：変更なし・main-health 赤・open な `P0`・別の rc の CI 実行中は、`npm run release` が自分で見送る。R2 の独立検証待ちのような判断は agent が `npm run release -- --skip "<理由>"` で見送りとして残す。
 - **記録**：`npm run release`（`--plan` を除く）は、成功・見送り・失敗のどの終わり方でも、GitHub Issue（label `release-log`、タイトル「Release log（リリース列車の記録）」）へ 1 便 1 コメントを書く。中身は、開始・終了時刻、便（朝便／夜便／臨時便とその理由）、版（tag と SHA）、前の release、含む commit と新しい migration、CI verify の結果と URL（失敗した job・step 名）、deploy の担い手と結果、smoke の結果、D1 ブックマーク、結果の種類と理由。人が読む表と、集計用の 1 行 JSON を同じコメントに入れる（`scripts/loop/release-log.mjs`）。
 - **集計**：`npm run release:report -- --days 7`（または `--since 2026-11-22`、`--json`）。結果の内訳、失敗とその理由、記録の無い定時便を出す。Issue へ書けなかったときは、手元に残した JSON を `npm run release:log -- --retry <file>` で送り直す。
@@ -53,6 +54,7 @@ npm run release -- --plan            # 何が昇格するかを見るだけ
 npm run release                      # origin/main の先頭を昇格（CI を待つ）
 npm run release -- --sha <sha>       # main の特定の SHA を昇格
 npm run release -- --deploy          # 昇格 + 本番 deploy（migration → deploy → smoke、失敗時は自動 rollback）。定時便の窓の中だけ
+npm run release -- --deploy --continue                         # 落ちた便を直した後の出し直し（次の便の発車まで。記録は同じ便）
 npm run release -- --deploy --hotfix "#210 ログインできない"   # 窓の外の臨時便（理由は記録に残る）
 npm run release -- --skip "R2 #205 の独立検証待ち"             # 判断で見送った便を記録する
 npm run release:report -- --days 7   # 便ごとの記録を集計する
@@ -115,7 +117,7 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 
 | 名前 | 起動 | precheck（`node scripts/loop/precheck.mjs <mode>`） | 仕事 |
 | --- | --- | --- | --- |
-| `ksh release` | 毎日 08:00・20:00（`0 8,20 * * *`、missed-run grace 100 分） | `release`：常に通す（止める条件は `npm run release` が判定し、見送りとして記録する） | release skill（`.claude/skills/release/SKILL.md`）に従って `npm run release -- --deploy` を回し、結果ごとに対応する。結果は Issue `release-log` に自動で残る |
+| `ksh release` | 毎時 :00（`0 * * * *`、missed-run grace 100 分） | `release`：直近の定時便（08:00・20:00）の窓の中でその便の記録がまだ無い（発車）、または直近の便が出しきれておらず最後の記録から 90 分以上たった（続き）ときだけ通す。rc の CI か release.yml が動いている間は通さない。止める条件は `npm run release` が判定し、見送りとして記録する | release skill（`.claude/skills/release/SKILL.md`）に従って `npm run release -- --deploy`（続きなら `--continue`）を回し、落ちたら直して本番に出るまで繰り返す。結果は Issue `release-log` に自動で残る |
 | `ksh mend` | 毎時 | `mend`：main-health の最新が失敗 | 失敗の原因を直して main に push する（アンドン） |
 | `ksh patrol` | 3 時間ごと（`docs/loop/prompts/patrol.md`） | `patrol`：`patrol-log` Issue に記録した前回 SHA 以降に `src/`・`worker/`・`public/` の変更がある、または前回巡回の後に release が出た | 別 context で PC / モバイルの利用者の旅を歩き、UX の所見を Issue にする |
 | `ksh finish` | 30 分ごと | `finish`：未 claim の `P0`/`P1`（`loop:finish`/`loop:ux`）があり、claim 中が 3 件未満 | `docs/loop/prompts/finish.md` に従って Issue を 1 件閉じる |
