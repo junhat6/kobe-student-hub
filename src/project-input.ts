@@ -1,11 +1,16 @@
 import type { ProjectFields } from './project-types';
 /**
  * Characters a one-line field (title, technologies) must not gain from new input: control characters,
- * line/paragraph separators, bidi overrides/isolates/marks and invisible zero-width or format characters.
- * ZWJ/ZWNJ (U+200C/U+200D) stay allowed because emoji sequences and some scripts need them.
+ * line/paragraph separators and every invisible format character (\p{Cf}: bidi marks, zero-width spaces,
+ * soft hyphen U+00AD, tag characters U+E0001・U+E0020–E007F and the rest), plus the Hangul fillers that
+ * render as blank space. ZWJ/ZWNJ (U+200C/U+200D) stay allowed because emoji sequences and some scripts
+ * need them, and tag characters stay allowed only as a complete subdivision flag after 🏴 (U+1F3F4).
  */
-export const ONE_LINE_REJECT =
-  /[\p{Cc}\p{Zl}\p{Zp}\u061C\u180E\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]/u;
+const ONE_LINE_REJECT = /(?![\u200C\u200D])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0]/u;
+const TAG_FLAG = /\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{1,30}\u{E007F}/gu;
+function hasOneLineRejected(value: string): boolean {
+  return ONE_LINE_REJECT.test(value.replace(TAG_FLAG, '\u{1F3F4}'));
+}
 /**
  * `input` (default) is for text a person is about to save. `stored` reads rows saved before the one-line
  * rule existed, so an older draft or snapshot never disappears; only NUL and control characters in
@@ -40,7 +45,7 @@ export function normalizeProjectFields(
   if (!text(x.title, 200, 800) || !text(x.description, 4000, 16384)) return null;
   const technologies = hasTechnologies ? x.technologies : '';
   if (!text(technologies, 100, 400) || /\p{Cc}/u.test(technologies)) return null;
-  if (mode === 'input' && (ONE_LINE_REJECT.test(x.title) || ONE_LINE_REJECT.test(technologies)))
+  if (mode === 'input' && (hasOneLineRejected(x.title) || hasOneLineRejected(technologies)))
     return null;
   function url(v: unknown): string | null {
     if (v === '') return '';

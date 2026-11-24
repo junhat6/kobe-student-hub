@@ -147,6 +147,16 @@ it('keeps one-line fields free of separators, bidi and invisible format characte
     '\u2060',
     '\ufeff',
     '\u061c',
+    // #255: soft hyphen, tag characters and other \p{Cf}, and Hangul fillers that render blank.
+    '\u00ad',
+    '\u{e0001}',
+    '\u{e0041}',
+    '\u{e007f}',
+    '\u{1d173}',
+    '\u0600',
+    '\u3164',
+    '\uffa0',
+    '\u{1f3f4}\u{e0067}\u{e0062}', // a flag tag run that never ends with CANCEL TAG
   ];
   for (const c of bad) {
     expect(normalizeProjectFields({ ...f, technologies: 'React' + c + 'Hono' })).toBeNull();
@@ -165,6 +175,13 @@ it('keeps one-line fields free of separators, bidi and invisible format characte
       title: '家族👨\u200d👩\u200d👧',
       technologies: 'a\u200cb',
       description: 'line1\nline2\u2028',
+    }),
+  ).not.toBeNull();
+  // A complete subdivision flag (🏴 + tag letters + CANCEL TAG) and emoji variation selectors stay allowed.
+  expect(
+    normalizeProjectFields({
+      ...f,
+      title: 'Wales \u{1f3f4}\u{e0067}\u{e0062}\u{e0077}\u{e006c}\u{e0073}\u{e007f} ❤\ufe0f',
     }),
   ).not.toBeNull();
   // The description is multi-line Markdown and is not a one-line field.
@@ -609,13 +626,41 @@ it('refuses DELETE and INSERT OR REPLACE on published project snapshots (#177)',
       .run(),
   ).rejects.toThrow(/immutable project snapshot/);
   expect((await publicRead(projectId))?.project.technologies).toBe('Snapshot');
+  // #255: a different id with the same draft_id would silently swap the snapshot through REPLACE; it is ignored.
+  const swap = (verb: string) =>
+    db
+      .prepare(
+        `${verb} INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,technologies,published_at_ms,status,media_ids_json,article_ids_json) SELECT 'swapped-'||id,owner_account_id,draft_id,public_profile_id,source_version,'Hijacked',description,github_url,demo_url,'Replaced',published_at_ms,status,media_ids_json,article_ids_json FROM project_publications WHERE id=?`,
+      )
+      .bind(projectId)
+      .run();
+  await swap('INSERT OR REPLACE');
+  await swap('REPLACE');
+  await swap('INSERT OR IGNORE');
+  const rows = await db
+    .prepare('SELECT id,title,technologies FROM project_publications WHERE draft_id=?')
+    .bind(d.id)
+    .all();
+  expect(rows.results).toEqual([{ id: projectId, title: f.title, technologies: 'Snapshot' }]);
+  expect((await publicRead(projectId))?.project).toMatchObject({
+    title: f.title,
+    technologies: 'Snapshot',
+  });
   // The ordinary repeated publication (ON CONFLICT(draft_id) DO NOTHING) still answers as before.
-  expect((await publish(d)).status).toBe(201);
+  const again = await publish(d);
+  expect(again.status).toBe(201);
+  expect(((await again.json()) as { projectId: string }).projectId).toBe(projectId);
 });
 it('saves no new invisible characters but still loads and publishes an older draft that has them (#177)', async () => {
   expect(
     (await req('/api/private/project-drafts', 'POST', { ...f, technologies: 'A\u202eB' })).status,
   ).not.toBe(201);
+  // #255: soft hyphen and tag characters are refused by the API too.
+  for (const c of ['\u00ad', '\u{e0041}', '\u{e0001}'])
+    for (const field of ['title', 'technologies'])
+      expect(
+        (await req('/api/private/project-drafts', 'POST', { ...f, [field]: 'A' + c + 'B' })).status,
+      ).not.toBe(201);
   const d = await create({ ...f, title: 'Older' });
   const db = await mf.getD1Database('DB');
   await db
