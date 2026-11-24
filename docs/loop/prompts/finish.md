@@ -31,6 +31,7 @@
 - `test:auth-browser` を 8790 以外のポートへ置き換えて回すと、project 通報しきい値1件は変更前の版でも落ちる（ポート固有）。比べるときは変更前の版も同じポートで回す（publication の通報3件はポートではなく、記事ページの `/api/private/` 読み取りが spec の許可リストから漏れていたため。#237）
 - 画面に `/api/private/` の読み取りを足したら `tests/ordinary-publication-browser.spec.ts` の `openReport` の許可リストも見直す（足さないと通報3件が release CI で落ちる）
 - migration を足したら `scripts/session-browser-preview.mjs` の明示リストにも足す（足さないと HTTPS ブラウザー検査だけが古い schema で動く）
+- migration の番号は並行セッションと重なることがある（#275 と #277 が同時に 0042）。push 前の rebase で `migrations/` と両 preview スクリプトの明示リストを見て、重なったら自分の方を繰り下げ、コメント・テストの番号も合わせる
 - 新しい表を読む SQL は `scripts/editor-preview.mjs` の明示リストにもその migration が要る（無いと editor 系 spec だけ 404 で落ちる。0026 は表だけ作り自動非公開 trigger を外している）
 - vitest を1ファイルだけ回すときは、先に `npm run build`（dist）と `npx wrangler deploy --dry-run --outdir .worker && node scripts/build-test-fixtures.mjs` が要る（無いと全件 skipped で「.worker/…-test.js が無い」。worker を変えたら毎回やり直す）
 - `npm run test:editor` は先に `npm run editor:build` が要る（無いと「assets.directory … .editor-preview does not exist」で起動しない）
