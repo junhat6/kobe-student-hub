@@ -467,3 +467,95 @@ it('decodes the AI difference only in its fixed shape', async () => {
   ])
     expect(decodeEditorialTasteSummary({ ...r, aiDiff: bad })).toBeNull();
 });
+
+// Independent verification of 29b5960 (F1/F2): published drafts are compared with the latest
+// published body; another owner's draft and a hidden article are not counted as the operator's.
+it('compares a published AI draft with its latest published body and skips other owners', async () => {
+  const db = await mf.getD1Database('DB');
+  const DAY = 24 * 60 * 60 * 1000;
+  const read = async () =>
+    decodeEditorialTasteSummary(
+      JSON.parse((await http('/api/private/editorial-taste', { headers: browser(users.a) }))!.body),
+    )!.aiDiff;
+  const base = await read();
+  // A draft owned by someone else, with an AI row that claims the operator: not counted.
+  const other = '00000000-0000-4000-8000-000000000500';
+  await db.batch([
+    db
+      .prepare(
+        'INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) VALUES(?,?,?,?,2,?)',
+      )
+      .bind(other, 'account-b', '他人の題', '他人の本文\n二', NOW - DAY),
+    db
+      .prepare(
+        'INSERT INTO agent_draft_versions(draft_id,account_id,title,body,draft_version,recorded_at_ms) VALUES(?,?,?,?,1,?)',
+      )
+      .bind(other, 'account-a', '他人の題', '他人のAI', NOW - 100),
+  ]);
+  expect((await read()).drafts).toBe(base.drafts);
+  // The operator's own AI draft, published unchanged from the AI's text.
+  const created = await call<{ id: string; version: number }>({
+    action: 'create',
+    url: ORIGIN + '/private/drafts',
+    method: 'POST',
+    headers: browser(users.a, true),
+    input: { title: '比べる題', body: 'AI一\nAI二' },
+  });
+  await db
+    .prepare(
+      'INSERT INTO agent_draft_versions(draft_id,account_id,title,body,draft_version,recorded_at_ms) VALUES(?,?,?,?,1,?)',
+    )
+    .bind(created.id, 'account-a', '比べる題', 'AI一\nAI二', NOW - 10)
+    .run();
+  const pub = await call<{ contentId: string }>({
+    action: 'publish',
+    url: ORIGIN + '/private/publication',
+    method: 'POST',
+    headers: browser(users.a, true),
+    draft: created.id,
+    input: {
+      expectedVersion: created.version,
+      confirmPublic: true,
+      summary: '概要',
+      tags: ['ごはん'],
+      minutes: 3,
+    },
+  });
+  const published = await read();
+  expect(published.drafts).toBe(base.drafts + 1);
+  expect(published.published).toBe(base.published + 1);
+  expect(published.added).toBe(base.added);
+  expect(published.removed).toBe(base.removed);
+  // Unpublished edits to the draft do not change the count of a published one.
+  await db
+    .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+    .bind('AI一\nAI二\n公開後の行\n公開後の行2', created.id)
+    .run();
+  expect(await read()).toEqual(published);
+  // Republishing those edits does: compared with the latest published revision, not the first.
+  const republished = await call<{ contentId: string }>({
+    action: 'publish',
+    url: ORIGIN + '/private/publication',
+    method: 'POST',
+    headers: browser(users.a, true),
+    draft: created.id,
+    input: {
+      expectedVersion: created.version + 1,
+      expectedPublicationVersion: created.version,
+      confirmPublic: true,
+      summary: '概要',
+      tags: ['ごはん'],
+      minutes: 3,
+    },
+  });
+  expect(republished?.contentId).toBe(pub.contentId);
+  const revised = await read();
+  expect(revised.added).toBe(base.added + 2);
+  expect(revised.edited).toBe(published.edited + 1);
+  // Hidden after publication: no longer counted as published, compared with the draft instead.
+  await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(pub.contentId).run();
+  const hidden = await read();
+  expect(hidden.published).toBe(base.published);
+  expect(hidden.added).toBe(base.added + 2);
+  expect(hidden.edited).toBe(revised.edited);
+});
