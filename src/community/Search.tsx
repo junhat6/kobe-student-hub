@@ -14,12 +14,12 @@ const normalized = (text: string) => text.normalize('NFKC').toLocaleLowerCase('j
 const matches = (query: string, texts: string[]) =>
   !query || texts.some((text) => normalized(text).includes(query));
 
-function FailedResults({ kind, retry }: { kind: string; retry: () => void }) {
+/** Say a failed read once, where its results would have been, with one way to try again. */
+function FailedResults({ subject, retry }: { subject: string; retry: () => void }) {
   return (
     <section className="search-read-failure" role="alert">
-      <h2>{kind}の検索結果を確認できません</h2>
-      <p>一覧の取得に失敗しました。もう一度読み込んでください。</p>
-      <Button onClick={retry}>{kind}を再読み込み</Button>
+      <p>{subject}を読み込めませんでした。</p>
+      <Button onClick={retry}>もう一度読み込む</Button>
     </section>
   );
 }
@@ -70,26 +70,19 @@ export default function Search() {
   const suggestions = rankedTags.filter((value) => !isTag(value)).slice(0, 5);
   const showArticles = type !== 'project';
   const showProjects = type !== 'article' && !tag;
+  // A failed read is said once in its own alert, so the count line only reports what loaded.
   const status = [
-    ...(showArticles
-      ? [
-          articleRead.failed
-            ? '記事：取得失敗'
-            : !articleRead.value
-              ? '記事：読み込み中'
-              : `記事 ${articleCards.length}件`,
-        ]
+    ...(showArticles && !articleRead.failed
+      ? [articleRead.value ? `記事 ${articleCards.length}件` : '記事：読み込み中']
       : []),
-    ...(showProjects
-      ? [
-          projectRead.failed
-            ? '作品：取得失敗'
-            : !projectRead.value
-              ? '作品：読み込み中'
-              : `作品 ${projectCards.length}件`,
-        ]
+    ...(showProjects && !projectRead.failed
+      ? [projectRead.value ? `作品 ${projectCards.length}件` : '作品：読み込み中']
       : []),
   ];
+  const articlesFailed = showArticles && articleRead.failed;
+  const projectsFailed = showProjects && projectRead.failed;
+  // When every shown list failed, one message and one retry cover them all.
+  const allFailed = (articlesFailed || projectsFailed) && !status.length;
   // The public APIs return at most 20 cards; say so only once a list is actually cut off.
   const atLimit =
     (showArticles && articleRead.value?.cards.length === 20) ||
@@ -168,7 +161,8 @@ export default function Search() {
         </div>
       )}
       <p className="search-result-count" role="status" aria-live="polite">
-        {status.join(' · ') || 'タグを解除すると作品を検索できます。'}
+        {status.join(' · ') ||
+          (showArticles || showProjects ? '' : 'タグを解除すると作品を検索できます。')}
       </p>
       {empty ? (
         <div className="empty search-empty">
@@ -205,11 +199,21 @@ export default function Search() {
             </>
           )}
         </div>
+      ) : allFailed ? (
+        <FailedResults
+          subject={
+            articlesFailed && projectsFailed ? '記事・作品' : articlesFailed ? '記事' : '作品'
+          }
+          retry={() => {
+            if (articlesFailed) articleRead.retry();
+            if (projectsFailed) projectRead.retry();
+          }}
+        />
       ) : (
         <div className="search-result-groups">
           {showArticles &&
             (articleRead.failed ? (
-              <FailedResults kind="記事" retry={articleRead.retry} />
+              <FailedResults subject="記事" retry={articleRead.retry} />
             ) : articleRead.value && articleCards.length > 0 ? (
               <section aria-label="記事の検索結果">
                 <h2>記事</h2>
@@ -227,7 +231,7 @@ export default function Search() {
             ) : null)}
           {showProjects &&
             (projectRead.failed ? (
-              <FailedResults kind="作品" retry={projectRead.retry} />
+              <FailedResults subject="作品" retry={projectRead.retry} />
             ) : projectRead.value && projectCards.length > 0 ? (
               <section aria-label="作品の検索結果" className="search-project-results">
                 <h2>作品</h2>

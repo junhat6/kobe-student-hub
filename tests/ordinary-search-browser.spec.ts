@@ -353,10 +353,9 @@ test('ordinary search keeps available results when the other public API fails an
     );
     await page.goto('/search?' + new URLSearchParams({ q: key }));
     await expect(page.getByRole('link', { name: '検索の記録-' + key, exact: true })).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: '作品の検索結果を確認できません', exact: true }),
-    ).toBeVisible();
-    await expect(page.locator('.search-result-count')).toHaveText('記事 1件 · 作品：取得失敗');
+    await expect(page.getByRole('alert')).toHaveText(/^作品を読み込めませんでした。/);
+    await expect(page.getByRole('alert')).toHaveCount(1);
+    await expect(page.locator('.search-result-count')).toHaveText('記事 1件');
     await expect(
       page.getByRole('heading', { name: '一致する記事・作品はありません', exact: true }),
     ).toHaveCount(0);
@@ -370,7 +369,7 @@ test('ordinary search keeps available results when the other public API fails an
     });
     const before = { ...counts };
     failed = false;
-    await page.getByRole('button', { name: '作品を再読み込み', exact: true }).click();
+    await page.getByRole('button', { name: 'もう一度読み込む', exact: true }).click();
     await expect(page.getByRole('link', { name: '集計作品-' + key, exact: true })).toBeVisible();
     expect(counts.articles).toBe(before.articles);
     expect(counts.projects).toBe(before.projects + 1);
@@ -380,4 +379,46 @@ test('ordinary search keeps available results when the other public API fails an
   } finally {
     for (const context of contexts) await context.close();
   }
+});
+
+test('ordinary search says a failure of both public APIs once and retries both reads', async ({
+  page,
+}, info) => {
+  const counts = { articles: 0, projects: 0 };
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/articles') counts.articles++;
+    if (path === '/api/projects') counts.projects++;
+  });
+  let failed = true;
+  for (const path of ['**/api/articles', '**/api/projects'])
+    await page.route(path, (route) =>
+      failed
+        ? route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: '{"error":"unavailable"}',
+          })
+        : route.continue(),
+    );
+  await page.goto('/search?' + new URLSearchParams({ q: marker(info) }));
+  const alert = page.getByRole('alert');
+  await expect(alert).toHaveText(/^記事・作品を読み込めませんでした。/);
+  await expect(alert).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'もう一度読み込む', exact: true })).toHaveCount(1);
+  await expect(page.locator('.search-result-count')).toHaveText('');
+  await expect(page.getByText(/取得/)).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: info.outputPath('search-both-failure.png'),
+    fullPage: true,
+    scale: 'css',
+  });
+  const before = { ...counts };
+  failed = false;
+  await page.getByRole('button', { name: 'もう一度読み込む', exact: true }).click();
+  await expect(alert).toHaveCount(0);
+  await expect(page.locator('.search-result-count')).toHaveText(/^記事 \d+件 · 作品 \d+件$/);
+  expect(counts.articles).toBe(before.articles + 1);
+  expect(counts.projects).toBe(before.projects + 1);
 });
