@@ -210,6 +210,35 @@ it('does not count login-extended contexts toward the anonymous cap, even after 
   now += 28800000;
   expect(await c.bootstrap(req())).toBeTruthy();
 });
+it('keeps the anonymous cap exact across concurrent clock reads and isolate skew (#269)', async () => {
+  // Each clock read advances, so later requests read a later now than rows inserted before them.
+  let t = NOW;
+  const db = await setup();
+  const c = new BrowserSessionCoordinator(db, O, () => t++, {
+    maxLiveContexts: 3,
+    maxCommandsPerMinute: 2,
+  });
+  for (let round = 0; round < 3; round++) {
+    await db.prepare('DELETE FROM auth_browser_contexts').run();
+    const r = await Promise.all(Array.from({ length: 12 }, () => c.bootstrap(req())));
+    expect(r.filter(Boolean)).toHaveLength(3);
+  }
+  // An isolate whose clock runs 5 seconds behind still sees rows a faster isolate wrote.
+  const db2 = await setup();
+  const fast = new BrowserSessionCoordinator(db2, O, () => NOW + 5000, {
+    maxLiveContexts: 3,
+    maxCommandsPerMinute: 2,
+  });
+  const slow = new BrowserSessionCoordinator(db2, O, () => NOW, {
+    maxLiveContexts: 3,
+    maxCommandsPerMinute: 2,
+  });
+  expect(
+    (await Promise.all([1, 2, 3].map(() => fast.bootstrap(req())))).filter(Boolean),
+  ).toHaveLength(3);
+  expect(await slow.bootstrap(req())).toBeNull();
+  expect((await db2.prepare('SELECT count(*) n FROM auth_browser_contexts').first())?.n).toBe(3);
+});
 it('counts executed commands too, binds quota to context, permits recovery at the minute boundary', async () => {
   const db = await setup();
   let now = NOW;

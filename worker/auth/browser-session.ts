@@ -19,6 +19,7 @@ export const CONTEXT_COOKIE = '__Host-kobe-browser';
  * session length so it is still sent while that extended row is live (#269).
  */
 export const CONTEXT_PENDING_LIFETIME_MS = 28_800_000;
+const CONTEXT_CAP_CLOCK_MARGIN_MS = 3_600_000;
 export const CONTEXT_COOKIE_MAX_AGE_SECONDS = SESSION_ABSOLUTE_MS / 1000;
 export interface BrowserIssuanceLimits {
   maxLiveContexts: number;
@@ -153,7 +154,9 @@ export class BrowserSessionCoordinator {
         // Only rows that can still be anonymous count: a row a login extended past the pending
         // lifetime is bounded by school Google logins, and counting it would let repeated logins
         // hold the cap (and block everyone's new logins) for up to a year (#269 verifier F-中1).
-        now + CONTEXT_PENDING_LIFETIME_MS,
+        // The margin keeps rows written by a request that read a later clock (concurrent
+        // requests, isolate skew) inside the count, so the cap stays exact (#269 verifier 低2).
+        now + CONTEXT_PENDING_LIFETIME_MS + CONTEXT_CAP_CLOCK_MARGIN_MS,
         this.limits.maxLiveContexts,
         this.limits.maxLiveContexts,
       )
