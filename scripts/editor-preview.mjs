@@ -31,6 +31,7 @@ for (const file of [
   'migrations/0036_project_snapshot_no_delete.sql',
   'migrations/0037_project_snapshot_ignore_draft_replace.sql',
   'migrations/0038_project_snapshot_columns_immutable.sql',
+  'migrations/0039_media_bytes.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
@@ -39,8 +40,11 @@ for (const file of [
       ? 'technologies'
       : file.includes('0031')
         ? 'object_stored_at_ms'
-        : null;
-  const columnTable = file.includes('0031') ? 'media_assets' : 'project_publications';
+        : file.includes('0039')
+          ? 'bytes'
+          : null;
+  const columnTable =
+    file.includes('0031') || file.includes('0039') ? 'media_assets' : 'project_publications';
   // Initialization is idempotent: check the specific local table before applying its schema.
   const table = file.includes('0028')
     ? 'profile_avatars'

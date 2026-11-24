@@ -26,9 +26,10 @@ it('keeps the shared constants equal to the values the media_assets_insert trigg
   const trigger = latest(/CREATE TRIGGER media_assets_insert[\s\S]*?\nEND;/);
   const expected = [
     `(SELECT COUNT(*) FROM media_assets)>=${real.MEDIA_GLOBAL_COUNT}`,
-    `+length(NEW.payload)>${real.MEDIA_GLOBAL_BYTES}`,
+    // Sizes come from the bytes column since 0039 (#260), with the payload length as the fallback.
+    `FROM media_assets)+COALESCE(NEW.bytes,length(NEW.payload))>${real.MEDIA_GLOBAL_BYTES}`,
     `WHERE owner_account_id=NEW.owner_account_id)>=${real.MEDIA_OWNER_COUNT}`,
-    `WHERE owner_account_id=NEW.owner_account_id)+length(NEW.payload)>${real.MEDIA_OWNER_BYTES}`,
+    `WHERE owner_account_id=NEW.owner_account_id)+COALESCE(NEW.bytes,length(NEW.payload))>${real.MEDIA_OWNER_BYTES}`,
     `project_draft_id=NEW.project_draft_id))>=${real.MEDIA_PER_DRAFT}`,
   ];
   for (const piece of expected) expect(trigger).toContain(piece);

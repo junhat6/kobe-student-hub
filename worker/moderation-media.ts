@@ -38,7 +38,7 @@ export class ModerationMediaStore {
           : `EXISTS(SELECT 1 FROM project_publication_media map JOIN project_publications publication ON publication.id=map.project_id WHERE map.media_id=media_assets.id AND publication.id=? AND publication.status IN ('published','hidden','deleted') AND EXISTS(SELECT 1 FROM project_reports WHERE project_id=publication.id))`;
       const meta = await this.db
         .prepare(
-          `SELECT id,mime,sha256,length(payload) bytes FROM media_assets WHERE id=? AND ${relation} AND ${live}`,
+          `SELECT id,mime,sha256,COALESCE(bytes,length(payload)) bytes FROM media_assets WHERE id=? AND ${relation} AND ${live}`,
         )
         .bind(id, target, ...binds(p))
         .first<{ id: string; mime: string; sha256: string; bytes: number }>();

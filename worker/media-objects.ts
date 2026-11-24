@@ -234,7 +234,7 @@ export async function auditMediaObjects(
   const rows = (
     await db
       .prepare(
-        'SELECT id,sha256,length(payload) bytes FROM media_assets WHERE object_stored_at_ms IS NOT NULL ORDER BY id LIMIT ?',
+        'SELECT id,sha256,COALESCE(bytes,length(payload)) bytes FROM media_assets WHERE object_stored_at_ms IS NOT NULL ORDER BY id LIMIT ?',
       )
       .bind(limit)
       .all<MediaObjectRef>()

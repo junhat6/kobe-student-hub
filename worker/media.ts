@@ -34,7 +34,10 @@ const receipt = (r: Row): MediaReceipt => ({
   height: r.height,
   bytes: r.bytes,
 });
-const info = 'id,mime,width,height,length(payload) bytes,sha256';
+// The size column (#260) stays correct after the contract of #12 empties payload; the fallback only
+// covers a row the 0039 fill trigger has not reached, which cannot exist once 0039 is applied.
+const sizeSql = 'COALESCE(bytes,length(payload))';
+const info = `id,mime,width,height,${sizeSql} bytes,sha256`;
 const table = (kind: Kind) => (kind === 'articles' ? 'private_article_drafts' : 'project_drafts');
 const link = (kind: Kind) => (kind === 'articles' ? 'article_draft_id' : 'project_draft_id');
 const body = (kind: Kind) => (kind === 'articles' ? 'body' : 'description');
@@ -123,7 +126,7 @@ export class MediaStore {
       try {
         await this.db
           .prepare(
-            `INSERT INTO media_assets(id,owner_account_id,article_draft_id,project_draft_id,mime,width,height,payload,sha256,created_at_ms,object_stored_at_ms) SELECT ?,?,?,?,?,?,?,?,?,?,? FROM ${table(kind)} d WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND ${writer} AND NOT EXISTS(SELECT 1 FROM media_assets WHERE id=?)`,
+            `INSERT INTO media_assets(id,owner_account_id,article_draft_id,project_draft_id,mime,width,height,payload,bytes,sha256,created_at_ms,object_stored_at_ms) SELECT ?,?,?,?,?,?,?,?,?,?,?,? FROM ${table(kind)} d WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND ${writer} AND NOT EXISTS(SELECT 1 FROM media_assets WHERE id=?)`,
           )
           .bind(
             id,
@@ -134,6 +137,7 @@ export class MediaStore {
             value.width,
             value.height,
             value.bytes,
+            value.bytes.length,
             sha,
             p.nowMs,
             this.bucket ? p.nowMs : null,
@@ -171,7 +175,7 @@ export class MediaStore {
   private async limit(p: Proof, kind: Kind, draftId: string, id: string, size: number) {
     const row = await this.db
       .prepare(
-        `SELECT CASE WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=?) THEN NULL WHEN (SELECT COUNT(*) FROM media_assets WHERE ${link(kind)}=?)>=? THEN 'draft' WHEN (SELECT COUNT(*) FROM media_assets WHERE owner_account_id=?)>=? OR (SELECT COALESCE(SUM(length(payload)),0) FROM media_assets WHERE owner_account_id=?)+?>? THEN 'owner' WHEN (SELECT COUNT(*) FROM media_assets)>=? OR (SELECT COALESCE(SUM(length(payload)),0) FROM media_assets)+?>? THEN 'site' END reason WHERE ${writer}`,
+        `SELECT CASE WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=?) THEN NULL WHEN (SELECT COUNT(*) FROM media_assets WHERE ${link(kind)}=?)>=? THEN 'draft' WHEN (SELECT COUNT(*) FROM media_assets WHERE owner_account_id=?)>=? OR (SELECT COALESCE(SUM(${sizeSql}),0) FROM media_assets WHERE owner_account_id=?)+?>? THEN 'owner' WHEN (SELECT COUNT(*) FROM media_assets)>=? OR (SELECT COALESCE(SUM(${sizeSql}),0) FROM media_assets)+?>? THEN 'site' END reason WHERE ${writer}`,
       )
       .bind(
         id,

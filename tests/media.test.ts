@@ -6,7 +6,9 @@ import jpeg from 'jpeg-js';
 import { workerModules } from './helpers/worker-modules';
 import type { PrivateDraft } from '../worker/drafts';
 import {
+  MEDIA_GLOBAL_BYTES,
   MEDIA_GLOBAL_COUNT,
+  MEDIA_MAX_BYTES,
   MEDIA_OWNER_BYTES,
   MEDIA_OWNER_COUNT,
   MEDIA_PER_DRAFT,
@@ -1410,7 +1412,12 @@ describe('migration 0032 on a database that already has published images', () =>
       .filter(Boolean))
       await database.prepare(sql).run();
   };
-  beforeAll(() => boot(false, '0032'));
+  beforeAll(async () => {
+    await boot(false, '0032');
+    // The current Worker writes the size column of 0039; only the column is added here, so the
+    // limits and triggers stay those before 0032.
+    await (await db()).prepare('ALTER TABLE media_assets ADD COLUMN bytes INTEGER').run();
+  });
   afterAll(async () => {
     await mf?.dispose();
   });
@@ -1543,5 +1550,212 @@ describe('migration 0032 on a database that already has published images', () =>
         .bind(fresh.contentId)
         .first(),
     ).toEqual({ revision: 1, n: MEDIA_PER_DRAFT });
+  });
+});
+
+// #260: the size lives in its own column so the contract of #12 can empty payload.
+/** Simulates the contract of #12 for one row: payload no longer holds the image. */
+async function emptyPayload(db: TestDb, image: string) {
+  const guard = (await db
+    .prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?")
+    .bind('media_assets_content_immutable')
+    .first<{ sql: string }>())!.sql;
+  await db.prepare('DROP TRIGGER media_assets_content_immutable').run();
+  try {
+    await db.prepare("UPDATE media_assets SET payload=x'00' WHERE id=?").bind(image).run();
+  } finally {
+    await db.prepare(guard).run();
+  }
+}
+/** Rows whose size column says `size` but whose payload is 1 byte, as after the contract. */
+async function fillContracted(db: TestDb, account: string, rows: number, size: number) {
+  const holder = await holderDraft(db, account);
+  const saved = (
+    await db
+      .prepare(
+        "SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name IN ('media_assets_insert','media_assets_bytes_insert')",
+      )
+      .all<{ name: string; sql: string }>()
+  ).results;
+  expect(saved).toHaveLength(2);
+  for (const t of saved) await db.prepare('DROP TRIGGER ' + t.name).run();
+  try {
+    await db
+      .prepare(
+        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<?) INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,bytes,sha256,created_at_ms) SELECT printf('%s-0000-4000-8000-%012x',?,i),?,?,'image/png',1,1,zeroblob(1),?,?,? FROM n",
+      )
+      .bind(
+        rows,
+        account === 'account-2' ? 'c0000000' : 'd0000000',
+        account,
+        holder,
+        size,
+        '0'.repeat(64),
+        NOW,
+      )
+      .run();
+  } finally {
+    for (const t of saved) await db.prepare(t.sql).run();
+  }
+}
+describe('media size column', () => {
+  beforeAll(() => boot(true));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  const sizeOf = async (image: string) =>
+    (await (
+      await mf.getD1Database('DB')
+    )
+      .prepare('SELECT bytes,length(payload) stored FROM media_assets WHERE id=?')
+      .bind(image)
+      .first<{ bytes: number; stored: number }>())!;
+
+  it('stores the normalized size on upload, and the list, own read and audit keep it after payload is emptied', async () => {
+    const db = await mf.getD1Database('DB'),
+      d = await draft(),
+      image = id();
+    expect((await upload(d, image)).status).toBe(201);
+    expect(await sizeOf(image)).toEqual({ bytes: png.length, stored: png.length });
+    await emptyPayload(db, image);
+    expect(await sizeOf(image)).toEqual({ bytes: png.length, stored: 1 });
+    const list = await mf.dispatchFetch(O + '/api/private/media/articles/' + d.id, {
+      headers: h(),
+    });
+    expect(await list.json()).toEqual({
+      images: [{ id: image, mime: 'image/png', width: 32, height: 24, bytes: png.length }],
+    });
+    // The R2 object is matched against the size column, not the emptied payload.
+    const own = await ownRead(image);
+    expect(own.status).toBe(200);
+    expect(new Uint8Array(await own.arrayBuffer())).toEqual(png);
+    expect(await (await mf.dispatchFetch(O + '/fixture/audit')).json()).toEqual({
+      total: 1,
+      pending: 0,
+      checked: 1,
+      missing: 0,
+      mismatched: 0,
+      complete: true,
+    });
+  });
+  it('counts the owner quota from the size column in the Worker check and the trigger', async () => {
+    const db = await mf.getD1Database('DB');
+    // 128 rows of 512 KiB fill the owner's 64 MiB, although their payloads hold 128 bytes in all.
+    await fillContracted(db, 'account-2', MEDIA_OWNER_BYTES / MEDIA_MAX_BYTES, MEDIA_MAX_BYTES);
+    const d = await call<PrivateDraft>('draft', { title: 'Owner', body: '# Owner' }, 2);
+    const full = await upload(d, id(), png, 2);
+    expect(full.status).toBe(409);
+    expect(await full.json()).toEqual({ error: 'media_limit', limit: 'owner' });
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) VALUES(?,'account-2',?,'image/png',1,1,zeroblob(1),?,?)",
+        )
+        .bind(id(), d.id, '0'.repeat(64), NOW)
+        .run(),
+    ).rejects.toThrow('media unavailable');
+    await db.prepare("DELETE FROM media_assets WHERE owner_account_id='account-2'").run();
+    expect((await upload(d, id(), png, 2)).status).toBe(201);
+    await db.prepare("DELETE FROM media_assets WHERE owner_account_id='account-2'").run();
+  });
+  it('counts the site quota from the size column in the Worker check and the trigger', async () => {
+    const db = await mf.getD1Database('DB');
+    await fillContracted(db, 'account-3', MEDIA_GLOBAL_BYTES / MEDIA_MAX_BYTES, MEDIA_MAX_BYTES);
+    const d = await call<PrivateDraft>('draft', { title: 'Site', body: '# Site' }, 1);
+    const full = await upload(d, id(), png, 1);
+    expect(full.status).toBe(409);
+    expect(await full.json()).toEqual({ error: 'media_limit', limit: 'site' });
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) VALUES(?,'account-1',?,'image/png',1,1,zeroblob(1),?,?)",
+        )
+        .bind(id(), d.id, '0'.repeat(64), NOW)
+        .run(),
+    ).rejects.toThrow('media unavailable');
+    await db.prepare("DELETE FROM media_assets WHERE owner_account_id='account-3'").run();
+    expect((await upload(d, id(), png, 1)).status).toBe(201);
+  });
+  it('fills the size for an insert that does not name it, refuses a wrong size and never changes a set one', async () => {
+    const db = await mf.getD1Database('DB'),
+      d = await draft(),
+      image = id();
+    // The previous Worker's insert (no size column) gets its size from the payload.
+    await db
+      .prepare(
+        "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) VALUES(?,'account-0',?,'image/png',1,1,zeroblob(7),?,?)",
+      )
+      .bind(image, d.id, '0'.repeat(64), NOW)
+      .run();
+    expect(await sizeOf(image)).toEqual({ bytes: 7, stored: 7 });
+    for (const size of [6, 8])
+      await expect(
+        db
+          .prepare(
+            "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,bytes,sha256,created_at_ms) VALUES(?,'account-0',?,'image/png',1,1,zeroblob(7),?,?,?)",
+          )
+          .bind(id(), d.id, size, '0'.repeat(64), NOW)
+          .run(),
+      ).rejects.toThrow('media unavailable');
+    for (const sql of [
+      'UPDATE media_assets SET bytes=8 WHERE id=?',
+      'UPDATE media_assets SET bytes=NULL WHERE id=?',
+    ])
+      await expect(db.prepare(sql).bind(image).run()).rejects.toThrow('immutable media');
+    await expect(
+      db.prepare('UPDATE media_assets SET bytes=0 WHERE id=?').bind(image).run(),
+    ).rejects.toThrow();
+    expect(await sizeOf(image)).toEqual({ bytes: 7, stored: 7 });
+  });
+});
+
+describe('migration 0039 on a database that already has images', () => {
+  beforeAll(() => boot(true, '0039'));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  it('fills every existing size from its payload and keeps every other column', async () => {
+    const db = await mf.getD1Database('DB'),
+      holder = await holderDraft(db, 'account-0');
+    const ids = [3, 9, 524288].map((n) => [id(), n] as const);
+    for (const [image, n] of ids)
+      await db
+        .prepare(
+          "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms,object_stored_at_ms) VALUES(?,'account-0',?,'image/jpeg',1,1,zeroblob(?),?,?,?)",
+        )
+        .bind(image, holder, n, '0'.repeat(64), NOW, n === 9 ? null : NOW)
+        .run();
+    const before = await db
+      .prepare('SELECT * FROM media_assets ORDER BY id')
+      .all<Record<string, unknown>>();
+    for (const sql of readFileSync('migrations/0039_media_bytes.sql', 'utf8')
+      .split(/^-- @statement\s*$/m)
+      .map((part) => part.replace(/^--.*$/gm, '').trim())
+      .filter(Boolean))
+      await db.prepare(sql).run();
+    const after = await db
+      .prepare('SELECT * FROM media_assets ORDER BY id')
+      .all<Record<string, unknown>>();
+    expect(after.results.map(({ bytes, ...rest }) => (void bytes, rest))).toEqual(before.results);
+    for (const [image, n] of ids)
+      expect(
+        await db.prepare('SELECT bytes FROM media_assets WHERE id=?').bind(image).first(),
+      ).toEqual({ bytes: n });
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'media_assets_%' ORDER BY name",
+          )
+          .all<{ name: string }>()
+      ).results.map((r) => r.name),
+    ).toEqual([
+      'media_assets_bytes_fill',
+      'media_assets_bytes_immutable',
+      'media_assets_bytes_insert',
+      'media_assets_content_immutable',
+      'media_assets_insert',
+      'media_assets_no_retarget',
+    ]);
   });
 });
