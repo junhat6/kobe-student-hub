@@ -59,6 +59,8 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
   const expected = request.status ?? 200;
   const maxBytes = request.maxBytes;
   const maxChunks = request.maxChunks ?? Math.min(maxBytes, 65536);
+  // Read a Blob's type once: the checked value is the one sent, even if a subclass's getter changes.
+  const blobType = body instanceof Blob ? String(body.type) : undefined;
   if (
     !Number.isSafeInteger(maxBytes) ||
     maxBytes < 1 ||
@@ -66,7 +68,7 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
     !Number.isSafeInteger(maxChunks) ||
     maxChunks < 1 ||
     (body !== undefined && csrf === undefined) ||
-    (body instanceof Blob && !/^[a-z]+\/[a-z0-9.+-]+$/.test(body.type))
+    (blobType !== undefined && !/^[a-z]+\/[a-z0-9.+-]+$/.test(blobType))
   )
     throw new BoundedReadError();
   let authorization: string | undefined;
@@ -96,8 +98,7 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
   const work = (async () => {
     if (controller.signal.aborted) throw new BoundedReadError();
     const headers: Record<string, string> = { Accept: 'application/json' };
-    if (body !== undefined)
-      headers['Content-Type'] = body instanceof Blob ? body.type : 'application/json';
+    if (body !== undefined) headers['Content-Type'] = blobType ?? 'application/json';
     if (authorization !== undefined) headers.Authorization = authorization;
     const response = await fetcher(path, {
       ...(method === undefined ? {} : { method }),

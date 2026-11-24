@@ -124,6 +124,28 @@ describe('readBoundedJson — the one bounded transport', () => {
     expect(never).not.toHaveBeenCalled();
   });
 
+  it('sends the Blob type it checked, even when a subclass answers differently later', async () => {
+    let reads = 0;
+    class Shifting extends Blob {
+      override get type() {
+        return ++reads === 1 ? 'image/jpeg' : 'text/html; x';
+      }
+    }
+    const fetcher = vi.fn(async () => json('{}', { status: 201 }));
+    await readBoundedJson('/api/private/x', {
+      fetcher: fetcher as typeof fetch,
+      credentials: 'same-origin',
+      method: 'PUT',
+      status: 201,
+      body: new Shifting(['x']),
+      csrf,
+      maxBytes: 64,
+    });
+    const init = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(new Headers(init.headers).get('Content-Type')).toBe('image/jpeg');
+    expect(reads).toBe(1);
+  });
+
   it('rejects out-of-range limits before any request', async () => {
     const never = vi.fn(async () => json('{}'));
     for (const maxBytes of [0, -1, 1.5, 262145, Number.NaN]) {

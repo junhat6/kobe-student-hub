@@ -70,6 +70,39 @@ describe('explicit public profile browser client', () => {
         ),
       ).rejects.toBeInstanceOf(ProfileClientError);
   });
+  it('treats 409 as stale only for an update; a read or creation 409 stays generic', async () => {
+    const conflict = (async () =>
+      Response.json({ error: 'profile_changed' }, { status: 409 })) as typeof fetch;
+    for (const call of [
+      () => createProfileClient(csrf, conflict).read(),
+      () => createProfileClient(csrf, conflict).create(input, true),
+    ]) {
+      const error = await call().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(ProfileClientError);
+      expect(error).not.toBeInstanceOf(ProfileConflictError);
+    }
+  });
+  it('sends JSON with Accept/Content-Type and refuses a malformed CSRF token before sending', async () => {
+    let init: RequestInit | undefined;
+    await createProfileClient(csrf, (async (_p, i) => {
+      init = i;
+      return Response.json({ profile: value }, { status: 201 });
+    }) as typeof fetch).create(input, true);
+    expect(new Headers(init?.headers).get('Content-Type')).toMatch(/^application\/json(?:;|$)/);
+    expect(new Headers(init?.headers).get('Accept')).toBe('application/json');
+    const read = vi.fn(async () => Response.json({ profile: null }));
+    await createProfileClient('bad', read as typeof fetch).read();
+    expect(
+      new Headers((read.mock.calls[0] as unknown as [string, RequestInit])[1].headers).has(
+        'Authorization',
+      ),
+    ).toBe(false);
+    const never = vi.fn();
+    await expect(
+      createProfileClient('bad', never as typeof fetch).create(input, true),
+    ).rejects.toBeInstanceOf(ProfileClientError);
+    expect(never).not.toHaveBeenCalled();
+  });
   it('never retries an uncertain update or accepts its late receipt', async () => {
     vi.useFakeTimers();
     let release: (value: Response) => void = () => {};

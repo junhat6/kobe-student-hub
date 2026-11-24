@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { boundedReadFailure, readBoundedJson } from '../shared/http-client';
 export interface ProfileInput {
   displayName: string;
   department: string;
@@ -63,114 +63,45 @@ export function createProfileClient(csrfToken: string, fetcher: typeof fetch = f
     value?: ProfileInput,
     expected?: PublicProfile,
   ): Promise<PublicProfile | null> {
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let expired = false;
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const operation = (async () => {
-      const response = await fetcher('/api/private/profile', {
-        method: expected ? 'PATCH' : value ? 'POST' : 'GET',
+    let result: unknown;
+    try {
+      result = await readBoundedJson('/api/private/profile', {
+        fetcher,
         credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers: value
-          ? {
-              Accept: 'application/json',
-              'Content-Type': 'application/json; charset=utf-8',
-              Authorization: proofAuthorization('csrf', csrfToken),
-            }
-          : { Accept: 'application/json' },
+        method: expected ? 'PATCH' : value ? 'POST' : 'GET',
+        status: value && !expected ? 201 : 200,
+        maxBytes: 16384,
         ...(value
           ? {
-              body: JSON.stringify({
+              csrf: csrfToken,
+              body: {
                 ...value,
                 confirmPublic: true,
                 ...(expected ? { expectedProfile: expected } : {}),
-              }),
+              },
             }
           : {}),
       });
-      if (expected && response.status === 409) {
-        void response.body?.cancel().catch(() => {});
-        throw new ProfileConflictError();
-      }
-      if (
-        expired ||
-        response.status !== (value && !expected ? 201 : 200) ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        throw new ProfileClientError();
-      }
-      const length = response.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 16384)
-      ) {
-        void response.body.cancel().catch(() => {});
-        throw new ProfileClientError();
-      }
-      reader = response.body.getReader();
-      const bytes = new Uint8Array(16384);
-      let size = 0;
-      let count = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (expired) throw new ProfileClientError();
-          if (next.done) break;
-          if (++count > 16384 || size + next.value.byteLength > bytes.length)
-            throw new ProfileClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        const result: unknown = JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        );
-        if (
-          !keys(result, ['profile']) ||
-          (result.profile !== null && !profile(result.profile)) ||
-          (value &&
-            (result.profile === null ||
-              !sameProfileInput(result.profile as PublicProfile, value) ||
-              (expected
-                ? (result.profile as PublicProfile).id !== expected.id
-                : !/^profile-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
-                    (result.profile as PublicProfile).id,
-                  )) ||
-              (result.profile as PublicProfile).initials !==
-                Array.from(value.displayName.trim())[0]))
-        )
-          throw new ProfileClientError();
-        return result.profile as PublicProfile | null;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new ProfileClientError());
-      }, 10000);
-    });
-    try {
-      return await Promise.race([operation, deadline]);
     } catch (error) {
-      if (error instanceof ProfileConflictError) throw error;
+      // Only an update names the snapshot it replaces, so only an update can be stale.
+      if (expected && boundedReadFailure(error) === 'conflict') throw new ProfileConflictError();
       throw new ProfileClientError();
-    } finally {
-      clearTimeout(timer);
-      cancel();
     }
+    if (
+      !keys(result, ['profile']) ||
+      (result.profile !== null && !profile(result.profile)) ||
+      (value &&
+        (result.profile === null ||
+          !sameProfileInput(result.profile as PublicProfile, value) ||
+          (expected
+            ? (result.profile as PublicProfile).id !== expected.id
+            : !/^profile-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+                (result.profile as PublicProfile).id,
+              )) ||
+          (result.profile as PublicProfile).initials !== Array.from(value.displayName.trim())[0]))
+    )
+      throw new ProfileClientError();
+    return result.profile as PublicProfile | null;
   }
   return {
     read: () => request(),
