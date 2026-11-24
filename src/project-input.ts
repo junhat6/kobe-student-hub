@@ -4,10 +4,12 @@ import type { ProjectFields } from './project-types';
  * line/paragraph separators and every invisible format character (\p{Cf}: bidi marks, zero-width spaces,
  * soft hyphen U+00AD, tag characters U+E0001・U+E0020–E007F and the rest), plus the Hangul fillers that
  * render as blank space. ZWJ/ZWNJ (U+200C/U+200D) stay allowed because emoji sequences and some scripts
- * need them, and tag characters stay allowed only as a complete subdivision flag after 🏴 (U+1F3F4).
+ * need them, and tag characters stay allowed only inside the three RGI subdivision flags after 🏴 (U+1F3F4).
  */
 const ONE_LINE_REJECT = /(?![\u200C\u200D])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0]/u;
-const TAG_FLAG = /\u{1F3F4}[\u{E0030}-\u{E0039}\u{E0061}-\u{E007A}]{1,30}\u{E007F}/gu;
+// Only the three RGI subdivision flags (England, Scotland, Wales); a longer tag run could smuggle hidden text.
+const TAG_FLAG =
+  /\u{1F3F4}\u{E0067}\u{E0062}(?:\u{E0065}\u{E006E}\u{E0067}|\u{E0073}\u{E0063}\u{E0074}|\u{E0077}\u{E006C}\u{E0073})\u{E007F}/gu;
 function hasOneLineRejected(value: string): boolean {
   return ONE_LINE_REJECT.test(value.replace(TAG_FLAG, '\u{1F3F4}'));
 }

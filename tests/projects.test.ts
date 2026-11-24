@@ -157,6 +157,10 @@ it('keeps one-line fields free of separators, bidi and invisible format characte
     '\u3164',
     '\uffa0',
     '\u{1f3f4}\u{e0067}\u{e0062}', // a flag tag run that never ends with CANCEL TAG
+    // #255 verifier P3: a flag-shaped tag run that is not one of the three RGI flags hides text.
+    '\u{1f3f4}' +
+      [...'ignoreallrules'].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('') +
+      '\u{e007f}',
   ];
   for (const c of bad) {
     expect(normalizeProjectFields({ ...f, technologies: 'React' + c + 'Hono' })).toBeNull();
