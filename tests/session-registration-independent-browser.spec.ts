@@ -184,9 +184,12 @@ test('a changed account destroys the old buffer and rechecks a changed continuat
   try {
     await other.goto('/account');
     await expect(other.locator('.session-private')).toBeVisible();
-    other.once('dialog', (dialog) => dialog.accept());
     await other.getByRole('button', { name: 'アカウントメニュー', exact: true }).click();
     await other.getByRole('menuitem', { name: 'ログアウト', exact: true }).click();
+    await other
+      .getByRole('alertdialog', { name: 'ログアウトしますか？' })
+      .getByRole('button', { name: 'ログアウト', exact: true })
+      .click();
     await expect(other).toHaveURL(/\/$/);
     await other.goto('/account');
     await expect(other.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible();

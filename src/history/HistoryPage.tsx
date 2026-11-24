@@ -108,12 +108,12 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
   const now = Date.now();
   return (
     <section aria-label="自分の閲覧履歴" className="reading-history">
-      <div className="history-bar">
-        <p className="history-private">
-          <Icon name="lock" size={16} />
-          自分だけに表示
-        </p>
-        {value && (
+      <p className="history-private">
+        <Icon name="lock" size={16} />
+        自分だけに表示
+      </p>
+      {value && (
+        <div className="history-bar">
           <label className="history-switch">
             <input
               type="checkbox"
@@ -133,8 +133,6 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
             />
             履歴を残す
           </label>
-        )}
-        {value && (
           <Button
             className="history-clear"
             disabled={busy || !value.entries.length}
@@ -143,8 +141,8 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
             <Icon name="trash" size={18} />
             履歴をすべて削除
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       {/* Success is announced only; failures stay visible (ux-rubric 原則6). */}
       <p role="status" className={failed ? 'history-status' : 'sr-only'}>
         {message}

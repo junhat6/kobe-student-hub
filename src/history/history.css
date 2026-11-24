@@ -1,22 +1,23 @@
-/* #229: YouTube・Chrome の履歴の型。上に1行の操作列、日付ごとの見出し、行ごとの ×。 */
+/* #229: YouTube・Chrome の履歴の型。プライバシー表示を独立行に置き、操作列は記録スイッチと全削除のみ。 */
 .reading-history {
-  margin-top: 24px;
-}
-.history-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line, #e2e7ee);
+  margin-top: 12px;
 }
 .history-private {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin: 0 auto 0 0;
+  margin: 0 0 16px;
   color: var(--ink-muted, #636d79);
   font-size: 14px;
+}
+.history-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line, #e2e7ee);
 }
 .history-switch {
   display: inline-flex;

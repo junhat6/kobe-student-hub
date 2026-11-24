@@ -295,3 +295,100 @@
   padding: 0;
   overflow: hidden;
 }
+.logout-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgb(20 26 34 / 0.45);
+  transition: opacity 150ms;
+}
+.logout-dialog-backdrop[data-starting-style],
+.logout-dialog-backdrop[data-ending-style] {
+  opacity: 0;
+}
+.logout-dialog {
+  position: fixed;
+  z-index: 41;
+  top: 50%;
+  left: 50%;
+  width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  color: var(--ink, #141a22);
+  box-shadow: 0 20px 48px rgb(20 26 34 / 0.24);
+  line-height: 1.7;
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 150ms,
+    transform 150ms;
+}
+.logout-dialog[data-starting-style],
+.logout-dialog[data-ending-style] {
+  opacity: 0;
+  transform: translate(-50%, -48%);
+}
+.logout-dialog-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+}
+.logout-dialog-desc {
+  margin: 10px 0 0;
+  font-size: 15px;
+  color: var(--ink-soft, #46525f);
+}
+.logout-dialog-error {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff4db;
+  color: #60480d;
+  font-size: 14px;
+}
+.logout-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+.logout-dialog-cancel,
+.logout-dialog-confirm {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.logout-dialog-cancel {
+  border: 1px solid var(--line, #e2e7ee);
+  background: var(--surface, #fff);
+  color: var(--ink, #141a22);
+}
+.logout-dialog-confirm {
+  border: 0;
+  background: var(--accent-strong, #1659c7);
+  color: #fff;
+}
+.logout-dialog-cancel:disabled,
+.logout-dialog-confirm:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+@media (max-width: 480px) {
+  .logout-dialog {
+    padding: 20px 16px;
+  }
+  .logout-dialog-actions > * {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logout-dialog-backdrop,
+  .logout-dialog {
+    transition: none;
+  }
+}

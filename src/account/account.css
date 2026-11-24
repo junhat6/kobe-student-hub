@@ -353,8 +353,9 @@
   margin: 0 0 20px;
   padding: 24px;
   background: var(--surface, #fff);
-  border: 1px solid var(--line, #e2e7ee);
+  border: 1px solid #d5dde7;
   border-radius: 20px;
+  box-shadow: 0 1px 2px rgb(20 26 34 / 0.04);
 }
 .account-block[tabindex='-1'] {
   scroll-margin-top: 80px; /* clears the sticky site header (64px) when a link lands here */
@@ -738,7 +739,7 @@
   }
   .account-layout-split .profile-editor-avatar-wrap {
     max-width: none;
-    align-items: flex-start;
+    align-items: center;
   }
   .account-layout-split .profile-editor-card .profile-editor-avatar {
     width: 200px;
@@ -755,6 +756,6 @@
   }
   .account-layout-split .profile-editor-picture {
     order: -1;
-    justify-items: start;
+    justify-items: center;
   }
 }

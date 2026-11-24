@@ -103,8 +103,10 @@ test('logging out from the header menu leaves the header signed out (#187)', asy
   await register(page, info, 'logout');
   const header = page.getByRole('banner');
   await header.getByRole('button', { name: 'アカウントメニュー', exact: true }).click();
-  page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('menuitem', { name: 'ログアウト', exact: true }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'ログアウトしますか？' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'ログアウト', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/');
   await expect(header.getByRole('link', { name: 'ログイン', exact: true })).toBeVisible();
   await expect(header.getByRole('button', { name: 'アカウントメニュー' })).toHaveCount(0);

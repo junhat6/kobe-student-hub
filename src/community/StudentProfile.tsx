@@ -196,10 +196,34 @@ export default function StudentProfile({
   id: string;
   view?: StudentProfileView;
 }) {
+  const { viewer } = useViewer();
   const client = useMemo(() => createPublicStudentClient(), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
   const { value, failed, missing, retry } = usePublicRead(id, read);
-  if (missing) return view === 'likes' ? <LikerOnly id={id} /> : <ReadMissing subject="投稿者" />;
+  const own = viewer.status === 'signed-in' && viewer.profile?.id === id;
+  if (missing) {
+    if (view === 'likes') return <LikerOnly id={id} />;
+    if (own) {
+      return (
+        <section className="shell empty">
+          <h1>公開プロフィールはまだ公開されていません</h1>
+          <p>最初の記事や作品を公開すると、このページがみんなから見られるようになります。</p>
+          <div className="empty-actions">
+            <Link className="primary" to="/drafts">
+              記事を書く
+            </Link>
+            <Link className="secondary" to="/works/new">
+              作品を登録する
+            </Link>
+            <Link className="secondary" to="/account">
+              マイページへ戻る
+            </Link>
+          </div>
+        </section>
+      );
+    }
+    return <ReadMissing subject="投稿者" />;
+  }
   if (failed) return <ReadFailure subject="投稿者" retry={retry} />;
   if (!value)
     return (

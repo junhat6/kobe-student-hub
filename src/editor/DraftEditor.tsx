@@ -742,13 +742,15 @@ export default function DraftEditor({
           )}
           <div className="editor-list-heading">
             <h2>保存した下書き</h2>
-            <Button
-              className="editor-link-button"
-              disabled={busy || publicationBusy || deletion === 'confirm'}
-              onClick={() => void refresh()}
-            >
-              一覧を更新
-            </Button>
+            {(!ordinary || listError) && (
+              <Button
+                className="editor-link-button"
+                disabled={busy || publicationBusy || deletion === 'confirm'}
+                onClick={() => void refresh()}
+              >
+                一覧を更新
+              </Button>
+            )}
           </div>
           {listError && (
             <p className="editor-list-error" role="alert">

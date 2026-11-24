@@ -206,16 +206,17 @@
 .draft-editor--ordinary .editor-draft-management > [role] {
   flex-basis: 100%;
 }
-.draft-editor--ordinary .editor-primary {
+.ordinary-drafts .draft-editor--ordinary .editor-primary {
   border-radius: 999px;
   background: var(--accent-strong, #1659c7);
   color: #fff;
   border: 0;
 }
-.draft-editor--ordinary .editor-primary:hover:not(:disabled) {
+.ordinary-drafts .draft-editor--ordinary .editor-primary:hover:not(:disabled) {
   background: var(--accent-deep, #0f469f);
+  color: #fff;
 }
-.draft-editor--ordinary .editor-primary:disabled {
+.ordinary-drafts .draft-editor--ordinary .editor-primary:disabled {
   background: #b9cbe8;
   color: #fff;
 }
