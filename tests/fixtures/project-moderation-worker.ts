@@ -2,7 +2,7 @@ import { createOrdinaryDraftHandler } from '../../worker/ordinary-drafts-http';
 import { createFixtureSession } from '../helpers/coordinated-fixture';
 const origin = 'https://app.example.invalid';
 export default {
-  async fetch(request: Request, env: { DB: D1Database }) {
+  async fetch(request: Request, env: { DB: D1Database; MEDIA_BUCKET?: R2Bucket }) {
     const now = 1800000000000;
     if (new URL(request.url).pathname === '/fixture/session')
       return Response.json(
@@ -53,6 +53,7 @@ export default {
         {
           enabled: !request.headers.has('X-Test-Closed'),
           operatorIds: request.headers.has('X-Test-No-Operator') ? [] : ['account-1'],
+          mediaBucket: env.MEDIA_BUCKET,
         },
         () => now,
       )(request)) ?? new Response('unavailable', { status: 404 })

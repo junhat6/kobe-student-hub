@@ -27,6 +27,33 @@ async function login(n: number) {
     await mf.dispatchFetch(O + '/fixture/session', { headers: { 'X-Test-Who': String(n) } })
   ).json()) as Session;
 }
+/** Simulates the contract of #12 for one row: payload no longer holds the image (#260). */
+async function emptyPayload(image: string) {
+  const db = await mf.getD1Database('DB');
+  const guard = (await db
+    .prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?")
+    .bind('media_assets_content_immutable')
+    .first<{ sql: string }>())!.sql;
+  await db.prepare('DROP TRIGGER media_assets_content_immutable').run();
+  try {
+    await db.prepare("UPDATE media_assets SET payload=x'00' WHERE id=?").bind(image).run();
+  } finally {
+    await db.prepare(guard).run();
+  }
+  expect(
+    await db
+      .prepare('SELECT length(payload) stored, bytes > 1 sized FROM media_assets WHERE id=?')
+      .bind(image)
+      .first(),
+  ).toEqual({ stored: 1, sized: 1 });
+}
+/** The normalized bytes the upload stored in the private bucket. */
+async function storedObject(image: string) {
+  const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+  const { objects } = await bucket.list({ prefix: `media/${image}/` });
+  expect(objects).toHaveLength(1);
+  return new Uint8Array(await (await bucket.get(objects[0].key))!.arrayBuffer());
+}
 async function seed(image = false) {
   const imageId = crypto.randomUUID();
   let d = (await (
@@ -106,6 +133,8 @@ beforeAll(async () => {
       compatibilityDate: '2026-11-03',
       compatibilityFlags: ['nodejs_compat'],
       d1Databases: ['DB'],
+      // The operator read prefers the private bucket, as in production (#12).
+      r2Buckets: ['MEDIA_BUCKET'],
       outboundService() {
         throw Error('unexpected outbound');
       },
@@ -276,7 +305,13 @@ it('hidden snapshot images are private to the current operator and never grant u
   expect(image.status).toBe(200);
   expect(image.headers.get('Content-Type')).toBe('image/png');
   expect(image.headers.get('Cache-Control')).toBe('private, no-store');
-  expect((await image.arrayBuffer()).byteLength).toBeGreaterThan(0);
+  const object = await storedObject(imageId);
+  expect(new Uint8Array(await image.arrayBuffer())).toEqual(object);
+  // After the contract empties payload, the size column still matches the R2 object (#260).
+  await emptyPayload(imageId);
+  expect(new Uint8Array(await (await req(path, 'GET', undefined, 1)).arrayBuffer())).toEqual(
+    object,
+  );
   expect((await req(path + '?x=1', 'GET', undefined, 1)).status).toBe(404);
   expect((await req(path, 'POST', {}, 1)).status).toBe(405);
   const other = await seed(true);
@@ -370,7 +405,14 @@ it('article hidden images use the same operator projection without weakening own
     ).toBe(200);
   const path = '/api/private/moderation-media/articles/' + article + '/' + image;
   expect((await req('/api/media/' + image)).status).toBe(404);
-  expect((await req(path, 'GET', undefined, 1)).status).toBe(200);
+  const read = await req(path, 'GET', undefined, 1);
+  expect(read.status).toBe(200);
+  const object = await storedObject(image);
+  expect(new Uint8Array(await read.arrayBuffer())).toEqual(object);
+  await emptyPayload(image);
+  expect(new Uint8Array(await (await req(path, 'GET', undefined, 1)).arrayBuffer())).toEqual(
+    object,
+  );
   expect((await req(path, 'GET', undefined, 2)).status).toBe(404);
   await db.prepare("UPDATE private_accounts SET status='suspended' WHERE id='account-1'").run();
   expect((await req(path, 'GET', undefined, 1)).status).toBe(401);
