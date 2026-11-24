@@ -66,9 +66,7 @@ test('owner links own article to a project; readers move both ways directly', as
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
   await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
   // #235: the publish check runs by itself once the saved version matches the input.
-  await expect(
-    page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: '作品を公開する', exact: true })).toBeEnabled();
   const links = page.getByRole('group', { name: 'この作品の記事（任意・3件まで）' });
   await expect(links).toBeVisible();
   await links.getByRole('checkbox', { name: articleTitle, exact: true }).check();
@@ -77,7 +75,7 @@ test('owner links own article to a project; readers move both ways directly', as
     fullPage: true,
     scale: 'css',
   });
-  await page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true }).click();
+  await page.getByRole('button', { name: '作品を公開する', exact: true }).click();
   const open = page.getByRole('link', { name: 'ログインなしで作品を見る' });
   await expect(open).toBeVisible();
   const projectPath = (await open.getAttribute('href'))!;

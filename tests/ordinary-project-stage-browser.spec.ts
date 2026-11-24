@@ -58,11 +58,13 @@ test('a project published as 制作中 is marked publicly and only its owner swi
   await page.getByLabel('作品の説明', { exact: true }).fill('まだ途中の架空の作品です。');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
   await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
-  const publish = page.getByRole('button', { name: '確認した保存版の作品を公開', exact: true });
+  const publish = page.getByRole('button', { name: '作品を公開する', exact: true });
   await expect(publish).toBeEnabled();
   const choice = page.getByRole('group', { name: '作品の状態' });
   // 完成 stays the default, so publishing as before keeps today's behaviour.
   await expect(choice.getByRole('radio', { name: '完成', exact: true })).toBeChecked();
+  // #284: the two choices explain themselves; no note sits under them.
+  await expect(choice.getByRole('paragraph')).toHaveCount(0);
   await choice.getByRole('radio', { name: '制作中', exact: true }).check();
   expect(await serious(page)).toEqual([]);
   expect(await noSideScroll(page)).toBe(true);

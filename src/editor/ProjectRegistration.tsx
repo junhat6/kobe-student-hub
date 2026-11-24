@@ -871,11 +871,13 @@ export default function ProjectRegistration({
             : ordinary
               ? autosavePaused || createUnknown || saveUnknown || pubUnknown
                 ? '自動保存を停止しています。内容を確かめて「作品を保存」で保存してください。'
-                : candidate || ready || receipt || published
-                  ? candidate
-                    ? '以前の保存と見比べている間は自動保存しません。'
-                    : '公開の確認中は自動保存しません。'
-                  : '' /* Autosave is the normal case; speak only when it stops (原則1・3). */
+                : candidate
+                  ? '以前の保存と見比べている間は自動保存しません。'
+                  : dirty && (receipt || published)
+                    ? '公開したあとは自動保存しません。'
+                    : /* Autosave is the normal case; speak only when it stops (原則1・3). The
+                         open publish panel needs no note: typing closes it (#284). */
+                      ''
               : '自動保存はありません。'}
         </p>
       </form>
@@ -976,14 +978,14 @@ export default function ProjectRegistration({
               ) : !ownArticles.length ? (
                 // #168: a project published first can never gain a later article, so say so here.
                 <p>
-                  公開中の自分の記事はまだありません。記事は作品を公開するときにだけ選べて、あとから足せません。制作記録も載せたいなら、
+                  公開中の自分の記事はまだありません。記事はあとから足せません。載せたいなら
                   <a href="/drafts">先に記事を公開</a>
-                  してから作品を公開してください。作品だけでも公開できます。
+                  してください。
                 </p>
               ) : (
                 <>
                   <p>
-                    選んだ記事へのリンクが作品ページに表示され、記事ページにもこの作品が表示されます。記事を選べるのは公開のときだけで、あとから足したり外したりはできません。
+                    選んだ記事と作品が互いのページに載ります。あとから足したり外したりはできません。
                   </p>
                   {ownArticles.map((article) => {
                     const checked = linked.includes(article.id);
@@ -1028,7 +1030,7 @@ export default function ProjectRegistration({
                   {PROJECT_STAGE_LABELS[value]}
                 </label>
               ))}
-              <p>制作中でも公開できます。公開したあとで「完成」に変えられます。</p>
+              {/* The two choices say enough; the switch to 完成 appears after publishing (#284). */}
             </fieldset>
           )}
           {(!ordinary || !publishable) && <p>公開には空白だけではないタイトルと説明が必要です。</p>}
@@ -1057,7 +1059,7 @@ export default function ProjectRegistration({
             }
             onClick={() => void publish()}
           >
-            確認した保存版の作品を{surface === 'ordinary' ? '' : 'ローカルで'}公開
+            {surface === 'ordinary' ? '作品を公開する' : '確認した保存版の作品をローカルで公開'}
           </Button>
           {pubUnknown && <p role="alert">公開結果は未確定です。自動で再送しません。</p>}
           {receipt && (
