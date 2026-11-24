@@ -6,9 +6,10 @@ import { proofAuthorization } from './auth-proof';
  * - `missing`: the server answered 404 (absent or not public, reason withheld)
  * - `signed-out`: the server answered 401
  * - `conflict`: the server answered 409 (a state the caller can explain, such as a limit)
+ * - `rejected`: the server answered 422 (the sent content itself was refused)
  * - `unavailable`: anything else (network, timeout, abort, wrong status/type/size, bad JSON)
  */
-export type BoundedReadFailure = 'missing' | 'signed-out' | 'conflict' | 'unavailable';
+export type BoundedReadFailure = 'missing' | 'signed-out' | 'conflict' | 'rejected' | 'unavailable';
 export class BoundedReadError extends Error {
   constructor(readonly kind: BoundedReadFailure = 'unavailable') {
     super('応答を確認できませんでした。');
@@ -25,7 +26,10 @@ export interface BoundedJsonRequest {
   credentials: 'omit' | 'same-origin';
   /** Left out of the request entirely when undefined (anonymous reads send no method). */
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  /** Serialized as JSON. A body always requires `csrf`. */
+  /**
+   * Serialized as JSON, except a Blob, which is sent unchanged with its own non-empty type as
+   * Content-Type. A body always requires `csrf`.
+   */
   body?: unknown;
   /** Sent as the CSRF proof. Invalid tokens throw before any request. */
   csrf?: string;
@@ -61,7 +65,8 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
     maxBytes > MAX_BYTES ||
     !Number.isSafeInteger(maxChunks) ||
     maxChunks < 1 ||
-    (body !== undefined && csrf === undefined)
+    (body !== undefined && csrf === undefined) ||
+    (body instanceof Blob && !/^[a-z]+\/[a-z0-9.+-]+$/.test(body.type))
   )
     throw new BoundedReadError();
   let authorization: string | undefined;
@@ -91,7 +96,8 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
   const work = (async () => {
     if (controller.signal.aborted) throw new BoundedReadError();
     const headers: Record<string, string> = { Accept: 'application/json' };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (body !== undefined)
+      headers['Content-Type'] = body instanceof Blob ? body.type : 'application/json';
     if (authorization !== undefined) headers.Authorization = authorization;
     const response = await fetcher(path, {
       ...(method === undefined ? {} : { method }),
@@ -100,7 +106,7 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
       redirect: 'error',
       signal: controller.signal,
       headers,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined ? {} : { body: body instanceof Blob ? body : JSON.stringify(body) }),
     });
     onResponse?.();
     if (
@@ -119,7 +125,9 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
             ? 'signed-out'
             : answered && response.status === 409
               ? 'conflict'
-              : 'unavailable',
+              : answered && response.status === 422
+                ? 'rejected'
+                : 'unavailable',
       );
     }
     const length = response.headers.get('Content-Length');

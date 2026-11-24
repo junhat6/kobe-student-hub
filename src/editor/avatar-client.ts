@@ -1,5 +1,5 @@
-import { proofAuthorization } from '../shared/auth-proof';
 import { AVATAR_MAX_BYTES, AVATAR_MAX_EDGE, avatarVersion } from '../shared/avatar';
+import { boundedReadFailure, readBoundedJson } from '../shared/http-client';
 import { openImageSource } from './media-client';
 
 export class AvatarClientError extends Error {
@@ -9,20 +9,7 @@ export class AvatarClientError extends Error {
   }
 }
 const PATH = '/api/private/profile-avatar';
-async function readJson(response: Response): Promise<unknown> {
-  const length = response.headers.get('Content-Length');
-  if (
-    !response.body ||
-    !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '') ||
-    (length !== null && (!/^\d+$/.test(length) || Number(length) > 1024))
-  ) {
-    void response.body?.cancel().catch(() => {});
-    throw new AvatarClientError();
-  }
-  const text = await response.text();
-  if (text.length > 1024) throw new AvatarClientError();
-  return JSON.parse(text) as unknown;
-}
+const csrfShape = /^[A-Za-z0-9_-]{43}$/;
 function version(v: unknown, nullable: boolean): string | null {
   if (
     !v ||
@@ -39,50 +26,42 @@ function version(v: unknown, nullable: boolean): string | null {
 }
 /** Own icon only. Every write is one explicit request; an unclear result is re-read, not resent. */
 export function createAvatarClient(csrfToken: string, fetcher: typeof fetch = fetch) {
-  async function call(init: RequestInit, expected: number) {
-    const controller = new AbortController(),
-      timer = setTimeout(() => controller.abort(), 10000);
+  async function call(
+    write: { method: 'PUT' | 'DELETE'; body?: Blob } | undefined,
+    status: number,
+  ): Promise<unknown> {
     try {
-      const r = await fetcher(PATH, {
-        ...init,
+      return await readBoundedJson(PATH, {
+        fetcher,
         credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
+        method: write?.method ?? 'GET',
+        status,
+        maxBytes: 1024,
+        ...(write === undefined
+          ? {}
+          : { csrf: csrfToken, ...(write.body === undefined ? {} : { body: write.body }) }),
       });
-      if (r.status !== expected) {
-        void r.body?.cancel().catch(() => {});
-        throw new AvatarClientError(
-          r.status === 422
-            ? 'この画像はアイコンにできませんでした。別の画像を選んでください。'
-            : undefined,
-        );
-      }
-      return await readJson(r);
-    } finally {
-      clearTimeout(timer);
+    } catch (error) {
+      throw new AvatarClientError(
+        boundedReadFailure(error) === 'rejected'
+          ? 'この画像はアイコンにできませんでした。別の画像を選んでください。'
+          : undefined,
+      );
     }
   }
-  const write = () => ({ Authorization: proofAuthorization('csrf', csrfToken) });
   return {
     async read(): Promise<string | null> {
-      return version(await call({ headers: { Accept: 'application/json' } }, 200), true);
+      return version(await call(undefined, 200), true);
     },
     async upload(image: Blob): Promise<string> {
-      if (!/^[A-Za-z0-9_-]{43}$/.test(csrfToken)) throw new AvatarClientError();
+      if (!csrfShape.test(csrfToken)) throw new AvatarClientError();
       if (image.type !== 'image/jpeg' || image.size < 1 || image.size > AVATAR_MAX_BYTES)
         throw new AvatarClientError();
-      return version(
-        await call(
-          { method: 'PUT', headers: { ...write(), 'Content-Type': image.type }, body: image },
-          201,
-        ),
-        false,
-      )!;
+      return version(await call({ method: 'PUT', body: image }, 201), false)!;
     },
     async remove(): Promise<void> {
-      if (!/^[A-Za-z0-9_-]{43}$/.test(csrfToken)) throw new AvatarClientError();
-      if (version(await call({ method: 'DELETE', headers: write() }, 200), true) !== null)
+      if (!csrfShape.test(csrfToken)) throw new AvatarClientError();
+      if (version(await call({ method: 'DELETE' }, 200), true) !== null)
         throw new AvatarClientError();
     },
   };

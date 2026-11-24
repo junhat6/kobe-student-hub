@@ -87,6 +87,43 @@ describe('readBoundedJson — the one bounded transport', () => {
     expect(never).not.toHaveBeenCalled();
   });
 
+  it('sends a Blob body unchanged under its own type, only with the CSRF proof', async () => {
+    const fetcher = vi.fn(async () => json('{}', { status: 201 }));
+    const image = new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: 'image/jpeg' });
+    await readBoundedJson('/api/private/x', {
+      fetcher: fetcher as typeof fetch,
+      credentials: 'same-origin',
+      method: 'PUT',
+      status: 201,
+      body: image,
+      csrf,
+      maxBytes: 64,
+    });
+    const init = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(init.body).toBe(image);
+    expect(new Headers(init.headers).get('Content-Type')).toBe('image/jpeg');
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer csrf.' + csrf);
+
+    const never = vi.fn(async () => json('{}'));
+    for (const [body, proof] of [
+      [image, undefined],
+      [new Blob(['x']), csrf],
+      [new Blob(['x'], { type: 'text/html; charset=utf-8' }), csrf],
+    ] as const) {
+      expect(
+        await failure('/api/private/x', {
+          fetcher: never as typeof fetch,
+          credentials: 'same-origin',
+          method: 'PUT',
+          body,
+          csrf: proof,
+          maxBytes: 64,
+        }),
+      ).toBe('unavailable');
+    }
+    expect(never).not.toHaveBeenCalled();
+  });
+
   it('rejects out-of-range limits before any request', async () => {
     const never = vi.fn(async () => json('{}'));
     for (const maxBytes of [0, -1, 1.5, 262145, Number.NaN]) {
@@ -105,7 +142,7 @@ describe('readBoundedJson — the one bounded transport', () => {
     expect(never).not.toHaveBeenCalled();
   });
 
-  it('accepts only the exact status and JSON type, and names 404, 401 and 409 without the body', async () => {
+  it('accepts only the exact status and JSON type, and names 404, 401, 409 and 422 without the body', async () => {
     const run = (r: Response, status?: number) =>
       failure('/api/x', {
         fetcher: (async () => r) as typeof fetch,
@@ -116,6 +153,7 @@ describe('readBoundedJson — the one bounded transport', () => {
     expect(await run(json('"PRIVATE"', { status: 404 }))).toBe('missing');
     expect(await run(json('"PRIVATE"', { status: 401 }))).toBe('signed-out');
     expect(await run(json('"PRIVATE"', { status: 409 }))).toBe('conflict');
+    expect(await run(json('"PRIVATE"', { status: 422 }))).toBe('rejected');
     expect(await run(json('"PRIVATE"', { status: 503 }))).toBe('unavailable');
     expect(await run(json('{}', { status: 200 }), 201)).toBe('unavailable');
     expect(await run(json('{}', { status: 201 }))).toBe('unavailable');

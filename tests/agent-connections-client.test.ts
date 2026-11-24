@@ -48,10 +48,34 @@ describe('agent connections client — on the bounded transport', () => {
         redirect: 'error',
       });
     expect(new Headers(initOf(f, 0).headers).has('Authorization')).toBe(false);
+    expect(initOf(f, 0).body).toBeUndefined();
     expect(new Headers(initOf(f, 1).headers).get('Authorization')).toBe('Bearer csrf.' + csrf);
     expect(initOf(f, 1).body).toBeUndefined();
     expect(new Headers(initOf(f, 2).headers).get('Authorization')).toBe('Bearer csrf.' + csrf);
     expect(JSON.parse(String(initOf(f, 2).body))).toEqual({ decision: 'allow' });
+  });
+
+  it('reads a consent request with the session cookie only, never the CSRF proof or a body', async () => {
+    const f = vi.fn(async () =>
+      json({ clientName: 'Codex', destination: 'Codex', scope: 'drafts' }),
+    );
+    const client = createAgentConnectionsClient(csrf, f as typeof fetch);
+    expect(await client.readRequest(requestId)).toEqual({
+      clientName: 'Codex',
+      destination: 'Codex',
+      scope: 'drafts',
+    });
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe(
+      '/api/private/agent-connections/requests/' + requestId,
+    );
+    expect(initOf(f)).toMatchObject({
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+    });
+    expect(new Headers(initOf(f).headers).has('Authorization')).toBe(false);
+    expect(initOf(f).body).toBeUndefined();
   });
 
   it('tells signed-out and too-many apart and turns every other failure into unavailable without retry', async () => {
