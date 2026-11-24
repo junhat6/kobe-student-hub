@@ -1414,9 +1414,14 @@ describe('migration 0032 on a database that already has published images', () =>
   };
   beforeAll(async () => {
     await boot(false, '0032');
-    // The current Worker writes the size column of 0039; only the column is added here, so the
-    // limits and triggers stay those before 0032.
+    // The current Worker writes the size column of 0039 and sums it from its index; only those are
+    // added here, so the limits and triggers stay those before 0032.
     await (await db()).prepare('ALTER TABLE media_assets ADD COLUMN bytes INTEGER').run();
+    await (
+      await db()
+    )
+      .prepare('CREATE INDEX media_bytes ON media_assets(owner_account_id,bytes)')
+      .run();
   });
   afterAll(async () => {
     await mf?.dispose();

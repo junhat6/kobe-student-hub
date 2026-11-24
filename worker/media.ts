@@ -36,6 +36,8 @@ const receipt = (r: Row): MediaReceipt => ({
 });
 // The size column (#260) stays correct after the contract of #12 empties payload; the fallback only
 // covers a row the 0039 fill trigger has not reached, which cannot exist once 0039 is applied.
+// Quotas sum the column from the covering index media_bytes: read from the table, the column sits
+// after the payload BLOB and every row would walk its overflow pages.
 const sizeSql = 'COALESCE(bytes,length(payload))';
 const info = `id,mime,width,height,${sizeSql} bytes,sha256`;
 const table = (kind: Kind) => (kind === 'articles' ? 'private_article_drafts' : 'project_drafts');
@@ -175,7 +177,7 @@ export class MediaStore {
   private async limit(p: Proof, kind: Kind, draftId: string, id: string, size: number) {
     const row = await this.db
       .prepare(
-        `SELECT CASE WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=?) THEN NULL WHEN (SELECT COUNT(*) FROM media_assets WHERE ${link(kind)}=?)>=? THEN 'draft' WHEN (SELECT COUNT(*) FROM media_assets WHERE owner_account_id=?)>=? OR (SELECT COALESCE(SUM(${sizeSql}),0) FROM media_assets WHERE owner_account_id=?)+?>? THEN 'owner' WHEN (SELECT COUNT(*) FROM media_assets)>=? OR (SELECT COALESCE(SUM(${sizeSql}),0) FROM media_assets)+?>? THEN 'site' END reason WHERE ${writer}`,
+        `SELECT CASE WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=?) THEN NULL WHEN (SELECT COUNT(*) FROM media_assets WHERE ${link(kind)}=?)>=? THEN 'draft' WHEN (SELECT COUNT(*) FROM media_assets WHERE owner_account_id=?)>=? OR (SELECT COALESCE(SUM(bytes),0) FROM media_assets INDEXED BY media_bytes WHERE owner_account_id=?)+?>? THEN 'owner' WHEN (SELECT COUNT(*) FROM media_assets)>=? OR (SELECT COALESCE(SUM(bytes),0) FROM media_assets INDEXED BY media_bytes)+?>? THEN 'site' END reason WHERE ${writer}`,
       )
       .bind(
         id,
