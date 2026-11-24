@@ -164,6 +164,52 @@ it('keeps anonymous context rows at 8 hours; only a session insert extends its o
   // The CHECK accepts exactly one year and nothing longer.
   await expect(insert('4', ctx.g, NOW + YEAR + 1)).rejects.toThrow();
 });
+it('does not count login-extended contexts toward the anonymous cap, even after logout (#269)', async () => {
+  const db = await setup();
+  let now = NOW;
+  const c = new BrowserSessionCoordinator(db, O, () => now, {
+    maxLiveContexts: 2,
+    maxCommandsPerMinute: 2,
+  });
+  await db
+    .prepare(
+      "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('a','s','a@st.kobedenshi.ac.jp','active',?)",
+    )
+    .bind(NOW)
+    .run();
+  const YEAR = 365 * 86400000;
+  // Two logins fill the cap with contexts, then a session extends each to a year and is revoked.
+  for (const t of ['1', '2']) {
+    expect(await c.bootstrap(req())).toBeTruthy();
+    const h = (await db
+      .prepare('SELECT context_hash h FROM auth_browser_contexts ORDER BY expires_at_ms LIMIT 1')
+      .first<{ h: string }>())!.h;
+    await db
+      .prepare(
+        'INSERT INTO auth_sessions(token_hash,account_id,account_epoch,created_at_ms,last_seen_ms,expires_at_ms,revoked_at_ms,context_hash,context_generation) VALUES(?,?,0,?,?,?,?,?,0)',
+      )
+      .bind(t.repeat(64), 'a', now, now, now + YEAR, now, h)
+      .run();
+    await db
+      .prepare('UPDATE auth_browser_contexts SET generation=generation+1 WHERE context_hash=?')
+      .bind(h)
+      .run();
+  }
+  expect(
+    (
+      await db
+        .prepare('SELECT count(*) n FROM auth_browser_contexts WHERE expires_at_ms>?')
+        .bind(now + 28800000)
+        .first<{ n: number }>()
+    )?.n,
+  ).toBe(2);
+  // The year-long rows leave the anonymous cap free; anonymous rows are still bounded.
+  expect(await c.bootstrap(req())).toBeTruthy();
+  expect(await c.bootstrap(req())).toBeTruthy();
+  expect(await c.bootstrap(req())).toBeNull();
+  now += 28800000;
+  expect(await c.bootstrap(req())).toBeTruthy();
+});
 it('counts executed commands too, binds quota to context, permits recovery at the minute boundary', async () => {
   const db = await setup();
   let now = NOW;

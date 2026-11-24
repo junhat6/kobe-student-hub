@@ -143,13 +143,17 @@ export class BrowserSessionCoordinator {
       hash = await browserDigest('browser-v1', raw);
     const inserted = await this.db
       .prepare(
-        'INSERT INTO auth_browser_contexts(context_hash,created_at_ms,expires_at_ms) SELECT ?,?,? WHERE (SELECT count(*) FROM (SELECT 1 FROM auth_browser_contexts WHERE expires_at_ms>? LIMIT ?))<? RETURNING context_hash',
+        'INSERT INTO auth_browser_contexts(context_hash,created_at_ms,expires_at_ms) SELECT ?,?,? WHERE (SELECT count(*) FROM (SELECT 1 FROM auth_browser_contexts WHERE expires_at_ms>? AND expires_at_ms<=? LIMIT ?))<? RETURNING context_hash',
       )
       .bind(
         hash,
         now,
         now + CONTEXT_PENDING_LIFETIME_MS,
         now,
+        // Only rows that can still be anonymous count: a row a login extended past the pending
+        // lifetime is bounded by school Google logins, and counting it would let repeated logins
+        // hold the cap (and block everyone's new logins) for up to a year (#269 verifier F-中1).
+        now + CONTEXT_PENDING_LIFETIME_MS,
         this.limits.maxLiveContexts,
         this.limits.maxLiveContexts,
       )
