@@ -712,3 +712,49 @@
   color: #fff;
   text-decoration: none;
 }
+/* #263: with a profile, a wide screen shows the person on the left and their activity on the
+   right, as GitHub's profile and /students/:id do (same 861px break). Phones stay one column. */
+@media (min-width: 861px) {
+  .account-home:has(.account-layout-split) {
+    max-width: 1200px;
+    padding: 0 36px;
+  }
+  .account-layout-split {
+    display: grid;
+    grid-template-columns: 296px minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+  }
+  .account-layout-split .account-side,
+  .account-layout-split .account-main {
+    min-width: 0;
+  }
+  .account-layout-split .account-main > :first-child {
+    margin-top: 0;
+  }
+  .account-layout-split .profile-editor-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .account-layout-split .profile-editor-avatar-wrap {
+    max-width: none;
+    align-items: flex-start;
+  }
+  .account-layout-split .profile-editor-card .profile-editor-avatar {
+    width: 200px;
+    height: 200px;
+    font-size: 72px;
+  }
+  .account-layout-split .profile-editor-card-text {
+    padding-top: 0;
+  }
+  /* Editing stays in place, as on GitHub: the fields stack in the narrow column. */
+  .account-layout-split .profile-editor-columns,
+  .account-layout-split .profile-editor-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-layout-split .profile-editor-picture {
+    order: -1;
+    justify-items: start;
+  }
+}

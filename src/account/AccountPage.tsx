@@ -84,57 +84,66 @@ function AccountContent({
   // Graduated students keep their tidy-up tools even without one.
   const ready =
     profileState === 'exists' || profileState === 'unknown' || writesClosed(participation);
+  // #263: once the profile exists, a wide screen puts the person on the left and their
+  // activity on the right (as on GitHub and /students/:id). Making a profile stays one column.
+  const split = authoringUiEnabled && profileState === 'exists';
   useHashLanding(LANDING_SECTIONS);
   return (
-    <>
-      {authoringUiEnabled && (
-        <div id="profile" className="account-block">
-          <ProfileEditor
-            csrfToken={csrfToken}
-            fetcher={fetcher}
-            onStateChange={setProfileState}
-            onSaved={refresh}
-            onRiskChange={profileRisk}
-            startEditing={editProfile}
-          />
-          {returnTo && profileState === 'exists' && (
-            <Link className="primary account-return" to={returnTo}>
-              記事に戻っていいねする
-              <Icon name="arrowRight" size={18} />
-            </Link>
-          )}
-        </div>
-      )}
-      {authoringUiEnabled && ready && <ActivityGrass id={ownProfileId} own fetcher={fetcher} />}
-      {authoringUiEnabled && ready && <ReceivedLikes id={ownProfileId} />}
-      {authoringUiEnabled && ready && <AccountActions participation={participation} />}
-      {authoringUiEnabled && <ParticipationNotice participation={participation} place="account" />}
-      {authoringUiEnabled && ready && (
-        <div id="publications" className="account-block" tabIndex={-1}>
-          <OwnPublications
-            csrfToken={csrfToken}
-            fetcher={fetcher}
-            surface="ordinary"
-            onNavigationRiskChange={publicationRisk}
-          />
-        </div>
-      )}
-      {authoringUiEnabled && ready && <OwnNotifications fetcher={fetcher} />}
-      {authoringUiEnabled && <EditorialTaste fetcher={fetcher} />}
-      {authoringUiEnabled && TASTE_SHARING_RELEASE_ENABLED && (
-        <OwnTaste csrfToken={csrfToken} fetcher={fetcher} />
-      )}
-      {authoringUiEnabled && AGENT_MCP_RELEASE_ENABLED && (
-        <AgentConnections csrfToken={csrfToken} fetcher={fetcher} />
-      )}
-      <div id="enrollment" className="account-block account-settings" tabIndex={-1}>
-        <AccountEnrollment
-          csrfToken={csrfToken}
-          fetcher={fetcher}
-          onParticipationChange={setParticipation}
-        />
+    <div className={'account-layout' + (split ? ' account-layout-split' : '')}>
+      <div className="account-side">
+        {authoringUiEnabled && (
+          <div id="profile" className="account-block">
+            <ProfileEditor
+              csrfToken={csrfToken}
+              fetcher={fetcher}
+              onStateChange={setProfileState}
+              onSaved={refresh}
+              onRiskChange={profileRisk}
+              startEditing={editProfile}
+            />
+            {returnTo && profileState === 'exists' && (
+              <Link className="primary account-return" to={returnTo}>
+                記事に戻っていいねする
+                <Icon name="arrowRight" size={18} />
+              </Link>
+            )}
+          </div>
+        )}
+        {authoringUiEnabled && ready && <AccountActions participation={participation} />}
       </div>
-    </>
+      <div className="account-main">
+        {authoringUiEnabled && (
+          <ParticipationNotice participation={participation} place="account" />
+        )}
+        {authoringUiEnabled && ready && <ActivityGrass id={ownProfileId} own fetcher={fetcher} />}
+        {authoringUiEnabled && ready && <ReceivedLikes id={ownProfileId} />}
+        {authoringUiEnabled && ready && (
+          <div id="publications" className="account-block" tabIndex={-1}>
+            <OwnPublications
+              csrfToken={csrfToken}
+              fetcher={fetcher}
+              surface="ordinary"
+              onNavigationRiskChange={publicationRisk}
+            />
+          </div>
+        )}
+        {authoringUiEnabled && ready && <OwnNotifications fetcher={fetcher} />}
+        {authoringUiEnabled && <EditorialTaste fetcher={fetcher} />}
+        {authoringUiEnabled && TASTE_SHARING_RELEASE_ENABLED && (
+          <OwnTaste csrfToken={csrfToken} fetcher={fetcher} />
+        )}
+        {authoringUiEnabled && AGENT_MCP_RELEASE_ENABLED && (
+          <AgentConnections csrfToken={csrfToken} fetcher={fetcher} />
+        )}
+        <div id="enrollment" className="account-block account-settings" tabIndex={-1}>
+          <AccountEnrollment
+            csrfToken={csrfToken}
+            fetcher={fetcher}
+            onParticipationChange={setParticipation}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 export default function AccountPage() {
