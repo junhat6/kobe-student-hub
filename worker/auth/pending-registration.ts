@@ -1,5 +1,6 @@
 import type { VerifiedSchoolIdentity } from './google-identity';
 import type { BrowserClaim } from './browser-session';
+import { SESSION_CLOCK_SKEW_MS } from './session-guard';
 const clean = (v: unknown, max: number): v is string =>
   typeof v === 'string' &&
   v.length <= max &&
@@ -29,7 +30,7 @@ export class PendingRegistrationStore {
       const now = this.clock();
       if (!Number.isSafeInteger(now) || now < 0 || now > 253402300799999) return null;
       // Email collision refusal is conservative: it never links subjects or changes stored contact.
-      const guard = `EXISTS(SELECT 1 FROM oauth_attempts t JOIN auth_browser_contexts c ON c.context_hash=t.context_hash JOIN auth_revocation_fence f ON f.id=1 WHERE t.state_hash=? AND t.claim_owner=? AND t.intent='pending-registration' AND t.completed_at_ms IS NULL AND t.consumed_at_ms<=? AND t.expires_at_ms>? AND t.context_hash=? AND t.context_generation=? AND c.generation=t.context_generation AND c.created_at_ms<=? AND c.expires_at_ms>? AND t.revocation_fence=? AND t.revocation_fence>=f.minimum_generation AND NOT EXISTS(SELECT 1 FROM auth_subject_fences b WHERE b.google_subject=? AND b.generation>t.revocation_fence))`;
+      const guard = `EXISTS(SELECT 1 FROM oauth_attempts t JOIN auth_browser_contexts c ON c.context_hash=t.context_hash JOIN auth_revocation_fence f ON f.id=1 WHERE t.state_hash=? AND t.claim_owner=? AND t.intent='pending-registration' AND t.completed_at_ms IS NULL AND t.consumed_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND t.expires_at_ms>? AND t.context_hash=? AND t.context_generation=? AND c.generation=t.context_generation AND c.created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>? AND t.revocation_fence=? AND t.revocation_fence>=f.minimum_generation AND NOT EXISTS(SELECT 1 FROM auth_subject_fences b WHERE b.google_subject=? AND b.generation>t.revocation_fence))`;
       const args = [
         claim.stateHash,
         claim.owner,

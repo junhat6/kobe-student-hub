@@ -1,5 +1,6 @@
 import { EncryptJWT, jwtDecrypt, base64url } from 'jose';
 import { OAUTH_ATTEMPT_TTL_MS } from './oauth-attempts';
+import { SESSION_CLOCK_SKEW_MS } from './session-guard';
 import { pkceChallenge } from './pkce';
 import {
   BrowserSessionCoordinator,
@@ -239,7 +240,11 @@ export class BrowserOAuthFlow {
         typ: 'JWT',
         requiredClaims: ['iat', 'exp'],
         maxTokenAge: 600,
-        clockTolerance: 0,
+        // The cookie's iat was stamped by the start request, possibly on an isolate whose clock
+        // ran ahead of this callback's (#282). The tolerance also loosens jose's exp/age checks,
+        // so expiry stays strict through the explicit `claimedAt >= exp` check below and the
+        // attempt row's expires_at_ms.
+        clockTolerance: SESSION_CLOCK_SKEW_MS / 1000,
         currentDate: new Date(now),
       });
       if (

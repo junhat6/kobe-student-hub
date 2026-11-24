@@ -304,6 +304,13 @@ export class BrowserSessionCoordinator {
     ]);
     return results[1].meta.changes;
   }
+  /**
+   * The attempt and context rows were written by the start request, possibly on an isolate whose
+   * clock ran ahead of the callback's (#282), so their `<=` comparisons tolerate
+   * SESSION_CLOCK_SKEW_MS. consumed_at_ms is lifted to created_at_ms because 0003's CHECK requires
+   * consumed_at_ms >= created_at_ms; consumption is judged by IS NULL only, so the lift changes
+   * nothing else. Expiry, one-time consumption, generation and fence stay strict.
+   */
   async claim(
     request: Request,
     state: string,
@@ -326,7 +333,7 @@ export class BrowserSessionCoordinator {
     ).join('');
     const row = await this.db
       .prepare(
-        `UPDATE oauth_attempts SET consumed_at_ms=?1,claim_owner=?2 WHERE state_hash=?3 AND browser_hash=?4 AND consumed_at_ms IS NULL AND created_at_ms<=?1 AND expires_at_ms>?1 AND context_hash=?5 AND intent=?6 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=oauth_attempts.context_hash AND c.generation=oauth_attempts.context_generation AND c.created_at_ms<=?1 AND c.expires_at_ms>?1 AND f.id=1 AND oauth_attempts.revocation_fence>=f.minimum_generation) RETURNING nonce,context_generation,revocation_fence`,
+        `UPDATE oauth_attempts SET consumed_at_ms=max(?1,created_at_ms),claim_owner=?2 WHERE state_hash=?3 AND browser_hash=?4 AND consumed_at_ms IS NULL AND created_at_ms<=?1+${SESSION_CLOCK_SKEW_MS} AND expires_at_ms>?1 AND context_hash=?5 AND intent=?6 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=oauth_attempts.context_hash AND c.generation=oauth_attempts.context_generation AND c.created_at_ms<=?1+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>?1 AND f.id=1 AND oauth_attempts.revocation_fence>=f.minimum_generation) RETURNING nonce,context_generation,revocation_fence`,
       )
       .bind(now, owner, plain, binding, context.hash, action)
       .first<{ nonce: string; context_generation: number; revocation_fence: number }>();

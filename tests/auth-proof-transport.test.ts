@@ -351,3 +351,39 @@ it('two-step logout tolerates exactly SESSION_CLOCK_SKEW_MS on the command row a
   const other = await session(t);
   expect((await run(NOW, command, other.cookie)).status).toBe(409);
 });
+it('execute() refuses an expired command itself, without relying on the trigger (#282 L3)', async () => {
+  const t = await setup(),
+    a = await start(t),
+    h = { Cookie: a.cookie, Authorization: proofAuthorization('command', a.command) },
+    attempt = { stateHash: 'c'.repeat(64), browserHash: 'd'.repeat(64), nonce: 'e'.repeat(43) },
+    at = (now: number) => new BrowserSessionCoordinator(t.db, O, () => now);
+  // The command was issued at NOW with a 60 s lifetime.
+  expect(await at(NOW + 60_000).execute(request(h), 'login', attempt)).toEqual({
+    kind: 'rejected',
+  });
+  expect(
+    (await t.db.prepare('SELECT generation FROM auth_browser_contexts').first())?.generation,
+  ).toBe(0);
+  expect((await t.db.prepare('SELECT count(*) n FROM oauth_attempts').first())?.n).toBe(0);
+  expect(await at(NOW + 59_999).execute(request(h), 'login', attempt)).toEqual({
+    kind: 'executed',
+  });
+});
+it('execute() answers a command from an older generation as rejected, not as an error (#282 L3)', async () => {
+  const t = await setup(),
+    a = await start(t),
+    second = (await t.c.command(request({ Cookie: a.cookie }), 'login'))!.commandToken,
+    run = (command: string, stateHash: string) =>
+      t.c.execute(
+        request({ Cookie: a.cookie, Authorization: proofAuthorization('command', command) }),
+        'login',
+        { stateHash, browserHash: 'd'.repeat(64), nonce: 'e'.repeat(43) },
+      );
+  expect(await run(a.command, 'c'.repeat(64))).toEqual({ kind: 'executed' });
+  // Both commands expected generation 0; the first moved the context to 1.
+  expect(await run(second, 'f'.repeat(64))).toEqual({ kind: 'rejected' });
+  expect(
+    (await t.db.prepare('SELECT generation FROM auth_browser_contexts').first())?.generation,
+  ).toBe(1);
+  expect((await t.db.prepare('SELECT count(*) n FROM oauth_attempts').first())?.n).toBe(1);
+});

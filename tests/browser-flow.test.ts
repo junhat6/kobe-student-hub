@@ -3,6 +3,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
 import { jwtDecrypt, EncryptJWT } from 'jose';
 import { pkceChallenge, isSameOriginPost } from '../worker/auth/browser-flow';
+import { SESSION_CLOCK_SKEW_MS } from '../worker/auth/session-guard';
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1_800_000_000_000;
 const CLIENT = 'fixture.apps.googleusercontent.com';
@@ -181,7 +182,8 @@ describe('PKCE and server-only browser-bound attempt flow', () => {
   });
   it('rejects future/expired cookie times and wrong signed payload fields', async () => {
     const a = (await start())!;
-    expect(await claim(a, { now: NOW - 1000 })).toBeNull();
+    // A callback may trail the start's clock by SESSION_CLOCK_SKEW_MS (#282), but no further.
+    expect(await claim(a, { now: NOW - SESSION_CLOCK_SKEW_MS - 1000 })).toBeNull();
     expect(await claim(a, { now: NOW + 600000 })).toBeNull();
     const { payload } = await jwtDecrypt(a.setCookie.split(';')[0].split('=')[1], key, {
       currentDate: new Date(NOW),
