@@ -502,6 +502,7 @@ it('rolls back refused publication inserts and denies malformed profile projecti
   expect(await publicRead(id)).toBeNull();
   expect((await publish(d)).status).toBe(404);
 });
+// 22 create+publish+unlock round trips: 5 s timed out on a loaded CI runner (#266).
 it('discovers newest20 immutable cross-author snapshots with short DTOs and fresh stop exclusion', async () => {
   const db = await mf.getD1Database('DB');
   await db.prepare("UPDATE project_publications SET status='hidden'").run();
@@ -625,7 +626,8 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
   );
   expect(await read({ 'X-Test-Discovery-Race': '1' })).toBeNull();
   expect(await read({ 'X-Test-Discovery-Fault': '1' })).toBeNull();
-});
+}, 30_000);
+// Same 22-row setup as above (#266).
 it('bounds author list newest20, rejects corrupt snapshots and fails storage errors closed', async () => {
   const db = await mf.getD1Database('DB');
   await db.prepare("UPDATE project_publications SET status='hidden'").run();
@@ -668,7 +670,7 @@ it('bounds author list newest20, rejects corrupt snapshots and fails storage err
   expect(
     await (await req(url, 'GET', undefined, 0, { 'X-Test-Discovery-Fault': '1' })).json(),
   ).toBeNull();
-});
+}, 30_000);
 it('stores technologies in the draft and the immutable published snapshot', async () => {
   const d = await create({ ...f, technologies: 'React、Cloudflare Workers' });
   expect(d.technologies).toBe('React、Cloudflare Workers');

@@ -252,9 +252,14 @@ test('browser Forward cancel retains edits and reload or close asks before losin
   await create(page);
   await home(page).click();
   await expect(page).toHaveURL(ORIGIN + '/');
+  // Wait until the drafts screen has really unmounted. Going Back before that raced the router
+  // and kept the old writing screen, which is what this test used to see (#266).
+  await expect(page.locator('.draft-editor')).toHaveCount(0);
   await page.goBack();
   await expect(page).toHaveURL(ORIGIN + '/drafts');
-  // Back returns to the writing screen of the same draft; the list is its own screen (#230 ①).
+  // Back remounts 記事の管理 with the saved draft listed; opening it returns to writing (#230 ①).
+  await expect(title(page)).toHaveCount(0);
+  await page.getByRole('button', { name: '無題の下書き', exact: true }).click();
   await expect(title(page)).toBeEditable();
   await title(page).fill('Forwardでも残す');
   await confirmNavigation(page, () => page.evaluate(() => history.forward()));
