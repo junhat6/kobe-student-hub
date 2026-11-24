@@ -1,7 +1,7 @@
 # Current work
 
-- 2026-11-24 20:00（replan#23）：完成台帳 [completion.json](loop/completion.json) は **pass 22/23**。残りは C22（unverified、#233）だけ。条件3の最初の自動実行は今夜 21:15 JST の回。
-- 本番：最新 tag `r2026.11.24.1`（ba8e62c、11-24 夜便。11-24 の朝・夜の CI 赤で止まっていた 80 commit と migration 0035〜0040 を出した。記録 #211）。便は落ちたら直して `--continue` で出しきる（DECISIONS 2026-11-24）。
-- 待ち行列：P0 0件、P1 5件（#189 4段目＝残りの client と readRequest の CSRF test、#249 条件4は 11-25 08:00 便の release-log、#233 は 21:15 JST 待ち、#12 は #249 待ち、#247 needs-human）。P2：#265（保護表の INSERT OR REPLACE と見えない文字だけのタイトル）。blocked 0件。
-- needs-human：#247（CLI 3種の確認＝Chrome の Local Network Access 許可、claude.ai のテスト下書きの削除）。
-- 次の焦点：20:00 便の結果 → #233 条件3（21:15 JST）→ #189 4段目 → #265。`tests/media.test.ts` の1件（Body has already been read）は flaky 候補として再発したら Issue にする。
+- 2026-11-24 23:15：オーナー動作確認動画のフィードバックを整理し、[DECISIONS](DECISIONS.md)・[ux-rubric](loop/ux-rubric.md) へ反映、6件を Issue 化（#268〜#273）し、R0/R1 の即効 UI 改善 7 件を main へ反映。完成台帳 [completion.json](loop/completion.json) は **pass 22/23**（残りは C22 条件5の独立検証）。
+- 本番：最新 tag `r2026.11.24.1`（ba8e62c、11-24 夜便。記録 #211）。
+- 待ち行列：**P0 1件（#268：マイページ複数パネル読み込み失敗・アバター未表示、`last_seen_ms` 並行競合、R2）**、P1 8件（#269 セッション長期化、#270 記事管理タブ・パンくず、#271 下書き赤ペンレビュー、#189、#249、#233、#12、#247 needs-human）。P2：#272（スケルトン・体感速度）、#273（作品開発日誌ワークフロー）、#265。blocked 0件。
+- needs-human / 判断待ち：#247（CLI 3種確認）、および動画由来の方向性確認（#269 セッション日数、#271 下書きレビューの公開範囲、#273 定期実行の主体）。
+- 次の焦点：**最優先で #268（P0・R2）の修正と独立検証** → #233 → #269・#270・#271。
