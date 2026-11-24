@@ -706,6 +706,73 @@ describe('editorial draft reviews', () => {
     expect(await rows()).toBe(before);
   });
 
+  // Independent verification of 0aaa77a: the count is the operator's own, an inactive account is
+  // refused by the trigger, and an expired session gets the same 404.
+  it("counts only the operator's own draft reviews and refuses inactive or expired access", async () => {
+    const db = await mf.getD1Database('DB');
+    const drafts = async () =>
+      decodeEditorialTasteSummary(
+        JSON.parse(
+          (await http('/api/private/editorial-taste', { headers: browser(users.a) }))!.body,
+        ),
+      )!.reviews.drafts;
+    const base = await drafts();
+    // Another account's row on its own draft (allowed by the trigger) never joins the count.
+    const students = await create(users.b, '学生の下書き2');
+    await db
+      .prepare(
+        "INSERT INTO editorial_draft_reviews(id,reviewer_account_id,draft_id,draft_version,verdict,points_json,note,reviewed_at_ms) VALUES(?,'account-b',?,1,'good','[]','',?)",
+      )
+      .bind(crypto.randomUUID(), students.id, NOW)
+      .run();
+    expect(await drafts()).toBe(base);
+    // A suspended owner cannot get a row in, even directly.
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('account-s','subject-s','s@st.kobedenshi.ac.jp','suspended',?)",
+        )
+        .bind(NOW),
+      db
+        .prepare(
+          "INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) VALUES('00000000-0000-4000-8000-0000000271aa','account-s','停止','本文',1,?)",
+        )
+        .bind(NOW),
+    ]);
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO editorial_draft_reviews(id,reviewer_account_id,draft_id,draft_version,verdict,points_json,note,reviewed_at_ms) VALUES(?,'account-s','00000000-0000-4000-8000-0000000271aa',1,'good','[]','',?)",
+        )
+        .bind(crypto.randomUUID(), NOW)
+        .run(),
+    ).rejects.toThrow(/editorial draft review unavailable/);
+    // The operator's session long expired: the same 404 for reading and writing, nothing stored.
+    const own = await create(users.a, '期限切れの下書き');
+    const before = await rows();
+    const later = NOW + 2 * 365 * 24 * 60 * 60 * 1000;
+    for (const r of [
+      await call<Http>({
+        action: 'http',
+        now: later,
+        url: ORIGIN + draftPath(own.id),
+        headers: browser(users.a),
+      }),
+      await call<Http>({
+        action: 'http',
+        now: later,
+        url: ORIGIN + draftPath(own.id),
+        method: 'PUT',
+        headers: browser(users.a, true),
+        body: JSON.stringify({ verdict: 'good', points: [], note: canary }),
+      }),
+    ]) {
+      expect(r!.status).toBe(404);
+      expect(JSON.parse(r!.body)).toEqual({ error: 'editorial_review_unavailable' });
+    }
+    expect(await rows()).toBe(before);
+  });
+
   it('removes the reviews with the draft', async () => {
     const draft = await create(users.a, '消す下書き');
     await http(draftPath(draft.id), {
