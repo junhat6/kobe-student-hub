@@ -98,6 +98,28 @@ test('every page offers a retry during an API outage and recovers after it', asy
       });
     for (const button of buttons) await expect(button, path).toBeVisible();
     expect(await noOverflow(page)).toBe(true);
+    if (failure?.endsWith('を表示できませんでした')) {
+      const heading = main.getByRole('heading', { name: failure, exact: true });
+      await expect(heading, path).toBeVisible();
+      // #262: the failure heading wraps between phrases, never leaving 「た」 alone on a line.
+      const lines = await heading.evaluate((h) => {
+        const rows = new Map<number, string>();
+        const walker = document.createTreeWalker(h, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const text = node.textContent ?? '';
+          for (let i = 0; i < text.length; i++) {
+            const range = document.createRange();
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            const top = Math.round(range.getBoundingClientRect().top);
+            rows.set(top, (rows.get(top) ?? '') + text[i]);
+          }
+        }
+        return [...rows.values()];
+      });
+      for (const line of lines)
+        expect(line.length, `${path} ${lines.join('／')}`).toBeGreaterThan(1);
+    }
     if (path === '/') await page.screenshot({ path: info.outputPath('home-outage.png') });
     await page.unroute('**/api/**');
     for (const button of buttons) await button.click();

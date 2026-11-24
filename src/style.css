@@ -599,6 +599,12 @@ h1 {
 .empty h3 {
   font-size: 18px;
 }
+.read-failure-title {
+  /* Wrap only at the <wbr> between phrases (「記事一覧を／表示できませんでした」);
+     anywhere is the fallback if one phrase alone is wider than the screen. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
 .empty p {
   color: #61727e;
   font-size: 13px;

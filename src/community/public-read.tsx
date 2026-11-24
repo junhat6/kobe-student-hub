@@ -38,7 +38,12 @@ export function usePublicRead<T>(key: string, read: (signal: AbortSignal) => Pro
 export function ReadFailure({ subject, retry }: { subject: string; retry: () => void }) {
   return (
     <section className="empty" role="alert">
-      <h1>{subject}を表示できませんでした</h1>
+      {/* Break only between phrases: never a lone 「た」 on the last line at 390px (#262).
+          <wbr> keeps the accessible name 「…を表示できませんでした」 without a space. */}
+      <h1 className="read-failure-title">
+        {subject}を<wbr />
+        表示できませんでした
+      </h1>
       <p>接続を確認して、もう一度お試しください。非公開の記事は表示されません。</p>
       <Button className="primary" onClick={retry}>
         もう一度読み込む
