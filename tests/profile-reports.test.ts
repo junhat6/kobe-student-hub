@@ -133,13 +133,17 @@ it('refuses the author reporting their own profile, on the API and in the table 
   ).toBe(0);
 });
 it('deduplicates concurrent reports per account, keeps the original reason and snapshot', async () => {
+  // Read each body as soon as its response arrives. Holding eight unread bodies until all
+  // responses are in left one of them unusable on loaded CI runners (#277).
   const rs = await Promise.all(
     Array.from({ length: 8 }, () =>
-      req(reportPath(), 'POST', { reason: 'Original reason', detail: 'Private detail' }, 2),
+      req(reportPath(), 'POST', { reason: 'Original reason', detail: 'Private detail' }, 2).then(
+        async (r) => ({ status: r.status, body: await r.json() }),
+      ),
     ),
   );
   expect(rs.every((r) => r.status === 201)).toBe(true);
-  for (const r of rs) expect(await r.json()).toEqual({ received: true });
+  for (const r of rs) expect(r.body).toEqual({ received: true });
   expect((await req(reportPath(), 'POST', { reason: 'Replacement' }, 2)).status).toBe(201);
   expect(await (await req(reportPath(), 'GET', undefined, 2)).json()).toEqual({ received: true });
   expect(await (await req(reportPath(), 'GET', undefined, 3)).json()).toEqual({ received: false });
