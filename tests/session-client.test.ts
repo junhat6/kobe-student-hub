@@ -232,6 +232,7 @@ describe('existing session browser client and author response-consumption guard'
     });
     const pending = guard.fetcher('/api/private/drafts', { signal: controller.signal });
     const rejected = expect(pending).rejects.toBeInstanceOf(SessionClientError);
+    await vi.waitFor(() => expect(proofSignal).toBeDefined());
     controller.abort();
     await rejected;
     expect(proofSignal?.aborted).toBe(true);
@@ -318,5 +319,102 @@ describe('existing session browser client and author response-consumption guard'
       createSessionClient(down as unknown as typeof fetch).peekSteadily(undefined, [0, 0]),
     ).rejects.toMatchObject({ kind: 'unavailable' });
     expect(down).toHaveBeenCalledTimes(3);
+  });
+  it('shares one proof between private reads opened together, sent after all of them asked (#272)', async () => {
+    const order: string[] = [];
+    const fetcher = vi.fn(async (path: string) => {
+      order.push(path);
+      return path === '/api/private/session'
+        ? Response.json({ csrfToken: A })
+        : Response.json({ path });
+    });
+    const guard = createAuthorSessionGuard({
+      csrfToken: A,
+      origin,
+      onMismatch: vi.fn(),
+      onUnverified: vi.fn(),
+      fetcher: fetcher as unknown as typeof fetch,
+    });
+    const paths = ['/api/private/drafts', '/api/private/profile', '/api/private/activity'];
+    const responses = await Promise.all(paths.map((path) => guard.fetcher(path)));
+    expect(await Promise.all(responses.map((r) => r.json()))).toEqual(
+      paths.map((path) => ({ path })),
+    );
+    // The first proof is one request, sent before any private read and after all three asked.
+    expect(order.slice(0, 2)).toEqual(['/api/private/session', paths[0]]);
+    const proofs = order.filter((path) => path === '/api/private/session').length;
+    expect(proofs).toBeLessThan(3 * paths.length);
+    expect(proofs).toBeGreaterThanOrEqual(3);
+    guard.invalidate();
+  });
+  it('never answers a proof asked after the shared request was sent with that earlier request', async () => {
+    let current = A;
+    const answers: (() => void)[] = [];
+    const fetcher = vi.fn(async (path: string) => {
+      if (path !== '/api/private/session') return Response.json({ secret: 'A data' });
+      const token = current;
+      await new Promise<void>((resolve) => answers.push(resolve));
+      return Response.json({ csrfToken: token });
+    });
+    const mismatch = vi.fn();
+    const guard = createAuthorSessionGuard({
+      csrfToken: A,
+      origin,
+      onMismatch: mismatch,
+      onUnverified: vi.fn(),
+      fetcher: fetcher as unknown as typeof fetch,
+    });
+    const first = guard.fetcher('/api/private/drafts');
+    await vi.waitFor(() => expect(answers).toHaveLength(1));
+    // The session changes, then a second read asks: it must get its own, later proof.
+    current = B;
+    const second = guard.fetcher('/api/private/profile');
+    await vi.waitFor(() => expect(answers).toHaveLength(2));
+    answers[0]();
+    answers[1]();
+    await expect(second).rejects.toBeInstanceOf(SessionClientError);
+    await expect(first).rejects.toBeInstanceOf(SessionClientError);
+    expect(mismatch).toHaveBeenCalledExactlyOnceWith('changed');
+  });
+  it('lets one caller leave a shared proof without failing the others, and cancels it when all leave', async () => {
+    const signals: AbortSignal[] = [];
+    let release: (() => void) | undefined;
+    const unverified = vi.fn();
+    const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
+      if (path !== '/api/private/session') return Response.json({ ok: true });
+      signals.push(init!.signal!);
+      if (signals.length === 1 || signals.length > 3)
+        await new Promise<void>((resolve) => (release = resolve));
+      return Response.json({ csrfToken: A });
+    });
+    const guard = createAuthorSessionGuard({
+      csrfToken: A,
+      origin,
+      onMismatch: vi.fn(),
+      onUnverified: unverified,
+      fetcher: fetcher as unknown as typeof fetch,
+    });
+    const leaving = new AbortController();
+    const gone = guard.fetcher('/api/private/drafts', { signal: leaving.signal });
+    const staying = guard.fetcher('/api/private/profile');
+    await vi.waitFor(() => expect(signals).toHaveLength(1));
+    leaving.abort();
+    await expect(gone).rejects.toBeInstanceOf(SessionClientError);
+    // The other joiner still needs the answer, so the shared request goes on.
+    expect(signals[0].aborted).toBe(false);
+    release!();
+    expect(await (await staying).json()).toEqual({ ok: true });
+    expect(unverified).not.toHaveBeenCalled();
+
+    const all = new AbortController();
+    const pending = [
+      guard.fetcher('/api/private/drafts', { signal: all.signal }),
+      guard.fetcher('/api/private/profile', { signal: all.signal }),
+    ];
+    await vi.waitFor(() => expect(signals).toHaveLength(4));
+    all.abort();
+    for (const request of pending) await expect(request).rejects.toBeInstanceOf(SessionClientError);
+    expect(signals[3].aborted).toBe(true);
+    expect(unverified).not.toHaveBeenCalled();
   });
 });

@@ -201,11 +201,71 @@ export function createAuthorSessionGuard({
     }
     return new SessionClientError();
   }
+  /**
+   * Proofs asked for close together share one session request (#272: /account opened ~16
+   * private reads at once and asked 31 times, three serial proofs per read). A batch is sent
+   * in the next task after it opens, so its request always leaves after every joiner asked:
+   * the shared answer is as fresh as a dedicated one would be. A proof asked once a batch has
+   * been sent waits for the next batch; no answer is reused or cached. (A hidden tab may
+   * throttle the timer; that only delays the proof, it never weakens it.)
+   */
+  interface Waiter {
+    resolve: (csrfToken: string) => void;
+    reject: (error: unknown) => void;
+  }
+  interface Batch {
+    waiters: Set<Waiter>;
+    /** Set once the shared request is sent; aborted when every joiner has given up. */
+    controller?: AbortController;
+  }
+  let open: Batch | undefined;
+  function startBatch(batch: Batch) {
+    if (open === batch) open = undefined;
+    if (!batch.waiters.size) return;
+    batch.controller = new AbortController();
+    const settle = (finish: (waiter: Waiter) => void) => {
+      const waiters = [...batch.waiters];
+      batch.waiters.clear();
+      waiters.forEach(finish);
+    };
+    session.peekSteadily(batch.controller.signal, retryDelays).then(
+      (csrf) => settle((waiter) => waiter.resolve(csrf)),
+      (error: unknown) => settle((waiter) => waiter.reject(error)),
+    );
+  }
+  function sharedProof(signal: AbortSignal) {
+    return new Promise<string>((resolve, reject) => {
+      if (signal.aborted) return reject(new SessionClientError());
+      if (!open) {
+        const fresh: Batch = { waiters: new Set() };
+        open = fresh;
+        setTimeout(() => startBatch(fresh), 0);
+      }
+      const batch = open;
+      const leave = () => {
+        batch.waiters.delete(waiter);
+        reject(new SessionClientError());
+        if (batch.controller && !batch.waiters.size) batch.controller.abort();
+      };
+      const waiter: Waiter = {
+        resolve: (csrf: string) => {
+          signal.removeEventListener('abort', leave);
+          resolve(csrf);
+        },
+        reject: (error: unknown) => {
+          signal.removeEventListener('abort', leave);
+          reject(error);
+        },
+      };
+      batch.waiters.add(waiter);
+      signal.addEventListener('abort', leave, { once: true });
+    });
+  }
   async function verify(signal: AbortSignal) {
     if (!valid || signal.aborted) throw new SessionClientError();
     let current: string;
     try {
-      current = await session.peekSteadily(signal, retryDelays);
+      current = await sharedProof(signal);
     } catch (error) {
       // The caller (an SDK timeout, a superseded request) gave up: that says nothing
       // about the session, so the editor stays open.
