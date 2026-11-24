@@ -322,3 +322,15 @@ it('keeps private owner reads within the shared 64 KiB bound and sends CSRF only
     expect(f).toHaveBeenCalledTimes(1);
   }
 });
+it('reads a private draft that arrives split across many stream chunks (#189 verifier M11)', async () => {
+  const bytes = new TextEncoder().encode(JSON.stringify(draft));
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      for (let i = 0; i < bytes.length; i += 7) c.enqueue(bytes.subarray(i, i + 7));
+      c.close();
+    },
+  });
+  const f = (async () =>
+    new Response(stream, { headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+  expect(await createProjectClient(token, f).read(id)).toMatchObject({ id, version: 1 });
+});
