@@ -65,10 +65,17 @@ export default function AgentsPage() {
             <summary>AIごとの登録方法と、AIにできること</summary>
             <ul>
               <li>
+                Claude（claude.ai・デスクトップアプリ）：設定 → コネクタ →
+                カスタムコネクタを追加（またはプラグイン → 追加 → カスタムコネクタを追加）→ 上の
+                URL。2026-11-24 に本番で接続と下書きの作成を確かめました
+              </li>
+            </ul>
+            <p>次の3つは登録方法だけの案内で、本番での接続はまだ確かめていません。</p>
+            <ul>
+              <li>
                 Claude Code：<code>claude mcp add --transport http ksh {origin}/api/mcp</code>{' '}
                 のあと <code>/mcp</code> でログイン
               </li>
-              <li>Claude（claude.ai）：設定 → コネクタ → カスタムコネクタを追加 → 上の URL</li>
               <li>
                 Codex CLI：<code>codex mcp add ksh --url {origin}/api/mcp</code> のあと{' '}
                 <code>codex mcp login ksh</code>

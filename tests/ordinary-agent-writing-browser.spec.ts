@@ -188,6 +188,14 @@ test('the agents guide and the writing kit are public', async ({ page }, info) =
   // #200: the guide names the real publish entry, not a 「公開の準備」 that the draft screen lacks.
   await expect(page.getByRole('main')).toContainText('「記事を公開する」を開くと入れられます');
   await expect(page.getByRole('main')).not.toContainText('「公開の準備」');
+  // #259: only the claude.ai connector is marked as checked in production; the CLIs stay unchecked.
+  const setup = page.locator('details.agents-more', { hasText: 'AIごとの登録方法' });
+  await setup.locator('summary').click();
+  await expect(setup).toContainText('2026-11-24 に本番で接続と下書きの作成を確かめました');
+  await expect(setup).toContainText('プラグイン → 追加 → カスタムコネクタを追加');
+  await expect(setup).toContainText('本番での接続はまだ確かめていません');
+  expect(await noHorizontalScroll(page)).toBe(true);
+  await setup.locator('summary').click();
   // #214: the four-point disclaimer comes before the request that lets an agent read history.
   const caution = page.getByRole('note', { name: '履歴を使う前に' });
   await expect(caution.getByRole('listitem')).toHaveCount(4);

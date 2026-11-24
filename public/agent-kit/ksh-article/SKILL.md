@@ -142,14 +142,16 @@ Kobe Student Hub はリモート MCP サーバー（`https://hub.junhat6.com/api
 - サーバーは決まった形の検査で、秘密に見える箇所の種類と行番号を注意として返します（保存は止めず、検査は完全ではありません）。注意が返ったら値を `<API_KEY>` のような置き換えにして直してください。
 - 作業履歴そのものをサーバーに送らないでください。送るのは完成した下書きだけです。
 
-本人がつなぐ方法（確かめた日はサイトの /agents に書きます）：
+本人がつなぐ方法（確かめた日はサイトの /agents にも書きます）：
 
-| エージェント | つなぎ方 |
-| --- | --- |
-| Claude Code | `claude mcp add --transport http ksh https://hub.junhat6.com/api/mcp` のあと、`/mcp` で ksh を選んでログイン |
-| Claude（claude.ai） | 設定 → コネクタ → カスタムコネクタを追加 → URL に `https://hub.junhat6.com/api/mcp` |
-| Codex CLI | `codex mcp add ksh --url https://hub.junhat6.com/api/mcp` のあと `codex mcp login ksh` |
-| Gemini CLI | `gemini mcp add --transport http ksh https://hub.junhat6.com/api/mcp` のあと、`/mcp auth ksh` |
+| エージェント | つなぎ方 | 本番での確認 |
+| --- | --- | --- |
+| Claude（claude.ai・デスクトップアプリ） | 設定 → コネクタ → カスタムコネクタを追加（またはプラグイン → 追加 → カスタムコネクタを追加）→ URL に `https://hub.junhat6.com/api/mcp` | 2026-11-24 に確かめた（接続 → `create_draft` → 下書き一覧に「AIエージェントが作成」） |
+| Claude Code | `claude mcp add --transport http ksh https://hub.junhat6.com/api/mcp` のあと、`/mcp` で ksh を選んでログイン | 未確認 |
+| Codex CLI | `codex mcp add ksh --url https://hub.junhat6.com/api/mcp` のあと `codex mcp login ksh` | 未確認 |
+| Gemini CLI | `gemini mcp add --transport http ksh https://hub.junhat6.com/api/mcp` のあと、`/mcp auth ksh` | 未確認 |
+
+「確かめた」は、AI が接続して下書きを作れたという動作の確認です。学生にとって役に立つかの検証ではありません。
 
 ## 定時実行で書く（例：毎日 8 時と 15 時）
 
