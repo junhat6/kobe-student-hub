@@ -148,7 +148,7 @@ describe('readBoundedJson — the one bounded transport', () => {
 
   it('rejects out-of-range limits before any request', async () => {
     const never = vi.fn(async () => json('{}'));
-    for (const maxBytes of [0, -1, 1.5, 262145, Number.NaN]) {
+    for (const maxBytes of [0, -1, 1.5, 2097153, Number.NaN]) {
       expect(
         await failure('/api/x', { fetcher: never as typeof fetch, credentials: 'omit', maxBytes }),
       ).toBe('unavailable');

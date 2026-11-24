@@ -35,7 +35,7 @@ export interface BoundedJsonRequest {
   csrf?: string;
   /** The only accepted status (default 200). */
   status?: number;
-  /** Upper bound on the decoded body (1..262144). */
+  /** Upper bound on the decoded body (1..2097152; a published article body is up to 256 KiB before JSON escaping). */
   maxBytes: number;
   /** Upper bound on stream chunks (default min(maxBytes, 65536)). */
   maxChunks?: number;
@@ -46,7 +46,7 @@ export interface BoundedJsonRequest {
   onResponse?: () => void;
 }
 
-const MAX_BYTES = 262144;
+const MAX_BYTES = 2097152;
 const TIMEOUT_MS = 10000;
 
 /**

@@ -1,5 +1,5 @@
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
-import { proofAuthorization } from '../shared/auth-proof';
+import { boundedReadFailure, readBoundedJson } from '../shared/http-client';
 import { validMediaIds } from '../shared/media';
 import type { Entry, Profile, PublishedArticleDetail } from '../types';
 import type { EditorDraft } from './draft-client';
@@ -198,91 +198,24 @@ export function createPublicationClient(
   fetcher: typeof fetch = fetch,
   surface: PublicSurface = 'lab',
 ) {
+  /** Private reads/writes and the anonymous article read go through the one bounded transport (#189). */
   async function request(path: string, value?: unknown, anonymous = false): Promise<unknown> {
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let expired = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const work = (async () => {
-      const response = await fetcher(path, {
-        method: value === undefined ? 'GET' : 'POST',
-        credentials: anonymous ? 'omit' : 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers:
-          value === undefined
-            ? { Accept: 'application/json' }
-            : {
-                Accept: 'application/json',
-                'Content-Type': 'application/json; charset=utf-8',
-                Authorization: proofAuthorization('csrf', csrfToken),
-              },
-        ...(value === undefined ? {} : { body: JSON.stringify(value) }),
-      });
-      if (
-        expired ||
-        response.status !== (value === undefined ? 200 : 201) ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        // Only the anonymous reader distinguishes "absent or not public"; private reads stay opaque.
-        throw new PublicationClientError(
-          anonymous && value === undefined && !expired && response.status === 404,
-        );
-      }
-      const length = response.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 2097152)
-      ) {
-        void response.body.cancel().catch(() => {});
-        throw new PublicationClientError();
-      }
-      reader = response.body.getReader();
-      const bytes = new Uint8Array(2097152);
-      let size = 0;
-      let count = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (expired) throw new PublicationClientError();
-          if (next.done) break;
-          if (++count > 65536 || size + next.value.byteLength > bytes.length)
-            throw new PublicationClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        return JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ) as unknown;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new PublicationClientError());
-      }, 10000);
-    });
     try {
-      return await Promise.race([work, deadline]);
+      return await readBoundedJson(path, {
+        fetcher,
+        credentials: anonymous ? 'omit' : 'same-origin',
+        method: value === undefined ? 'GET' : 'POST',
+        status: value === undefined ? 200 : 201,
+        // A published body is up to 256 KiB, and JSON escaping can multiply it; keep the 2 MiB cap.
+        maxBytes: 2097152,
+        // Only a publication carries a body and the CSRF proof; reads carry neither.
+        ...(value === undefined ? {} : { csrf: csrfToken, body: value }),
+      });
     } catch (error) {
+      // Only the anonymous reader distinguishes "absent or not public"; private reads stay opaque.
       throw new PublicationClientError(
-        anonymous && error instanceof PublicationClientError && error.missing,
+        anonymous && value === undefined && boundedReadFailure(error) === 'missing',
       );
-    } finally {
-      clearTimeout(timer);
-      cancel();
     }
   }
   const privatePath = (id: string) => {

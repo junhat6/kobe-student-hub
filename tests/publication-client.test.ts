@@ -214,6 +214,58 @@ describe('explicit saved-version publication client', () => {
         createPublicationClient('', (async () => make()) as typeof fetch).read(draftId),
       ).rejects.toBeInstanceOf(PublicationClientError);
   });
+  it('reads a valid response of exactly 2 MiB and rejects one byte more', async () => {
+    const padded = (size: number) => {
+      const core = '{"publication":null}';
+      return new Response(core + ' '.repeat(size - core.length), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    expect(
+      await createPublicationClient('', (async () => padded(2097152)) as typeof fetch).read(
+        draftId,
+      ),
+    ).toBeNull();
+    await expect(
+      createPublicationClient('', (async () => padded(2097153)) as typeof fetch).read(draftId),
+    ).rejects.toBeInstanceOf(PublicationClientError);
+  });
+  it('sends no CSRF, Content-Type or body on reads, and JSON with CSRF only on the publication', async () => {
+    const calls: RequestInit[] = [];
+    const client = createPublicationClient('f'.repeat(43), (async (_, init) => {
+      calls.push(init ?? {});
+      return init?.method === 'POST'
+        ? Response.json({ contentId }, { status: 201 })
+        : Response.json({ publication: null });
+    }) as typeof fetch);
+    await client.read(draftId);
+    await client.publish(draftId, 1, metadata, true);
+    const [read, post] = calls.map((init) => new Headers(init.headers));
+    expect(calls[0]).toMatchObject({ method: 'GET', credentials: 'same-origin' });
+    expect(calls[0]?.body).toBeUndefined();
+    expect(read?.has('Authorization')).toBe(false);
+    expect(read?.has('Content-Type')).toBe(false);
+    expect(post?.get('Content-Type')).toMatch(/^application\/json(?:;|$)/);
+  });
+  it('does not send a publication with a malformed CSRF token', async () => {
+    for (const token of ['', 'f'.repeat(42), 'f'.repeat(43) + '\n', 'f'.repeat(44)]) {
+      const fetcher = vi.fn();
+      await expect(
+        createPublicationClient(token, fetcher as typeof fetch).publish(draftId, 1, metadata, true),
+      ).rejects.toBeInstanceOf(PublicationClientError);
+      expect(fetcher).not.toHaveBeenCalled();
+    }
+  });
+  it('treats a 201 read or a 200 publication as a failure', async () => {
+    await expect(
+      createPublicationClient('', (async () =>
+        Response.json({ publication: null }, { status: 201 })) as typeof fetch).read(draftId),
+    ).rejects.toBeInstanceOf(PublicationClientError);
+    await expect(
+      createPublicationClient('f'.repeat(43), (async () =>
+        Response.json({ contentId })) as typeof fetch).publish(draftId, 1, metadata, true),
+    ).rejects.toBeInstanceOf(PublicationClientError);
+  });
   it('never retries an uncertain publication or accepts its late acknowledgement', async () => {
     vi.useFakeTimers();
     let release: (r: Response) => void = () => {};
