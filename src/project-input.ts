@@ -6,7 +6,8 @@ import type { ProjectFields } from './project-types';
  * Mongolian variation selectors U+180B–180F, Hangul fillers, U+FFF0–FFF8 and the unassigned E0000 block),
  * plus the braille blank U+2800, private-use characters and noncharacters (U+FDD0–FDEF, U+xFFFE/xFFFF),
  * all of which render as nothing, as blank space or as a box that hides what was typed.
- * ZWJ/ZWNJ (U+200C/U+200D) stay allowed because emoji sequences and some scripts need them; tag characters
+ * ZWJ/ZWNJ (U+200C/U+200D) stay allowed because emoji sequences and some scripts need them, but only after a
+ * visible character and one at a time (JOINER_DETACHED), and they never count towards the mark rules; tag characters
  * stay allowed only inside the three RGI subdivision flags after 🏴 (U+1F3F4). The variation selectors
  * U+FE00–FE0F (emoji ❤️) and U+E0100–E01EF (kanji variants in names) stay allowed, but like every combining
  * mark they must follow a visible base character (MARK_DETACHED) and a run is capped (MARK_RUN).
@@ -19,16 +20,23 @@ const ONE_LINE_REJECT =
 const MARK_DETACHED = /(?:^|\s)\p{M}/u;
 // Five or more marks in a row: real scripts and emoji need at most 3 (Thai, keycap 1️⃣ is 2); Zalgo text stacks dozens.
 const MARK_RUN = /\p{M}{5}/u;
+// ZWJ/ZWNJ only ever sit between two visible characters (emoji sequences, Persian, Indic conjuncts), so one at the
+// start, after a space or right after another joiner joins nothing and is just an invisible character (#261).
+const JOINER_DETACHED = /(?:^|\s|[\u200C\u200D])[\u200C\u200D]/u;
+const JOINERS = /[\u200C\u200D]/gu;
 // Only the three RGI subdivision flags (England, Scotland, Wales); a longer tag run could smuggle hidden text.
 const TAG_FLAG =
   /\u{1F3F4}\u{E0067}\u{E0062}(?:\u{E0065}\u{E006E}\u{E0067}|\u{E0073}\u{E0063}\u{E0074}|\u{E0077}\u{E006C}\u{E0073})\u{E007F}/gu;
 /** The first character new one-line input may not contain, as "U+XXXX", or null when the text is fine. */
 export function oneLineRejectedCodePoint(value: string): string | null {
   const v = value.replace(TAG_FLAG, '\u{1F3F4}');
+  // Marks are judged with the joiners taken out, so a joiner between them neither splits a run nor gives a base (#261).
+  const marks = v.replace(JOINERS, '');
   const hit =
     ONE_LINE_REJECT.exec(v)?.[0] ??
-    MARK_DETACHED.exec(v)?.[0].replace(/^\s/u, '') ??
-    MARK_RUN.exec(v)?.[0] ??
+    JOINER_DETACHED.exec(v)?.[0].slice(-1) ??
+    MARK_DETACHED.exec(marks)?.[0].replace(/^\s/u, '') ??
+    MARK_RUN.exec(marks)?.[0] ??
     Array.from(v).find((c) => ((c.codePointAt(0) as number) & 0xfffe) === 0xfffe);
   return hit === undefined
     ? null

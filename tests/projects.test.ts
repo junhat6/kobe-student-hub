@@ -231,6 +231,40 @@ it('keeps one-line fields free of separators, bidi and invisible format characte
   // The description is multi-line Markdown and is not a one-line field.
   expect(normalizeProjectFields({ ...f, description: 'x\u202ey' })).not.toBeNull();
 });
+it('does not let ZWJ/ZWNJ hide stacked or detached marks or stand alone in a one-line field (#261)', () => {
+  const stacked = 'a' + '\u0301\u200c'.repeat(60);
+  for (const [value, code] of [
+    [stacked, 'U+0301'],
+    ['a' + '\u0301\u200d'.repeat(5), 'U+0301'],
+    ['a' + '\ufe0f\u200c'.repeat(5), 'U+FE0F'],
+    ['\u200d', 'U+200D'],
+    ['\u200c\u200d\u200c', 'U+200C'],
+    [' \u200d', 'U+200D'],
+    ['Title \u200c', 'U+200C'],
+    ['a\u200d\u200dB', 'U+200D'],
+    ['a\u200c\u200cB', 'U+200C'],
+  ] as const) {
+    expect(oneLineRejectedCodePoint(value), JSON.stringify(value)).toBe(code);
+    expect(normalizeProjectFields({ ...f, title: value }), JSON.stringify(value)).toBeNull();
+    expect(normalizeProjectFields({ ...f, technologies: value }), JSON.stringify(value)).toBeNull();
+    // Rows saved before the rule still read back unchanged.
+    expect(normalizeProjectFields({ ...f, title: value }, 'stored')?.title).toBe(value);
+  }
+  // A joiner never gives a mark its base: the mark after a space stays detached.
+  expect(oneLineRejectedCodePoint('a\u200d \u0301')).toBe('U+0301');
+  // Legitimate joiners between visible characters stay allowed: emoji ZWJ sequences, Persian and Indic ZWNJ/ZWJ.
+  for (const title of [
+    '家族👨\u200d👩\u200d👧\u200d👦',
+    '❤\ufe0f\u200d🔥',
+    '🏳\ufe0f\u200d🌈',
+    '👩🏽\u200d💻',
+    'می\u200cخواهم',
+    'क्\u200dष',
+    'ශ්\u200dරී',
+    'ण्\u200c',
+  ])
+    expect(oneLineRejectedCodePoint(title), title).toBeNull();
+});
 it('saves standalone drafts, enforces owner/CAS and lists metadata only', async () => {
   const d = await create();
   expect(d).toMatchObject({ ...f, githubUrl: 'https://github.com/', version: 1 });
@@ -756,6 +790,60 @@ it('refuses UPDATE of the published snapshot columns, also through UPDATE OR REP
       .first(),
   ).toEqual({ draft_id: null, title: 'Snapshot B' });
 });
+it('refuses rewriting the rowid of a published snapshot, which would REPLACE another row away (#261)', async () => {
+  const a = await create({ ...f, title: 'Rowid A' });
+  const b = await create({ ...f, title: 'Rowid B' });
+  const idA = ((await (await publish(a)).json()) as { projectId: string }).projectId;
+  const idB = ((await (await publish(b)).json()) as { projectId: string }).projectId;
+  const db = await mf.getD1Database('DB');
+  const rows = () =>
+    db
+      .prepare(
+        'SELECT rowid r,id,title,status FROM project_publications WHERE id IN (?,?) ORDER BY id',
+      )
+      .bind(idA, idB)
+      .all();
+  const before = (await rows()).results;
+  for (const alias of ['rowid', 'oid', '_rowid_'])
+    for (const verb of ['UPDATE OR REPLACE', 'UPDATE', 'UPDATE OR IGNORE'])
+      await expect(
+        db
+          .prepare(
+            `${verb} project_publications SET ${alias}=(SELECT rowid FROM project_publications WHERE id=?) WHERE id=?`,
+          )
+          .bind(idA, idB)
+          .run(),
+        `${verb} ${alias}`,
+      ).rejects.toThrow(/immutable project snapshot/);
+  // Moving to a free rowid is refused too: a snapshot's identity never changes.
+  await expect(
+    db.prepare('UPDATE project_publications SET rowid=rowid+100000 WHERE id=?').bind(idB).run(),
+  ).rejects.toThrow(/immutable project snapshot/);
+  expect((await rows()).results).toEqual(before);
+  expect((await publicRead(idA))?.project.title).toBe('Rowid A');
+  expect((await publicRead(idB))?.project.title).toBe('Rowid B');
+  // Writing the same rowid is not a change, and the status transitions still pass.
+  await db.prepare('UPDATE project_publications SET rowid=rowid WHERE id=?').bind(idA).run();
+  await db.prepare("UPDATE project_publications SET status='hidden' WHERE id=?").bind(idA).run();
+  await db.prepare("UPDATE project_publications SET status='published' WHERE id=?").bind(idA).run();
+  // The other protected tables already refuse every UPDATE, including one of the rowid alone.
+  for (const table of [
+    'article_publication_revisions',
+    'article_report_revisions',
+    'article_publication_media',
+    'project_publication_media',
+  ]) {
+    const sql = (
+      await db
+        .prepare(
+          "SELECT sql FROM sqlite_master WHERE type='trigger' AND tbl_name=? AND sql LIKE '%BEFORE UPDATE ON%'",
+        )
+        .bind(table)
+        .first<{ sql: string }>()
+    )?.sql;
+    expect(sql, table).toMatch(/BEFORE UPDATE ON \w+ BEGIN SELECT RAISE\(ABORT/);
+  }
+});
 it('saves no new invisible characters but still loads and publishes an older draft that has them (#177)', async () => {
   expect(
     (await req('/api/private/project-drafts', 'POST', { ...f, technologies: 'A\u202eB' })).status,
@@ -804,4 +892,37 @@ it('saves no new invisible characters but still loads and publishes an older dra
     expectedVersion: read.version,
   });
   expect(fixed.status).toBe(200);
+});
+it('keeps a published snapshot when its owner account is deleted: only owner_account_id becomes NULL (#261)', async () => {
+  const d = await create({ ...f, title: 'Owner leaves' }, 1);
+  const r = await publish(d, 1);
+  expect(r.status).toBe(201);
+  const { projectId } = (await r.json()) as { projectId: string };
+  const db = await mf.getD1Database('DB');
+  const read = () =>
+    db
+      .prepare(
+        'SELECT rowid r,id,owner_account_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status FROM project_publications WHERE id=?',
+      )
+      .bind(projectId)
+      .first<Record<string, unknown>>();
+  const before = await read();
+  expect(before?.owner_account_id).toBe('account-1');
+  // The owner cannot be cleared while the account still exists…
+  await expect(
+    db
+      .prepare('UPDATE project_publications SET owner_account_id=NULL WHERE id=?')
+      .bind(projectId)
+      .run(),
+  ).rejects.toThrow(/immutable project snapshot/);
+  // …but ON DELETE SET NULL applies once the account row itself is gone, and nothing else in the row moves.
+  await db.prepare('DELETE FROM private_accounts WHERE id=?').bind('account-1').run();
+  expect(await read()).toEqual({ ...before, owner_account_id: null });
+  // A NULL owner can never be set back to an account.
+  await expect(
+    db
+      .prepare("UPDATE project_publications SET owner_account_id='account-0' WHERE id=?")
+      .bind(projectId)
+      .run(),
+  ).rejects.toThrow(/immutable project snapshot/);
 });

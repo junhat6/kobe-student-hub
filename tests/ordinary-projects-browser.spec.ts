@@ -44,6 +44,10 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   await page.getByLabel('作品タイトル', { exact: true }).fill('見えない͏文字');
   await expect(page.getByRole('alert').filter({ hasText: '使えない文字 U+034F' })).toBeVisible();
   await expect(page.getByRole('button', { name: '作品を保存', exact: true })).toBeDisabled();
+  // #261: a joiner that joins nothing (ZWJ at the start) is refused the same way.
+  await page.getByLabel('作品タイトル', { exact: true }).fill('\u200d作品');
+  await expect(page.getByRole('alert').filter({ hasText: '使えない文字 U+200D' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '作品を保存', exact: true })).toBeDisabled();
   await page.getByLabel('作品タイトル', { exact: true }).fill(title);
   await page.getByLabel('作品の説明', { exact: true }).fill(description);
   await page
