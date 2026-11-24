@@ -417,4 +417,100 @@ describe('existing session browser client and author response-consumption guard'
     expect(signals[3].aborted).toBe(true);
     expect(unverified).not.toHaveBeenCalled();
   });
+  it('sends no proof for a batch everyone left before it was sent, and leaves no timer behind', async () => {
+    vi.useFakeTimers();
+    const signals: AbortSignal[] = [];
+    const fetcher = vi.fn(async (_path: string, init?: RequestInit) => {
+      signals.push(init!.signal!);
+      return await new Promise<Response>(() => {});
+    });
+    const options = {
+      csrfToken: A,
+      origin,
+      onMismatch: vi.fn(),
+      onUnverified: vi.fn(),
+      fetcher: fetcher as unknown as typeof fetch,
+    };
+    const before = createAuthorSessionGuard(options);
+    const early = [1, 2, 3].map((i) =>
+      expect(before.fetcher('/api/private/' + i)).rejects.toBeInstanceOf(SessionClientError),
+    );
+    before.invalidate();
+    await Promise.all(early);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+    const after = createAuthorSessionGuard(options);
+    const late = [1, 2, 3].map((i) =>
+      expect(after.fetcher('/api/private/' + i)).rejects.toBeInstanceOf(SessionClientError),
+    );
+    await vi.advanceTimersByTimeAsync(1);
+    expect(signals).toHaveLength(1);
+    after.invalidate();
+    await Promise.all(late);
+    expect(signals[0].aborted).toBe(true);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(options.onMismatch).not.toHaveBeenCalled();
+    expect(options.onUnverified).not.toHaveBeenCalled();
+  });
+  it('removes every abort listener once shared proofs are answered', async () => {
+    const listening = new Map<AbortSignal, Set<unknown>>();
+    const add = AbortSignal.prototype.addEventListener;
+    const remove = AbortSignal.prototype.removeEventListener;
+    AbortSignal.prototype.addEventListener = function (this: AbortSignal, ...args: unknown[]) {
+      if (args[0] === 'abort') listening.set(this, (listening.get(this) ?? new Set()).add(args[1]));
+      return (add as (...a: unknown[]) => void).apply(this, args);
+    } as typeof add;
+    AbortSignal.prototype.removeEventListener = function (this: AbortSignal, ...args: unknown[]) {
+      if (args[0] === 'abort') listening.get(this)?.delete(args[1]);
+      return (remove as (...a: unknown[]) => void).apply(this, args);
+    } as typeof remove;
+    try {
+      const guard = createAuthorSessionGuard({
+        csrfToken: A,
+        origin,
+        onMismatch: vi.fn(),
+        onUnverified: vi.fn(),
+        fetcher: (async (path: string) =>
+          path === '/api/private/session'
+            ? Response.json({ csrfToken: A })
+            : Response.json({ ok: 1 })) as unknown as typeof fetch,
+      });
+      const responses = await Promise.all(
+        [1, 2, 3, 4].map((i) => guard.fetcher('/api/private/' + i)),
+      );
+      for (const response of responses) await response.json();
+      expect([...listening.values()].reduce((n, set) => n + set.size, 0)).toBe(0);
+    } finally {
+      AbortSignal.prototype.addEventListener = add;
+      AbortSignal.prototype.removeEventListener = remove;
+    }
+  });
+  it('ends the body read when the caller gives up while its EOF proof waits in a batch', async () => {
+    let proofs = 0;
+    let hold: (() => void) | undefined;
+    const unknown = vi.fn();
+    const fetcher = vi.fn(async (path: string) => {
+      if (path !== '/api/private/session') return Response.json({ ok: true });
+      // The EOF proof (third) never answers until released.
+      if (++proofs === 3) await new Promise<void>((resolve) => (hold = resolve));
+      return Response.json({ csrfToken: A });
+    });
+    const guard = createAuthorSessionGuard({
+      csrfToken: A,
+      origin,
+      onMismatch: vi.fn(),
+      onUnverified: unknown,
+      fetcher: fetcher as unknown as typeof fetch,
+    });
+    const controller = new AbortController();
+    const response = await guard.fetcher('/api/private/drafts', { signal: controller.signal });
+    const body = response.text();
+    await vi.waitFor(() => expect(hold).toBeDefined());
+    controller.abort();
+    await expect(body).rejects.toBeInstanceOf(SessionClientError);
+    expect(unknown).not.toHaveBeenCalled();
+    hold!();
+  });
 });
