@@ -2,6 +2,7 @@ import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import type { OwnPublications } from '../src/own-publication-types';
+import { withProjectSnapshotUnlocked } from './helpers/project-snapshot';
 const O = 'https://app.example.invalid',
   NOW = 1800000000000,
   PATH = '/api/private/own-publications';
@@ -187,12 +188,14 @@ it('combines newest20 with deterministic cross-kind ties and validates explicit 
     const kind = n % 2 ? 'project' : 'article',
       id = await publish(kind, 'Bounded ' + n, 2),
       time = NOW - Math.floor(n / 2);
-    await db
-      .prepare(
-        `UPDATE ${kind === 'article' ? 'article_publications' : 'project_publications'} SET published_at_ms=? WHERE ${kind === 'article' ? 'content_id' : 'id'}=?`,
-      )
-      .bind(time, id)
-      .run();
+    await withProjectSnapshotUnlocked(db, () =>
+      db
+        .prepare(
+          `UPDATE ${kind === 'article' ? 'article_publications' : 'project_publications'} SET published_at_ms=? WHERE ${kind === 'article' ? 'content_id' : 'id'}=?`,
+        )
+        .bind(time, id)
+        .run(),
+    );
     ids.push({ id, kind, time });
   }
   const expected = ids.sort(
@@ -203,29 +206,37 @@ it('combines newest20 with deterministic cross-kind ties and validates explicit 
   expect(r.publications.map((p) => p.publicId)).toEqual(expected.slice(0, 20).map((p) => p.id));
   expect(new TextEncoder().encode(JSON.stringify(r)).length).toBeLessThan(65536);
   const last = expected[20];
-  await db
-    .prepare(
-      `UPDATE ${last.kind === 'article' ? 'content' : 'project_publications'} SET title=? WHERE id=?`,
-    )
-    .bind('bad\0title', last.id)
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare(
+        `UPDATE ${last.kind === 'article' ? 'content' : 'project_publications'} SET title=? WHERE id=?`,
+      )
+      .bind('bad\0title', last.id)
+      .run(),
+  );
   expect((await req(2)).status).toBe(503);
-  await db
-    .prepare(
-      `UPDATE ${last.kind === 'article' ? 'content' : 'project_publications'} SET title=? WHERE id=?`,
-    )
-    .bind('Restored', last.id)
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare(
+        `UPDATE ${last.kind === 'article' ? 'content' : 'project_publications'} SET title=? WHERE id=?`,
+      )
+      .bind('Restored', last.id)
+      .run(),
+  );
   const project = expected.find((r) => r.kind === 'project')!;
-  await db
-    .prepare('UPDATE project_publications SET id=? WHERE id=?')
-    .bind(project.id.toUpperCase(), project.id)
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET id=? WHERE id=?')
+      .bind(project.id.toUpperCase(), project.id)
+      .run(),
+  );
   expect((await req(2)).status).toBe(503);
-  await db
-    .prepare('UPDATE project_publications SET id=? WHERE id=?')
-    .bind(project.id, project.id.toUpperCase())
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET id=? WHERE id=?')
+      .bind(project.id, project.id.toUpperCase())
+      .run(),
+  );
 });
 it('fails closed on malformed linkage, titles and storage, without hiding own records because profile changes', async () => {
   const db = await mf.getD1Database('DB'),

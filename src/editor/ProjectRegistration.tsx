@@ -8,7 +8,7 @@ import type {
   ProjectDraftSummary,
   ProjectReceipt,
 } from '../project-types';
-import { normalizeProjectFields } from '../project-input';
+import { normalizeProjectFields, oneLineRejectedCodePoint } from '../project-input';
 import { createProjectClient, sameProjectFields } from './project-client';
 import { createProfileClient, type PublicProfile } from './profile-client';
 import { createOwnPublicationsClient } from './own-publications-client';
@@ -154,6 +154,8 @@ export default function ProjectRegistration({
   const ownPublications = useMemo(() => createOwnPublicationsClient(fetcher), [fetcher]);
   const attempt = useRef<{ draft: ProjectDraft; profile: PublicProfile } | null>(null);
   const normalized = normalizeProjectFields(input);
+  const hiddenChar =
+    oneLineRejectedCodePoint(input.title) ?? oneLineRejectedCodePoint(input.technologies);
   const dirty = saved
     ? !normalized || !sameProjectFields(saved, normalized)
     : Object.values(input).some(Boolean);
@@ -794,7 +796,9 @@ export default function ProjectRegistration({
         </p>
         {!normalized && dirty && (
           <p role="alert">
-            タイトルの文字数、説明の容量、使った技術の文字数、URLの形式を確認してください。タイトルと使った技術には、改行や見えない制御文字（文字の向きを変えるものなど）は使えません。入力は切り捨てず保持しています。
+            タイトルの文字数、説明の容量、使った技術の文字数、URLの形式を確認してください。タイトルと使った技術には、改行や見えない文字（文字の向きを変えるもの、空白に見えるもの、前の文字に付いていない記号など）は使えません。
+            {hiddenChar && `使えない文字 ${hiddenChar} が入っています。`}
+            入力は切り捨てず保持しています。
           </p>
         )}
         <Button

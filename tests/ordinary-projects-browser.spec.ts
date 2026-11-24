@@ -40,6 +40,10 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '作品を登録', exact: true }).click();
   await expect(page).toHaveURL(ORIGIN + '/works/new');
+  // #257: a character that renders as nothing (CGJ U+034F) stops the save and the notice names it.
+  await page.getByLabel('作品タイトル', { exact: true }).fill('見えない͏文字');
+  await expect(page.getByRole('alert').filter({ hasText: '使えない文字 U+034F' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '作品を保存', exact: true })).toBeDisabled();
   await page.getByLabel('作品タイトル', { exact: true }).fill(title);
   await page.getByLabel('作品の説明', { exact: true }).fill(description);
   await page

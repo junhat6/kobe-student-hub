@@ -2,12 +2,13 @@ import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
-import { normalizeProjectFields } from '../src/project-input';
+import { normalizeProjectFields, oneLineRejectedCodePoint } from '../src/project-input';
 import type {
   ProjectDraft,
   PublicProjectReader,
   PublicProjectDiscovery,
 } from '../src/project-types';
+import { withProjectSnapshotUnlocked } from './helpers/project-snapshot';
 const O = 'https://app.example.invalid',
   NOW = 1800000000000;
 let mf: Miniflare;
@@ -161,7 +162,35 @@ it('keeps one-line fields free of separators, bidi and invisible format characte
     '\u{1f3f4}' +
       [...'ignoreallrules'].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('') +
       '\u{e007f}',
+    // #257: Default_Ignorable code points, braille blank, private use, noncharacters, detached and stacked marks.
+    '\u034f',
+    '\u180b',
+    '\u180f',
+    '\u17b4',
+    '\ufff0',
+    '\u{1bca0}',
+    '\u2800',
+    '\ue000',
+    '\u{f0000}',
+    '\u{10fffd}',
+    '\ufdd0',
+    '\ufffe',
+    '\uffff',
+    '\u{1fffe}',
+    '\u{10ffff}',
+    ' \ufe0f',
+    ' \u{e0100}',
+    ' \u0301',
+    'a\u0301\u0301\u0301\u0301\u0301',
+    'a\ufe0f\ufe0f\ufe0f\ufe0f\ufe0f',
   ];
+  for (const c of [...bad, '\u{e0100}', '\u0301']) {
+    // A lone mark at the very start attaches to nothing.
+    expect(normalizeProjectFields({ ...f, title: c + 'Title' }), JSON.stringify(c)).toBeNull();
+    expect(oneLineRejectedCodePoint(c + 'Title')).toMatch(/^U\+[0-9A-F]{4,6}$/);
+  }
+  expect(oneLineRejectedCodePoint('a\u034fb')).toBe('U+034F');
+  expect(oneLineRejectedCodePoint(' \u{e0100}')).toBe('U+E0100');
   for (const c of bad) {
     expect(normalizeProjectFields({ ...f, technologies: 'React' + c + 'Hono' })).toBeNull();
     expect(normalizeProjectFields({ ...f, title: 'Title' + c })).toBeNull();
@@ -188,6 +217,17 @@ it('keeps one-line fields free of separators, bidi and invisible format characte
       title: 'Wales \u{1f3f4}\u{e0067}\u{e0062}\u{e0077}\u{e006c}\u{e0073}\u{e007f} ❤\ufe0f',
     }),
   ).not.toBeNull();
+  // Kanji variation sequences (IVS), keycaps, Japanese combining voiced marks and Thai stacked marks stay allowed.
+  for (const title of [
+    '葛\u{e0100}城',
+    '1\ufe0f\u20e3',
+    'か\u3099',
+    'ที่\u0e48',
+    'café\u0301',
+    '🏳\ufe0f\u200d🌈',
+  ])
+    expect(normalizeProjectFields({ ...f, title }), title).not.toBeNull();
+  expect(oneLineRejectedCodePoint('葛\u{e0100}城 ❤\ufe0f')).toBeNull();
   // The description is multi-line Markdown and is not a one-line field.
   expect(normalizeProjectFields({ ...f, description: 'x\u202ey' })).not.toBeNull();
 });
@@ -449,10 +489,12 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
       );
     const id = ((await (await publish(d, owner)).json()) as { projectId: string }).projectId,
       time = NOW + Math.floor(n / 2);
-    await db
-      .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
-      .bind(time, id)
-      .run();
+    await withProjectSnapshotUnlocked(db, () =>
+      db
+        .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
+        .bind(time, id)
+        .run(),
+    );
     expected.push({ id, time, owner, draft: d });
   }
   const ordered = [...expected].sort((a, b) => b.time - a.time || a.id.localeCompare(b.id));
@@ -501,10 +543,12 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
     first.owner,
   );
   expect((await read())!.cards[0].project.title).not.toBe('UNSAVED PUBLIC DRIFT');
-  await db
-    .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
-    .bind(NOW, first.id)
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
+      .bind(NOW, first.id)
+      .run(),
+  );
   expect(
     (
       (await (
@@ -532,15 +576,19 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
   await db.prepare('UPDATE public_profiles SET is_sample=1 WHERE id=?').bind(selectedProfile).run();
   expect(await read()).toBeNull();
   await db.prepare('UPDATE public_profiles SET is_sample=0 WHERE id=?').bind(selectedProfile).run();
-  await db
-    .prepare('UPDATE project_publications SET description=? WHERE id=?')
-    .bind('bad\0text', selected)
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET description=? WHERE id=?')
+      .bind('bad\0text', selected)
+      .run(),
+  );
   expect(await read()).toBeNull();
-  await db
-    .prepare('UPDATE project_publications SET description=? WHERE id=?')
-    .bind('Restored description', selected)
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET description=? WHERE id=?')
+      .bind('Restored description', selected)
+      .run(),
+  );
   expect(await read({ 'X-Test-Discovery-Race': '1' })).toBeNull();
   expect(await read({ 'X-Test-Discovery-Fault': '1' })).toBeNull();
 });
@@ -552,10 +600,12 @@ it('bounds author list newest20, rejects corrupt snapshots and fails storage err
     const d = await create({ ...f, title: 'Project ' + n }, 1);
     const id = ((await (await publish(d, 1)).json()) as { projectId: string }).projectId;
     ids.push(id);
-    await db
-      .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
-      .bind(NOW + n, id)
-      .run();
+    await withProjectSnapshotUnlocked(db, () =>
+      db
+        .prepare('UPDATE project_publications SET published_at_ms=? WHERE id=?')
+        .bind(NOW + n, id)
+        .run(),
+    );
   }
   const profile = await db
     .prepare(
@@ -567,15 +617,19 @@ it('bounds author list newest20, rejects corrupt snapshots and fails storage err
     projects: { id: string; descriptionPreview: string }[];
   };
   expect(result.projects.map((p) => p.id)).toEqual(ids.slice(-20).reverse());
-  await db
-    .prepare('UPDATE project_publications SET description=? WHERE id=?')
-    .bind('bad\0text', ids[21])
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET description=? WHERE id=?')
+      .bind('bad\0text', ids[21])
+      .run(),
+  );
   expect(await (await req(url)).json()).toBeNull();
-  await db
-    .prepare('UPDATE project_publications SET description=? WHERE id=?')
-    .bind('Restored valid description', ids[21])
-    .run();
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET description=? WHERE id=?')
+      .bind('Restored valid description', ids[21])
+      .run(),
+  );
   expect(await (await req(url)).json()).not.toBeNull();
   expect(
     await (await req(url, 'GET', undefined, 0, { 'X-Test-Discovery-Fault': '1' })).json(),
@@ -655,12 +709,72 @@ it('refuses DELETE and INSERT OR REPLACE on published project snapshots (#177)',
   expect(again.status).toBe(201);
   expect(((await again.json()) as { projectId: string }).projectId).toBe(projectId);
 });
+it('refuses UPDATE of the published snapshot columns, also through UPDATE OR REPLACE (#257)', async () => {
+  const a = await create({ ...f, title: 'Snapshot A', technologies: 'A' });
+  const b = await create({ ...f, title: 'Snapshot B', technologies: 'B' });
+  const idA = ((await (await publish(a)).json()) as { projectId: string }).projectId;
+  const idB = ((await (await publish(b)).json()) as { projectId: string }).projectId;
+  const db = await mf.getD1Database('DB');
+  const snapshot = () =>
+    db
+      .prepare(
+        'SELECT id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,published_at_ms,status FROM project_publications WHERE id IN (?,?) ORDER BY id',
+      )
+      .bind(idA, idB)
+      .all();
+  const before = (await snapshot()).results;
+  for (const [sql, value] of [
+    ['UPDATE OR REPLACE project_publications SET draft_id=? WHERE id=?', a.id],
+    ['UPDATE OR REPLACE project_publications SET id=? WHERE id=?', idA],
+    ['UPDATE project_publications SET draft_id=? WHERE id=?', null],
+    ['UPDATE project_publications SET owner_account_id=? WHERE id=?', null],
+    ['UPDATE project_publications SET title=? WHERE id=?', 'Hijacked'],
+    ['UPDATE project_publications SET description=? WHERE id=?', 'Hijacked'],
+    ['UPDATE project_publications SET github_url=? WHERE id=?', 'https://example.invalid/x'],
+    ['UPDATE project_publications SET demo_url=? WHERE id=?', 'https://example.invalid/x'],
+    ['UPDATE project_publications SET source_version=? WHERE id=?', 99],
+    ['UPDATE project_publications SET published_at_ms=? WHERE id=?', 1],
+    ['UPDATE project_publications SET public_profile_id=public_profile_id||? WHERE id=?', 'x'],
+  ] as const)
+    await expect(db.prepare(sql).bind(value, idB).run(), sql).rejects.toThrow(
+      /immutable project snapshot/,
+    );
+  // Writing the same value is not a change and stays allowed.
+  await db.prepare('UPDATE project_publications SET title=title WHERE id=?').bind(idA).run();
+  expect((await snapshot()).results).toEqual(before);
+  expect((await publicRead(idA))?.project.title).toBe('Snapshot A');
+  expect((await publicRead(idB))?.project.title).toBe('Snapshot B');
+  // Status transitions (stop, moderation, report threshold) are untouched.
+  await db.prepare("UPDATE project_publications SET status='hidden' WHERE id=?").bind(idA).run();
+  await db.prepare("UPDATE project_publications SET status='published' WHERE id=?").bind(idA).run();
+  // ON DELETE SET NULL still applies once the draft row itself is gone.
+  await db.prepare('DELETE FROM project_drafts WHERE id=?').bind(b.id).run();
+  expect(
+    await db
+      .prepare('SELECT draft_id,title FROM project_publications WHERE id=?')
+      .bind(idB)
+      .first(),
+  ).toEqual({ draft_id: null, title: 'Snapshot B' });
+});
 it('saves no new invisible characters but still loads and publishes an older draft that has them (#177)', async () => {
   expect(
     (await req('/api/private/project-drafts', 'POST', { ...f, technologies: 'A\u202eB' })).status,
   ).not.toBe(201);
-  // #255: soft hyphen and tag characters are refused by the API too.
-  for (const c of ['\u00ad', '\u{e0041}', '\u{e0001}'])
+  // #255: soft hyphen and tag characters are refused by the API too; #257: so are the other characters that
+  // render as nothing or blank (CGJ, Mongolian variation selectors, braille blank, private use, noncharacters).
+  for (const c of [
+    '\u00ad',
+    '\u{e0041}',
+    '\u{e0001}',
+    '\u034f',
+    '\u180b',
+    '\u2800',
+    '\ue000',
+    '\u{f0000}',
+    '\ufdd0',
+    '\ufffe',
+    '\u{1fffe}',
+  ])
     for (const field of ['title', 'technologies'])
       expect(
         (await req('/api/private/project-drafts', 'POST', { ...f, [field]: 'A' + c + 'B' })).status,

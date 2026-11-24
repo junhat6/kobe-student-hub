@@ -2,6 +2,7 @@ import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import type { OrdinaryDiscovery, RelatedDiscovery } from '../src/community/discovery-types';
+import { withProjectSnapshotUnlocked } from './helpers/project-snapshot';
 const ORIGIN = 'https://app.example.invalid',
   NOW = 1800000000000;
 let mf: Miniflare;
@@ -350,10 +351,12 @@ describe('ordinary anonymous new/popular/tag discovery', () => {
       expect(result.mutationApplied).toBe(true);
       expect(result.value).toBeNull();
     } finally {
-      await db
-        .prepare('UPDATE project_publications SET description=? WHERE id=?')
-        .bind(description, raceWork)
-        .run();
+      await withProjectSnapshotUnlocked(db, () =>
+        db
+          .prepare('UPDATE project_publications SET description=? WHERE id=?')
+          .bind(description, raceWork)
+          .run(),
+      );
     }
   });
   it('rejects uncanonical HTTP variants and methods without setting identity cookies', async () => {

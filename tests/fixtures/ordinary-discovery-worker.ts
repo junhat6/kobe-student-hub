@@ -6,6 +6,7 @@ import { ArticleLikeStore } from '../../worker/likes';
 import { PublicProfileStore } from '../../worker/public-profile';
 import { PrivateDraftStore } from '../../worker/drafts';
 import { ArticlePublicationStore } from '../../worker/publication';
+import { withProjectSnapshotUnlocked } from '../helpers/project-snapshot';
 // Test-only fictional sessions and query failure/race controls; never production routes.
 export default {
   async fetch(request: Request, env: { DB: D1Database }) {
@@ -70,11 +71,13 @@ export default {
           .bind(change.target)
           .run();
       else if (change.kind === 'project-description')
-        await env.DB.prepare(
-          "UPDATE project_publications SET description='変更後の別テーマ' WHERE id=?",
-        )
-          .bind(change.target)
-          .run();
+        await withProjectSnapshotUnlocked(env.DB, () =>
+          env.DB.prepare(
+            "UPDATE project_publications SET description='変更後の別テーマ' WHERE id=?",
+          )
+            .bind(change.target)
+            .run(),
+        );
       else if (change.kind === 'profile-name')
         await env.DB.prepare("UPDATE public_profiles SET display_name='変更後の公開名' WHERE id=?")
           .bind(change.target)

@@ -30,6 +30,7 @@ for (const file of [
   'migrations/0032_media_limits_raise.sql',
   'migrations/0036_project_snapshot_no_delete.sql',
   'migrations/0037_project_snapshot_ignore_draft_replace.sql',
+  'migrations/0038_project_snapshot_columns_immutable.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
@@ -76,12 +77,14 @@ for (const file of [
                                   : file.includes('0008')
                                     ? 'article_likes'
                                     : 'account_public_profiles';
-  // 0032 only swaps CHECKs and a trigger, so it is detected by the raised trigger value; 0036/0037 only add triggers.
+  // 0032 only swaps CHECKs and a trigger, so it is detected by the raised trigger value; 0036–0038 only add triggers.
   const trigger = file.includes('0036')
     ? 'project_publications_no_delete'
     : file.includes('0037')
       ? 'project_publications_keep_draft_snapshot'
-      : null;
+      : file.includes('0038')
+        ? 'project_publications_snapshot_immutable'
+        : null;
   const marker = file.includes('0032')
     ? `SELECT name FROM sqlite_master WHERE type='trigger' AND name='media_assets_insert' AND instr(sql,'>=16384')>0`
     : trigger

@@ -250,6 +250,7 @@ for (const f of [
   '0035_media_object_audits.sql',
   '0036_project_snapshot_no_delete.sql',
   '0037_project_snapshot_ignore_draft_replace.sql',
+  '0038_project_snapshot_columns_immutable.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

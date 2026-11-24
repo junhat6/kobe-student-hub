@@ -1,17 +1,41 @@
 import type { ProjectFields } from './project-types';
 /**
  * Characters a one-line field (title, technologies) must not gain from new input: control characters,
- * line/paragraph separators and every invisible format character (\p{Cf}: bidi marks, zero-width spaces,
- * soft hyphen U+00AD, tag characters U+E0001・U+E0020–E007F and the rest), plus the Hangul fillers that
- * render as blank space. ZWJ/ZWNJ (U+200C/U+200D) stay allowed because emoji sequences and some scripts
- * need them, and tag characters stay allowed only inside the three RGI subdivision flags after 🏴 (U+1F3F4).
+ * line/paragraph separators, every invisible format character (\p{Cf}: bidi marks, zero-width spaces,
+ * soft hyphen U+00AD, tag characters and the rest) and every Default_Ignorable_Code_Point (CGJ U+034F,
+ * Mongolian variation selectors U+180B–180F, Hangul fillers, U+FFF0–FFF8 and the unassigned E0000 block),
+ * plus the braille blank U+2800, private-use characters and noncharacters (U+FDD0–FDEF, U+xFFFE/xFFFF),
+ * all of which render as nothing, as blank space or as a box that hides what was typed.
+ * ZWJ/ZWNJ (U+200C/U+200D) stay allowed because emoji sequences and some scripts need them; tag characters
+ * stay allowed only inside the three RGI subdivision flags after 🏴 (U+1F3F4). The variation selectors
+ * U+FE00–FE0F (emoji ❤️) and U+E0100–E01EF (kanji variants in names) stay allowed, but like every combining
+ * mark they must follow a visible base character (MARK_DETACHED) and a run is capped (MARK_RUN).
+ * Unassigned code points are not refused: \p{Cn} depends on each browser's Unicode version, so a newer
+ * emoji would be refused on an older phone while the server accepts it.
  */
-const ONE_LINE_REJECT = /(?![\u200C\u200D])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u115F\u1160\u3164\uFFA0]/u;
+const ONE_LINE_REJECT =
+  /(?![\u200C\u200D\uFE00-\uFE0F\u{E0100}-\u{E01EF}])[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\p{Default_Ignorable_Code_Point}\u2800\uFDD0-\uFDEF]/u;
+// A combining mark (including a variation selector) at the start or after a space attaches to nothing.
+const MARK_DETACHED = /(?:^|\s)\p{M}/u;
+// Five or more marks in a row: real scripts and emoji need at most 3 (Thai, keycap 1️⃣ is 2); Zalgo text stacks dozens.
+const MARK_RUN = /\p{M}{5}/u;
 // Only the three RGI subdivision flags (England, Scotland, Wales); a longer tag run could smuggle hidden text.
 const TAG_FLAG =
   /\u{1F3F4}\u{E0067}\u{E0062}(?:\u{E0065}\u{E006E}\u{E0067}|\u{E0073}\u{E0063}\u{E0074}|\u{E0077}\u{E006C}\u{E0073})\u{E007F}/gu;
+/** The first character new one-line input may not contain, as "U+XXXX", or null when the text is fine. */
+export function oneLineRejectedCodePoint(value: string): string | null {
+  const v = value.replace(TAG_FLAG, '\u{1F3F4}');
+  const hit =
+    ONE_LINE_REJECT.exec(v)?.[0] ??
+    MARK_DETACHED.exec(v)?.[0].replace(/^\s/u, '') ??
+    MARK_RUN.exec(v)?.[0] ??
+    Array.from(v).find((c) => ((c.codePointAt(0) as number) & 0xfffe) === 0xfffe);
+  return hit === undefined
+    ? null
+    : `U+${(hit.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, '0')}`;
+}
 function hasOneLineRejected(value: string): boolean {
-  return ONE_LINE_REJECT.test(value.replace(TAG_FLAG, '\u{1F3F4}'));
+  return oneLineRejectedCodePoint(value) !== null;
 }
 /**
  * `input` (default) is for text a person is about to save. `stored` reads rows saved before the one-line

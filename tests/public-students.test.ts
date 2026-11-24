@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { ArticlePublicationStore } from '../worker/publication';
 import { ProjectStore } from '../worker/projects';
 import type { PublicStudent, PublicStudentActivity } from '../src/public-student-types';
+import { withProjectSnapshotUnlocked } from './helpers/project-snapshot';
 
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1800000000000;
@@ -297,17 +298,21 @@ describe('ordinary shared public student with actual Workers/D1', () => {
         .bind('# Public saved body', articles[2])
         .run();
     }
-    await db
-      .prepare('UPDATE project_publications SET github_url=? WHERE id=?')
-      .bind('javascript:bad', projects[2])
-      .run();
+    await withProjectSnapshotUnlocked(db, () =>
+      db
+        .prepare('UPDATE project_publications SET github_url=? WHERE id=?')
+        .bind('javascript:bad', projects[2])
+        .run(),
+    );
     try {
       expect((await request('/api/students/' + authors[2])).status).toBe(503);
     } finally {
-      await db
-        .prepare('UPDATE project_publications SET github_url=? WHERE id=?')
-        .bind('https://github.com/example/project', projects[2])
-        .run();
+      await withProjectSnapshotUnlocked(db, () =>
+        db
+          .prepare('UPDATE project_publications SET github_url=? WHERE id=?')
+          .bind('https://github.com/example/project', projects[2])
+          .run(),
+      );
     }
     expect((await student(2)).entries).toHaveLength(1);
   });
