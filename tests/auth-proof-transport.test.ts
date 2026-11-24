@@ -262,11 +262,11 @@ it('HTTP glue rejects legacy/mixed fields even on anonymous bootstrap, without s
   }
   expect((await t.db.prepare('SELECT count(*) n FROM auth_browser_contexts').first())?.n).toBe(0);
 });
-it('two-step logout tolerates exactly SESSION_CLOCK_SKEW_MS of a trailing isolate clock on the context and command rows (#280)', async () => {
+async function twoStepLogout() {
   const t = await setup(),
-    a = await session(t);
-  let now = NOW;
-  const handler = createPrivateSessionHandler(t.db, O, () => now),
+    a = await session(t),
+    clock = { now: NOW };
+  const handler = createPrivateSessionHandler(t.db, O, () => clock.now),
     generation = async () =>
       (await t.db.prepare('SELECT generation FROM auth_browser_contexts').first<{
         generation: number;
@@ -275,52 +275,79 @@ it('two-step logout tolerates exactly SESSION_CLOCK_SKEW_MS of a trailing isolat
       (await t.db.prepare('SELECT count(*) n FROM auth_browser_commands').first<{ n: number }>())!
         .n,
     issue = async (at: number) => {
-      now = at;
+      clock.now = at;
       return (await handler(request({ Cookie: a.cookie }, '/api/private/logout-command')))!;
     },
-    run = async (at: number, token: string) => {
-      now = at;
+    token = async (at: number) => {
+      const r = await issue(at);
+      expect(r.status).toBe(200);
+      return ((await r.json()) as { commandToken: string }).commandToken;
+    },
+    run = async (at: number, command: string, cookie = a.cookie) => {
+      clock.now = at;
       return (await handler(
         request(
-          { Cookie: a.cookie, Authorization: proofAuthorization('command', token) },
+          { Cookie: cookie, Authorization: proofAuthorization('command', command) },
           '/api/private/logout',
         ),
       ))!;
     },
     live = () => t.s.authenticate(request({ Cookie: a.cookie }, '/', 'GET'));
+  return { t, a, clock, generation, commands, issue, token, run, live };
+}
+it('two-step logout tolerates exactly SESSION_CLOCK_SKEW_MS of a trailing clock on the context row (#280)', async () => {
+  const { clock, generation, commands, issue, token, run, live } = await twoStepLogout();
   const before = await generation(),
     issued = await commands();
-  // The browser context was written at NOW by another isolate.
+  // The browser context was written at NOW by another isolate; both steps run on a trailing one.
   expect((await issue(NOW - SESSION_CLOCK_SKEW_MS - 1)).status).toBe(409);
   expect(await commands()).toBe(issued);
-  const early = await issue(NOW - SESSION_CLOCK_SKEW_MS);
-  expect(early.status).toBe(200);
-  const { commandToken: earlyToken } = (await early.json()) as { commandToken: string };
-  const tooEarly = await run(NOW - SESSION_CLOCK_SKEW_MS - 1, earlyToken);
+  const command = await token(NOW - SESSION_CLOCK_SKEW_MS);
+  const tooEarly = await run(NOW - SESSION_CLOCK_SKEW_MS - 1, command);
   expect(tooEarly.status).toBe(409);
   expect(await tooEarly.json()).toEqual({ error: 'authentication_restart_required' });
   expect(await generation()).toBe(before);
   expect(await live()).not.toBeNull();
-  // Now the command row itself is the newer write: the context is older, the command was issued
-  // at NOW, and the proof arrives on an isolate whose clock trails.
+  const ok = await run(NOW - SESSION_CLOCK_SKEW_MS, command);
+  expect(ok.status).toBe(200);
+  expect(await ok.json()).toEqual({ loggedOut: true });
+  expect(await generation()).toBe(before + 1);
+  clock.now = NOW;
+  expect(await live()).toBeNull();
+});
+it('two-step logout tolerates exactly SESSION_CLOCK_SKEW_MS on the command row and replays only the same command (#280)', async () => {
+  const { t, a, clock, generation, token, run, live } = await twoStepLogout();
+  // The command row is the newer write: the context is older, the command was issued at NOW,
+  // and the proof arrives on an isolate whose clock trails.
   await t.db
     .prepare('UPDATE auth_browser_contexts SET created_at_ms=?')
     .bind(NOW - 60_000)
     .run();
-  const fresh = await issue(NOW);
-  const { commandToken } = (await fresh.json()) as { commandToken: string };
-  const rolledBack = await run(NOW - SESSION_CLOCK_SKEW_MS - 1, commandToken);
+  const before = await generation(),
+    command = await token(NOW);
+  const rolledBack = await run(NOW - SESSION_CLOCK_SKEW_MS - 1, command);
   expect(rolledBack.status).toBe(409);
   expect(await generation()).toBe(before);
   expect(await live()).not.toBeNull();
-  const ok = await run(NOW - SESSION_CLOCK_SKEW_MS, commandToken);
+  const ok = await run(NOW - SESSION_CLOCK_SKEW_MS, command);
   expect(ok.status).toBe(200);
   expect(await ok.json()).toEqual({ loggedOut: true });
   expect(await generation()).toBe(before + 1);
-  now = NOW;
+  clock.now = NOW;
   expect(await live()).toBeNull();
-  // A replay from the same trailing isolate is reported as already done, not as a restart.
-  const replay = await run(NOW - SESSION_CLOCK_SKEW_MS, commandToken);
-  expect(replay.status).toBe(200);
-  expect(await generation()).toBe(before + 1);
+  // A replay of the executed command from the same trailing isolate is reported as already done.
+  expect((await run(NOW - SESSION_CLOCK_SKEW_MS, command)).status).toBe(200);
+  // ...but not beyond the tolerance, after the command expired, for another action, or from
+  // another browser context.
+  expect((await run(NOW - SESSION_CLOCK_SKEW_MS - 1, command)).status).toBe(409);
+  expect((await run(NOW + 60_000, command)).status).toBe(409);
+  clock.now = NOW;
+  expect(
+    await t.c.execute(
+      request({ Cookie: a.cookie, Authorization: proofAuthorization('command', command) }),
+      'login',
+    ),
+  ).toEqual({ kind: 'rejected' });
+  const other = await session(t);
+  expect((await run(NOW, command, other.cookie)).status).toBe(409);
 });
