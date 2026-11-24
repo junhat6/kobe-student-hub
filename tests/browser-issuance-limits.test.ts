@@ -14,6 +14,7 @@ async function setup(
     '0004_private_sessions.sql',
     '0012_browser_session_order.sql',
     '0041_session_long_lifetime.sql',
+    '0042_auth_command_context_skew.sql',
   ],
 ) {
   const m = new Miniflare(
@@ -102,6 +103,70 @@ it('0041 copies existing sessions unchanged and keeps the logout trigger byte-id
   // Same indexes and triggers (browser_command_execute unchanged), plus the new extension trigger.
   expect(after.filter((x: any) => x.name !== 'session_context_lifetime')).toEqual(before);
   expect(after.map((x: any) => x.name)).toContain('session_context_lifetime');
+});
+it('0042 changes only the command trigger: context-creation skew and a revocation time not before creation (#277)', async () => {
+  const db = await setup([
+    '0003_oauth_attempts.sql',
+    '0004_private_sessions.sql',
+    '0012_browser_session_order.sql',
+    '0014_auth_maintenance.sql',
+    '0041_session_long_lifetime.sql',
+  ]);
+  const all = () =>
+    db
+      .prepare(
+        "SELECT type,name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all<{
+        type: string;
+        name: string;
+        sql: string;
+      }>();
+  const before = (await all()).results;
+  await apply(db, '0042_auth_command_context_skew.sql');
+  const after = (await all()).results;
+  const trigger = (rows: typeof before) =>
+    rows.find((x) => x.name === 'browser_command_execute')!.sql;
+  expect(after.filter((x) => x.name !== 'browser_command_execute')).toEqual(
+    before.filter((x) => x.name !== 'browser_command_execute'),
+  );
+  expect(trigger(after)).toBe(
+    trigger(before)
+      .replace(
+        'c.created_at_ms<=NEW.executed_at_ms AND',
+        'c.created_at_ms<=NEW.executed_at_ms+5000 AND',
+      )
+      .replace(
+        'SET revoked_at_ms=NEW.executed_at_ms WHERE',
+        'SET revoked_at_ms=max(NEW.executed_at_ms,created_at_ms) WHERE',
+      ),
+  );
+  expect(trigger(after)).not.toBe(trigger(before));
+  // The trigger itself still refuses a command executed more than 5 s before its context existed.
+  const ctx = 'd'.repeat(64);
+  await db
+    .prepare(
+      'INSERT INTO auth_browser_contexts(context_hash,created_at_ms,expires_at_ms) VALUES(?,?,?)',
+    )
+    .bind(ctx, NOW, NOW + 600000)
+    .run();
+  for (const [hash, at, ok] of [
+    ['1', NOW - 5001, false],
+    ['2', NOW - 5000, true],
+  ] as const) {
+    await db
+      .prepare(
+        "INSERT INTO auth_browser_commands(command_hash,context_hash,action,expected_generation,revocation_fence,created_at_ms,expires_at_ms) VALUES(?,?,'logout',(SELECT generation FROM auth_browser_contexts WHERE context_hash=?),0,?,?)",
+      )
+      .bind(hash.repeat(64), ctx, ctx, at - 1, NOW + 60000)
+      .run();
+    const run = db
+      .prepare('UPDATE auth_browser_commands SET executed_at_ms=? WHERE command_hash=?')
+      .bind(at, hash.repeat(64))
+      .run();
+    if (ok) await expect(run).resolves.toBeTruthy();
+    else await expect(run).rejects.toThrow(/stale auth command/);
+  }
 });
 const req = (cookie?: string) =>
   new Request(O, {

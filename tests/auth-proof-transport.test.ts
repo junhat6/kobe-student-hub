@@ -29,6 +29,7 @@ async function setup() {
     '0004_private_sessions.sql',
     '0012_browser_session_order.sql',
     '0041_session_long_lifetime.sql',
+    '0042_auth_command_context_skew.sql',
   ]) {
     const raw = readFileSync('migrations/' + f, 'utf8');
     await db.batch(

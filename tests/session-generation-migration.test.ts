@@ -49,6 +49,10 @@ async function migrate(db: any) {
   await db.batch(
     statements('migrations/0041_session_long_lifetime.sql', true).map((sql) => db.prepare(sql)),
   );
+  // 0042 lets the command trigger tolerate the session clock skew on context creation (#277).
+  await db.batch(
+    statements('migrations/0042_auth_command_context_skew.sql', true).map((sql) => db.prepare(sql)),
+  );
 }
 async function pendingAttempt(
   db: D1Database,

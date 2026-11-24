@@ -9,6 +9,7 @@ import {
   liveRestrictedSessionSql,
   liveSessionBindings,
   SESSION_ABSOLUTE_MS,
+  SESSION_CLOCK_SKEW_MS,
   type SessionStorageProof,
 } from './session-guard';
 export const CONTEXT_COOKIE = '__Host-kobe-browser';
@@ -110,6 +111,11 @@ export class BrowserSessionCoordinator {
       ? n
       : null;
   }
+  /**
+   * A context row's created_at_ms was written by another request, possibly on an isolate whose
+   * clock ran ahead, so its `<=` comparisons tolerate SESSION_CLOCK_SKEW_MS like the session
+   * lookup does (#268, #277: logout right after the first visit/login). Expiry stays strict.
+   */
   async context(request: Request) {
     const raw = singleSecretCookie(request, CONTEXT_COOKIE),
       now = this.now();
@@ -123,7 +129,7 @@ export class BrowserSessionCoordinator {
     const hash = await browserDigest('browser-v1', raw);
     const row = await this.db
       .prepare(
-        'SELECT generation,expires_at_ms FROM auth_browser_contexts WHERE context_hash=? AND created_at_ms<=? AND expires_at_ms>?',
+        `SELECT generation,expires_at_ms FROM auth_browser_contexts WHERE context_hash=? AND created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND expires_at_ms>?`,
       )
       .bind(hash, now, now)
       .first<{ generation: number; expires_at_ms: number }>();
@@ -187,7 +193,7 @@ export class BrowserSessionCoordinator {
     const raw = freshBrowserSecret();
     const r = await this.db
       .prepare(
-        `INSERT INTO auth_browser_commands(command_hash,context_hash,action,expected_generation,revocation_fence,created_at_ms,expires_at_ms,logout_token_hash) SELECT ?,c.context_hash,?,c.generation,f.generation,?,min(c.expires_at_ms,?),? FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=? AND c.generation=? AND c.created_at_ms<=? AND c.expires_at_ms>? AND f.id=1 AND (SELECT count(*) FROM (SELECT 1 FROM auth_browser_commands q WHERE q.context_hash=c.context_hash AND (q.action='logout')=(?='logout') AND q.created_at_ms>? LIMIT ?))<?`,
+        `INSERT INTO auth_browser_commands(command_hash,context_hash,action,expected_generation,revocation_fence,created_at_ms,expires_at_ms,logout_token_hash) SELECT ?,c.context_hash,?,c.generation,f.generation,?,min(c.expires_at_ms,?),? FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=? AND c.generation=? AND c.created_at_ms<=?+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>? AND f.id=1 AND (SELECT count(*) FROM (SELECT 1 FROM auth_browser_commands q WHERE q.context_hash=c.context_hash AND (q.action='logout')=(?='logout') AND q.created_at_ms>? LIMIT ?))<?`,
       )
       .bind(
         await browserDigest('command-v1', raw),
@@ -233,7 +239,7 @@ export class BrowserSessionCoordinator {
     const rs = await this.db.batch([
       this.db
         .prepare(
-          `UPDATE auth_browser_commands SET executed_at_ms=?1,state_hash=?2,browser_hash=?3,nonce=?4,attempt_expires_at_ms=?5 WHERE command_hash=?6 AND context_hash=?7 AND action=?8 AND executed_at_ms IS NULL AND created_at_ms<=?1 AND expires_at_ms>?1 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=auth_browser_commands.context_hash AND c.generation=auth_browser_commands.expected_generation AND c.generation<9007199254740991 AND c.created_at_ms<=?1 AND c.expires_at_ms>?1 AND f.id=1 AND auth_browser_commands.revocation_fence>=f.minimum_generation) AND ${authorization ? liveRestrictedSessionSql(authorization) : '1'} RETURNING expected_generation`,
+          `UPDATE auth_browser_commands SET executed_at_ms=?1,state_hash=?2,browser_hash=?3,nonce=?4,attempt_expires_at_ms=?5 WHERE command_hash=?6 AND context_hash=?7 AND action=?8 AND executed_at_ms IS NULL AND created_at_ms<=?1 AND expires_at_ms>?1 AND EXISTS(SELECT 1 FROM auth_browser_contexts c,auth_revocation_fence f WHERE c.context_hash=auth_browser_commands.context_hash AND c.generation=auth_browser_commands.expected_generation AND c.generation<9007199254740991 AND c.created_at_ms<=?1+${SESSION_CLOCK_SKEW_MS} AND c.expires_at_ms>?1 AND f.id=1 AND auth_browser_commands.revocation_fence>=f.minimum_generation) AND ${authorization ? liveRestrictedSessionSql(authorization) : '1'} RETURNING expected_generation`,
         )
         .bind(
           now,
