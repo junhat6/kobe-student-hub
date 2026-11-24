@@ -200,6 +200,14 @@ export default function DraftEditor({
       : bytes > 262144
         ? '本文の容量が上限の256 KiBを超えています。'
         : '';
+  const saveDisabled =
+    busy ||
+    publicationBusy ||
+    deletionOpen ||
+    !dirty ||
+    !writable ||
+    Boolean(invalid) ||
+    (ordinary && (problem || composing));
   async function run(operation: () => Promise<void>, mutating = false) {
     if (lock.current || publicationLock.current) return;
     cancelAutosave();
@@ -865,6 +873,17 @@ export default function DraftEditor({
                 </span>
                 {/* Zenn・note keep 「公開する」 at the top right of the writing screen; the panel
                     with tags, summary and readers opens only after it is pressed (#230). */}
+                {/* Zenn・note keep 「下書き保存」 small at the top right beside 「公開する」;
+                    autosave does the usual work, so it stays quiet until there is a change (#278). */}
+                {ordinary && writable && (
+                  <Button
+                    className="editor-save-now"
+                    disabled={saveDisabled}
+                    onClick={() => void save()}
+                  >
+                    下書きを保存
+                  </Button>
+                )}
                 {ordinary && writable && (
                   <Button
                     ref={publishOpener}
@@ -1048,42 +1067,43 @@ export default function DraftEditor({
                   {invalid}
                 </p>
               )}
-              <div className="editor-save-bar">
-                {/* Autosave is the normal case and the 「保存済み」 badge already shows it, so the
-                    ordinary bar only speaks when saving stopped (原則1・6). */}
-                {!writable ? (
-                  <p>年度の登録により、いまは保存できません。</p>
-                ) : ordinary ? (
-                  autosavePaused && (
+              {/* Autosave is the normal case and the 「保存済み」 badge already shows it, so the
+                  ordinary page keeps the manual save at the top right and this bar speaks only
+                  when saving stopped or is not allowed (原則1・4・6, #278). */}
+              {ordinary ? (
+                (!writable || autosavePaused) && (
+                  <div className="editor-save-bar">
+                    {!writable ? (
+                      <p>年度の登録により、いまは保存できません。</p>
+                    ) : (
+                      <p>
+                        自動保存を停止しています。保存済みの版を確認してから、手動で保存してください。
+                      </p>
+                    )}
+                  </div>
+                )
+              ) : (
+                <div className="editor-save-bar">
+                  {!writable ? (
+                    <p>年度の登録により、いまは保存できません。</p>
+                  ) : (
                     <p>
-                      自動保存を停止しています。保存済みの版を確認してから、手動で保存してください。
+                      自動保存はありません。変更後は保存してください。
+                      <br />
+                      <small>未保存の文章は、タブを閉じると失われる場合があります。</small>
                     </p>
-                  )
-                ) : (
-                  <p>
-                    自動保存はありません。変更後は保存してください。
-                    <br />
-                    <small>未保存の文章は、タブを閉じると失われる場合があります。</small>
-                  </p>
-                )}
-                <Button
-                  className="editor-primary"
-                  disabled={
-                    busy ||
-                    publicationBusy ||
-                    deletionOpen ||
-                    !dirty ||
-                    !writable ||
-                    Boolean(invalid) ||
-                    (ordinary && (problem || composing))
-                  }
-                  onClick={() => void save()}
-                >
-                  下書きを保存
-                </Button>
-              </div>
+                  )}
+                  <Button
+                    className="editor-primary"
+                    disabled={saveDisabled}
+                    onClick={() => void save()}
+                  >
+                    下書きを保存
+                  </Button>
+                </div>
+              )}
               {/* The writing card holds only the title and the body; the helpers sit below the
-                  save button, outside the text (#230 ②). */}
+                  writing card, outside the text (#230 ②). */}
               {ordinary && draft && writable && (
                 <section className="editor-helpers" aria-labelledby="editor-helpers-heading">
                   <h3 id="editor-helpers-heading">書くのを助ける道具</h3>

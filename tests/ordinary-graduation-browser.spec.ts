@@ -128,7 +128,7 @@ test('after the graduation year: no new posts, but stop, draft delete and correc
   await expect(page.getByRole('heading', { name: '保存した下書きを読み返す' })).toBeVisible();
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(TITLE);
   await expect(page.getByLabel('タイトル', { exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toHaveCount(0);
   await expect(page.getByText('記事を公開する', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /画像を選ぶ/ })).toHaveCount(0);
   expect(await noHorizontalScroll(page)).toBe(true);

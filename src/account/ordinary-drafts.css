@@ -251,12 +251,18 @@
   padding: 8px 18px;
   white-space: nowrap;
 }
+/* Autosave does the usual saving, so the manual save stays a quiet secondary button (#278). */
+.draft-editor--ordinary .editor-save-now {
+  font-size: 13px;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
 .draft-editor--ordinary .publication-composer > details {
   /* Clears the sticky site header (64px) so the panel's own heading is not hidden under it. */
   scroll-margin-top: 80px;
 }
 /* Zenn・note: the title is the page's big first line and the body fills the screen; the
-   helpers (お店のレビュー・AIエージェント・画像) sit below the save button, outside the text (#230 ②). */
+   helpers (お店のレビュー・AIエージェント・画像) sit below the writing card, outside the text (#230 ②). */
 .draft-editor--ordinary .editor-title-head {
   justify-content: flex-end;
 }

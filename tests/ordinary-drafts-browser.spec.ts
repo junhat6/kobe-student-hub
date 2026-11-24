@@ -196,6 +196,17 @@ test('ordinary signup asks for a profile first, then drafts save and reopen', as
   await expect(page.getByText('入力を止めると', { exact: false })).toHaveCount(0);
   await expect(page.getByText('更新が新しい20件まで表示します。', { exact: true })).toHaveCount(0);
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  // #278: autosave does the usual work, so the manual save is a small button at the top right
+  // beside 「公開する」, and nothing big stays below the body while the draft is saved.
+  await expect(page.locator('.editor-heading-actions').getByRole('button')).toHaveText([
+    '下書きを保存',
+    '公開する',
+  ]);
+  await expect(save(page)).toBeDisabled();
+  await expect(page.locator('.editor-save-bar')).toHaveCount(0);
+  const actions = await page.locator('.editor-heading-actions').boundingBox();
+  const card = await page.locator('.editor-writing-card').boundingBox();
+  expect(actions && card && actions.y + actions.height <= card.y).toBe(true);
   await page.screenshot({
     path: info.outputPath('ordinary-drafts-saved.png'),
     fullPage: true,
