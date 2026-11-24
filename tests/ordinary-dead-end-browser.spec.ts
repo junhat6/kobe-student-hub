@@ -46,6 +46,15 @@ test('unknown, malformed and unpublished URLs show "not found" with a way back',
     expect(await noOverflow(page)).toBe(true);
     const link = page.getByRole('main').getByRole('link', { name: back, exact: true });
     await expect(link).toBeVisible();
+    // polish: 見出しと戻り道で足りるので「URLもあわせて確認」は出さず、文とボタンは離す（原則1）。
+    await expect(page.getByText('URLもあわせて', { exact: false })).toHaveCount(0);
+    const gap = await page.evaluate(() => {
+      const box = document.querySelector('.empty');
+      const p = box?.querySelector('p')?.getBoundingClientRect();
+      const a = box?.querySelector('a.primary')?.getBoundingClientRect();
+      return p && a ? a.top - p.bottom : null;
+    });
+    expect(gap).toBeGreaterThanOrEqual(12);
     await link.click();
     await expect(page).not.toHaveURL(ORIGIN + path);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toHaveCount(0);
@@ -59,11 +68,11 @@ test('every page offers a retry during an API outage and recovers after it', asy
   await register(page, info);
   // [path, retry buttons shown while /api is down, text that proves recovery after retry].
   // null: lists whose content depends on other specs' data; recovery = failure text is gone.
-  // Search retries articles and projects separately so one failed list never hides the other.
+  // Search says a failure once: when both lists fail, one retry reloads both (#256).
   const cases: [string, string | string[], string | null, string?][] = [
     ['/', 'もう一度読み込む', null, '記事一覧を表示できませんでした'],
     ['/works', 'もう一度読み込む', null, '作品一覧を表示できませんでした'],
-    ['/search?q=git', ['記事を再読み込み', '作品を再読み込み'], null, '取得失敗'],
+    ['/search?q=git', 'もう一度読み込む', null, '読み込めませんでした'],
     ['/articles/learning-notes', '再読み込み', '「動いた」で終わらせない、制作ノートの残し方'],
     ['/students/nobody', 'もう一度読み込む', '投稿者が見つかりません'],
     ['/no-such-page', '再読み込み', 'ページが見つかりません'],

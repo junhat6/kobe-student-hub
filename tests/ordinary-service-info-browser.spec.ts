@@ -203,6 +203,15 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
   await expect(
     noticeGuide.getByRole('link', { name: '運営の問い合わせ窓口を開く', exact: true }),
   ).toHaveAttribute('href', contact);
+  // polish: フッター・ヘッダーと同じ行き先の「このサイトについて · 記事・作品を読む」は本文に置かない（原則4）。
+  await expect(
+    noticeGuide.locator('.service-info').getByRole('link', { name: '記事・作品を読む' }),
+  ).toHaveCount(0);
+  await expect(
+    noticeGuide
+      .locator('.service-info')
+      .getByRole('link', { name: 'このサイトについて', exact: true }),
+  ).toHaveCount(0);
   await noticeGuide.getByRole('link', { name: 'このサイトについて', exact: true }).last().click();
   await noticeGuide
     .getByRole('link', { name: '利用ルール・情報の扱い・問い合わせを見る', exact: true })

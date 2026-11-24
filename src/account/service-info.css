@@ -8,8 +8,7 @@
   margin: 24px 0 32px;
 }
 .service-info-links a,
-.service-contact,
-.service-info-back a {
+.service-contact {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -30,9 +29,6 @@
 }
 .service-info dd {
   margin: 8px 0 0;
-}
-.service-info-back {
-  margin-top: 40px;
 }
 .service-info-updated {
   color: var(--ink-muted);

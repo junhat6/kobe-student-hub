@@ -58,7 +58,7 @@ export function ReadMissing({
   return (
     <section className="shell empty">
       <h1>{subject}が見つかりません</h1>
-      <p>削除されたか、いまは公開されていない可能性があります。URLもあわせて確認してください。</p>
+      <p>削除されたか、いまは公開されていない可能性があります。</p>
       <Link className="primary" to={back.to}>
         {back.label}
       </Link>

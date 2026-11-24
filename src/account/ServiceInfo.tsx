@@ -189,9 +189,6 @@ export default function ServiceInfo() {
           </p>
         )}
       </section>
-      <p className="service-info-back">
-        <Link to="/about">このサイトについて</Link> · <Link to="/">記事・作品を読む</Link>
-      </p>
     </article>
   );
 }

@@ -169,7 +169,6 @@ export default function Search() {
           {hasCondition ? (
             <>
               <h2>一致する記事・作品はありません</h2>
-              <p>条件を1つ外すか、別の言葉で探してみてください。</p>
               <div className="search-empty-actions">
                 {query && (
                   <Button onClick={() => update('q', '')}>キーワード「{query}」を外す</Button>
@@ -178,7 +177,9 @@ export default function Search() {
                 {type !== 'all' && (
                   <Button onClick={() => update('type', '')}>種類を「すべて」にする</Button>
                 )}
-                <Button onClick={() => setParams({}, { flushSync: true })}>検索条件を解除</Button>
+                {[query, tag, type !== 'all'].filter(Boolean).length > 1 && (
+                  <Button onClick={() => setParams({}, { flushSync: true })}>検索条件を解除</Button>
+                )}
               </div>
               {suggestions.length > 0 && (
                 <nav className="search-suggestions" aria-label="ほかの言葉で探す">

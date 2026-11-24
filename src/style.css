@@ -603,6 +603,9 @@ h1 {
   color: #61727e;
   font-size: 13px;
 }
+.empty > .primary {
+  margin-top: 16px;
+}
 footer {
   border-top: 1px solid #e3eaf0;
   padding-top: 30px !important;

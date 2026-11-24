@@ -305,6 +305,9 @@ test('ordinary search finds article-only and project-only authors and preserves 
       .click();
     await expect(page).toHaveURL(ORIGIN + '/search?type=project');
     await expect(page.getByRole('searchbox')).toHaveValue('');
+    // polish: 条件が1つだけなら「検索条件を解除」は「種類を「すべて」にする」と同じなので出さない（原則4）。
+    await expect(page.getByRole('button', { name: '検索条件を解除', exact: true })).toHaveCount(0);
+    await expect(page.getByText('条件を1つ外すか', { exact: false })).toHaveCount(0);
     await page.goBack();
     await expect(page).toHaveURL(emptyUrl);
     const suggested = (await suggestions.first().textContent())!.replace(/^#\s*/, '');
