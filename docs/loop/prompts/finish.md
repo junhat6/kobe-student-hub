@@ -53,6 +53,7 @@
 - セッションの `created_at_ms`・`last_seen_ms` は `SESSION_CLOCK_SKEW_MS`（5秒）まで時計の遅れを許す（同時リクエストの isolate 間の時計差で別パネルが落ちた。#268）。巻き戻しを試すテストは `NOW - SESSION_CLOCK_SKEW_MS - 1` 以下を使い、期限（idle・absolute・context）は許容なしのまま保つ
 - SPA の画面遷移の後に `page.goBack()` を検査するときは、遷移先の描画（前の画面の要素が0件）を待ってから戻る（待たないと前の画面が unmount 前に残り、状態が保たれたように見えて CI だけ落ちる。#266）
 - playwright が途中から「browserType.launch: Executable doesn't exist …chromium_headless_shell-NNNN」で全滅したら、別 worktree が古い版の install で共有 cache を消したもの。`npx playwright install chromium chromium-headless-shell` で戻し `--last-failed` で回し直す（実装の失敗と数えない）
+- 表を作り直す migration（CHECK の変更など）は、他の表の trigger が本文でその表を読んでいると D1 が RENAME を止める（「error in trigger … no such table」）。その trigger を同じ batch で DROP し同じ文で作り直す。`auth_sessions` を変えたら、0004＋0012 を手で並べる fixture（`tests/helpers/order-schema.ts`・`coordinated-fixture.ts` と各 test の一覧）にも当てる（#269）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 
 ## 4. 閉じる
