@@ -6,7 +6,6 @@ import migration from '../../migrations/0012_browser_session_order.sql';
 import sessionSchema from '../../migrations/0004_private_sessions.sql';
 import attempts from '../../migrations/0003_oauth_attempts.sql';
 import sessionLifetime from '../../migrations/0041_session_long_lifetime.sql';
-import commandContextSkew from '../../migrations/0042_auth_command_context_skew.sql';
 import { BrowserSessionCoordinator } from '../../worker/auth/browser-session';
 import {
   BrowserOAuthFlow,
@@ -15,23 +14,7 @@ import {
 } from '../../worker/auth/browser-flow';
 import { SESSION_ABSOLUTE_MS, SessionStore } from '../../worker/auth/sessions';
 import type { VerifiedSchoolIdentity } from '../../worker/auth/google-identity';
-/** 0042: the command trigger tolerates the session clock skew on context creation (#277). Idempotent. */
-async function applyCommandContextSkew(db: D1Database) {
-  const t = await db
-    .prepare(
-      "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='browser_command_execute'",
-    )
-    .first<{ sql: string }>();
-  if (!t || t.sql.includes('executed_at_ms+5000')) return;
-  await db.batch(
-    commandContextSkew
-      .split(/^-- @statement\s*$/m)
-      .map((s) => s.replace(/^--.*$/gm, '').trim())
-      .filter(Boolean)
-      .map((s) => db.prepare(s)),
-  );
-}
-/** 0041: year-long auth_sessions CHECK and the context-extension trigger (#269), then 0042. Idempotent. */
+/** 0041: year-long auth_sessions CHECK and the context-extension trigger (#269). Idempotent. */
 async function applySessionLifetimeSchema(db: D1Database) {
   if (
     await db
@@ -40,7 +23,7 @@ async function applySessionLifetimeSchema(db: D1Database) {
       )
       .first()
   )
-    return applyCommandContextSkew(db);
+    return;
   // A fixture that has not applied 0014 yet gets that index from 0014 later, not here.
   const has0014 = await db
     .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='auth_session_context'")
@@ -52,7 +35,6 @@ async function applySessionLifetimeSchema(db: D1Database) {
       .filter((s) => s && (has0014 || !s.includes('auth_session_context')))
       .map((s) => db.prepare(s)),
   );
-  await applyCommandContextSkew(db);
 }
 export async function ensureFixtureOrderSchema(db: D1Database) {
   const cols = (await db.prepare('PRAGMA table_info(auth_sessions)').all<{ name: string }>())

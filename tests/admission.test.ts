@@ -34,7 +34,6 @@ async function setup() {
     '0012_browser_session_order.sql',
     '0013_local_admission.sql',
     '0041_session_long_lifetime.sql',
-    '0042_auth_command_context_skew.sql',
   ]) {
     const text = readFileSync('migrations/' + file, 'utf8');
     const sql = text

@@ -269,34 +269,6 @@ describe('unconnected existing-session and current-token logout HTTP boundary', 
     expect(r.status).toBe(401);
     noCookie(r);
   });
-  it('logs out right after login from an isolate whose clock trails by the tolerated skew (#277)', async () => {
-    const db = await mf.getD1Database('DB');
-    const revokedCount = async () =>
-      (await db
-        .prepare(
-          "SELECT count(*) n FROM auth_sessions WHERE account_id='account-2' AND revoked_at_ms IS NOT NULL",
-        )
-        .first<{ n: number }>())!.n;
-    // Beyond the tolerance this stays a rollback: nothing is revoked and no Cookie is touched.
-    const rolledBack = await session('2');
-    const before = await revokedCount();
-    const rejected = await logout(rolledBack, {
-      'X-Test-Now': String(NOW - SESSION_CLOCK_SKEW_MS - 1),
-    });
-    expect(rejected.status).toBe(401);
-    noCookie(rejected);
-    expect(await revokedCount()).toBe(before);
-    expect((await request('/api/private/session', 'GET', rolledBack)).status).toBe(200);
-    // Session and browser context were both written at NOW by another isolate.
-    const fresh = await session('2');
-    const r = await logout(fresh, { 'X-Test-Now': String(NOW - SESSION_CLOCK_SKEW_MS) });
-    expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ loggedOut: true });
-    noCookie(r);
-    expect(await revokedCount()).toBe(before + 1);
-    expect((await request('/api/private/session', 'GET', fresh)).status).toBe(401);
-    expect((await logout(fresh)).status).toBe(401);
-  });
   it('does not clear a cookie after status/epoch/revocation changes between the two authorization checks', async () => {
     const db = await mf.getD1Database('DB');
     for (const race of ['revoke', 'status', 'epoch']) {

@@ -91,7 +91,6 @@ beforeAll(async () => {
     '0012_browser_session_order.sql',
     '0016_self_declared_enrollment.sql',
     '0041_session_long_lifetime.sql',
-    '0042_auth_command_context_skew.sql',
   ]) {
     const text = readFileSync('migrations/' + file, 'utf8');
     const statements = text
