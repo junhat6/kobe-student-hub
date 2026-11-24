@@ -1,6 +1,7 @@
 import { EncryptJWT, jwtDecrypt } from 'jose';
 import { callbackParameters } from './callback-receiver';
 import type { BrowserFlowConfig } from './browser-flow';
+import { SESSION_CLOCK_SKEW_MS } from './session-guard';
 
 const COOKIE = '__Host-kobe-oauth-return';
 const ISSUER = 'kobe-student-hub:oauth-callback-return';
@@ -58,7 +59,11 @@ export async function readCallbackReturn(
       contentEncryptionAlgorithms: ['A256GCM'],
       requiredClaims: ['iat', 'exp'],
       maxTokenAge: TTL_SECONDS,
-      clockTolerance: 0,
+      // The form_post receiver sealed iat on one isolate; /complete may run on another whose
+      // clock trails it (#282). jose's tolerance also loosens exp and maxTokenAge, so expiry stays
+      // strict through `exp === iat + TTL` and `now < exp` below. iat is whole seconds, so jose
+      // refuses exactly when iat*1000 > now + SESSION_CLOCK_SKEW_MS.
+      clockTolerance: SESSION_CLOCK_SKEW_MS / 1000,
       currentDate: new Date(now),
     });
     if (

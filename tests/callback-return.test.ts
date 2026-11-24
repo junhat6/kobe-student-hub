@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { EncryptJWT } from 'jose';
 import { readCallbackReturn, sealCallbackReturn } from '../worker/auth/callback-return';
+import { SESSION_CLOCK_SKEW_MS } from '../worker/auth/session-guard';
 
 const config = {
   origin: 'https://return.example.test',
@@ -24,7 +25,19 @@ it('uses a distinct bounded encrypted Lax return cookie and expires it after six
   expect(cookie).not.toContain('synthetic-code');
   expect((await readCallbackReturn(pair(cookie), config, now))?.toString()).toBe(params.toString());
   expect(await readCallbackReturn(pair(cookie), config, now + 60000)).toBeNull();
-  expect(await readCallbackReturn(pair(cookie), config, now - 1000)).toBeNull();
+  // /complete may trail the form_post receiver's clock by SESSION_CLOCK_SKEW_MS, no further (#282).
+  expect((await readCallbackReturn(pair(cookie), config, now - 1000))?.toString()).toBe(
+    params.toString(),
+  );
+  const issuedMs = Math.floor(now / 1000) * 1000;
+  expect(
+    (await readCallbackReturn(pair(cookie), config, issuedMs - SESSION_CLOCK_SKEW_MS))?.toString(),
+  ).toBe(params.toString());
+  expect(
+    await readCallbackReturn(pair(cookie), config, issuedMs - SESSION_CLOCK_SKEW_MS - 1),
+  ).toBeNull();
+  expect(await readCallbackReturn(pair(cookie), config, issuedMs + 60000 - 1)).not.toBeNull();
+  expect(await readCallbackReturn(pair(cookie), config, issuedMs + 60000)).toBeNull();
   expect(await sealCallbackReturn(params, config, -1)).toBeNull();
   expect(await sealCallbackReturn(params, config, NaN)).toBeNull();
   expect(await sealCallbackReturn(params, config, Number.MAX_SAFE_INTEGER)).toBeNull();
@@ -71,7 +84,10 @@ it('requires exact return purpose, fixed lifetime and canonical protocol claims 
     { aud: config.clientId + '|' + config.origin + '/api/auth/callback' },
     { aud: [base.aud, 'other-audience'] },
     { exp: issued + 61 },
-    { iat: issued + 1, exp: issued + 61 },
+    {
+      iat: issued + SESSION_CLOCK_SKEW_MS / 1000 + 1,
+      exp: issued + SESSION_CLOCK_SKEW_MS / 1000 + 61,
+    },
     { iat: issued - 61, exp: issued - 1 },
     { extra: 'unsupported' },
     { parameters: params.toString() + '&scope=ignored' },
