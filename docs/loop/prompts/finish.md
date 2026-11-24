@@ -47,6 +47,7 @@
 - Base UI の Menu の項目から Dialog を開く spec は、`.report-menu-popup` 等の popup が DOM から消えるのを待ってから axe を当てる（modal が外を aria-hidden にするので `getByRole('menu')` は即0件になるが、フェードアウト中の項目を axe が拾い color-contrast で落ちる。#228）
 - 作品の公開行（project_publications）を fixture で直接書き換えるテストは `tests/helpers/project-snapshot.ts` の `withProjectSnapshotUnlocked` で包む（0038 が status 以外の列の UPDATE を ABORT にする。#257）
 - 公開パネルの `<summary>` の中に要素（span 等）を足さない（#190 の見出し1行判定が flex の子の箱で2行と数えて通報系 spec がまとめて落ちる。補足は summary の外に出す。#201）
+- 大きな BLOB を持つ表（media_assets 等）に ALTER で足した列は BLOB の後ろに置かれ、表から読むと overflow page を辿る。全行を SUM/scan する quota 等は covering index から読む（c749c93 は CI だけ fetch failed で落ちた。#260）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 
 ## 4. 閉じる
