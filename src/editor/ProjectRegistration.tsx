@@ -19,6 +19,8 @@ import MediaPublicationPreview from './MediaPublicationPreview';
 import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import type { RescueChannel } from '../account/AccountSessionBoundary';
 import Celebration from '../shared/Celebration';
+import { PROJECT_STAGES, type ProjectStage } from '../project-types';
+import ProjectStageMark, { PROJECT_STAGE_LABELS } from '../shared/ProjectStageMark';
 const empty: ProjectFields = {
   title: '',
   description: '',
@@ -145,7 +147,11 @@ export default function ProjectRegistration({
     // A preparation read (receipt, profile or own articles) failed; only then is a retry shown.
     [prepFailed, setPrepFailed] = useState(false),
     [receipt, setReceipt] = useState<ProjectReceipt['publication']>(null),
-    [published, setPublished] = useState<{ id: string; version: number } | null>(null);
+    [published, setPublished] = useState<{ id: string; version: number } | null>(null),
+    // 制作中／完成 chosen before publishing; after publishing, the confirmed stage of the snapshot (#275).
+    [stage, setStage] = useState<ProjectStage>('complete'),
+    [publishedStage, setPublishedStage] = useState<ProjectStage | null>(null),
+    [stageUnknown, setStageUnknown] = useState(false);
   /** Bumped only by a publication made here, never by reading an existing record. */
   const [celebration, setCelebration] = useState(0);
   // Ordinary surface only: own currently published articles that may be linked (null = not loaded / failed).
@@ -293,6 +299,9 @@ export default function ProjectRegistration({
     setReady(false);
     setReceipt(null);
     setPublished(null);
+    setStage('complete');
+    setPublishedStage(null);
+    setStageUnknown(false);
     setPrepFailed(false);
     setAutosavePaused(false);
     composition.current = false;
@@ -431,6 +440,9 @@ export default function ProjectRegistration({
     setReady(false);
     setReceipt(null);
     setPublished(null);
+    setStage('complete');
+    setPublishedStage(null);
+    setStageUnknown(false);
     setPrepFailed(false);
     setAutosavePaused(false);
     composition.current = false;
@@ -516,6 +528,7 @@ export default function ProjectRegistration({
       return;
     }
     setReceipt(record.value.publication);
+    setPublishedStage(record.value.publication?.project.stage ?? null);
     if (record.value.publication) {
       const p = record.value.publication;
       const a = attempt.current;
@@ -641,9 +654,11 @@ export default function ProjectRegistration({
           signal,
           referencedMediaIds(source.description),
           ordinary ? linked : [],
+          stage,
         );
         if (current(g)) {
           setPublished({ id, version: source.version });
+          setPublishedStage(stage);
           setCelebration((n) => n + 1);
           setPubUnknown(false);
           setMessage(
@@ -659,6 +674,31 @@ export default function ProjectRegistration({
             ordinary
               ? '公開できたか確かめられませんでした。自動で再送しません。「公開の確認をもう一度」で確かめてください。'
               : '公開結果を確認できませんでした。再送せず、公開準備・記録を確認してください。',
+          );
+        }
+      }
+    });
+  }
+  async function changeStage(next: ProjectStage) {
+    const source = saved;
+    if (!source || !writable || (!receipt && !published) || publishedStage === next) return;
+    await run(async (signal, g) => {
+      try {
+        const confirmed = await client.setStage(source.id, next, signal);
+        if (!current(g)) return;
+        if (confirmed) {
+          setPublishedStage(confirmed.project.stage);
+          if (receipt) setReceipt(confirmed);
+        }
+        setStageUnknown(false);
+        setMessage(
+          next === 'complete' ? '作品を「完成」にしました。' : '作品を「制作中」に戻しました。',
+        );
+      } catch {
+        if (current(g)) {
+          setStageUnknown(true);
+          setMessage(
+            '作品の状態を変えられたか確かめられませんでした。公開ページで確かめてください。',
           );
         }
       }
@@ -972,6 +1012,25 @@ export default function ProjectRegistration({
               )}
             </fieldset>
           )}
+          {ready && !receipt && !published && (
+            <fieldset className="project-stage-choice">
+              <legend>作品の状態</legend>
+              {PROJECT_STAGES.map((value) => (
+                <label key={value}>
+                  <input
+                    type="radio"
+                    name={formId + '-stage'}
+                    value={value}
+                    checked={stage === value}
+                    disabled={busy}
+                    onChange={() => setStage(value)}
+                  />
+                  {PROJECT_STAGE_LABELS[value]}
+                </label>
+              ))}
+              <p>制作中でも公開できます。公開したあとで「完成」に変えられます。</p>
+            </fieldset>
+          )}
           {(!ordinary || !publishable) && <p>公開には空白だけではないタイトルと説明が必要です。</p>}
           <p>
             {surface === 'ordinary' ? (
@@ -1018,6 +1077,23 @@ export default function ProjectRegistration({
                 ログインなしで作品を見る ↗
               </a>
             </p>
+          )}
+          {(published || receipt) && publishedStage && (
+            <div className="project-stage-switch" aria-label="公開中の作品の状態" role="group">
+              <p>
+                いまの状態：{PROJECT_STAGE_LABELS[publishedStage]}{' '}
+                <ProjectStageMark stage={publishedStage} />
+              </p>
+              <Button
+                disabled={busy || !writable}
+                onClick={() =>
+                  void changeStage(publishedStage === 'complete' ? 'in_progress' : 'complete')
+                }
+              >
+                {publishedStage === 'complete' ? '「制作中」に戻す' : '「完成」にする'}
+              </Button>
+              {stageUnknown && <p role="alert">状態の変更は未確定です。自動で再送しません。</p>}
+            </div>
           )}
           {(published || receipt) && (
             <p>

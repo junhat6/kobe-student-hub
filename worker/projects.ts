@@ -9,7 +9,9 @@ import { japanDate } from './japan-date';
 import type { Profile } from '../src/types';
 import { normalizeProjectFields } from '../src/project-input';
 import { decodePublicProfile, publicArticleSqlBounds, publicProfileSqlBounds } from './publication';
+import { isProjectStage } from '../src/project-types';
 import type {
+  ProjectStage,
   ProjectDraft,
   ProjectDraftSummary,
   ProjectReceipt,
@@ -36,7 +38,7 @@ const exact = (x: unknown, keys: string[]): x is Record<string, unknown> =>
   Object.getPrototypeOf(x) === Object.prototype &&
   Reflect.ownKeys(x).length === keys.length &&
   keys.every((k) => Object.hasOwn(x, k));
-const publishOptional = ['mediaIds', 'articleIds'];
+const publishOptional = ['mediaIds', 'articleIds', 'stage'];
 const publishKeys = (x: unknown): x is Record<string, unknown> =>
   !!x &&
   typeof x === 'object' &&
@@ -56,6 +58,8 @@ type Row = {
   github_url: string;
   demo_url: string;
   technologies: string;
+  /** Absent only while migration 0043 has not reached the database. */
+  stage?: string;
   version: number;
   updated_at_ms: number;
   source_version: number;
@@ -107,6 +111,7 @@ export type ProjectSnapshotRow = Pick<
   | 'github_url'
   | 'demo_url'
   | 'technologies'
+  | 'stage'
   | 'published_at_ms'
   | 'author_id'
   | 'display_name'
@@ -115,11 +120,16 @@ export type ProjectSnapshotRow = Pick<
   | 'bio'
   | 'initials'
 >;
+/** A snapshot read before migration 0043 has no stage column: it is shown as complete, as before. */
+const snapshotStage = (r: Pick<Row, 'stage'>): ProjectStage | null =>
+  r.stage === undefined ? 'complete' : isProjectStage(r.stage) ? r.stage : null;
 export function decodeProjectSnapshot(r: ProjectSnapshotRow): PublicProjectReader | null {
   const f = fields(r),
     author = decodePublicProfile(r),
-    publishedOn = japanDate(r.published_at_ms);
+    publishedOn = japanDate(r.published_at_ms),
+    stage = snapshotStage(r);
   return f &&
+    stage &&
     f.githubUrl === r.github_url &&
     f.demoUrl === r.demo_url &&
     f.technologies === r.technologies &&
@@ -133,6 +143,7 @@ export function decodeProjectSnapshot(r: ProjectSnapshotRow): PublicProjectReade
           ...f,
           id: r.id,
           publishedOn,
+          stage,
         },
         author,
       }
@@ -278,9 +289,12 @@ export class ProjectStore {
       !version(input.expectedVersion) ||
       input.confirmPublic !== true ||
       (Object.hasOwn(input, 'mediaIds') && !validMediaIds(input.mediaIds)) ||
-      (Object.hasOwn(input, 'articleIds') && !validArticleIds(input.articleIds))
+      (Object.hasOwn(input, 'articleIds') && !validArticleIds(input.articleIds)) ||
+      (Object.hasOwn(input, 'stage') && !isProjectStage(input.stage))
     )
       return null;
+    // Older pages publish without a stage; their projects are complete, as before #275.
+    const stage: ProjectStage = isProjectStage(input.stage) ? input.stage : 'complete';
     const mediaJson = JSON.stringify(input.mediaIds ?? []),
       articleJson = JSON.stringify(input.articleIds ?? []);
     try {
@@ -316,13 +330,14 @@ export class ProjectStore {
         return null;
       const r = await this.db
         .prepare(
-          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,technologies,published_at_ms,status,media_ids_json,article_ids_json) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,d.technologies,?,'published',?,? FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND d.technologies=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
+          `INSERT INTO project_publications(id,owner_account_id,draft_id,public_profile_id,source_version,title,description,github_url,demo_url,technologies,published_at_ms,status,media_ids_json,article_ids_json,stage) SELECT ?,d.owner_account_id,d.id,p.id,d.version,d.title,d.description,d.github_url,d.demo_url,d.technologies,?,'published',?,?,? FROM project_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND d.description=? AND d.github_url=? AND d.demo_url=? AND d.technologies=? AND ${profile} AND ${writerLive} ON CONFLICT(draft_id) DO NOTHING RETURNING id`,
         )
         .bind(
           crypto.randomUUID(),
           p.nowMs,
           mediaJson,
           articleJson,
+          stage,
           id,
           p.accountId,
           input.expectedVersion,
@@ -360,19 +375,50 @@ export class ProjectStore {
     if (req.method !== 'GET' || !uuid(id)) return null;
     try {
       const p = await this.sessions.storageAuthorization(req);
+      return p ? await this.ownReceipt(p, id) : null;
+    } catch {
+      return null;
+    }
+  }
+  private async ownReceipt(p: Proof, id: string): Promise<ProjectReceipt | null> {
+    const r = await this.db
+      .prepare(
+        `SELECT d.id draft_exists,r.id publication_id,r.*,${columns} FROM project_drafts d LEFT JOIN project_publications r ON r.draft_id=d.id LEFT JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id LEFT JOIN public_profiles p ON p.id=r.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND ${live} AND (r.id IS NULL OR (r.owner_account_id=d.owner_account_id AND m.public_profile_id=r.public_profile_id AND r.status='published' AND ${bounded} AND ${profile}))`,
+      )
+      .bind(id, p.accountId, ...binds(p))
+      .first<Row & { publication_id: string | null }>();
+    if (!r) return null;
+    if (r.publication_id === null) return { publication: null };
+    const v = decodeProjectSnapshot(r);
+    return v && version(r.source_version)
+      ? { publication: { projectId: r.id, sourceVersion: r.source_version, ...v } }
+      : null;
+  }
+  /**
+   * The owner switches 制作中／完成 on their own published snapshot (#275). Only the stage column changes;
+   * the snapshot text stays immutable (0038). A stopped, hidden or deleted snapshot, another person's
+   * project and a project never published here all return the same null.
+   */
+  async setStage(req: Request, id: unknown, input: unknown): Promise<ProjectReceipt | null> {
+    if (
+      req.method !== 'PUT' ||
+      !uuid(id) ||
+      !exact(input, ['stage']) ||
+      !isProjectStage(input.stage)
+    )
+      return null;
+    try {
+      const p = await this.sessions.storageAuthorization(req);
       if (!p) return null;
       const r = await this.db
         .prepare(
-          `SELECT d.id draft_exists,r.id publication_id,r.*,${columns} FROM project_drafts d LEFT JOIN project_publications r ON r.draft_id=d.id LEFT JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id LEFT JOIN public_profiles p ON p.id=r.public_profile_id WHERE d.id=? AND d.owner_account_id=? AND ${live} AND (r.id IS NULL OR (r.owner_account_id=d.owner_account_id AND m.public_profile_id=r.public_profile_id AND r.status='published' AND ${bounded} AND ${profile}))`,
+          `UPDATE project_publications SET stage=? WHERE draft_id=? AND owner_account_id=? AND status='published' AND EXISTS(SELECT 1 FROM project_drafts d WHERE d.id=project_publications.draft_id AND d.owner_account_id=project_publications.owner_account_id) AND ${writerLive} RETURNING id`,
         )
-        .bind(id, p.accountId, ...binds(p))
-        .first<Row & { publication_id: string | null }>();
+        .bind(input.stage, id, p.accountId, ...writerBindings(p))
+        .first<{ id: string }>();
       if (!r) return null;
-      if (r.publication_id === null) return { publication: null };
-      const v = decodeProjectSnapshot(r);
-      return v && version(r.source_version)
-        ? { publication: { projectId: r.id, sourceVersion: r.source_version, ...v } }
-        : null;
+      const receipt = await this.ownReceipt(p, id);
+      return receipt?.publication?.project.stage === input.stage ? receipt : null;
     } catch {
       return null;
     }
@@ -445,6 +491,7 @@ export class ProjectStore {
             githubUrl: p.githubUrl,
             demoUrl: p.demoUrl,
             publishedOn: p.publishedOn,
+            stage: p.stage,
           };
         }),
       };
@@ -490,6 +537,7 @@ export class ProjectStore {
               title: p.title,
               descriptionPreview: Array.from(p.description).slice(0, 300).join(''),
               publishedOn: p.publishedOn,
+              stage: p.stage,
             },
             author: {
               id: a.id,

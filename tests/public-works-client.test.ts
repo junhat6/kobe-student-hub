@@ -6,6 +6,7 @@ const project = {
   title: '架空の作品',
   descriptionPreview: '制作で試したこと',
   publishedOn: '2026-11-04',
+  stage: 'complete',
 };
 const author = {
   id: 'profile-fictional',
@@ -69,6 +70,8 @@ it('checks calendar dates, exact bounds and malformed Unicode while accepting pl
   for (const value of [
     { cards: [{ project: { ...project, publishedOn: '2026-02-31' }, author }] },
     { cards: [{ project: { ...project, publishedOn: '2026-2-1' }, author }] },
+    { cards: [{ project: { ...project, stage: 'done' }, author }] },
+    { cards: [{ project: { ...project, stage: undefined }, author }] },
     { cards: [{ project: { ...project, title: ' ' }, author }] },
     { cards: [{ project: { ...project, descriptionPreview: 'x'.repeat(301) }, author }] },
     { cards: [{ project, author: { ...author, name: '\ud800' } }] },

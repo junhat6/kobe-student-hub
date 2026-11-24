@@ -172,6 +172,7 @@ test('independent actual owner stop removes only the target from fresh anonymous
           'descriptionPreview',
           'id',
           'publishedOn',
+          'stage',
           'title',
         ]);
         expect(Object.keys(card.author).sort()).toEqual([

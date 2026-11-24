@@ -1414,9 +1414,16 @@ describe('migration 0032 on a database that already has published images', () =>
   };
   beforeAll(async () => {
     await boot(false, '0032');
-    // The current Worker writes the size column of 0039 and sums it from its index; only those are
-    // added here, so the limits and triggers stay those before 0032.
+    // The current Worker writes the size column of 0039 (summed from its index) and the project stage
+    // of 0043; only those are added here, so the limits and triggers stay those before 0032.
     await (await db()).prepare('ALTER TABLE media_assets ADD COLUMN bytes INTEGER').run();
+    await (
+      await db()
+    )
+      .prepare(
+        "ALTER TABLE project_publications ADD COLUMN stage TEXT NOT NULL DEFAULT 'complete' CHECK(stage IN ('in_progress','complete'))",
+      )
+      .run();
     await (
       await db()
     )

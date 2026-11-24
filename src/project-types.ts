@@ -8,6 +8,11 @@ export interface ProjectFields {
   /** Optional one-line list of technologies used (comma separated, 100 characters). */
   technologies: string;
 }
+/** 制作中 or 完成 (#275). Lives on the public snapshot only; older snapshots are 'complete'. */
+export type ProjectStage = 'in_progress' | 'complete';
+export const PROJECT_STAGES: readonly ProjectStage[] = ['in_progress', 'complete'];
+export const isProjectStage = (v: unknown): v is ProjectStage =>
+  v === 'in_progress' || v === 'complete';
 export interface ProjectDraft extends ProjectFields {
   id: string;
   version: number;
@@ -17,6 +22,7 @@ export type ProjectDraftSummary = Pick<ProjectDraft, 'id' | 'title' | 'version' 
 export interface PublicProject extends ProjectFields {
   id: string;
   publishedOn: string;
+  stage: ProjectStage;
 }
 export interface PublicProjectSummary {
   id: string;
@@ -25,6 +31,7 @@ export interface PublicProjectSummary {
   githubUrl: string;
   demoUrl: string;
   publishedOn: string;
+  stage: ProjectStage;
 }
 export interface PublicProjectReader {
   project: PublicProject;
@@ -51,9 +58,14 @@ export type ProjectDiscoverySummary = Pick<
   PublicProjectSummary,
   'id' | 'title' | 'descriptionPreview' | 'publishedOn'
 >;
+/** Cross-author card used by home and related reading; it carries no stage. */
+export interface ProjectDiscoveryCard {
+  project: ProjectDiscoverySummary;
+  author: Pick<Profile, 'id' | 'name' | 'department' | 'year' | 'initials'>;
+}
+/** The works list (/api/projects) adds only the stage to each card (#275). */
 export interface PublicProjectDiscovery {
-  cards: {
-    project: ProjectDiscoverySummary;
-    author: Pick<Profile, 'id' | 'name' | 'department' | 'year' | 'initials'>;
-  }[];
+  cards: (Omit<ProjectDiscoveryCard, 'project'> & {
+    project: ProjectDiscoverySummary & Pick<PublicProjectSummary, 'stage'>;
+  })[];
 }

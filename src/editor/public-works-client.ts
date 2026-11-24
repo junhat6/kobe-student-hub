@@ -2,6 +2,7 @@ import type { PublicProjectDiscovery } from '../project-types';
 import { readAnonymousJson } from './anonymous-public-read';
 import { publicKeys, publicText, publicSlug } from './public-author-client';
 import { projectUUID } from './project-client';
+import { isProjectStage } from '../project-types';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 export class PublicWorksClientError extends Error {
   constructor() {
@@ -24,7 +25,8 @@ function valid(value: unknown): value is PublicProjectDiscovery {
   return value.cards.every((card) => {
     if (
       !publicKeys(card, ['project', 'author']) ||
-      !publicKeys(card.project, ['id', 'title', 'descriptionPreview', 'publishedOn']) ||
+      !publicKeys(card.project, ['id', 'title', 'descriptionPreview', 'publishedOn', 'stage']) ||
+      !isProjectStage(card.project.stage) ||
       !publicKeys(card.author, ['id', 'name', 'department', 'year', 'initials'])
     )
       return false;

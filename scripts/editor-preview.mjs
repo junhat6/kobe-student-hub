@@ -33,6 +33,7 @@ for (const file of [
   'migrations/0038_project_snapshot_columns_immutable.sql',
   'migrations/0039_media_bytes.sql',
   'migrations/0040_project_snapshot_rowid_immutable.sql',
+  'migrations/0043_project_stage.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
@@ -43,7 +44,9 @@ for (const file of [
         ? 'object_stored_at_ms'
         : file.includes('0039')
           ? 'bytes'
-          : null;
+          : file.includes('0043')
+            ? 'stage'
+            : null;
   const columnTable =
     file.includes('0031') || file.includes('0039') ? 'media_assets' : 'project_publications';
   // Initialization is idempotent: check the specific local table before applying its schema.

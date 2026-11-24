@@ -216,6 +216,7 @@ test('anonymous work discovery HTTP exposes only the narrow DTO and strict safe 
         'descriptionPreview',
         'id',
         'publishedOn',
+        'stage',
         'title',
       ]);
       expect(Object.keys(c.author).sort()).toEqual([

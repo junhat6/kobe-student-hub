@@ -15,6 +15,7 @@ const project = {
   demoUrl: '',
   technologies: '',
   publishedOn: '2026-11-04',
+  stage: 'complete',
 };
 const author = {
   id: 'profile-fictional',

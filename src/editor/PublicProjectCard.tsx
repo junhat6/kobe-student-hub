@@ -5,6 +5,7 @@ import SurfaceLink from '../shared/SurfaceLink';
 import { formatDate, tagHue } from '../shared/display';
 import '../shared/cards.css';
 import { AuthorAvatar } from '../shared/public-avatars';
+import ProjectStageMark from '../shared/ProjectStageMark';
 
 export default function PublicProjectCard({
   project,
@@ -12,14 +13,18 @@ export default function PublicProjectCard({
   surface = 'lab',
   inTypedList = false,
 }: {
-  project: ProjectDiscoverySummary & Partial<Pick<PublicProjectSummary, 'githubUrl' | 'demoUrl'>>;
+  project: ProjectDiscoverySummary &
+    Partial<Pick<PublicProjectSummary, 'githubUrl' | 'demoUrl' | 'stage'>>;
   author?: PublicArticleAuthor;
   surface?: PublicSurface;
   /** The surrounding tab already says these are works: no band, no kind label (#236). */
   inTypedList?: boolean;
 }) {
   const paths = publicPaths(surface);
-  const showMeta = !inTypedList || Boolean(project.githubUrl || project.demoUrl);
+  const showMeta =
+    !inTypedList ||
+    Boolean(project.githubUrl || project.demoUrl) ||
+    project.stage === 'in_progress';
   return (
     <article
       className="content-card content-card-project"
@@ -34,6 +39,7 @@ export default function PublicProjectCard({
         {showMeta && (
           <div className="content-card-meta">
             {!inTypedList && <span className="content-card-kind">作品</span>}
+            <ProjectStageMark stage={project.stage} />
             {project.githubUrl && <span>GitHub</span>}
             {project.demoUrl && <span>デモあり</span>}
           </div>

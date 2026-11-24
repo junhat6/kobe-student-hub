@@ -112,7 +112,7 @@ export function createPrivateProjectHandler(
       return unavailable();
     const id = match[2],
       publication = match[1] === 'publications',
-      allowed = publication ? ['GET', 'POST'] : id ? ['GET', 'PUT'] : ['GET', 'POST'];
+      allowed = publication ? ['GET', 'POST', 'PUT'] : id ? ['GET', 'PUT'] : ['GET', 'POST'];
     if (!allowed.includes(request.method)) {
       const r = error(405, 'method_not_allowed');
       r.headers.set('Allow', allowed.join(', '));
@@ -135,7 +135,9 @@ export function createPrivateProjectHandler(
         const body = await input(request);
         if (!body.ok) return error(body.status, 'invalid_request');
         result = publication
-          ? await store.publish(request, id, body.value)
+          ? request.method === 'PUT'
+            ? await store.setStage(request, id, body.value)
+            : await store.publish(request, id, body.value)
           : id
             ? await store.saveDraft(request, id, body.value)
             : await store.createDraft(request, body.value);

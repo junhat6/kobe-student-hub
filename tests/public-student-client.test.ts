@@ -26,6 +26,7 @@ const project = {
   githubUrl: '',
   demoUrl: '',
   publishedOn: '2026-11-09',
+  stage: 'in_progress',
 };
 function client(value: unknown) {
   const fetcher = vi.fn<typeof fetch>(async () => Response.json(value));

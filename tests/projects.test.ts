@@ -548,8 +548,10 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
       'descriptionPreview',
       'id',
       'publishedOn',
+      'stage',
       'title',
     ]);
+    expect(card.project.stage).toBe('complete');
     expect(Object.keys(card.author).sort()).toEqual([
       'department',
       'id',
@@ -672,6 +674,133 @@ it('bounds author list newest20, rejects corrupt snapshots and fails storage err
     await (await req(url, 'GET', undefined, 0, { 'X-Test-Discovery-Fault': '1' })).json(),
   ).toBeNull();
 }, 30_000);
+it('publishes 制作中／完成 on the snapshot and lets only the owner switch it (#275)', async () => {
+  const db = await mf.getD1Database('DB');
+  // An older page publishes without a stage: the project is complete, as before.
+  const legacy = await create({ ...f, title: 'Legacy stage' });
+  const legacyId = ((await (await publish(legacy)).json()) as { projectId: string }).projectId;
+  expect((await publicRead(legacyId))?.project.stage).toBe('complete');
+  for (const stage of ['done', '', null, 1, 'COMPLETE'])
+    expect(
+      (
+        await req('/api/private/project-publications/' + (await create()).id, 'POST', {
+          expectedVersion: 1,
+          confirmPublic: true,
+          stage,
+        })
+      ).status,
+    ).toBe(404);
+  const d = await create({ ...f, title: 'Work in progress' });
+  const r = await req('/api/private/project-publications/' + d.id, 'POST', {
+    expectedVersion: 1,
+    confirmPublic: true,
+    stage: 'in_progress',
+  });
+  expect(r.status).toBe(201);
+  const { projectId } = (await r.json()) as { projectId: string };
+  const reader = (await publicRead(projectId))!;
+  expect(reader.project.stage).toBe('in_progress');
+  // The public page DTO gains exactly one key.
+  expect(Object.keys(reader.project).sort()).toEqual([
+    'demoUrl',
+    'description',
+    'githubUrl',
+    'id',
+    'publishedOn',
+    'stage',
+    'technologies',
+    'title',
+  ]);
+  const before = await db
+    .prepare('SELECT * FROM project_publications WHERE id=?')
+    .bind(projectId)
+    .first<Record<string, unknown>>();
+  const path = '/api/private/project-publications/' + d.id;
+  // Another student, a student without the draft, malformed bodies and GET-only routes change nothing.
+  for (const [input, n] of [
+    [{ stage: 'complete' }, 1],
+    [{ stage: 'complete' }, 2],
+    [{ stage: 'done' }, 0],
+    [{ stage: 'complete', title: 'client' }, 0],
+    [{}, 0],
+    [['complete'], 0],
+  ] as const)
+    expect((await req(path, 'PUT', input, n)).status).toBe(404);
+  expect(
+    (
+      await mf.dispatchFetch(O + path, {
+        method: 'PUT',
+        headers: { Origin: O, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: 'complete' }),
+      })
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await req(path, 'PUT', { stage: 'complete' }, 0, {
+        Authorization: 'Bearer csrf.' + 'x'.repeat(43),
+      })
+    ).status,
+  ).toBe(401);
+  expect((await req('/api/private/project-drafts', 'PUT', { stage: 'complete' })).status).toBe(405);
+  expect((await publicRead(projectId))?.project.stage).toBe('in_progress');
+  // The owner switches it; the snapshot text stays the same and the receipt shows the new stage.
+  const switched = await req(path, 'PUT', { stage: 'complete' });
+  expect(switched.status).toBe(200);
+  const receipt = (await switched.json()) as {
+    publication: { projectId: string; project: { stage: string; title: string } };
+  };
+  expect(receipt.publication.projectId).toBe(projectId);
+  expect(receipt.publication.project).toMatchObject({
+    stage: 'complete',
+    title: 'Work in progress',
+  });
+  expect((await publicRead(projectId))?.project.stage).toBe('complete');
+  const after = await db
+    .prepare('SELECT * FROM project_publications WHERE id=?')
+    .bind(projectId)
+    .first<Record<string, unknown>>();
+  expect({ ...after, stage: before!.stage }).toEqual(before);
+  expect((await req(path, 'PUT', { stage: 'in_progress' })).status).toBe(200);
+  // The works list and the author list carry the stage.
+  await db
+    .prepare("UPDATE project_publications SET status='hidden' WHERE id<>?")
+    .bind(projectId)
+    .run();
+  const works = (await (await req('/public/discovery')).json()) as PublicProjectDiscovery;
+  expect(works.cards.find((c) => c.project.id === projectId)?.project.stage).toBe('in_progress');
+  const profile = await db
+    .prepare(
+      "SELECT public_profile_id id FROM account_public_profiles WHERE owner_account_id='account-0'",
+    )
+    .first<{ id: string }>();
+  const author = (await (await req('/public/author/' + profile!.id)).json()) as {
+    projects: { id: string; stage: string }[];
+  };
+  expect(author.projects.find((p) => p.id === projectId)?.stage).toBe('in_progress');
+  // A stopped (hidden) project can no longer be switched by anyone.
+  expect(
+    (
+      (await (
+        await req('/fixture/stop/' + projectId, 'POST', {
+          expectedSourceVersion: 1,
+          confirmStop: true,
+        })
+      ).json()) as { stopped: boolean }
+    ).stopped,
+  ).toBe(true);
+  expect((await req(path, 'PUT', { stage: 'complete' })).status).toBe(404);
+  expect(
+    (await db
+      .prepare('SELECT stage FROM project_publications WHERE id=?')
+      .bind(projectId)
+      .first<{ stage: string }>())!.stage,
+  ).toBe('in_progress');
+  // The column only holds the two stages, also for direct writes.
+  await expect(
+    db.prepare("UPDATE project_publications SET stage='done' WHERE id=?").bind(legacyId).run(),
+  ).rejects.toThrow();
+});
 it('stores technologies in the draft and the immutable published snapshot', async () => {
   const d = await create({ ...f, technologies: 'React、Cloudflare Workers' });
   expect(d.technologies).toBe('React、Cloudflare Workers');

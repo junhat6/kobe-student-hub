@@ -1,0 +1,11 @@
+.project-stage-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #e8f5ec;
+  color: #1f6b3a;
+  flex: none;
+}

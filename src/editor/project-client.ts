@@ -1,4 +1,5 @@
 import { proofAuthorization } from '../shared/auth-proof';
+import { isProjectStage, type ProjectStage } from '../project-types';
 import type {
   ProjectDraft,
   ProjectDraftSummary,
@@ -72,7 +73,8 @@ export function validProjectReader(v: unknown, id: string): v is PublicProjectRe
   return (
     publicKeys(v, ['project', 'author']) &&
     author(v.author) &&
-    publicKeys(v.project, ['id', ...fields, 'publishedOn']) &&
+    publicKeys(v.project, ['id', ...fields, 'publishedOn', 'stage']) &&
+    isProjectStage(v.project.stage) &&
     v.project.id === id &&
     projectUUID(v.project.id) &&
     date(v.project.publishedOn) &&
@@ -121,7 +123,9 @@ export function validProjectAuthor(v: unknown, id: string): v is PublicAuthorPro
           'githubUrl',
           'demoUrl',
           'publishedOn',
+          'stage',
         ]) &&
+        isProjectStage(p.stage) &&
         projectUUID(p.id) &&
         date(p.publishedOn) &&
         publicText(p.title, 200) &&
@@ -309,9 +313,11 @@ export function createProjectClient(csrfToken: string, fetcher: typeof fetch = f
       signal?: AbortSignal,
       mediaIds: string[] = [],
       articleIds: string[] = [],
+      stage: ProjectStage = 'complete',
     ) {
       if (
         !version(expectedVersion) ||
+        !isProjectStage(stage) ||
         articleIds.length > 3 ||
         !articleIds.every(projectUUID) ||
         new Set(articleIds).size !== articleIds.length
@@ -325,12 +331,20 @@ export function createProjectClient(csrfToken: string, fetcher: typeof fetch = f
           confirmPublic: true,
           ...(mediaIds.length ? { mediaIds } : {}),
           ...(articleIds.length ? { articleIds } : {}),
+          stage,
         },
         signal,
       );
       if (!publicKeys(v, ['projectId']) || !projectUUID(v.projectId))
         throw new ProjectClientError();
       return v.projectId;
+    },
+    /** Owner-only 制作中／完成 switch on the published snapshot; returns the confirmed receipt (#275). */
+    async setStage(id: string, stage: ProjectStage, signal?: AbortSignal) {
+      if (!isProjectStage(stage)) throw new ProjectClientError();
+      const v = await request(publicationPath(id), 'PUT', { stage }, signal);
+      if (!receipt(v) || v.publication?.project.stage !== stage) throw new ProjectClientError();
+      return v.publication;
     },
   };
 }

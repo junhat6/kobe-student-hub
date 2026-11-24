@@ -12,6 +12,7 @@ import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import './discovery.css';
 import { AuthorAvatar } from '../shared/public-avatars';
 import EmptySprout from '../shared/EmptySprout';
+import ProjectStageMark from '../shared/ProjectStageMark';
 
 function Works() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
@@ -82,7 +83,9 @@ function Project({ id }: { id: string }) {
           ← 作品一覧へ
         </Link>
         <div className="detail-header">
-          <h1>{project.title}</h1>
+          <h1>
+            {project.title} <ProjectStageMark stage={project.stage} />
+          </h1>
           <div className="detail-author">
             <Link className="author" to={`/students/${author.id}/works`}>
               <AuthorAvatar

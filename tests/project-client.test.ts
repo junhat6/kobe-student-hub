@@ -19,7 +19,7 @@ const author = {
   bio: '紹介',
   initials: '架',
 };
-const project = { ...fields, id, publishedOn: '2026-11-04' };
+const project = { ...fields, id, publishedOn: '2026-11-04', stage: 'complete' };
 const token = 'a'.repeat(43);
 afterEach(() => vi.useRealTimers());
 it('normalizes before private create and uses expected-version PUT without replacing newer input', async () => {
@@ -85,7 +85,11 @@ it('uses publication receipt without confusing null with unavailable and only po
   }) as typeof fetch);
   expect(await client.receipt(id)).toEqual({ publication: null });
   expect(await client.publish(id, 1)).toBe(id);
-  expect(JSON.parse(String(calls[1].body))).toEqual({ expectedVersion: 1, confirmPublic: true });
+  expect(JSON.parse(String(calls[1].body))).toEqual({
+    expectedVersion: 1,
+    confirmPublic: true,
+    stage: 'complete',
+  });
   await expect(
     createProjectClient(
       token,
@@ -146,6 +150,7 @@ it('reads project-only public DTOs anonymously without article fields or fetchin
                 githubUrl: fields.githubUrl,
                 demoUrl: '',
                 publishedOn: '2026-11-04',
+                stage: 'in_progress',
               },
             ],
           }
@@ -184,6 +189,7 @@ it('caps project reader at64KiB while author response keeps256KiB and rejects fa
     githubUrl: fields.githubUrl,
     demoUrl: '',
     publishedOn: '2026-11-04',
+    stage: 'complete',
   };
   expect(
     (
@@ -220,7 +226,14 @@ it('sends owner-chosen article links only when present and validates linked arti
     expectedVersion: 1,
     confirmPublic: true,
     articleIds: [article],
+    stage: 'complete',
   });
+  expect(await client.publish(id, 1, undefined, [], [], 'in_progress')).toBe(id);
+  expect(JSON.parse(String(calls[1].body)).stage).toBe('in_progress');
+  calls.length = 1;
+  await expect(
+    client.publish(id, 1, undefined, [], [], 'done' as 'complete'),
+  ).rejects.toBeInstanceOf(ProjectClientError);
   for (const bad of [[article, article], ['not-a-uuid'], [article, id, article, id]])
     await expect(client.publish(id, 1, undefined, [], bad)).rejects.toBeInstanceOf(
       ProjectClientError,
@@ -238,4 +251,33 @@ it('sends owner-chosen article links only when present and validates linked arti
     null,
   ])
     await expect(read({ ...page, articles })).rejects.toBeInstanceOf(ProjectClientError);
+});
+it('switches 制作中／完成 only with the stage body and accepts only a confirmed matching receipt (#275)', async () => {
+  const calls: { path: string; init: RequestInit }[] = [];
+  const reply = (stage: string) => ({
+    publication: {
+      projectId: id,
+      sourceVersion: 1,
+      project: { ...project, stage },
+      author,
+    },
+  });
+  let answer: unknown = reply('in_progress');
+  const client = createProjectClient(token, (async (path, init) => {
+    calls.push({ path: String(path), init: init! });
+    return Response.json(answer);
+  }) as typeof fetch);
+  const confirmed = await client.setStage(id, 'in_progress');
+  expect(confirmed?.project.stage).toBe('in_progress');
+  expect(calls[0].path).toBe('/api/private/project-publications/' + id);
+  expect(calls[0].init.method).toBe('PUT');
+  expect(JSON.parse(String(calls[0].init.body))).toEqual({ stage: 'in_progress' });
+  // A receipt that does not show the requested stage, or carries an unknown stage, is not success.
+  for (const bad of [reply('complete'), reply('done'), { publication: null }]) {
+    answer = bad;
+    await expect(client.setStage(id, 'in_progress')).rejects.toBeInstanceOf(ProjectClientError);
+  }
+  await expect(client.setStage('not-a-uuid', 'complete')).rejects.toBeInstanceOf(
+    ProjectClientError,
+  );
 });
