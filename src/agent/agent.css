@@ -313,3 +313,14 @@
     margin-bottom: 8px;
   }
 }
+/* The only link in the empty state: a 44px tap height without changing the line's look. */
+.agent-connections-howto {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  margin-left: 4px;
+  vertical-align: middle;
+  color: var(--accent-strong, #1659c7);
+  font-weight: 700;
+}

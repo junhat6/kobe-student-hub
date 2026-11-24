@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
 import { createAgentConnectionsClient, type AgentConnection } from './connections-client';
+import Icon from '../shared/Icon';
 import './agent.css';
 
 const day = (ms: number) =>
@@ -18,7 +19,8 @@ export default function AgentConnections({
   const [items, setItems] = useState<AgentConnection[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
+  // Success is announced only; failure stays visible (ux-rubric principle 6).
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const client = createAgentConnectionsClient(csrfToken, fetcher);
   async function load(signal?: AbortSignal) {
     try {
@@ -39,13 +41,13 @@ export default function AgentConnections({
   }, [csrfToken, fetcher]);
   async function revoke(item: AgentConnection) {
     setBusy(item.id);
-    setMessage('');
+    setMessage(null);
     try {
       const ok = await client.revoke(item.id);
       setMessage(
         ok
-          ? `「${item.clientName}」との接続を解除しました。`
-          : '解除できませんでした。もう一度試してください。',
+          ? { text: `「${item.clientName}」との接続を解除しました。`, ok }
+          : { text: '解除できませんでした。もう一度試してください。', ok },
       );
       await load();
     } finally {
@@ -61,7 +63,11 @@ export default function AgentConnections({
         <p role="status">読み込んでいます…</p>
       ) : items.length === 0 ? (
         <p>
-          接続中のAIエージェントはありません。<Link to="/agents#connect">つなぎ方</Link>
+          接続中のAIエージェントはありません。
+          <Link className="agent-connections-howto" to="/agents#connect">
+            つなぎ方
+            <Icon name="arrowRight" size={16} />
+          </Link>
         </p>
       ) : (
         <ul className="agent-connection-list">
@@ -89,7 +95,14 @@ export default function AgentConnections({
       <p className="agent-connections-note">
         接続したエージェントができるのは、公開記事を読むこと、あなたの下書きを作る・直すこと、公開済みの記事を公開したまま直すことだけです。初めての公開・削除はできません。
       </p>
-      {message && <p role="status">{message}</p>}
+      {message &&
+        (message.ok ? (
+          <p role="status" className="sr-only">
+            {message.text}
+          </p>
+        ) : (
+          <p role="alert">{message.text}</p>
+        ))}
     </section>
   );
 }
