@@ -51,6 +51,7 @@
 - 公開パネルの `<summary>` の中に要素（span 等）を足さない（#190 の見出し1行判定が flex の子の箱で2行と数えて通報系 spec がまとめて落ちる。補足は summary の外に出す。#201）
 - 大きな BLOB を持つ表（media_assets 等）に ALTER で足した列は BLOB の後ろに置かれ、表から読むと overflow page を辿る。全行を SUM/scan する quota 等は covering index から読む（c749c93 は CI だけ fetch failed で落ちた。#260）
 - 未 commit の変更があるファイルに mutation を当てた後、`git checkout <file>` で戻さない（自分の変更ごと消える）。mutation の前に一時 commit するか、変えた1行だけ sed で戻す
+- mutation の退避先に `/tmp/<固定名>` を使わない（sandbox で cp が失敗し、別セッションが残した同名ファイルで自分のソースが上書きされた。run-200）。一時 commit して `git checkout -- <file>` で戻す
 - セッションの `created_at_ms`・`last_seen_ms` は `SESSION_CLOCK_SKEW_MS`（5秒）まで時計の遅れを許す（同時リクエストの isolate 間の時計差で別パネルが落ちた。#268）。巻き戻しを試すテストは `NOW - SESSION_CLOCK_SKEW_MS - 1` 以下を使い、期限（idle・absolute・context）は許容なしのまま保つ
 - SPA の画面遷移の後に `page.goBack()` を検査するときは、遷移先の描画（前の画面の要素が0件）を待ってから戻る（待たないと前の画面が unmount 前に残り、状態が保たれたように見えて CI だけ落ちる。#266）
 - playwright が途中から「browserType.launch: Executable doesn't exist …chromium_headless_shell-NNNN」で全滅したら、別 worktree が古い版の install で共有 cache を消したもの。`npx playwright install chromium chromium-headless-shell` で戻し `--last-failed` で回し直す（実装の失敗と数えない）

@@ -281,3 +281,44 @@ it('switches 制作中／完成 only with the stage body and accepts only a conf
     ProjectClientError,
   );
 });
+it('keeps private owner reads within the shared 64 KiB bound and sends CSRF only on writes (#189)', async () => {
+  // A valid JSON body padded with whitespace: exactly at the bound is read, one byte over is not.
+  const sized = (bytes: number) => {
+    const json = JSON.stringify(draft);
+    return json + ' '.repeat(bytes - new TextEncoder().encode(json).byteLength);
+  };
+  const reply = (text: string) =>
+    (async () =>
+      new Response(text, { headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+  expect(await createProjectClient(token, reply(sized(65536))).read(id)).toMatchObject({ id });
+  await expect(createProjectClient(token, reply(sized(65537))).read(id)).rejects.toBeInstanceOf(
+    ProjectClientError,
+  );
+  const calls: [string, RequestInit][] = [];
+  const client = createProjectClient(token, (async (path, init) => {
+    calls.push([String(path), init!]);
+    return init?.method === 'PUT' ? Response.json({ ...draft, version: 2 }) : Response.json(draft);
+  }) as typeof fetch);
+  await client.read(id);
+  await client.save(id, fields, 1);
+  const [read, write] = calls.map(([, init]) => new Headers(init.headers));
+  expect(calls[0][1]).toMatchObject({ method: 'GET', credentials: 'same-origin' });
+  expect(calls[0][1].body).toBeUndefined();
+  expect(read.has('Authorization') || read.has('Content-Type')).toBe(false);
+  expect(write.get('Content-Type')).toBe('application/json');
+  expect(write.get('Authorization') === 'Bearer csrf.' + token).toBe(true);
+  // A write with a malformed CSRF token never reaches the network.
+  const never = vi.fn();
+  await expect(
+    createProjectClient('short', never as typeof fetch).save(id, fields, 1),
+  ).rejects.toBeInstanceOf(ProjectClientError);
+  expect(never).not.toHaveBeenCalled();
+  // A 409 or 422 from the server is a plain failure here, never a retried write.
+  for (const status of [409, 422]) {
+    const f = vi.fn(async () => Response.json({ error: 'x' }, { status }));
+    await expect(
+      createProjectClient(token, f as typeof fetch).save(id, fields, 1),
+    ).rejects.toBeInstanceOf(ProjectClientError);
+    expect(f).toHaveBeenCalledTimes(1);
+  }
+});

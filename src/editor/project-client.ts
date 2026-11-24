@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { readBoundedJson } from '../shared/http-client';
 import { isProjectStage, type ProjectStage } from '../project-types';
 import type {
   ProjectDraft,
@@ -155,103 +155,26 @@ function receipt(v: unknown): v is ProjectReceipt {
   );
 }
 export function createProjectClient(csrfToken: string, fetcher: typeof fetch = fetch) {
+  /** Private owner reads and writes go through the one bounded transport (#189). */
   async function request(
     path: string,
-    method = 'GET',
+    method: 'GET' | 'POST' | 'PUT' = 'GET',
     value?: unknown,
     signal?: AbortSignal,
   ): Promise<unknown> {
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    let rejectAbort: (e: ProjectClientError) => void = () => {};
-    const aborted = new Promise<never>((_, reject) => {
-      rejectAbort = reject;
-    });
-    const onAbort = () => {
-      cancel();
-      rejectAbort(new ProjectClientError());
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-    if (signal?.aborted) onAbort();
-    const operation = (async () => {
-      if (controller.signal.aborted) throw new ProjectClientError();
-      if (method !== 'GET' && !/^[A-Za-z0-9_-]{43}$/.test(csrfToken))
-        throw new ProjectClientError();
-      const r = await fetcher(path, {
-        method,
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers:
-          method === 'GET'
-            ? { Accept: 'application/json' }
-            : {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                Authorization: proofAuthorization('csrf', csrfToken),
-              },
-        ...(value === undefined ? {} : { body: JSON.stringify(value) }),
-      });
-      if (
-        controller.signal.aborted ||
-        !r.body ||
-        r.status !== (method === 'POST' ? 201 : 200) ||
-        !/^application\/json(?:;|$)/i.test(r.headers.get('Content-Type') ?? '')
-      ) {
-        void r.body?.cancel().catch(() => {});
-        throw new ProjectClientError();
-      }
-      const length = r.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 65536)
-      ) {
-        void r.body.cancel().catch(() => {});
-        throw new ProjectClientError();
-      }
-      reader = r.body.getReader();
-      const bytes = new Uint8Array(65536);
-      let size = 0,
-        chunks = 0;
-      try {
-        for (;;) {
-          const part = await reader.read();
-          if (controller.signal.aborted) throw new ProjectClientError();
-          if (part.done) break;
-          if (++chunks > 65536 || size + part.value.byteLength > bytes.length)
-            throw new ProjectClientError();
-          bytes.set(part.value, size);
-          size += part.value.byteLength;
-        }
-        return JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ) as unknown;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        cancel();
-        reject(new ProjectClientError());
-      }, 10000);
-    });
     try {
-      return await Promise.race([operation, deadline, aborted]);
+      return await readBoundedJson(path, {
+        fetcher,
+        credentials: 'same-origin',
+        method,
+        status: method === 'POST' ? 201 : 200,
+        maxBytes: 65536,
+        signal,
+        // Every write carries a body and the CSRF proof; a read carries neither.
+        ...(method === 'GET' ? {} : { csrf: csrfToken, body: value }),
+      });
     } catch {
       throw new ProjectClientError();
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-      cancel();
     }
   }
   const draftPath = (id: string) => {
