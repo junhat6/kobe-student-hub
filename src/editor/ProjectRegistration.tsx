@@ -684,9 +684,12 @@ export default function ProjectRegistration({
       </p>
       {ordinary && celebration > 0 && <Celebration key={celebration} />}
       <div className="project-actions">
-        <Button disabled={busy} onClick={reset}>
-          新しい作品の入力
-        </Button>
+        {/* With nothing saved yet the form already is a new entry, so the button would do nothing (原則4). */}
+        {(!ordinary || saved || list.length > 0 || createUnknown || saveUnknown || pubUnknown) && (
+          <Button disabled={busy} onClick={reset}>
+            新しい作品の入力
+          </Button>
+        )}
         {/* The list loads by itself; ordinary authors see a reload only when it is needed (原則4). */}
         {(!ordinary || listFailed || createUnknown) && (
           <Button disabled={busy} onClick={() => void refresh()}>
@@ -701,7 +704,9 @@ export default function ProjectRegistration({
             : '保存一覧を確認できません。入力や現在の保存版は残しています。'}
         </p>
       )}
-      <h3>{ordinary ? '保存した作品' : 'この画面で確認した保存記録'}</h3>
+      {(!ordinary || list.length > 0) && (
+        <h3>{ordinary ? '保存した作品' : 'この画面で確認した保存記録'}</h3>
+      )}
       {/* The 「続きを編集」 buttons explain themselves; the limit matters only once it is reached (原則1). */}
       {ordinary ? (
         list.length >= 20 && <p>更新が新しい20件まで表示します。</p>
@@ -754,7 +759,9 @@ export default function ProjectRegistration({
                     ? '作品の説明'
                     : '作品説明（プレーンテキスト）'
                   : key === 'technologies'
-                    ? '使った技術（任意・読点かカンマ区切り・100文字まで）'
+                    ? ordinary
+                      ? '使った技術（任意）' /* The placeholder shows the separators (原則1・3). */
+                      : '使った技術（任意・読点かカンマ区切り・100文字まで）'
                     : key === 'githubUrl'
                       ? 'GitHub URL（任意）'
                       : 'デモ URL（任意）'}
@@ -817,7 +824,7 @@ export default function ProjectRegistration({
                 ? '保存済みです。'
                 : '手元の入力と保存版は一致しています。'
               : ordinary
-                ? 'まだ保存していません。'
+                ? '' /* An empty new form needs no status line (原則1). */
                 : '保存版はまだ選んでいません。'}{' '}
           {!writable
             ? '年度の登録により、いまは保存できません。'
@@ -892,7 +899,13 @@ export default function ProjectRegistration({
           )}
           {profile && (
             <p>
-              公開する投稿者：{profile.displayName} ／ {profile.department} {profile.yearLabel}
+              公開する投稿者：
+              {[
+                profile.displayName,
+                [profile.department, profile.yearLabel].filter(Boolean).join(' '),
+              ]
+                .filter(Boolean)
+                .join(' ／ ')}
               <br />
               {profile.bio}
             </p>

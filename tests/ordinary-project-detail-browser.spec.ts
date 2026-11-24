@@ -44,7 +44,7 @@ test('project detail shows summary, technologies, author and a consent-gated You
     .getByLabel('作品の説明', { exact: true })
     .fill('授業の課題で作った架空の作品です。\n\n[架空の紹介動画](https://youtu.be/AbCdEf12345)');
   await page
-    .getByLabel('使った技術（任意・読点かカンマ区切り・100文字まで）', { exact: true })
+    .getByLabel('使った技術（任意）', { exact: true })
     .fill('React、TypeScript, Cloudflare Workers');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
   await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();

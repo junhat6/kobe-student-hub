@@ -8,8 +8,7 @@ const ORIGIN = 'https://127.0.0.1:8790';
 const provider = /^https:\/\/accounts\.google\.com\/o\/oauth2\/v2\/auth\?/;
 const projectTitle = (page: Page) => page.getByLabel('作品タイトル', { exact: true });
 const description = (page: Page) => page.getByLabel('作品の説明', { exact: true });
-const technologies = (page: Page) =>
-  page.getByLabel('使った技術（任意・読点かカンマ区切り・100文字まで）', { exact: true });
+const technologies = (page: Page) => page.getByLabel('使った技術（任意）', { exact: true });
 const rescueBox = (page: Page) =>
   page.getByRole('textbox', { name: '保存できなかった作品の入力の内容', exact: true });
 const reopen = (page: Page) =>
@@ -50,7 +49,9 @@ async function register(page: Page, info: TestInfo, suffix = 'a') {
   await page.goto('/works/new');
   await expect(projectTitle(page)).toBeEditable();
   expect((await listed).status()).toBe(200);
-  await expect(page.getByRole('button', { name: '新しい作品の入力', exact: true })).toBeEnabled();
+  // 原則4: with nothing saved the form already is a new entry, so no reset button or empty list heading.
+  await expect(page.getByRole('button', { name: '新しい作品の入力', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '保存した作品', exact: true })).toHaveCount(0);
   return actor;
 }
 // Signs the same browser context in again (as `actor`) without touching the observed page.

@@ -71,6 +71,12 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   const before = await publicCount();
   // #216: an author with a profile sees it and can publish without pressing a check button.
   await expect(page.getByText('公開する投稿者：架空の作品投稿者', { exact: false })).toBeVisible();
+  // A profile without department/year must not leave a dangling separator.
+  await expect(page.getByText('公開する投稿者：架空の作品投稿者 ／', { exact: false })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole('heading', { name: '保存した作品', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '新しい作品の入力', exact: true })).toBeEnabled();
   await expect(page.getByText('公開プロフィールがまだ', { exact: false })).toHaveCount(0);
   // #235 原則4: the screen re-reads by itself; check/refresh buttons appear only after a failure.
   for (const name of [
