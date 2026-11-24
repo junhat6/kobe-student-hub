@@ -410,11 +410,15 @@ export class ProjectStore {
     try {
       const p = await this.sessions.storageAuthorization(req);
       if (!p) return null;
+      // Only a snapshot the owner can read back as a receipt is changed, so a refused request never
+      // leaves a written stage behind: first the decoded receipt, then the same SQL bounds in one UPDATE.
+      const before = await this.ownReceipt(p, id);
+      if (!before?.publication) return null;
       const r = await this.db
         .prepare(
-          `UPDATE project_publications SET stage=? WHERE draft_id=? AND owner_account_id=? AND status='published' AND EXISTS(SELECT 1 FROM project_drafts d WHERE d.id=project_publications.draft_id AND d.owner_account_id=project_publications.owner_account_id) AND ${writerLive} RETURNING id`,
+          `UPDATE project_publications SET stage=? WHERE id=? AND draft_id=? AND owner_account_id=? AND status='published' AND EXISTS(SELECT 1 FROM project_publications r JOIN project_drafts d ON d.id=r.draft_id AND d.owner_account_id=r.owner_account_id JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id AND m.public_profile_id=r.public_profile_id JOIN public_profiles p ON p.id=r.public_profile_id WHERE r.id=project_publications.id AND r.status='published' AND ${bounded} AND ${profile}) AND ${writerLive} RETURNING id`,
         )
-        .bind(input.stage, id, p.accountId, ...writerBindings(p))
+        .bind(input.stage, before.publication.projectId, id, p.accountId, ...writerBindings(p))
         .first<{ id: string }>();
       if (!r) return null;
       const receipt = await this.ownReceipt(p, id);

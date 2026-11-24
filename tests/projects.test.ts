@@ -796,6 +796,25 @@ it('publishes 制作中／完成 on the snapshot and lets only the owner switch 
       .bind(projectId)
       .first<{ stage: string }>())!.stage,
   ).toBe('in_progress');
+  // A snapshot the owner cannot read back (here an oversized stored title) is refused without a write.
+  const damaged = await create({ ...f, title: 'Damaged later' });
+  const damagedId = ((await (await publish(damaged)).json()) as { projectId: string }).projectId;
+  await withProjectSnapshotUnlocked(db, () =>
+    db
+      .prepare('UPDATE project_publications SET title=? WHERE id=?')
+      .bind('x'.repeat(900), damagedId)
+      .run(),
+  );
+  expect(
+    (await req('/api/private/project-publications/' + damaged.id, 'PUT', { stage: 'in_progress' }))
+      .status,
+  ).toBe(404);
+  expect(
+    (await db
+      .prepare('SELECT stage FROM project_publications WHERE id=?')
+      .bind(damagedId)
+      .first<{ stage: string }>())!.stage,
+  ).toBe('complete');
   // The column only holds the two stages, also for direct writes.
   await expect(
     db.prepare("UPDATE project_publications SET stage='done' WHERE id=?").bind(legacyId).run(),
