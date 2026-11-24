@@ -127,7 +127,9 @@ test('only an operator records an editorial review and reads it back', async ({
     await expect(points).toContainText('体験が具体的1');
     await expect(points).toContainText('時期・値段などが足りない1');
     await expect(points).not.toContainText('本人の言葉');
-    await expect(mine).toContainText('まだ数えられません');
+    // C22 condition 5: no AI-written draft for this operator yet, so the plain zero state.
+    await expect(mine).toContainText('直近30日に AI が書いた下書きはありません。');
+    await expect(mine).not.toContainText('まだ数えられません');
     await expect(ops.locator('body')).not.toContainText('架空のひとこと-' + key);
     await expect(ops.locator('body')).not.toContainText('レビュー確認の記事-' + key);
     expect.soft(await seriousViolations(ops)).toEqual([]);
@@ -136,6 +138,42 @@ test('only an operator records an editorial review and reads it back', async ({
     ).toBe(true);
     await mine.scrollIntoViewIfNeeded();
     await ops.screenshot({ path: info.outputPath('editorial-taste.png'), scale: 'css' });
+    // The counts as they render once AI drafts exist (the worker's numbers are covered in
+    // tests/editorial-reviews.test.ts; here only the layout at this viewport is checked).
+    const real = await (await operator.context.request.get('/api/private/editorial-taste')).json();
+    await ops.route('**/api/private/editorial-taste', (route) =>
+      route.fulfill({
+        json: {
+          ...real,
+          aiDiff: {
+            days: 30,
+            drafts: 12,
+            compared: 8,
+            edited: 6,
+            added: 148,
+            removed: 37,
+            published: 3,
+            medianDaysToPublish: 2.5,
+            approximate: true,
+          },
+        },
+        headers: { 'Cache-Control': 'private, no-store' },
+      }),
+    );
+    await ops.reload();
+    const counts = taste(ops);
+    await expect(counts.getByRole('definition').filter({ hasText: '148' })).toBeVisible();
+    await expect(counts).toContainText('直した下書き6/8');
+    await expect(counts).toContainText('公開までの日数2.5');
+    await expect(counts).toContainText('AI が書いた下書き 12 本のうち新しい 8 本');
+    await expect(counts).toContainText('行数はおおよそです');
+    expect.soft(await seriousViolations(ops)).toEqual([]);
+    expect(
+      await ops.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await counts.getByRole('heading', { name: 'AI 下書きとの差' }).scrollIntoViewIfNeeded();
+    await ops.screenshot({ path: info.outputPath('editorial-taste-ai-diff.png'), scale: 'css' });
+    await ops.unroute('**/api/private/editorial-taste');
     // The author's own account page has no 好み, and the API answers others with 404.
     await own.goto('/account');
     await expect(own.getByRole('heading', { name: 'マイページ' })).toBeVisible();

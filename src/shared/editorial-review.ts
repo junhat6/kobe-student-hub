@@ -78,10 +78,32 @@ export function decodeEditorialReviewInput(v: unknown): EditorialReviewInput | n
 /** Window of the operator's 好み summary (C22 condition 5). */
 export const EDITORIAL_SUMMARY_DAYS = 30;
 
+/** Newest AI-written drafts whose lines are compared for the 好み screen (same bound as the editor's materials). */
+export const EDITORIAL_AI_DIFF_COMPARED = 8;
+
+/**
+ * How the operator changed the drafts their own AI agent wrote (C22 condition 5), as numbers only.
+ * `drafts` counts every AI-written draft recorded in the window; the line counts, `published` and
+ * the median days cover only the newest `compared` of them. A published draft is compared with the
+ * latest published body, any other with the current draft. Never a title, a line or an id.
+ */
+export interface EditorialAiDiff {
+  days: number;
+  drafts: number;
+  compared: number;
+  edited: number;
+  added: number;
+  removed: number;
+  published: number;
+  /** Median days from the AI creating the draft to its publication, one decimal; null when none is known. */
+  medianDaysToPublish: number | null;
+  /** True when a body was too long or too different to count every line exactly. */
+  approximate: boolean;
+}
+
 /**
  * The operator's 好み screen: the operator ledger (writing and app lines) and counts only.
- * Never carries a note, an article, an author or a reviewer. `aiDiff` stays null until the AI's
- * versions are kept (C23); the screen then says it cannot count yet.
+ * Never carries a note, an article, an author or a reviewer.
  */
 export interface EditorialTasteSummary {
   ledger: { taste: string[]; product: string[]; updated: string };
@@ -91,7 +113,7 @@ export interface EditorialTasteSummary {
     verdicts: Record<EditorialVerdict, number>;
     points: Record<EditorialPoint, number>;
   };
-  aiDiff: null;
+  aiDiff: EditorialAiDiff;
 }
 
 const countMap = (v: unknown, keys: readonly string[]): Record<string, number> | null => {
@@ -106,6 +128,58 @@ const countMap = (v: unknown, keys: readonly string[]): Record<string, number> |
   }
   return out;
 };
+const count = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
+const AI_DIFF_KEYS = [
+  'days',
+  'drafts',
+  'compared',
+  'edited',
+  'added',
+  'removed',
+  'published',
+  'medianDaysToPublish',
+  'approximate',
+] as const;
+function decodeAiDiff(v: unknown): EditorialAiDiff | null {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const x = v as Record<string, unknown>;
+  if (
+    Object.keys(x).length !== AI_DIFF_KEYS.length ||
+    !AI_DIFF_KEYS.every((k) => Object.hasOwn(x, k))
+  )
+    return null;
+  const median = x.medianDaysToPublish;
+  if (
+    x.days !== EDITORIAL_SUMMARY_DAYS ||
+    !count(x.drafts) ||
+    !count(x.compared) ||
+    !count(x.edited) ||
+    !count(x.added) ||
+    !count(x.removed) ||
+    !count(x.published) ||
+    (x.compared as number) > EDITORIAL_AI_DIFF_COMPARED ||
+    (x.compared as number) > (x.drafts as number) ||
+    (x.edited as number) > (x.compared as number) ||
+    (x.published as number) > (x.compared as number) ||
+    typeof x.approximate !== 'boolean' ||
+    !(
+      median === null ||
+      (typeof median === 'number' && Number.isFinite(median) && median >= 0 && x.published !== 0)
+    )
+  )
+    return null;
+  return {
+    days: EDITORIAL_SUMMARY_DAYS,
+    drafts: x.drafts as number,
+    compared: x.compared as number,
+    edited: x.edited as number,
+    added: x.added as number,
+    removed: x.removed as number,
+    published: x.published as number,
+    medianDaysToPublish: median as number | null,
+    approximate: x.approximate,
+  };
+}
 const lines = (v: unknown) =>
   Array.isArray(v) && v.length <= 100 && v.every((l) => typeof l === 'string' && l.length <= 400)
     ? [...(v as string[])]
@@ -123,6 +197,7 @@ export function decodeEditorialTasteSummary(v: unknown): EditorialTasteSummary |
   if (!taste || !product || typeof ledger.updated !== 'string') return null;
   const verdicts = countMap(reviews.verdicts, EDITORIAL_VERDICTS);
   const points = countMap(reviews.points, EDITORIAL_POINT_CODES);
+  const aiDiff = decodeAiDiff(x.aiDiff);
   if (
     !verdicts ||
     !points ||
@@ -130,7 +205,7 @@ export function decodeEditorialTasteSummary(v: unknown): EditorialTasteSummary |
     typeof reviews.total !== 'number' ||
     !Number.isSafeInteger(reviews.total) ||
     reviews.total < 0 ||
-    x.aiDiff !== null
+    !aiDiff
   )
     return null;
   return {
@@ -141,6 +216,6 @@ export function decodeEditorialTasteSummary(v: unknown): EditorialTasteSummary |
       verdicts: verdicts as Record<EditorialVerdict, number>,
       points: points as Record<EditorialPoint, number>,
     },
-    aiDiff: null,
+    aiDiff,
   };
 }

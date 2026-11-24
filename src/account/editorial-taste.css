@@ -80,3 +80,21 @@
   color: var(--ink-muted, #4d5967);
   font-size: 13px;
 }
+.editorial-taste-ai-diff {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.editorial-taste-ai-diff dd small {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-muted, #4d5967);
+}
+@media (max-width: 520px) {
+  .editorial-taste-ai-diff {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+p.editorial-taste-meta {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}

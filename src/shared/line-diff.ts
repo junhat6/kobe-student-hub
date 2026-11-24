@@ -30,7 +30,11 @@ export const DIFF_LIMITS = {
 
 const splitLines = (text: string) => (text === '' ? [] : text.split(/\r\n|\r|\n/));
 
-export function lineDiff(before: string, after: string, limits = DIFF_LIMITS): LineDiff {
+export function lineDiff(
+  before: string,
+  after: string,
+  limits: { [K in keyof typeof DIFF_LIMITS]: number } = DIFF_LIMITS,
+): LineDiff {
   const a0 = splitLines(before);
   const b0 = splitLines(after);
   let truncated = a0.length > limits.maxLines || b0.length > limits.maxLines;

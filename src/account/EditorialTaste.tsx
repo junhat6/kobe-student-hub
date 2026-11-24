@@ -18,7 +18,7 @@ const strip = (line: string) => line.replace(/^- /, '');
 
 /**
  * The operator's 好み (C22 condition 5): the operator ledger (writing and app lines), counts of
- * the operator's own reviews over 30 days, and the AI-draft difference once it can be counted.
+ * the operator's own reviews over 30 days, and how the operator changed their own AI's drafts.
  * The server answers everyone else with 404, and then this renders nothing. No note text exists
  * in the response, so none can be shown.
  */
@@ -64,7 +64,7 @@ export default function EditorialTaste({ fetcher }: { fetcher: typeof fetch }) {
     return () => controller.abort();
   }, [fetcher]);
   if (!summary) return null;
-  const { ledger, reviews } = summary;
+  const { ledger, reviews, aiDiff } = summary;
   const counted = EDITORIAL_POINTS.filter((p) => reviews.points[p.code] > 0).sort(
     (a, b) => reviews.points[b.code] - reviews.points[a.code],
   );
@@ -138,10 +138,42 @@ export default function EditorialTaste({ fetcher }: { fetcher: typeof fetch }) {
         </>
       )}
       <h3>AI 下書きとの差</h3>
-      <p className="editorial-taste-empty">
-        まだ数えられません。AI
-        が書いた版を残す仕組み（本人の台帳）が入ると、変更した行数と公開までの日数が出ます。
-      </p>
+      {aiDiff.drafts === 0 ? (
+        <p className="editorial-taste-empty">
+          直近{aiDiff.days}日に AI が書いた下書きはありません。
+        </p>
+      ) : (
+        <>
+          <dl className="editorial-taste-verdicts editorial-taste-ai-diff">
+            <div>
+              <dt>直した下書き</dt>
+              <dd>
+                {aiDiff.edited}
+                <small>/{aiDiff.compared}</small>
+              </dd>
+            </div>
+            <div>
+              <dt>足した行</dt>
+              <dd>{aiDiff.added}</dd>
+            </div>
+            <div>
+              <dt>消した行</dt>
+              <dd>{aiDiff.removed}</dd>
+            </div>
+            <div>
+              <dt>公開までの日数</dt>
+              <dd>{aiDiff.medianDaysToPublish === null ? '—' : aiDiff.medianDaysToPublish}</dd>
+            </div>
+          </dl>
+          <p className="editorial-taste-meta">
+            直近{aiDiff.days}日に AI が書いた下書き {aiDiff.drafts} 本
+            {aiDiff.compared < aiDiff.drafts ? `のうち新しい ${aiDiff.compared} 本` : ''}
+            を、公開した {aiDiff.published}{' '}
+            本は公開版と、ほかは今の下書きと比べた数です。公開までの日数は中央値。
+            {aiDiff.approximate ? '長い本文があるため、行数はおおよそです。' : ''}
+          </p>
+        </>
+      )}
     </section>
   );
 }

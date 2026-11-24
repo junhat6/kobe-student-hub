@@ -243,7 +243,18 @@ it('summarises the operator ledger and own review counts without any note', asyn
   expect(summary!.reviews.verdicts).toEqual({ good: 0, ok: 1, bad: 0 });
   expect(summary!.reviews.points.too_long).toBe(1);
   expect(summary!.reviews.points.experience).toBe(0);
-  expect(summary!.aiDiff).toBeNull();
+  // No AI-written draft yet: zero, not a placeholder.
+  expect(summary!.aiDiff).toEqual({
+    days: 30,
+    drafts: 0,
+    compared: 0,
+    edited: 0,
+    added: 0,
+    removed: 0,
+    published: 0,
+    medianDaysToPublish: null,
+    approximate: false,
+  });
   // Never a note, an article, an author or a reviewer.
   for (const secret of [review.note, articleId, 'account-a', 'account-b', '公開名B'])
     expect(r!.body).not.toContain(secret);
@@ -316,4 +327,143 @@ it('answers non-operators and bad requests on the summary with the same 404', as
     action: 'composed-closed',
   });
   expect(closed).toBeNull();
+});
+
+// C22 condition 5: how the operator changed their own AI agent's drafts, as numbers only.
+it('counts how the operator changed their own AI drafts without any title, line or id', async () => {
+  const db = await mf.getD1Database('DB');
+  const DAY = 24 * 60 * 60 * 1000;
+  await db.batch([
+    db.prepare(
+      "INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) VALUES('pub-a','公開名A','分野','学年','自己紹介','A',0)",
+    ),
+    db.prepare(
+      "INSERT INTO account_public_profiles(owner_account_id,public_profile_id) VALUES('account-a','pub-a')",
+    ),
+  ]);
+  const uuid = (n: number) => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
+  const draft = (id: string, owner: string, title: string, body: string) =>
+    db
+      .prepare(
+        'INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) VALUES(?,?,?,?,2,?)',
+      )
+      .bind(id, owner, title, body, NOW - DAY);
+  const agent = (id: string, owner: string, title: string, body: string, at: number) =>
+    db
+      .prepare(
+        'INSERT INTO agent_draft_versions(draft_id,account_id,title,body,draft_version,recorded_at_ms) VALUES(?,?,?,?,1,?)',
+      )
+      .bind(id, owner, title, body, at);
+  const origin = (id: string, owner: string, at: number) =>
+    db
+      .prepare(
+        'INSERT INTO agent_draft_origins(draft_id,account_id,grant_id,created_at_ms) VALUES(?,?,?,?)',
+      )
+      .bind(id, owner, uuid(999), at);
+  // 1: unpublished, the operator rewrote one line and added one (+2 / -1).
+  await db.batch([
+    draft(uuid(1), 'account-a', 'カナリア題1', '前置き\nカナリア行の直し\n結び\n足した行'),
+    agent(uuid(1), 'account-a', 'カナリア題1', '前置き\nカナリア行\n結び', NOW - DAY),
+    origin(uuid(1), 'account-a', NOW - 3 * DAY),
+  ]);
+  // 2: published through the real flow; compared with the published body (+1 / -0), 2 days.
+  const created = await call<{ id: string; version: number }>({
+    action: 'create',
+    url: ORIGIN + '/private/drafts',
+    method: 'POST',
+    headers: browser(users.a, true),
+    input: { title: 'カナリア題2', body: 'AIの一行目\nAIの二行目\n本人の行' },
+  });
+  await db.batch([
+    agent(created.id, 'account-a', 'カナリア題2', 'AIの一行目\nAIの二行目', NOW - 2 * DAY),
+    origin(created.id, 'account-a', NOW - 2 * DAY),
+  ]);
+  const published = await call<{ contentId: string }>({
+    action: 'publish',
+    url: ORIGIN + '/private/publication',
+    method: 'POST',
+    headers: browser(users.a, true),
+    draft: created.id,
+    input: {
+      expectedVersion: created.version,
+      confirmPublic: true,
+      summary: '概要',
+      tags: ['ごはん'],
+      minutes: 3,
+    },
+  });
+  // Left out: older than 30 days, and another account's AI draft.
+  await db.batch([
+    draft(uuid(3), 'account-a', 'カナリア題3', '古い'),
+    agent(uuid(3), 'account-a', 'カナリア題3', '古いAI', NOW - 31 * DAY),
+    draft(uuid(4), 'account-b', 'カナリア題4', '他人'),
+    agent(uuid(4), 'account-b', 'カナリア題4', '他人のAI', NOW - DAY),
+  ]);
+  const read = async () => {
+    const r = await http('/api/private/editorial-taste', { headers: browser(users.a) });
+    expect(r!.status).toBe(200);
+    for (const secret of ['カナリア', 'AIの', '本人の行', uuid(1), created.id, published.contentId])
+      expect(r!.body).not.toContain(secret);
+    return decodeEditorialTasteSummary(JSON.parse(r!.body))!.aiDiff;
+  };
+  expect(await read()).toEqual({
+    days: 30,
+    drafts: 2,
+    compared: 2,
+    edited: 2,
+    added: 3,
+    removed: 1,
+    published: 1,
+    medianDaysToPublish: 2,
+    approximate: false,
+  });
+  // More AI drafts than are compared: the total counts all 10, the lines only the newest 8
+  // (eight unchanged ones, so the two edited drafts above fall out of the comparison).
+  const extra = [];
+  for (let n = 10; n < 18; n++)
+    extra.push(
+      draft(uuid(n), 'account-a', 'カナリア題' + n, '同じ'),
+      agent(uuid(n), 'account-a', 'カナリア題' + n, '同じ', NOW - DAY / 2 + n),
+    );
+  await db.batch(extra);
+  const many = await read();
+  expect(many).toMatchObject({ drafts: 10, compared: 8, edited: 0, added: 0, removed: 0 });
+  expect(many.published).toBe(0);
+  expect(many.medianDaysToPublish).toBeNull();
+  // A student who is not the operator still gets 404, even with AI drafts of their own.
+  expect((await http('/api/private/editorial-taste', { headers: browser(users.b) }))!.status).toBe(
+    404,
+  );
+});
+
+it('decodes the AI difference only in its fixed shape', async () => {
+  const r = JSON.parse(
+    (await http('/api/private/editorial-taste', { headers: browser(users.a) }))!.body,
+  );
+  const ok = {
+    days: 30,
+    drafts: 3,
+    compared: 3,
+    edited: 1,
+    added: 4,
+    removed: 2,
+    published: 1,
+    medianDaysToPublish: 1.5,
+    approximate: false,
+  };
+  expect(decodeEditorialTasteSummary({ ...r, aiDiff: ok })!.aiDiff).toEqual(ok);
+  for (const bad of [
+    null,
+    { ...ok, title: 'x' },
+    { ...ok, days: 7 },
+    { ...ok, compared: 9, drafts: 9 },
+    { ...ok, compared: 4 },
+    { ...ok, edited: 4 },
+    { ...ok, added: -1 },
+    { ...ok, removed: 1.5 },
+    { ...ok, medianDaysToPublish: -1 },
+    { ...ok, medianDaysToPublish: 2, published: 0 },
+    { ...ok, approximate: 'no' },
+  ])
+    expect(decodeEditorialTasteSummary({ ...r, aiDiff: bad })).toBeNull();
 });

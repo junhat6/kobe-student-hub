@@ -8,14 +8,17 @@ import {
 } from '../src/agent/editorial-taste';
 import {
   decodeEditorialReviewInput,
+  EDITORIAL_AI_DIFF_COMPARED,
   EDITORIAL_POINTS,
   EDITORIAL_SUMMARY_DAYS,
+  type EditorialAiDiff,
   EDITORIAL_VERDICTS,
   type EditorialTasteSummary,
   type EditorialReviewView,
   type EditorialVerdict,
   type EditorialPoint,
 } from '../src/shared/editorial-review';
+import { DIFF_LIMITS, lineDiff } from '../src/shared/line-diff';
 
 const PREFIX = '/api/private/editorial-reviews/';
 /** The operator's 好み screen (C22 condition 5): ledger and counts only. */
@@ -23,6 +26,8 @@ export const TASTE_PATH = '/api/private/editorial-taste';
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Bound on rows the summary reads; far above one operator's 30 days of reviews.
 const SUMMARY_ROWS = 2000;
+const longerThanDiff = (text: string) =>
+  text.split(/\r\n|\r|\n/, DIFF_LIMITS.maxLines + 1).length > DIFF_LIMITS.maxLines;
 const ledgerLines = (text: string) => text.split('\n').filter((line) => line.trim() !== '');
 const LIMIT = 16 * 1024;
 // Transport work bound, including zero-byte chunks; distinct from the content byte limit.
@@ -237,8 +242,72 @@ export class EditorialReviewStore {
         updated: EDITORIAL_TASTE_UPDATED,
       },
       reviews: { days: EDITORIAL_SUMMARY_DAYS, total: results.length, verdicts, points },
-      aiDiff: null,
+      aiDiff: await this.aiDiff(p, since),
     };
+  }
+
+  /**
+   * How the operator changed what their own AI agent wrote, over the same window. Bodies are read
+   * only to count lines here; no title, line or id leaves this method. A published draft is
+   * compared with its latest published body, any other with the current draft.
+   */
+  private async aiDiff(
+    p: NonNullable<Awaited<ReturnType<EditorialReviewStore['operator']>>>,
+    since: number,
+  ): Promise<EditorialAiDiff> {
+    const [total, rows] = await this.db.batch([
+      this.db
+        .prepare(
+          `SELECT count(*) AS n FROM agent_draft_versions v JOIN private_article_drafts d ON d.id=v.draft_id AND d.owner_account_id=v.account_id WHERE v.account_id=? AND v.recorded_at_ms>=? AND ${live}`,
+        )
+        .bind(p.accountId, since, ...bindings(p)),
+      this.db
+        .prepare(
+          `SELECT v.title AS agent_title,v.body AS agent_body,d.title,d.body,(SELECT cur.body FROM article_publications r JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id AND c.kind='article' AND c.status='published' AND c.is_sample=0 JOIN article_publication_revisions cur ON cur.content_id=r.content_id WHERE r.draft_id=d.id AND r.owner_account_id=d.owner_account_id ORDER BY cur.revision DESC LIMIT 1) AS published_body,(SELECT r.published_at_ms FROM article_publications r JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id AND c.kind='article' AND c.status='published' AND c.is_sample=0 WHERE r.draft_id=d.id AND r.owner_account_id=d.owner_account_id) AS published_at_ms,(SELECT o.created_at_ms FROM agent_draft_origins o WHERE o.draft_id=v.draft_id AND o.account_id=v.account_id) AS created_at_ms FROM agent_draft_versions v JOIN private_article_drafts d ON d.id=v.draft_id AND d.owner_account_id=v.account_id WHERE v.account_id=? AND v.recorded_at_ms>=? AND ${live} ORDER BY v.recorded_at_ms DESC,v.draft_id ASC LIMIT ${EDITORIAL_AI_DIFF_COMPARED}`,
+        )
+        .bind(p.accountId, since, ...bindings(p)),
+    ]);
+    const out: EditorialAiDiff = {
+      days: EDITORIAL_SUMMARY_DAYS,
+      drafts: (total.results[0] as { n: number } | undefined)?.n ?? 0,
+      compared: rows.results.length,
+      edited: 0,
+      added: 0,
+      removed: 0,
+      published: 0,
+      medianDaysToPublish: null,
+      approximate: false,
+    };
+    const days: number[] = [];
+    for (const r of rows.results as {
+      agent_title: string;
+      agent_body: string;
+      title: string;
+      body: string;
+      published_body: string | null;
+      published_at_ms: number | null;
+      created_at_ms: number | null;
+    }[]) {
+      const after = r.published_body ?? r.body;
+      // Counts only: no changed line is kept, so the change list is capped at zero.
+      const diff = lineDiff(r.agent_body, after, { ...DIFF_LIMITS, maxChanges: 0 });
+      out.added += diff.added;
+      out.removed += diff.removed;
+      if (diff.approximate || [r.agent_body, after].some(longerThanDiff)) out.approximate = true;
+      if (diff.added + diff.removed > 0 || r.agent_title !== r.title) out.edited++;
+      if (r.published_body !== null) {
+        out.published++;
+        if (r.published_at_ms !== null && r.created_at_ms !== null)
+          days.push(Math.max(0, r.published_at_ms - r.created_at_ms) / DAY_MS);
+      }
+    }
+    if (days.length) {
+      days.sort((a, b) => a - b);
+      const mid = days.length >> 1;
+      const median = days.length % 2 ? days[mid] : (days[mid - 1] + days[mid]) / 2;
+      out.medianDaysToPublish = Math.round(median * 10) / 10;
+    }
+    return out;
   }
 }
 
