@@ -256,6 +256,12 @@ describe('project journal links (#273)', () => {
     const sample = await article('見本扱いの記事');
     await db.prepare('UPDATE content SET is_sample=1 WHERE id=?').bind(sample).run();
     await expect(insert(work.projectId, sample)).rejects.toThrow(/journal link unavailable/);
+    // A linked article later turned into a sample is reported to the owner as not public.
+    await db.prepare('UPDATE content SET is_sample=1 WHERE id=?').bind(second).run();
+    expect((await journal(work.draftId))!.articles.find((x) => x.id === second)?.isPublic).toBe(
+      false,
+    );
+    await db.prepare('UPDATE content SET is_sample=0 WHERE id=?').bind(second).run();
     // Written straight to the table, the article fixed at publish time is still shown only once.
     await insert(work.projectId, fixed);
     const value = (await page(work.projectId))!;

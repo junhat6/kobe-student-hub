@@ -6,6 +6,31 @@ import type { createProjectClient } from './project-client';
 type Client = Pick<ReturnType<typeof createProjectClient>, 'journal' | 'setJournalLink'>;
 
 /**
+ * What the 制作日誌 panel lists. The server decides whether each linked article is still public
+ * (#273 verifier N1): the own publication list holds only the newest 20, so an older linked article
+ * missing from it is not a stopped one. Candidates are own public articles not fixed at publish time
+ * plus linked public ones older than that list; stopped links are listed once, only as stopped.
+ */
+export function journalChoices(
+  journal: ProjectJournal | null,
+  ownArticles: { id: string; title: string }[] | null,
+) {
+  if (!journal) return { candidates: [], stopped: [] };
+  const stopped = journal.articles.filter((article) => !article.isPublic);
+  const stoppedIds = new Set(stopped.map((article) => article.id));
+  const own = (ownArticles ?? []).filter(
+    (article) => !journal.fixedArticleIds.includes(article.id) && !stoppedIds.has(article.id),
+  );
+  const older = journal.articles.filter(
+    (article) => article.isPublic && !own.some((item) => item.id === article.id),
+  );
+  return {
+    candidates: [...own, ...older.map(({ id, title }) => ({ id, title }))],
+    stopped,
+  };
+}
+
+/**
  * 制作日誌 (#273): after a project is published, its owner adds or removes their own public articles
  * as journal entries. The server confirms every change; an unconfirmed change is never resent.
  */
@@ -68,19 +93,8 @@ export default function ProjectJournalLinks({
       setPending(null);
     }
   }
-  // Own public articles not fixed at publish time, plus linked ones that are still public but older
-  // than the newest-20 publication list, so every public journal entry stays visible and removable.
-  const linkedPublic = journal?.articles.filter((article) => article.isPublic) ?? [];
-  const candidates = journal
-    ? [
-        ...(ownArticles ?? []).filter((article) => !journal.fixedArticleIds.includes(article.id)),
-        ...linkedPublic.filter((article) => !ownArticles?.some((own) => own.id === article.id)),
-      ]
-    : [];
+  const { candidates, stopped } = journalChoices(journal, ownArticles);
   const full = (journal?.articleIds.length ?? 0) >= PROJECT_JOURNAL_LIMIT;
-  // Linked articles the server reports as no longer public: not shown on the project page, but they
-  // keep a slot until the owner removes them (#273 verifier L3・N1).
-  const stopped = journal?.articles.filter((article) => !article.isPublic) ?? [];
   return (
     <fieldset className="project-article-links project-journal-links">
       <legend>制作日誌</legend>
