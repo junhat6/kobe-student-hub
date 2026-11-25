@@ -6,6 +6,7 @@ import { ArticlePublicationStore } from '../worker/publication';
 import { ProjectStore } from '../worker/projects';
 import type { PublicStudent, PublicStudentActivity } from '../src/public-student-types';
 import { withProjectSnapshotUnlocked } from './helpers/project-snapshot';
+import { readPublicStudent } from '../worker/public-students-http';
 
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1800000000000;
@@ -377,5 +378,44 @@ describe('ordinary shared public student with actual Workers/D1', () => {
     });
     expect(origin.status).toBe(404);
     expect(origin.headers.get('X-Fixture-Db-Calls')).toBe('0');
+  });
+});
+
+// Shared by /api/students and the MCP get_student tool (#294). Both selections read the same
+// public_profiles row, so a mismatch only happens when the profile changes between the two reads.
+describe('readPublicStudent keeps failed and absent apart', () => {
+  const author = (name: string) => ({
+    id: 'pub-x',
+    name,
+    department: '',
+    year: '',
+    bio: '',
+    initials: 'X',
+  });
+  const entry = { id: 'a', title: 't' } as never;
+  const project = { id: 'p', title: 't' } as never;
+  const stores = (a: unknown, p: unknown) =>
+    [
+      { readPublishedAuthorSelection: async () => a } as unknown as ArticlePublicationStore,
+      { readAuthorSelection: async () => p } as unknown as ProjectStore,
+    ] as const;
+  it('fails (null) on a changed author or a failed selection, and is missing only when nothing is public', async () => {
+    const both = (an: string, pn: string) =>
+      stores({ author: author(an), entries: [entry] }, { author: author(pn), projects: [project] });
+    expect(await readPublicStudent(...both('A', 'B'), 'pub-x')).toBeNull();
+    expect(await readPublicStudent(...both('A', 'A'), 'pub-x')).toMatchObject({
+      author: { name: 'A' },
+      entries: [entry],
+      projects: [project],
+    });
+    expect(
+      await readPublicStudent(...stores(null, { author: null, projects: [] }), 'pub-x'),
+    ).toBeNull();
+    expect(
+      await readPublicStudent(
+        ...stores({ author: null, entries: [] }, { author: null, projects: [] }),
+        'pub-x',
+      ),
+    ).toBe('missing');
   });
 });
