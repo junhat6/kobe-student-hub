@@ -291,7 +291,10 @@ export default function ProjectRegistration({
     editTarget.current = undefined;
     if (!target || !rows) return;
     const row = rows.find((r) => r.publicationId === target);
-    if (row) await resume(row.id);
+    // Input typed while the list was loading is the student's own; never replace it unasked.
+    if (row && Object.values(inputRef.current).some(Boolean))
+      setMessage('入力中の内容があるため、作品は開いていません。下の一覧から選べます。');
+    else if (row) await resume(row.id);
     else setMessage('この作品を保存一覧から開けませんでした。下の一覧から選んでください。');
   }
   useEffect(() => {

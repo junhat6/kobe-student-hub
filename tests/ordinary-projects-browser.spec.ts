@@ -118,6 +118,25 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   await expect(page.getByRole('button', { name: 'この作品のその他の操作' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('ordinary-project-owner-edit.png'), scale: 'css' });
+  // Input typed while the list is still loading is kept; the project is not opened over it.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const list = /\/api\/private\/project-drafts$/;
+  await page.route(list, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await edit.click();
+  await expect(page).toHaveURL(ORIGIN + '/works/new');
+  await page.getByLabel('作品タイトル', { exact: true }).fill('先に打った題');
+  release();
+  await expect(
+    page.getByText('入力中の内容があるため、作品は開いていません。', { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByLabel('作品タイトル', { exact: true })).toHaveValue('先に打った題');
+  await page.unroute(list);
+  await page.getByLabel('作品タイトル', { exact: true }).fill('');
+  await page.goto(path!);
   await edit.click();
   await expect(page).toHaveURL(ORIGIN + '/works/new');
   // It opens this project's saved draft (the private continuation), not an empty form.
