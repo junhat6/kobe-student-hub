@@ -57,6 +57,7 @@
 - 時計差の許容を足すときは、行の比較だけでなく封をした cookie の iat も見る（login は form_post なので attempt の cookie と return cookie の2枚。jose の clockTolerance は exp・maxTokenAge も緩めるので、期限は明示の判定で厳格に保つ。#282）
 - playwright が途中から「browserType.launch: Executable doesn't exist …chromium_headless_shell-NNNN」で全滅したら、別 worktree が古い版の install で共有 cache を消したもの。`npx playwright install chromium chromium-headless-shell` で戻し `--last-failed` で回し直す（実装の失敗と数えない）
 - 表を作り直す migration（CHECK の変更など）は、他の表の trigger が本文でその表を読んでいると D1 が RENAME を止める（「error in trigger … no such table」）。その trigger を同じ batch で DROP し同じ文で作り直す。`auth_sessions` を変えたら、0004＋0012 を手で並べる fixture（`tests/helpers/order-schema.ts`・`coordinated-fixture.ts` と各 test の一覧）にも当てる（#269）
+- 他の表から外部キーで参照される表（media_assets 等）を作り直すときは、DROP＋RENAME にしない（`defer_foreign_keys` でも commit で FK 違反になる）。退避表へ写す→DROP→同じ名前で作り直す→写し戻す、の順にし、テストは `db.batch` で1 transaction として当てる（0045、#12）
 - 自分の push だけで main-health が赤く手元で再現しないときは、`gh workflow run ci.yml --ref tmp/<名前>` で一時ブランチの版を並べて切り分ける（main-health は concurrency が全体で1つなので、一時ブランチで回すと main の検査を取り消す）。#277 は無関係に見える profile-reports が、テストが増えた負荷で崩れていた
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 - 検証依頼を書いたら、同じ周回で Agent tool の別 context verifier を起動して結果まで見届ける（書くだけで終えると誰も検証せず Issue が止まる。#269）。指摘を直したら毎回新しい verifier で再確認する
