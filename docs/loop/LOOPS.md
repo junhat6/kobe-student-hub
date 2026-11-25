@@ -190,6 +190,24 @@ AIには学生の価値を検証できません。このループは人が回し
 - **学生による検証**（完成後）：実際の学生に旅を1つ頼み、「読んだ経験が次の行動につながったか」を聞く（DECISIONS.md の H01 の問い）。結果は非公開で扱い、公開Issueに書かない。仮説の更新は DECISIONS.md へ。
 - **レビュー**（例：2026-11-21 21:00）：conductor が HTML 1枚で報告（何が出たか・台帳の進捗・人の判断待ち）。人は判断と台帳の修正だけを返す。
 
+## 7. MCP 育成の流れ (mcp-gap，既存のループに乗る)
+
+2026-11-25 オーナー方針：hub を**公式 MCP 以外の経路**（Claude in Chrome などのブラウザ操作、画面の手作業、curl などで API を直接叩く、リモート D1 を直接読む）で操作した出来事は、「その操作を MCP でできるようにする」改善の起点にする。MCP は使われるたびに育つ。新しい automation は作らず、記録は hook とスクリプト、判断は replan、実装は finish が受け持つ。
+
+| 段 | 何が | どうする |
+| --- | --- | --- |
+| 対応表 | [mcp-coverage.json](mcp-coverage.json) | hub の操作ごとに class を決める：`mcp`（ある）／`gap`（足してよい）／`excluded`（C21・C23 が MCP に置かないと名指し）／`operator`（運営だけ）／`human-only`（初めての公開・接続の許可・ログイン。恒久条件・オーナー決定）。`tests/mcp-coverage.test.ts` が、MCP の全ツールが表にあること・human-only に tool が無いこと・`/api/private/` の口が表にあることを確かめる |
+| 拾う（自動） | Claude Code の hook（`.claude/settings.json` → `scripts/loop/mcp-gap.mjs hook`） | PostToolUse：Claude in Chrome が本番 hub を開いた、ブラウザ CLI・curl が本番 hub に出た、`wrangler d1 execute --remote` を打った、を記録する。Stop：分類されていないセッションに1回だけ「何をしたか」を操作 ID で記録するよう頼む（`classify --session <id> <op>…`、画面の確認が目的なら `inspect`） |
+| 拾う（申告） | エージェントの作業報告、オーナーの申告 | `node scripts/loop/mcp-gap.mjs record <op> --via chrome --source report`（エージェント）／`--source owner`（オーナー。hook の無い Claude in Chrome 単体・手作業）。オーナーは「hub を Chrome で〇〇した」とエージェントに言えば、そのエージェントが記録する |
+| 拾う（利用者） | 利用者のエージェント | MCP の instructions が「MCP にない操作を別の方法で行ったら、本人の台帳のアプリの行に『MCP でしたかった操作』を1行」と頼む（C23）。本人が「運営に見せる」にした行を editor が数え、`record <op> --source taste --count n` で記録する（文は写さない） |
+| 送る | `node scripts/loop/mcp-gap.mjs sync` | Stop hook が裏で1時間に1回、replan が毎周に実行する。操作 ID ごとに Issue（label `mcp-gap`）を1本にまとめ、件数を JSON 行つきでコメントする。`gap`→`loop:finish`＋`R2`、`mcp`（あるのに使われなかった）→`loop:garden`、`excluded`・`operator`・`unknown`→ `mcp-gap` だけ（replan 待ち）、`human-only`・`inspect`→ Issue を作らず log に数だけ。累計3件か2日で P2→P1。同期の記録は Issue `mcp-gap-log` |
+| 判断 | replan | `mcp-gap` だけの Issue を読み、置かない（理由を書いて閉じる）か、DECISIONS に理由を書いて対応表を `gap` に移す。`unknown` は対応表に操作を足す |
+| 作る | finish | `loop:finish`＋`mcp-gap` の Issue で MCP のツールを足す（R2・独立検証）。終わったら対応表の class を `mcp`・`tool` を書き、C21 acceptance 4 への追記を replan に頼む |
+
+守ること：記録は列挙した項目だけ（時刻・経路・画面や API の型・表の名前・操作 ID・出どころ・ループ名）。URL のクエリ・ID・SQL・本文は残さない。置き場所は `~/ksh-private/mcp-gaps/`（リポジトリの外）で、公開 Issue に出るのは操作 ID ごとの件数だけ（利用者の台帳由来は5件未満を丸める）。`human-only` は replan も変えない。
+
+**なぜこの形か**：MCP にない操作は、使う人が困った瞬間（ブラウザに逃げた瞬間）に一番はっきり見える。そこを hook で機械的に拾い、何の操作かは「その場で何をしたか知っている」エージェント自身に1回だけ書かせる。記録を推測で分類しないので対応表がずれにくく、操作 ID の列挙で記録の中身も絞れる（[DESIGN-PRINCIPLES](DESIGN-PRINCIPLES.md) 原則1）。採らなかった形：サーバー側で画面経由の書き込みを数える（人の手作業とエージェントの操作を区別できず、実利用者の行動の記録が新しく増える。必要になったら R2 の Issue として別に検討する）、出来事ごとに Issue を作る（待ち行列が埋まる）。
+
 ## 人の待ち行列
 
 `needs-human` ラベルの Issue。現時点で分かっているもの：
@@ -240,6 +258,7 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
 | `ksh release` | `0 * * * *`（missed-run grace 100分） | 定時便の発車（窓の中で記録なし）か、出しきれていない便を 90 分だれも動かしていないとき（rc の CI・release.yml の実行中は除く）。止める条件は `npm run release` が判定して記録 | `.claude/skills/release/SKILL.md` |
 | `ksh editor` | `15 9,21 * * *` | 材料の inbox に未処理がある、または `editor-log` の最新から20時間以上 | prompts/editor.md（オーナーのレビュー → 好みの台帳 → 次の執筆。材料 → 下書き） |
+| （MCP 育成） | 新しい automation は無い | Stop hook が裏で `mcp-gap.mjs sync`（1時間に1回まで）、replan が毎周 sync | [§7](#7-mcp-育成の流れ-mcp-gap既存のループに乗る) |
 | `ksh tidy` | `45 * * * *` | precheck 自体が仕事：終わった run と 6 時間止まった run の worktree を安全確認つきで消し、必ず exit 1（agent は起こさない）。点検は garden | [ORCA.md](ORCA.md#3-後片付けksh-tidy-と-prune-worktreesmjs) |
 
 同時に走る builder（finish）は最大3。patrol と garden は builder と別 worktree で動かす。

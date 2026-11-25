@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-24",
+  "updated": "2026-11-25",
   "definition": "全itemのstatusがpass、UX巡回でS1/S2が2回連続0件、かつreleaseに載っていれば「開発として完成」。学生にとっての価値は別（価値検証ループ）。",
   "rules": [
     "builder（finishループ）が変更してよいのは status と evidence と production だけ。capability と acceptance を変えてはいけない。",
@@ -362,6 +362,24 @@
       "status": "pass",
       "production": "closed",
       "evidence": "2026-11-23 オーナー決定（DECISIONS「好みの台帳はアプリ側に置き、抽象化は利用者のエージェントが行う…」）で追加。C21（MCP、#219）が本番で開くことが前提。release flag TASTE_LEDGER_RELEASE_ENABLED を閉じて main に入れ、別 context の独立検証のあと開ける。 条件1〜3は #242、条件4は #243。 条件1〜3の実装（#242, 2026-11-23）を flag 閉で main へ：migration 0033（agent_taste_ledgers・agent_draft_versions、expand のみ、アカウント・下書きの削除で CASCADE）、worker/agent/taste.ts、MCP ツール get_my_taste_materials・get_my_taste・replace_my_taste（flag 閉では tools/list に出ず、AI の版も記録しない）、src/shared/line-diff.ts（非 AI の行 diff、1本120行・2000行・LCS 100万マスまで）、src/shared/taste-ledger.ts（型と上限）。tests/agent-mcp.test.ts に 8 件（flag 閉・版の確認・他人の台帳・400 の16形・40行・秘密の注意・guide の分離・材料は本人のレビューと差分だけ・書いた本人にレビューが渡らない・下書き削除で版も消える・401・在籍期間外）、tests/line-diff.test.ts 3 件。npm test 1072 passed。別 context の独立検証待ち（pass にはしない）。 条件1〜3の独立検証に合格（#242、finish run-117、2026-11-23）：SQL の本人の絞り込み・在籍期間・401・400・秘密の注意・guide の分離を読み、変異7種で確認（在籍期間外の既存台帳の更新を拒むテストを足した）。diff は 256KB 相当16本で約240ms（node 計測、本番 cpu_ms 1000）。flag TASTE_LEDGER_RELEASE_ENABLED を開けた（MCP 本体の flag が閉じている間は本番に効かない）。条件4（#243）が残るので unverified のまま。 条件4の実装（#243, 2026-11-23）を別の flag TASTE_SHARING_RELEASE_ENABLED=false で main へ：migration 0034（agent_taste_shares、expand のみ、種類＋本文で行を指し、アカウント削除で CASCADE）、worker/taste-sharing-http.ts（本人の GET/POST /api/private/my-taste：一覧・1行削除・見せる/やめる、版と本文の確認つき。見せるだけ在籍期間が要る。運営者だけの GET /api/private/editorial-taste/shared は行だけの DTO で、それ以外は 404）、replace_my_taste は同じ batch で本文が変わった行の「見せる」を消す。画面はマイページ「あなたの好み」（アイコン＋aria-label）と運営の「好み」の「学生が見せた行」。tests/taste-sharing.test.ts 9件（変異5種で確認）、tests/agent-mcp.test.ts に引き継ぎ1件、auth-guard inventory 93件。tests/ordinary-taste-sharing-browser.spec.ts（PC1280/モバイル390、axe 込み）は flag を手元で開けて 4 passed、閉じている間は skip。別 context の独立検証待ち（pass にはしない）。 条件4の独立検証に合格（#243、finish run-120、2026-11-23）：本人の絞り込み（SQL の account_id と CSRF・Origin）、運営者 DTO が行だけで 404 の揃い、見せる=在籍期間・やめる/消す=base guard、置き換えで同じ本文の行だけ残る batch、停止アカウント・台帳から消えた行の除外、CASCADE を読んで確認。穴1件を修正：エージェントの置き換えと競合した削除が実際には消さずに 200 を返していた→ UPDATE の changes で 409 に（tests/taste-sharing.test.ts に競合の再現を追加、修正を戻すと落ちる）。flag TASTE_SHARING_RELEASE_ENABLED を開けた。npm test 1084 passed / test:e2e 80 / test:auth-browser 218 passed（ordinary-taste-sharing-browser.spec.ts を PC1280・モバイル390・axe で実行）/ test:editor 215 / deploy:check OK。MCP 本体（C21、#219）が閉じている間は台帳が本番で書かれないので production は closed。"
+    },
+    {
+      "id": "C24",
+      "area": "agent",
+      "capability": "公式 MCP 以外の経路での hub の操作が記録され、MCP の改善として待ち行列に乗り、ツールの追加まで回る（MCP 育成）",
+      "acceptance": [
+        "docs/loop/mcp-coverage.json（MCP 対応表）に hub の操作が mcp／gap／excluded／operator／human-only のどれかで並び、tests/mcp-coverage.test.ts が、MCP の tools/list の全ツールがちょうど1つの操作の tool に現れること、mcp 以外に tool が無いこと、初めての公開が human-only であること、worker の /api/private/ の口がどれかの操作に入ることを確かめる",
+        "このリポジトリの Claude Code では、Claude in Chrome が本番 hub を開いた・ブラウザ CLI か curl が本番 hub に出た・wrangler d1 execute --remote を打った出来事が hook で記録され、記録には列挙した項目（時刻・経路・画面や API の型・既知の表の名前・操作 ID・出どころ・ループ名・セッションの先頭12文字）だけが入り、URL のクエリ・ID・SQL・本文は入らない。置き場所はリポジトリの外（~/ksh-private/mcp-gaps/）。URL を書いただけの git・gh と、公式 MCP（/api/mcp）への呼び出しは記録しない",
+        "hook が拾ったが分類されていないセッションは、Stop で1回だけ操作 ID での分類を頼まれ（stop_hook_active なら止めない）、classify・record（エージェントの報告・オーナーの申告・利用者の台帳の件数）は対応表に無い操作 ID を拒む",
+        "sync は操作 ID ごとに Issue（label mcp-gap）を1本にまとめて件数だけをコメントし、gap は loop:finish＋R2、mcp は loop:garden、excluded・operator・unknown は mcp-gap だけ（replan の判断待ち）、human-only と inspect は Issue を作らない。累計3件か2日で P1。利用者の台帳由来の件数は5件未満を丸める",
+        "MCP の instructions は、台帳のツールがあるとき、利用者のエージェントに『MCP にない操作を別の方法で行ったら本人の台帳のアプリの行に1行』と頼み、editor ループはその行を操作 ID ごとの件数として記録する。サーバーは新しい記録を持たない",
+        "finish が mcp-gap の Issue から MCP のツールを1つ以上足し（R2・独立検証）、対応表のその操作を mcp にし、本番に出ている"
+      ],
+      "journey": "J2",
+      "risk": "R2",
+      "status": "unverified",
+      "production": "unknown",
+      "evidence": "2026-11-25 オーナーの方針（DECISIONS「公式 MCP 以外の経路での操作を MCP の改善の起点にする」）で人が足した。条件1〜5は main に実装（scripts/loop/mcp-gap.mjs、.claude/settings.json の PostToolUse・Stop hook、tests/mcp-coverage.test.ts 16 passed、LOOPS.md §7）。条件6は最初の gap の Issue を finish が閉じるまで未達。"
     }
   ]
 }

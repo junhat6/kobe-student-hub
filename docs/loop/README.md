@@ -11,6 +11,7 @@
 | [LOOPS.md](LOOPS.md) | このプロジェクトで回す7つのループの仕様（起動・入力・出力・停止条件） |
 | [SESSIONS.md](SESSIONS.md) | セッションの分け方、並行作業の衝突回避、引き継ぎ |
 | [completion.json](completion.json) | 「完成」の定義（完成台帳）。完成ループの北極星 |
+| [mcp-coverage.json](mcp-coverage.json) | MCP 対応表：hub の操作ごとに、公式 MCP にあるか・足してよいか・人だけか。MCP 以外の経路での操作を MCP の改善に回す起点（[LOOPS.md §7](LOOPS.md#7-mcp-育成の流れ-mcp-gap既存のループに乗る)） |
 | [DESIGN-PRINCIPLES.md](DESIGN-PRINCIPLES.md) | 境界と受け入れ条件の設計原則（C21 の学び）。条件を書く・見直すときに読む |
 | [ux-rubric.md](ux-rubric.md) | UX巡回ループの採点基準と利用者の旅（journey） |
 | [INBOX.md](INBOX.md) | オーナーの受け口の地図：スクショは Muse か Discord、動画は Drive「hub動画ポスト」→ Muse → video-review |

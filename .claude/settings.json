@@ -31,6 +31,23 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/loop/stop-check.mjs\"",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/loop/mcp-gap.mjs\" hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|mcp__claude-in-chrome__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/loop/mcp-gap.mjs\" hook",
+            "timeout": 10
           }
         ]
       }

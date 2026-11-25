@@ -52,3 +52,4 @@ patrol（巡回）は「旅を最後まで行けるか」を採点して Issue �
 - 情報を減らすために、公開範囲・非公開データ・本人確認・通報の扱いを利用者から隠す（AGENTS.md の恒久条件）。「何が公開されるか」はアイコン＋プレビューで示し、消さない
 - 未実装の機能を動くように見せる、数字を捏造する
 - 1周で 3 件を超えて直す、R2 を直す、他の builder が claim 中の area を触る
+- 本番 hub を Claude in Chrome などで確かめた周は、mcp-gap の Stop hook に `classify --session <id> inspect` で答える（画面の確認は MCP の穴ではない。LOOPS.md §7）

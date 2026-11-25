@@ -36,6 +36,7 @@
    - 逆向きのレビューが続いたら、その行を直すか消す。オーナー指示の行は、オーナーが別の指示をしたときだけ変える。
    - SKILL.md の「良いと感じられる記事」節を同じ文に揃え、`npx vitest run tests/editorial-taste.test.ts` を通して main に commit（`Loop: editor`・`Risk: R0`）。
 4. **アプリへの気づきを数える。** 1・2 のうち、記事の書き方ではなくアプリのせいで起きていそうなもの（毎回同じ所を手で直す、写真を公開の直前に足す、AIメモを消す手間など）を数える。3件以上で同じ向きなら `EDITORIAL_PRODUCT_NOTES` に1行（根拠と日付つき、3 と同じ書かないもの）足し、同じ文で `loop:ux`（見た目・操作）か `loop:finish`（足りない機能）の Issue を P2 で作る。Issue にもひとこと・記事名・店名は書かない。利用者が「運営に見せる」にしたアプリの行（C23 が開いた後）も同じ数え方の材料にする。
+   そのうち「MCP でしたかった操作」の行（MCP の instructions が利用者のエージェントに頼んでいる行）は、3件を待たずに操作 ID ごとに数え、`node scripts/loop/mcp-gap.mjs record <op> --via ui --source taste --count <n> --loop editor` で記録する（行の文は写さない。対応表に無い操作は `unknown`。LOOPS.md §7）。
 5. **材料を下書きにする。** `inbox/` の材料ごとに、`EDITORIAL_TASTE` と執筆スキル（`public/agent-kit/ksh-article/SKILL.md`）に従って下書きを作る。
    - 中身は材料に書かれた本人の経験だけ。盛らない・言っていないことを足さない。足りないところは「（ここに〇〇を書く）」。
    - お店の材料は、何軒あっても店ごとに1本ずつ作る（まとめ型は作らない。DECISIONS 2026-11-23「お店の記事は1店1本」）。同じ店で形を比べたいときだけ2本まで作り、先頭の（AIメモ）に「どちらか1本」と書く。
@@ -43,6 +44,7 @@
      全部は載せない。記事に合うものを、合う量だけ選ぶ（似た写真・ぶれ・話に出てこないものは落とす）。並べ替え・トリミング・回転・明るさ程度の軽い編集はしてよい。枚数を揃えるために載せない（オーナー方針。[DECISIONS](../../DECISIONS.md) 2026-11-25「添付写真は選んで使う」）。
      BeReal 系の写真は、Antigravity CLI のセッションが切り抜きなどをした `~/ksh-materials/processed/` 側を優先し、処理済みが無いときだけ元ファイルを使う。BeReal の二画面の切り分け・写り込んだ人の処理は editor がせず Antigravity 側に任せる（[DECISIONS](../../DECISIONS.md) 2026-11-25）。
    - 出し方：書き手の MCP 接続（C21）が本番で使え、その書き手が接続を許可していれば `create_draft` で本人の下書きに作る。そうでなければ `~/ksh-drafts/` に置く。書き手がオーナーなら、Claude in Chrome でオーナーの学校アカウントとして本番に入り、下書き →「＋新しい下書き」→「自分のAIエージェントと書く」→「.md ファイルを選ぶ」→「下書きに反映」→「下書きを保存」で取り込む（[DECISIONS](../../DECISIONS.md) 2026-11-23「本番ログインの代行を許可する」。公開はしない）。再読み込み後の一覧に入ったことと、`/api/articles` に出ないことを確かめる。Chrome が使えない・Google のセッションが切れているときと、書き手がオーナー以外のときは、取り込み方を書き手へ伝える依頼をオーナーへの報告に入れる。
+   - Chrome で取り込んだ回は、MCP では足りなかった操作を記録する：写真つきなら `draft.media`、MCP の接続が無かっただけなら `draft.create`（`node scripts/loop/mcp-gap.mjs record <op> --via chrome --loop editor`。Stop hook の分類依頼に `classify` で答えてもよい）。1 のリモート D1 の読み取りは hook が `operator.review-read` として自動で拾う。
    - 原本を `originals/` に写し、材料を `done/` へ移して front matter の `drafts` に名前を書く。
 6. **記録する。** ラベル `editor-log` の Issue「loop: editor log」にコメント：先頭行 `at: <ISO 時刻>`、続けて「読んだレビュー n件・下書きレビュー n件・差分 n件・台帳の変更 n行・アプリの行 n行（Issue n件）・作った下書き n本」の数だけ。中身・店名・記事名・下書きの題・ひとことは書かない（公開 Issue）。
 

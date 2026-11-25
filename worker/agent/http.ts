@@ -373,6 +373,9 @@ const TASTE_TOOLS = [
   },
 ];
 
+/** Every tool name the server can list. docs/loop/mcp-coverage.json must name each once (tests/mcp-coverage.test.ts). */
+export const MCP_TOOL_NAMES = [...TOOLS, ...TASTE_TOOLS].map((tool) => tool.name);
+
 type ToolResult = {
   content: { type: 'text'; text: string }[];
   structuredContent?: Record<string, unknown>;
@@ -892,7 +895,7 @@ export function createAgentHandler(
           protocolVersion: LEGACY.includes(asked) ? asked : LEGACY[0],
           capabilities: { tools: { listChanged: false } },
           serverInfo: SERVER_INFO,
-          instructions: serverInstructions(origin),
+          instructions: serverInstructions(origin, tasteEnabled),
         });
       }
       case 'server/discover':
@@ -900,7 +903,7 @@ export function createAgentHandler(
           resultType: 'complete',
           supportedVersions: SUPPORTED,
           capabilities: { tools: {} },
-          instructions: serverInstructions(origin),
+          instructions: serverInstructions(origin, tasteEnabled),
           _meta: { 'io.modelcontextprotocol/serverInfo': SERVER_INFO },
           ttlMs: 3_600_000,
           cacheScope: 'public',

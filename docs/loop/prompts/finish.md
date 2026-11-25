@@ -19,6 +19,7 @@
 - Issue の受け入れ条件と completion.json の該当 acceptance を満たす最小で完全な実装をする
 - 仮実装（何も起きないボタン、空のハンドラ、TODO）を残さない。できない部分は画面に出さない
 - R2 に触れるなら AGENTS.md の恒久条件を再読する
+- `mcp-gap` の Issue（公式 MCP 以外の経路で行われた操作を MCP に足す）は、worker/agent/http.ts に C21 と同じ型でツールを足す（本人の接続・在籍・所有者を最後の SQL で確かめる、公開 DTO だけ返す、入力は決めた型と上限だけ、初めての公開・削除の手段は置かない）。終わったら docs/loop/mcp-coverage.json のその操作を `class: "mcp"`・`tool` にして `tests/mcp-coverage.test.ts` を通し、C21 acceptance 4 への追記を Issue のコメントで replan に頼む
 
 ## 3. backpressure
 - docs/loop/LOOPS.md の表どおり、リスク段階に応じた検査を自分で回す。失敗したら直してから進む

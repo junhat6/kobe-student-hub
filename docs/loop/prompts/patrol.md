@@ -10,6 +10,7 @@
 - 閲覧系：`npm ci && npm run build && npm run db:local && npm run preview`。投稿系：`npm run editor:build && npm run editor:preview`（架空データ）
 - 本番巡回の指示がある場合：匿名の旅は `npm run look -- --base prod`。ログイン後の旅（アカウント・下書き・マイページ）は Claude in Chrome でオーナーの Chrome のセッションを使う（ログイン代行の範囲。資格情報を出力・ファイルに置かない）
 - 本番でしてよいのは閲覧と、オーナーにしか見えず戻せる操作（オーナーの下書きの作成・削除、閲覧履歴の削除）だけ。公開・いいね・通報・運営の判断・公開プロフィールの変更・AI エージェント接続の許可はしない（LOOPS.md の「本番での禁止」）
+- 終わりに mcp-gap の Stop hook が分類を頼んできたら、画面を確かめただけなら `classify --session <id> inspect`。旅の途中で MCP にない操作のせいで画面に頼った所見（例：下書きを作るのに画面しか無い）があれば、その操作 ID も並べる（LOOPS.md §7）
 
 ## 1. 歩く
 - J0〜J5 を PC(1280×800) とモバイル(390×844) で歩く。Playwright でもブラウザ操作でもよい

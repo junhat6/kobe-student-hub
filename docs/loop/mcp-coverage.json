@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "updated": "2026-11-25",
+  "purpose": "hub の操作ごとに、公式 MCP（/api/mcp）でできるか・足してよいか・人だけかを決めた対応表（MCP 対応表）。公式 MCP 以外の経路（ブラウザ操作・画面の手作業・直接の API・リモート D1）で hub を操作した出来事は、ここの操作 ID で記録され（scripts/loop/mcp-gap.mjs）、class に従って改善の待ち行列に乗る。仕組みは LOOPS.md「MCP 育成ループ」。",
+  "classes": {
+    "mcp": "MCP にある（tool に名前）。別経路で行われたら『MCP にあるのに使われなかった』＝接続・説明・ツールの使い勝手の問題として loop:garden に積む",
+    "gap": "MCP に足してよい（恒久条件と C21 の境界の考え方に沿う）。loop:finish・R2 の Issue になり、finish が実装する。足したら builder が class を mcp にして tool を書き、C21 acceptance 4 への追記を replan に頼む",
+    "excluded": "C21・C23 の受け入れ条件が『MCP には置かない』と名指ししている。Issue は replan の判断待ち（ラベル mcp-gap のみ）。replan が DECISIONS に理由を書いて gap に移すまで実装しない",
+    "operator": "運営者だけの操作。学生向けの MCP には置かない。運営用の接続を別に設けるかは replan が判断する（ラベル mcp-gap のみ）",
+    "human-only": "恒久条件・オーナー決定で人だけが行う（初めての公開、接続の許可、ログイン・在籍の申告）。Issue を作らず、数だけを log に残す"
+  },
+  "rules": [
+    "human-only は replan も変えない（恒久条件・オーナー決定。変えるのは人だけ）。tests/mcp-coverage.test.ts が human-only に tool が無いことを確かめる。",
+    "builder（finish）が変えてよいのは、自分が実装した操作の class を gap→mcp にして tool を書くことだけ。excluded・operator を gap に移すのは replan（DECISIONS に1項）。",
+    "公式 MCP の tools/list にある全ツールは、ちょうど1つの操作の tool に現れる。/api/private/ の口はどれかの操作の api に入る（同じテストが確かめる）。",
+    "api はメソッドと前方一致のパス、pages は :id を含むパスの型、d1 は表の名前。ここに無い経路は op=unknown で記録され、log で replan が分類を足す。"
+  ],
+  "ops": [
+    {
+      "id": "article.list",
+      "label": "公開記事の新着・検索を読む",
+      "class": "mcp",
+      "tool": "list_recent_articles",
+      "api": ["GET /api/articles"],
+      "pages": ["/", "/search"]
+    },
+    {
+      "id": "article.read",
+      "label": "公開記事を1本読む",
+      "class": "mcp",
+      "tool": "get_article",
+      "api": ["GET /api/articles/"],
+      "pages": ["/articles/:id"]
+    },
+    {
+      "id": "public.browse",
+      "label": "公開の作品・学生のページを読む",
+      "class": "gap",
+      "basis": "公開 DTO だけを返す読み取りで、C21 の境界の考え方（公開 DTO のみ）に沿う",
+      "api": ["GET /api/projects", "GET /api/students", "GET /api/authors"],
+      "pages": ["/works", "/projects/:id", "/students/:id"]
+    },
+    {
+      "id": "draft.list",
+      "label": "自分の下書き・公開中の記事を一覧する",
+      "class": "mcp",
+      "tool": "list_my_drafts",
+      "api": ["GET /api/private/drafts", "GET /api/private/own-publications"],
+      "pages": ["/drafts"]
+    },
+    {
+      "id": "draft.read",
+      "label": "自分の下書きを1本読む",
+      "class": "mcp",
+      "tool": "get_my_draft"
+    },
+    {
+      "id": "draft.create",
+      "label": "下書きを作る（取り込みを含む）",
+      "class": "mcp",
+      "tool": "create_draft",
+      "api": ["POST /api/private/drafts"],
+      "pages": ["/drafts/new"]
+    },
+    {
+      "id": "draft.update",
+      "label": "下書きを直す",
+      "class": "mcp",
+      "tool": "update_draft",
+      "api": ["PUT /api/private/drafts", "PATCH /api/private/drafts"]
+    },
+    {
+      "id": "article.update-published",
+      "label": "公開中の記事を公開したまま直す",
+      "class": "mcp",
+      "tool": "update_published_article"
+    },
+    {
+      "id": "draft.delete",
+      "label": "下書きを消す",
+      "class": "excluded",
+      "basis": "C21 acceptance 4「削除…のツールは無く」",
+      "api": ["DELETE /api/private/drafts"]
+    },
+    {
+      "id": "draft.media",
+      "label": "下書きに写真・画像を付ける",
+      "class": "excluded",
+      "basis": "C21 acceptance 5「ファイル・添付…を受け取る口は無い」",
+      "api": ["POST /api/private/media", "GET /api/private/media"]
+    },
+    {
+      "id": "draft.project-link",
+      "label": "下書きを作品の制作日誌に紐づける・外す",
+      "class": "mcp",
+      "tool": "list_my_projects",
+      "api": ["DELETE /api/private/agent-connections/draft-projects"]
+    },
+    {
+      "id": "article.first-publish",
+      "label": "記事を初めて公開する",
+      "class": "human-only",
+      "basis": "AGENTS.md 恒久条件「記事の初めての公開は人だけが行う。配布する MCP に初めての公開の手段を置かない」",
+      "api": ["POST /api/private/publications"]
+    },
+    {
+      "id": "project.write",
+      "label": "自分の作品を作る・直す",
+      "class": "gap",
+      "basis": "本人の非公開の下書きとして作るなら C21 と同じ形（作成・更新は本人・在籍期間内・初めての公開は人）で置ける。公開は human-only のまま",
+      "api": [
+        "POST /api/private/project-",
+        "PUT /api/private/project-",
+        "PATCH /api/private/project-",
+        "GET /api/private/project-"
+      ]
+    },
+    {
+      "id": "profile.edit",
+      "label": "プロフィール・アイコンを直す",
+      "class": "excluded",
+      "basis": "C21 acceptance 4「プロフィール…のツールは無く」",
+      "api": ["/api/private/profile", "/api/private/profile-avatar"],
+      "pages": ["/account"]
+    },
+    {
+      "id": "like",
+      "label": "いいねする・外す",
+      "class": "excluded",
+      "basis": "C21 acceptance 4「いいね…のツールは無く」。いいねは公開（恒久条件）なので、本人が押したことが他人に見える",
+      "api": ["/api/private/article-likes"]
+    },
+    {
+      "id": "report",
+      "label": "記事・プロフィール・作品を通報する",
+      "class": "excluded",
+      "basis": "C21 acceptance 4「通報のツールは無く」",
+      "api": ["/api/private/reports", "/api/private/profile-reports", "/api/private/project-reports"]
+    },
+    {
+      "id": "reading-history",
+      "label": "自分の閲覧履歴を読む・消す",
+      "class": "gap",
+      "basis": "本人専用のデータを本人のエージェントに渡すだけ（恒久条件：本人専用で削除できる）。他人には返さない",
+      "api": ["/api/private/reading-history"],
+      "pages": ["/history"]
+    },
+    {
+      "id": "activity",
+      "label": "自分への通知・反応を読む",
+      "class": "gap",
+      "basis": "本人宛ての通知を本人のエージェントに渡すだけ",
+      "api": ["/api/private/activity", "/api/private/notifications"]
+    },
+    {
+      "id": "taste.materials",
+      "label": "自分の好みの材料を読む",
+      "class": "mcp",
+      "tool": "get_my_taste_materials"
+    },
+    {
+      "id": "taste.read",
+      "label": "自分の好みの台帳を読む",
+      "class": "mcp",
+      "tool": "get_my_taste",
+      "api": ["GET /api/private/my-taste"]
+    },
+    {
+      "id": "taste.replace",
+      "label": "自分の好みの台帳を書き換える",
+      "class": "mcp",
+      "tool": "replace_my_taste",
+      "api": ["POST /api/private/my-taste"]
+    },
+    {
+      "id": "taste.share",
+      "label": "台帳の行を運営に見せる・見せない",
+      "class": "excluded",
+      "basis": "C23 acceptance 4「本人だけが切り替えられる…MCP のツールには無い」",
+      "api": ["POST /api/private/my-taste"]
+    },
+    {
+      "id": "guide.read",
+      "label": "書き方・守ることを読む",
+      "class": "mcp",
+      "tool": "get_writing_guide",
+      "pages": ["/guide", "/agents"]
+    },
+    {
+      "id": "agent.connect",
+      "label": "AI エージェントの接続を許可・解除する",
+      "class": "human-only",
+      "basis": "OAuth の同意は本人が画面で行う（C21 acceptance 3・6）",
+      "api": ["/api/private/agent-connections"],
+      "pages": ["/connect"]
+    },
+    {
+      "id": "account.auth",
+      "label": "ログイン・ログアウト・在籍の申告",
+      "class": "human-only",
+      "basis": "学校 Google の本人確認と申告年度は本人が行い、非公開（恒久条件）",
+      "api": [
+        "/api/auth/",
+        "/api/private/session",
+        "/api/private/logout",
+        "/api/private/logout-command",
+        "/api/private/enrollment"
+      ],
+      "pages": ["/login", "/signup"]
+    },
+    {
+      "id": "operator.review-write",
+      "label": "運営のレビュー・下書きレビュー・箇所コメントを書く",
+      "class": "operator",
+      "basis": "運営者（MODERATION_OPERATOR_ACCOUNT_IDS）だけ。C22",
+      "api": [
+        "/api/private/editorial-reviews/",
+        "/api/private/editorial-draft-reviews/",
+        "/api/private/editorial-draft-marks/"
+      ]
+    },
+    {
+      "id": "operator.review-read",
+      "label": "運営のレビュー・箇所コメントを読む（editor ループの材料）",
+      "class": "operator",
+      "basis": "運営者だけ。いまは editor ループがリモート D1 を直接読む",
+      "d1": ["editorial_reviews", "editorial_draft_reviews", "editorial_draft_marks"]
+    },
+    {
+      "id": "operator.taste",
+      "label": "運営の好みの台帳・集計を読む",
+      "class": "operator",
+      "basis": "運営者だけ。C22 acceptance 5",
+      "api": ["/api/private/editorial-taste", "/api/private/editorial-taste/shared"]
+    },
+    {
+      "id": "operator.moderation",
+      "label": "通報への対応・公開停止・アカウントへの措置",
+      "class": "operator",
+      "basis": "運営者だけ。LOOPS「実利用者に関わる運営」",
+      "api": [
+        "/api/private/moderation",
+        "/api/private/moderation-media",
+        "/api/private/project-moderation",
+        "/api/private/profile-moderation",
+        "/api/private/publication-stops"
+      ],
+      "pages": ["/moderation"]
+    }
+  ]
+}

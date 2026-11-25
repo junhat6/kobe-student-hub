@@ -2,6 +2,16 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-25 — 公式 MCP 以外の経路での操作を MCP の改善の起点にする（オーナーの方針を受けた設計、C24 を足す）
+
+オーナー（服部）の考え：MacBook Air の Claude in Chrome などで hub を操作することがあるが、本来は MCP からできるようにしたい。「公式 MCP 以外から操作したら、それを MCP でできるようにする」を仕組みにし、その出来事を起点に MCP の改善を回したい。これを受けて次のように決める。仕組みの正本は [LOOPS.md §7](loop/LOOPS.md#7-mcp-育成の流れ-mcp-gap既存のループに乗る)。
+
+1. **MCP 対応表を置く**（`docs/loop/mcp-coverage.json`）。hub の操作ごとに `mcp`／`gap`／`excluded`／`operator`／`human-only` を決め、テストで MCP のツール一覧・`/api/private/` の口とずれないようにする。理由：出来事を「足してよい穴」と「境界として置かない操作」に機械的に振り分けるため。初めての公開・接続の許可・ログインは `human-only` で、replan も変えない（恒久条件と 2026-11-23 のオーナー決定）。C21 が名指しで置かない操作（削除・添付・プロフィール・いいね・通報）は `excluded` にし、replan が理由を書いてから `gap` に移す。
+2. **拾うのは hook と申告から始める。** Claude Code の PostToolUse hook が、Claude in Chrome・ブラウザ CLI・curl・リモート D1 が本番に触れたことを記録し、Stop で「何をしたか」を操作 ID で1回だけ聞く。hook の無い経路（Claude in Chrome 単体・手作業）はオーナーの申告と、エージェントの作業報告（`record`）で拾う。利用者のエージェントには MCP の instructions で「本人の台帳のアプリの行に1行」と頼み、本人が運営に見せた行を editor が数える。理由：分類をその場で何をしたか知っているエージェントにさせると推測が入らない。採らない影響（サーバーで画面経由の書き込みを数える）：人の手作業とエージェントの操作を区別できず、実利用者の行動の記録が増える（R2）。必要になったら別の Issue で検討する。
+3. **記録は列挙した項目だけ、置き場所はリポジトリの外。** 時刻・経路・画面や API の型・既知の表の名前・操作 ID・出どころ・ループ名。URL のクエリ・ID・SQL・本文は残さない（DESIGN-PRINCIPLES 原則1）。公開 Issue には操作 ID ごとの件数だけ、利用者の台帳由来は5件未満を丸める。
+4. **新しい automation は作らない。** Issue への同期は Stop hook（裏で1時間に1回まで）と replan の毎周。`gap` は finish の待ち行列（R2）、`mcp`（あるのに使われなかった）は garden、それ以外は replan の判断に乗る。累計3件か2日で P1。
+5. 最初に見えている穴：editor ループが写真つきの下書きを Chrome で取り込んでいる（`draft.media`、C21 が添付の口を置かないと名指し → replan の判断待ち）、editor がリモート D1 で運営のレビューを読んでいる（`operator.review-read`）。
+
 ## 2026-11-25 — 添付写真は選んで使う（オーナー方針）
 
 オーナーの方針：添付した写真は全採用しなくてよい。記事に合うものを、合う量だけ、適当に編集しながら使う。枚数を揃えるために無理に全部載せない。
@@ -9,6 +19,7 @@ Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents ma
 1. **editor は届いた写真から記事に合うものだけを選ぶ。** 似た構図の重複・ぶれ・本文の話に出てこない写真は落とす。「見出しごとに1枚以上が目安」（2026-11-22）は合う写真があるときの目安で、合わない写真を足す理由にしない。
 2. **並べ替え・トリミング・回転・明るさ程度の軽い編集は editor が行ってよい。** 下の「画像処理は Antigravity CLI のセッションが受け持つ」のうち、editor が手を出さないのは BeReal の二画面の切り分けと写り込んだ人の処理（重い処理・二重処理を避けるため）に絞る。
 3. 採らない場合の影響：全部載せると、似た写真が続いて読む手が止まり、合わない写真を公開前にオーナーが消す手間が残る。8枚の上限（#195）も合わない写真で埋まる。
+||||||| parent of ce5508a (feat(loop): 公式 MCP 以外の経路での hub の操作を記録し、MCP の改善として回す（MCP 育成）)
 
 ## 2026-11-25 — 写真の画像処理は Antigravity CLI のセッションが受け持つ（オーナーの決定を受けた受け側）
 

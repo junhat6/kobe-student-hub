@@ -8,6 +8,10 @@
 | スクショ＋その画面への不満 | Muse（ヨッチ）に直接投げる、または Discord のテキストチャンネルに投稿して Muse が読みに行く | 従来どおり（変えない） |
 | **動画**（スマホの画面収録など） | Google Drive の **「hub動画ポスト」** に入れる → Muse が取って Mac mini の `~/video-inbox/` に置く | `ksh-video-review`（[prompts/video-review.md](prompts/video-review.md)、`scripts/loop/video-review.mjs`）がレビューし、Muse が要約をオーナーへ返す。Issue にするのはオーナーが頼んだときだけ（`ksh-video-review --issues`） |
 
+## hub を公式 MCP 以外で操作したとき
+
+MacBook Air の Claude in Chrome などで hub を操作したら、それは MCP を育てる材料になる（[LOOPS.md §7](LOOPS.md#7-mcp-育成の流れ-mcp-gap既存のループに乗る)）。Claude Code の中なら hook が拾い、終わりにエージェントが操作 ID を1回聞いてくる。Claude in Chrome 単体や手作業のときは、どのエージェントにでも「hub で〇〇を Chrome でやった」と言えば、そのエージェントが `node scripts/loop/mcp-gap.mjs record <op> --via chrome --source owner` で記録する。中身（記事名・本文）は言わなくてよい。
+
 ## 守ること
 
 - **Drive の「hub動画ポスト」を取りに行くのは Muse だけ。** loop の automation や他のスクリプトから Drive のこのフォルダを読まない・動かさない。2か所が取りに行くと、片方が動かした動画をもう片方が見落とし、同じ動画が二重に置かれる。

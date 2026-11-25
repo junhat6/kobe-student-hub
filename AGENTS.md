@@ -14,6 +14,7 @@
 - 完成の定義は [completion.json](docs/loop/completion.json)。builder は status/evidence/production だけ変えてよい。acceptance の書き直し・弱体化・削除は replan が判断し、理由を DECISIONS に残す（恒久条件の手前まで）。受け入れ条件や境界を設計するときは [DESIGN-PRINCIPLES.md](docs/loop/DESIGN-PRINCIPLES.md)（伏せるより渡すものを決める・検証できる条件・繰り返し fail は条件を疑う）。
 - オーナーの実機の不満はスクショなら Muse（ヨッチ）か Discord、動画なら Drive「hub動画ポスト」→ Muse → video-review で届く（[INBOX.md](docs/loop/INBOX.md)）。
 - 画面・挙動を確かめるときは人に頼まず自分で撮る（`npm run look`）。見た目と動きの判定は Antigravity に渡し（`npm run look:review`）、所見は確かめてから使う。手順は [LOOK.md](docs/loop/LOOK.md)。
+- 本番 hub を公式 MCP 以外（Claude in Chrome・ブラウザ CLI・curl・リモート D1・画面の手作業）で操作したら、MCP を育てる材料として記録する。hook が拾い、Stop で操作 ID の分類を1回頼んでくる（[LOOPS §7](docs/loop/LOOPS.md#7-mcp-育成の流れ-mcp-gap既存のループに乗る)、対応表 [mcp-coverage.json](docs/loop/mcp-coverage.json)）。
 - 待ち行列は GitHub Issues（`loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
 - 現在地は [docs/WORK.md](docs/WORK.md)（5行）。機能ごとの設計メモ・QA文書は作らない。証拠は commit 本文・Issue コメント・CI artifact へ。
 - 日常の実装判断で人に承認を求めない。迷ったら決めて進め、決めたことを残す。本番 D1 の migration・deploy・rollback と PRD方針も agent が判断する。資格情報の発行も条件つきで agent が行う（最小スコープ・期限つき・発行の記録・値を出さない。[DECISIONS](docs/DECISIONS.md) 2026-11-23）。実利用者に関わる運営（通報・アカウントへの措置・規約類の改定）も agent が行う（[LOOPS](docs/loop/LOOPS.md#実利用者に関わる運営)）。人の判断が要るもの（課金・契約）と権限が無くて進められない場所だけを `needs-human` に積んで他の仕事を続ける。
