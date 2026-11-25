@@ -1183,6 +1183,13 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       ]);
       expect(new Uint8Array(await (await ownRead(image)).arrayBuffer())).toEqual(png);
       expect((await ownRead(image, 1)).status).toBe(404);
+      // The same bytes from the other student share the key; their refused upload must not remove
+      // the object this row references.
+      expect((await upload(theirs, image, png, 1)).status).toBe(404);
+      expect((await bucket.list({ prefix: `media/${image}/` })).objects.map((o) => o.key)).toEqual([
+        key,
+      ]);
+      expect(new Uint8Array(await (await ownRead(image)).arrayBuffer())).toEqual(png);
       // The same bytes again are the idempotent receipt, not a new object.
       expect((await upload(mine, image)).status).toBe(201);
       expect((await bucket.list({ prefix: `media/${image}/` })).objects).toHaveLength(1);
