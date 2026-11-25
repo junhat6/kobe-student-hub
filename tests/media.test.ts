@@ -1934,3 +1934,191 @@ describe('migration 0045 on a database that already has published images', () =>
     }
   });
 });
+describe('protected publication tables refuse INSERT OR REPLACE (#265)', () => {
+  beforeAll(() => boot(true));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  const tables = [
+    'project_publications',
+    'article_publication_revisions',
+    'article_report_revisions',
+    'article_publication_media',
+    'project_publication_media',
+  ];
+  const columns = async (db: TestDb, table: string) =>
+    (
+      await db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all<{ name: string }>()
+    ).results
+      .map((c) => c.name)
+      .join(',');
+  async function publishArticle() {
+    const d = await draft(),
+      image = id(),
+      db = await mf.getD1Database('DB');
+    expect((await upload(d, image)).status).toBe(201);
+    await db
+      .prepare('UPDATE private_article_drafts SET body=?,version=version+1 WHERE id=?')
+      .bind('![a](/api/media/' + image + ')', d.id)
+      .run();
+    return { ...(await publication({ ...d, version: 2 }, [image]))!, image };
+  }
+  async function publishProject() {
+    const image = id(),
+      project = await call<{ id: string }>('project-draft', {
+        title: 'Protected project',
+        description: `![screen](/api/media/${image})`,
+        githubUrl: '',
+        demoUrl: '',
+      });
+    expect(
+      (
+        await mf.dispatchFetch(O + `/api/private/media/projects/${project.id}/${image}`, {
+          method: 'PUT',
+          headers: { ...h(), 'Content-Type': 'image/png', 'If-Match': '"1"' },
+          body: png,
+        })
+      ).status,
+    ).toBe(201);
+    const published = await call<{ projectId: string }>('project-publish', {
+      id: project.id,
+      input: { expectedVersion: 1, confirmPublic: true, mediaIds: [image] },
+    });
+    return { projectId: published.projectId, image };
+  }
+
+  it('covers every table that refuses DELETE with a BEFORE INSERT trigger', async () => {
+    const db = await mf.getD1Database('DB');
+    const protectedTables = (
+      await db
+        .prepare(
+          "SELECT DISTINCT tbl_name t FROM sqlite_master WHERE type='trigger' AND sql LIKE '%BEFORE DELETE ON%' AND sql NOT LIKE '%WHEN%' AND sql LIKE '%RAISE(ABORT%' ORDER BY 1",
+        )
+        .all<{ t: string }>()
+    ).results.map((r) => r.t);
+    // A new protected table must be added to this test and get its own no_replace trigger.
+    expect(protectedTables).toEqual([...tables].sort());
+    for (const table of tables)
+      expect(
+        await db
+          .prepare(
+            "SELECT 1 FROM sqlite_master WHERE type='trigger' AND tbl_name=? AND name LIKE '%no_replace' AND sql LIKE '%BEFORE INSERT ON%'",
+          )
+          .bind(table)
+          .first(),
+        table,
+      ).not.toBeNull();
+  });
+
+  it('refuses the same key and the same rowid in every protected table and keeps every row', async () => {
+    const db = await mf.getD1Database('DB');
+    const a1 = await publishArticle(),
+      a2 = await publishArticle(),
+      p1 = await publishProject(),
+      p2 = await publishProject();
+    for (const n of [1, 2])
+      await db
+        .prepare(
+          'INSERT INTO article_reports(id,content_id,reporter_account_id,reason,created_at_ms) VALUES(?,?,?,?,?)',
+        )
+        .bind(id(), a1.contentId, 'account-' + n, 'spam', NOW)
+        .run();
+    const snapshot = async () =>
+      Object.fromEntries(
+        await Promise.all(
+          tables.map(
+            async (t) =>
+              [
+                t,
+                (await db.prepare(`SELECT rowid r,* FROM ${t} ORDER BY rowid`).all()).results,
+              ] as const,
+          ),
+        ),
+      );
+    const sampleId = id(),
+      sampleReport = id();
+    const before = await snapshot();
+    for (const t of tables) expect(before[t].length, t).toBeGreaterThanOrEqual(2);
+    const cases: string[] = [];
+    // The same key: every protected table, with each REPLACE spelling.
+    for (const t of tables) {
+      const cols = await columns(db, t);
+      for (const verb of ['INSERT OR REPLACE', 'REPLACE']) {
+        cases.push(`${verb} INTO ${t}(${cols}) SELECT ${cols} FROM ${t} ORDER BY rowid LIMIT 1`);
+        // The same key with an explicit rowid that is free.
+        cases.push(
+          `${verb} INTO ${t}(rowid,${cols}) SELECT rowid+100000,${cols} FROM ${t} ORDER BY rowid LIMIT 1`,
+        );
+      }
+    }
+    const rowidOf = async (t: string, where: string, value: string) =>
+      (await db.prepare(`SELECT rowid r FROM ${t} WHERE ${where}=?`).bind(value).first<{
+        r: number;
+      }>())!.r;
+    // A new, valid key that takes another row's rowid: REPLACE would delete that row without a DELETE trigger.
+    const pCols = (await columns(db, 'project_publications'))
+      .split(',')
+      .map((c) =>
+        c === 'id' ? `'${id()}'` : c === 'draft_id' ? 'NULL' : c === 'media_ids_json' ? "'[]'" : c,
+      )
+      .join(',');
+    cases.push(
+      `INSERT OR REPLACE INTO project_publications(rowid,${await columns(db, 'project_publications')}) SELECT ${await rowidOf('project_publications', 'id', p1.projectId)},${pCols} FROM project_publications WHERE id='${p2.projectId}'`,
+      `INSERT OR REPLACE INTO article_publication_media(rowid,content_id,media_id) VALUES(${await rowidOf('article_publication_media', 'content_id', a1.contentId)},'${a1.contentId}','${a2.image}')`,
+      `INSERT OR REPLACE INTO project_publication_media(rowid,project_id,media_id) VALUES(${await rowidOf('project_publication_media', 'project_id', p1.projectId)},'${p1.projectId}','${p2.image}')`,
+    );
+    // A report on an article without revisions (a sample) has no report revision; giving it another
+    // report's rowid and a real revision would pass every foreign key.
+    await db
+      .prepare(
+        "INSERT INTO content(id,kind,title,summary,body,tags_json,author_id,audience,prerequisite,outcome,updated_at,minutes,related_ids_json,status,is_sample) VALUES(?,'article','Sample','','Sample body','[]','image-author','','','','2026-11-25',1,'[]','published',1)",
+      )
+      .bind(sampleId)
+      .run();
+    await db
+      .prepare(
+        'INSERT INTO article_reports(id,content_id,reporter_account_id,reason,created_at_ms) VALUES(?,?,?,?,?)',
+      )
+      .bind(sampleReport, sampleId, 'account-1', 'spam', NOW)
+      .run();
+    const reported = (await db
+      .prepare(
+        'SELECT rowid r,content_id,revision FROM article_report_revisions ORDER BY rowid LIMIT 1',
+      )
+      .first<{ r: number; content_id: string; revision: number }>())!;
+    cases.push(
+      `INSERT OR REPLACE INTO article_report_revisions(rowid,report_id,content_id,revision) VALUES(${reported.r},'${sampleReport}','${reported.content_id}',${reported.revision})`,
+    );
+    // A revision that only repeats the source version of another one. (A revision with a new key and
+    // another row's rowid is refused by article_revision_guard before it gets here.)
+    cases.push(
+      `INSERT OR REPLACE INTO article_publication_revisions(${await columns(db, 'article_publication_revisions')}) SELECT ${(await columns(db, 'article_publication_revisions')).replace(/(^|,)revision(,|$)/, '$1revision+500$2')} FROM article_publication_revisions WHERE content_id='${a1.contentId}'`,
+    );
+    for (const sql of cases) {
+      await expect(db.prepare(sql).run(), sql).rejects.toThrow(/immutable/);
+      expect(await snapshot(), sql).toEqual(before);
+    }
+    // Ordinary publication still inserts into every table.
+    await publishArticle();
+    await publishProject();
+    const after = await snapshot();
+    for (const t of [
+      'project_publications',
+      'article_publication_revisions',
+      'article_publication_media',
+      'project_publication_media',
+    ])
+      expect(after[t].length, t).toBe(before[t].length + 1);
+    await db
+      .prepare(
+        'INSERT INTO article_reports(id,content_id,reporter_account_id,reason,created_at_ms) VALUES(?,?,?,?,?)',
+      )
+      .bind(id(), a2.contentId, 'account-3', 'spam', NOW)
+      .run();
+    expect((await snapshot()).article_report_revisions.length).toBe(
+      before.article_report_revisions.length + 1,
+    );
+    expect((await publicRead(a1.image)).status).toBe(200);
+    expect((await publicRead(p1.image)).status).toBe(200);
+  });
+});

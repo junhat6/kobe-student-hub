@@ -7,7 +7,7 @@ import { liveSessionSql as live, liveSessionBindings as binds } from './auth/ses
 import { SessionStore } from './auth/sessions';
 import { japanDate } from './japan-date';
 import type { Profile } from '../src/types';
-import { normalizeProjectFields } from '../src/project-input';
+import { hasVisibleCharacter, normalizeProjectFields } from '../src/project-input';
 import { decodePublicProfile, publicArticleSqlBounds, publicProfileSqlBounds } from './publication';
 import { isProjectStage, PROJECT_JOURNAL_LIMIT } from '../src/project-types';
 import type {
@@ -326,7 +326,7 @@ export class ProjectStore {
       }
       if (
         valid.version !== input.expectedVersion ||
-        !valid.title.trim() ||
+        !hasVisibleCharacter(valid.title) ||
         !valid.description.trim()
       )
         return null;

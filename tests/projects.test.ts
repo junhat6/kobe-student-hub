@@ -3,7 +3,11 @@ import { applyFixtureMigrations } from './helpers/migrations';
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
-import { normalizeProjectFields, oneLineRejectedCodePoint } from '../src/project-input';
+import {
+  hasVisibleCharacter,
+  normalizeProjectFields,
+  oneLineRejectedCodePoint,
+} from '../src/project-input';
 import type {
   ProjectDraft,
   PublicProjectReader,
@@ -1059,6 +1063,55 @@ it('saves no new invisible characters but still loads and publishes an older dra
     expectedVersion: read.version,
   });
   expect(fixed.status).toBe(200);
+});
+it('refuses a title of only blank or invisible characters on save and on publication (#265)', async () => {
+  const blank = [
+    '\u3000',
+    '\u00a0 ',
+    '\u{1d159}',
+    '\u{1d159}\u200d\u{1d159}',
+    '\u{16fe4}',
+    '\u{16fe4}\u200d\u{16fe4}',
+  ];
+  for (const title of blank) {
+    expect(hasVisibleCharacter(title), title).toBe(false);
+    expect(normalizeProjectFields({ ...f, title }), title).toBeNull();
+    expect(
+      (await req('/api/private/project-drafts', 'POST', { ...f, title })).status,
+      title,
+    ).not.toBe(201);
+  }
+  // Real titles still pass: kana, kanji with a variation selector, emoji sequences, Thai, a letter with a mark.
+  for (const title of [
+    '作品',
+    '葛\u{e0100}城',
+    '👩\u200d💻 Lab',
+    'ภาษาไทย',
+    'e\u0301',
+    'a\u{16fe4}',
+    '♪',
+  ])
+    expect(normalizeProjectFields({ ...f, title }), title).not.toBeNull();
+  // An empty title is still an unfinished draft that can be saved.
+  expect(normalizeProjectFields({ ...f, title: '' })).not.toBeNull();
+  // A draft saved before this rule with such a title still loads, but cannot be published.
+  const d = await create({ ...f, title: 'Blank later' });
+  const db = await mf.getD1Database('DB');
+  for (const title of ['\u{1d159}', '\u200b']) {
+    await db
+      .prepare('UPDATE project_drafts SET title=?,version=version+1 WHERE id=?')
+      .bind(title, d.id)
+      .run();
+    const read = (await (await req('/api/private/project-drafts/' + d.id)).json()) as ProjectDraft;
+    expect(read.title).toBe(title);
+    expect((await publish(read)).status, title).not.toBe(201);
+  }
+  await db
+    .prepare('UPDATE project_drafts SET title=?,version=version+1 WHERE id=?')
+    .bind('Shown', d.id)
+    .run();
+  const shown = (await (await req('/api/private/project-drafts/' + d.id)).json()) as ProjectDraft;
+  expect((await publish(shown)).status).toBe(201);
 });
 it('keeps a published snapshot when its owner account is deleted: only owner_account_id becomes NULL (#261)', async () => {
   const d = await create({ ...f, title: 'Owner leaves' }, 1);

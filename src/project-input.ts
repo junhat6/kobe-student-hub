@@ -42,6 +42,19 @@ export function oneLineRejectedCodePoint(value: string): string | null {
     ? null
     : `U+${(hit.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, '0')}`;
 }
+/**
+ * Characters that show nothing on their own: white space of every width (U+3000 included), marks, joiners,
+ * control and format characters, default-ignorables, the braille blank, and the two graphic characters that
+ * render as blank, MUSICAL SYMBOL NULL NOTEHEAD U+1D159 and KHITAN SMALL SCRIPT FILLER U+16FE4 (#265).
+ * The list is short on purpose: a broader class (all symbols, an unassigned range) would refuse real titles
+ * on a newer or older Unicode version, while these are the ones known to pass every other rule.
+ */
+const SHOWS_NOTHING =
+  /[\s\p{Z}\p{M}\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}\u2800\u{1D159}\u{16FE4}]/u;
+/** True when the text has at least one character a reader can see. */
+export function hasVisibleCharacter(value: string): boolean {
+  return Array.from(value).some((c) => !SHOWS_NOTHING.test(c));
+}
 function hasOneLineRejected(value: string): boolean {
   return oneLineRejectedCodePoint(value) !== null;
 }
@@ -79,7 +92,13 @@ export function normalizeProjectFields(
   if (!text(x.title, 200, 800) || !text(x.description, 4000, 16384)) return null;
   const technologies = hasTechnologies ? x.technologies : '';
   if (!text(technologies, 100, 400) || /\p{Cc}/u.test(technologies)) return null;
-  if (mode === 'input' && (hasOneLineRejected(x.title) || hasOneLineRejected(technologies)))
+  // An empty title is an unfinished draft; a title of only blank or invisible characters is refused (#265).
+  if (
+    mode === 'input' &&
+    (hasOneLineRejected(x.title) ||
+      hasOneLineRejected(technologies) ||
+      (x.title !== '' && !hasVisibleCharacter(x.title)))
+  )
     return null;
   function url(v: unknown): string | null {
     if (v === '') return '';
