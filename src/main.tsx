@@ -30,15 +30,17 @@ import {
   isProjectWriteRoute,
 } from './account/routes';
 import { AGENT_MCP_RELEASE_ENABLED } from './shared/agent-release';
+import {
+  AccountPage,
+  Community,
+  HistoryPage,
+  OrdinaryDrafts,
+  OrdinaryProjects,
+} from './shell/route-modules';
 const Registration = React.lazy(() => import('./account/Registration'));
-const AccountPage = React.lazy(() => import('./account/AccountPage'));
-const HistoryPage = React.lazy(() => import('./history/HistoryPage'));
-const OrdinaryDrafts = React.lazy(() => import('./account/OrdinaryDrafts'));
-const OrdinaryProjects = React.lazy(() => import('./account/OrdinaryProjects'));
 const ModerationPage = React.lazy(() => import('./account/ModerationPage'));
 const ServiceInfo = React.lazy(() => import('./account/ServiceInfo'));
 const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
-const Community = React.lazy(() => import('./community/Community'));
 const AgentsPage = React.lazy(() => import('./agent/AgentsPage'));
 const ConnectPage = React.lazy(() => import('./agent/ConnectPage'));
 class BodyBoundary extends React.Component<

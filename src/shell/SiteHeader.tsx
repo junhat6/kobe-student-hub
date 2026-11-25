@@ -6,6 +6,7 @@ import { accountUiEnabled, authoringUiEnabled } from '../account/routes';
 import { useViewer } from './viewer';
 import { ownAvatarPath } from '../shared/avatar';
 import NotificationBell from './NotificationBell';
+import { preloadMenuScreens } from './route-modules';
 import '../shared/avatar.css';
 import './shell.css';
 
@@ -35,7 +36,12 @@ function MenuLink({ to, children }: { to: string; children: React.ReactNode }) {
 function WriteMenu() {
   return (
     <Menu.Root>
-      <Menu.Trigger className="header-write">
+      <Menu.Trigger
+        className="header-write"
+        onPointerEnter={preloadMenuScreens}
+        onFocus={preloadMenuScreens}
+        onPointerDown={preloadMenuScreens}
+      >
         <span aria-hidden="true">✎</span> 書く
       </Menu.Trigger>
       <Menu.Portal>
@@ -66,7 +72,13 @@ function AccountMenu() {
   return (
     <>
       <Menu.Root>
-        <Menu.Trigger className="header-avatar" aria-label="アカウントメニュー">
+        <Menu.Trigger
+          className="header-avatar"
+          aria-label="アカウントメニュー"
+          onPointerEnter={preloadMenuScreens}
+          onFocus={preloadMenuScreens}
+          onPointerDown={preloadMenuScreens}
+        >
           {profile?.avatar ? (
             <img
               className="header-avatar-image"
