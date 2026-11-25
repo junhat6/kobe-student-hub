@@ -213,7 +213,14 @@ export default {
       env.MEDIA_BUCKET && request.headers.has('X-Test-R2-Fail')
         ? new Proxy(env.MEDIA_BUCKET, {
             get(target, key) {
-              if (key === 'put') return async () => Promise.reject(Error('fixture r2 failure'));
+              if (key === 'put')
+                return request.headers.get('X-Test-R2-Fail') === 'size'
+                  ? // R2 stores the object but reports another size than the normalized bytes.
+                    async (...args: Parameters<R2Bucket['put']>) => {
+                      const stored = await target.put(...args);
+                      return stored && { ...stored, size: stored.size + 1 };
+                    }
+                  : async () => Promise.reject(Error('fixture r2 failure'));
               const v = Reflect.get(target, key);
               return typeof v === 'function' ? v.bind(target) : v;
             },
@@ -222,7 +229,11 @@ export default {
     const result = await createOrdinaryDraftHandler(
       db,
       origin,
-      { enabled: !request.headers.has('X-Test-Closed'), mediaBucket: bucket },
+      {
+        enabled: !request.headers.has('X-Test-Closed'),
+        // The Worker before the #12 contract kept every image in D1; without a bucket this one does too.
+        mediaBucket: request.headers.has('X-Test-Previous-Worker') ? undefined : bucket,
+      },
       () => now,
     )(target);
     if (result) {

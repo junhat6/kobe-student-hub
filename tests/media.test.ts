@@ -31,6 +31,22 @@ const jpg = jpeg.encode(
 ).data;
 const id = () => crypto.randomUUID();
 type TestDb = Awaited<ReturnType<Miniflare['getD1Database']>>;
+/**
+ * A row as an earlier Worker wrote it (bytes only in D1, no R2 copy), copied from an uploaded `png`
+ * row. With a bucket the current Worker keeps no payload (#12 contract), so the bytes are bound here.
+ */
+async function legacyCopy(
+  db: TestDb,
+  source: string,
+  row: { id: string; at: number; owner?: string; draft?: string; sha256?: string },
+) {
+  await db
+    .prepare(
+      'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,COALESCE(?,owner_account_id),COALESCE(?,article_draft_id),mime,width,height,?,COALESCE(?,sha256),? FROM media_assets WHERE id=?',
+    )
+    .bind(row.id, row.owner ?? null, row.draft ?? null, png, row.sha256 ?? null, row.at, source)
+    .run();
+}
 async function holderDraft(db: TestDb, account: string) {
   const draftId = id();
   await db
@@ -194,12 +210,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       [referenced, d2],
       [published, d3],
     ] as const)
-      await db
-        .prepare(
-          'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,?,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
-        )
-        .bind(asset, d.id, NOW - 2 * 86400000, source)
-        .run();
+      await legacyCopy(db, source, { id: asset, draft: d.id, at: NOW - 2 * 86400000 });
     const p = (await publication(d3, [published]))!;
     expect(p).not.toBeNull();
     await expect(
@@ -737,7 +748,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     const used = async (account?: string) =>
       (await db
         .prepare(
-          'SELECT COALESCE(SUM(length(payload)),0) n FROM media_assets' +
+          'SELECT COALESCE(SUM(COALESCE(bytes,length(payload))),0) n FROM media_assets' +
             (account ? ' WHERE owner_account_id=?' : ''),
         )
         .bind(...(account ? [account] : []))
@@ -877,12 +888,12 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     );
     const old = id(),
       db = await mf.getD1Database('DB');
-    await db
-      .prepare(
-        'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,?,?,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
-      )
-      .bind(old, 'account-1', other.id, NOW - 2 * 86400000, source)
-      .run();
+    await legacyCopy(db, source, {
+      id: old,
+      owner: 'account-1',
+      draft: other.id,
+      at: NOW - 2 * 86400000,
+    });
     expect((await ownRead(old, 1)).status).toBe(200);
     expect((await upload(d)).status).toBe(201);
     expect((await ownRead(old, 1)).status).toBe(200);
@@ -1033,14 +1044,29 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       expect(row.object_stored_at_ms).toBe(NOW);
       const object = await bucket.get(await objectKey(image));
       expect(new Uint8Array(await object!.arrayBuffer())).toEqual(png);
+      // #12 contract: D1 keeps the normalized size R2 confirmed, and no copy of the bytes.
+      const db = await mf.getD1Database('DB');
+      expect(
+        await db
+          .prepare('SELECT bytes,payload IS NULL bare FROM media_assets WHERE id=?')
+          .bind(image)
+          .first(),
+      ).toEqual({ bytes: png.length, bare: 1 });
+      expect(object!.size).toBe(png.length);
       // The object exists, yet other students and anonymous readers still get nothing for a draft image.
       expect((await ownRead(image, 1)).status).toBe(404);
       expect((await publicRead(image)).status).toBe(404);
-      // Proof the read comes from R2: drop the D1 payload path by checking a swapped object is rejected.
-      await bucket.put(await objectKey(image), new Uint8Array(png.length).fill(7));
       const own = await ownRead(image);
       expect(own.status).toBe(200);
       expect(new Uint8Array(await own.arrayBuffer())).toEqual(png);
+      // R2 is the only copy: a swapped object is refused, never served, and nothing else is.
+      const original = new Uint8Array(
+        await (await bucket.get(await objectKey(image)))!.arrayBuffer(),
+      );
+      await bucket.put(await objectKey(image), new Uint8Array(png.length).fill(7));
+      expect((await ownRead(image)).status).toBe(404);
+      await bucket.put(await objectKey(image), original);
+      expect((await ownRead(image)).status).toBe(200);
       const removed = await mf.dispatchFetch(O + '/api/private/media/' + image, {
         method: 'DELETE',
         headers: h(),
@@ -1062,6 +1088,13 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       ).toBeNull();
       const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
       expect((await bucket.list({ prefix: `media/${failed}/` })).objects).toEqual([]);
+      // D1 keeps no copy of the bytes, so an object R2 reports at another size is never recorded.
+      const sized = id();
+      expect((await upload(d, sized, png, 0, { 'X-Test-R2-Fail': 'size' })).status).toBe(404);
+      expect(
+        await db.prepare('SELECT 1 FROM media_assets WHERE id=?').bind(sized).first(),
+      ).toBeNull();
+      expect((await bucket.list({ prefix: `media/${sized}/` })).objects).toEqual([]);
       // The writer is suspended between the R2 put and the D1 insert; the object must not survive.
       const raced = id();
       expect((await upload(d, raced, png, 0, { 'X-Test-Race': '1' })).status).toBe(404);
@@ -1099,13 +1132,8 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     expect((await upload(d, source)).status).toBe(201);
     const legacy = id(),
       db = await mf.getD1Database('DB');
-    // A row written by the previous Worker: bytes only in D1.
-    await db
-      .prepare(
-        'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,article_draft_id,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
-      )
-      .bind(legacy, NOW, source)
-      .run();
+    // A row written by an earlier Worker: bytes only in D1.
+    await legacyCopy(db, source, { id: legacy, at: NOW });
     const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
     // Sorts right after the fixed start, so it is on the first sweep page however many objects
     // earlier cases left in the bucket (a full draft is 24 images since #195).
@@ -1141,18 +1169,13 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     expect((await upload(d, source)).status).toBe(201);
     // Eight older rows whose payload does not match its sha256 (a full batch), then one good row.
     for (let i = 0; i < 8; i++)
-      await db
-        .prepare(
-          'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,?,mime,width,height,payload,?,? FROM media_assets WHERE id=?',
-        )
-        .bind(`0000000${i}-0000-4000-8000-000000000000`, bad.id, 'b'.repeat(64), NOW - 10, source)
-        .run();
-    await db
-      .prepare(
-        'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,article_draft_id,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
-      )
-      .bind(good, NOW, source)
-      .run();
+      await legacyCopy(db, source, {
+        id: `0000000${i}-0000-4000-8000-000000000000`,
+        draft: bad.id,
+        sha256: 'b'.repeat(64),
+        at: NOW - 10,
+      });
+    await legacyCopy(db, source, { id: good, at: NOW });
     const run = async (start: string) =>
       (await (
         await mf.dispatchFetch(O + '/fixture/maintain', {
@@ -1182,9 +1205,9 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     expect((await bucket.list({ prefix: 'media/0000000' })).objects).toHaveLength(0);
     const payloads = await db
       .prepare(
-        "SELECT a.payload=s.payload same FROM media_assets a, media_assets s WHERE a.id LIKE '0000000_-0000-4000-8000-000000000000' AND s.id=?",
+        "SELECT payload=? same FROM media_assets WHERE id LIKE '0000000_-0000-4000-8000-000000000000'",
       )
-      .bind(source)
+      .bind(png)
       .all<{ same: number }>();
     expect(payloads.results.map((r) => r.same)).toEqual(Array(8).fill(1));
   });
@@ -1198,13 +1221,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       .run();
     // Fewer than a batch, on both sides of the start, and one row equal to the start.
     const ids = ['10', '30', '50', '70', '90'].map((p) => `${p}000000-0000-4000-8000-00000000000a`);
-    for (const row of ids)
-      await db
-        .prepare(
-          'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,article_draft_id,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
-        )
-        .bind(row, NOW, source)
-        .run();
+    for (const row of ids) await legacyCopy(db, source, { id: row, at: NOW });
     const run = async (start: string) =>
       (await (
         await mf.dispatchFetch(O + '/fixture/maintain', {
@@ -1242,7 +1259,7 @@ describe('media object audit', () => {
       await mf.getD1Database('DB')
     )
       .prepare(
-        'SELECT sha256,length(payload) bytes,owner_account_id,article_draft_id FROM media_assets WHERE id=?',
+        'SELECT sha256,COALESCE(bytes,length(payload)) bytes,owner_account_id,article_draft_id FROM media_assets WHERE id=?',
       )
       .bind(image)
       .first<{
@@ -1315,12 +1332,7 @@ describe('media object audit', () => {
   it('counts a row whose bytes are only in D1 as pending, and leaves no id, key, owner or bytes in the output', async () => {
     const db = await mf.getD1Database('DB'),
       legacy = id();
-    await db
-      .prepare(
-        'INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) SELECT ?,owner_account_id,article_draft_id,mime,width,height,payload,sha256,? FROM media_assets WHERE id=?',
-      )
-      .bind(legacy, NOW, images[2])
-      .run();
+    await legacyCopy(db, images[2], { id: legacy, at: NOW });
     const { text, value } = await audit();
     expect(value).toEqual({ total: 4, checked: 3, ...ok, pending: 1, missing: 1, mismatched: 1 });
     const canaries = [legacy, ...images];
@@ -1566,19 +1578,6 @@ describe('migration 0032 on a database that already has published images', () =>
 });
 
 // #260: the size lives in its own column so the contract of #12 can empty payload.
-/** Simulates the contract of #12 for one row: payload no longer holds the image. */
-async function emptyPayload(db: TestDb, image: string) {
-  const guard = (await db
-    .prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?")
-    .bind('media_assets_content_immutable')
-    .first<{ sql: string }>())!.sql;
-  await db.prepare('DROP TRIGGER media_assets_content_immutable').run();
-  try {
-    await db.prepare("UPDATE media_assets SET payload=x'00' WHERE id=?").bind(image).run();
-  } finally {
-    await db.prepare(guard).run();
-  }
-}
 /** Rows whose size column says `size` but whose payload is 1 byte, as after the contract. */
 async function fillContracted(db: TestDb, account: string, rows: number, size: number) {
   const holder = await holderDraft(db, account);
@@ -1628,9 +1627,11 @@ describe('media size column', () => {
       d = await draft(),
       image = id();
     expect((await upload(d, image)).status).toBe(201);
-    expect(await sizeOf(image)).toEqual({ bytes: png.length, stored: png.length });
-    await emptyPayload(db, image);
-    expect(await sizeOf(image)).toEqual({ bytes: png.length, stored: 1 });
+    // With a bucket the upload keeps no payload (#12 contract); the size column alone holds the size.
+    expect(await sizeOf(image)).toEqual({ bytes: png.length, stored: null });
+    await expect(
+      db.prepare("UPDATE media_assets SET payload=x'00' WHERE id=?").bind(image).run(),
+    ).rejects.toThrow('immutable media');
     const list = await mf.dispatchFetch(O + '/api/private/media/articles/' + d.id, {
       headers: h(),
     });
@@ -1796,8 +1797,10 @@ describe('migration 0045 on a database that already has published images', () =>
     const db = await mf.getD1Database('DB'),
       published = id(),
       pending = id(),
-      d = await draft(`Saved ![diagram](/api/media/${published})`);
-    expect((await upload(d, published)).status).toBe(201);
+      d = await draft(`Saved ![diagram](/api/media/${published})`),
+      previous = { 'X-Test-Previous-Worker': '1' };
+    // Before 0045 the Worker kept every image in D1 (payload); the cron copied it to R2.
+    expect((await upload(d, published, png, 0, previous)).status).toBe(201);
     expect(await publication(d, [published])).not.toBeNull();
     // A published project holds its own grant on media_assets (project_publication_media).
     const projectImage = id(),
@@ -1811,11 +1814,21 @@ describe('migration 0045 on a database that already has published images', () =>
       (
         await mf.dispatchFetch(O + `/api/private/media/projects/${project.id}/${projectImage}`, {
           method: 'PUT',
-          headers: { ...h(), 'Content-Type': 'image/png', 'If-Match': '"1"' },
+          headers: { ...h(), ...previous, 'Content-Type': 'image/png', 'If-Match': '"1"' },
           body: png,
         })
       ).status,
     ).toBe(201);
+    expect(
+      await mf
+        .dispatchFetch(O + '/fixture/maintain', {
+          headers: {
+            'X-Test-Now': String(NOW),
+            'X-Test-Start': '00000000-0000-0000-0000-000000000000',
+          },
+        })
+        .then((r) => r.json()),
+    ).toEqual({ copied: 2, swept: 0 });
     expect(
       (
         await call<{ projectId: string } | null>('project-publish', {
@@ -1883,11 +1896,22 @@ describe('migration 0045 on a database that already has published images', () =>
         .run(),
     ).rejects.toThrow(/FOREIGN KEY/);
 
-    // payload stays immutable for existing rows; the current Worker still uploads.
+    // payload stays immutable for existing rows; both Workers upload, and only the current one
+    // leaves payload out (#12 contract).
     await expect(
       db.prepare('UPDATE media_assets SET payload=NULL WHERE id=?').bind(published).run(),
     ).rejects.toThrow('immutable media');
-    expect((await upload(await draft(), id())).status).toBe(201);
+    const [older, newer] = [id(), id()];
+    expect((await upload(await draft(), older, png, 0, previous)).status).toBe(201);
+    expect((await upload(await draft(), newer)).status).toBe(201);
+    expect(
+      (
+        await db
+          .prepare('SELECT payload IS NULL bare FROM media_assets WHERE id IN (?,?) ORDER BY id=?')
+          .bind(older, newer, newer)
+          .all()
+      ).results,
+    ).toEqual([{ bare: 0 }, { bare: 1 }]);
 
     // A row without payload is allowed only once its size and R2 copy are recorded.
     const insert = (payload: string, bytes: number | null, stored: number | null) =>

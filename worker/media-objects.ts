@@ -4,10 +4,12 @@
 // derived from the D1 row (id + sha256). The bucket has no public access (no r2.dev, no custom
 // domain), so a key is never a capability on its own.
 //
-// Expand stage: new bytes go to R2 *and* D1 (payload). Reads prefer R2 and fall back to D1, so the
-// previous Worker (D1 only) keeps working after a rollback. A later contract stage stops writing the
-// payload once every row's object is confirmed in R2 (head/get and sha256 against the row), not by
-// object_stored_at_ms alone: the column records a past copy, not that the object still exists.
+// Contract stage (#12, after 0045 and a full audit match in production): with a bucket, new bytes go
+// to R2 only and the D1 row keeps the size, sha256 and object_stored_at_ms with payload NULL. Without
+// a bucket (local preview, older config) bytes stay in D1. Reads prefer R2 and fall back to the D1
+// payload, which older rows still hold until a later step purges it. A rollback to the previous
+// Worker keeps working because it also reads R2 first. object_stored_at_ms records a past copy, not
+// that the object still exists; the audit (head/get and sha256 against the row) watches that.
 import { MEDIA_MAX_BYTES } from '../src/shared/media';
 
 export type MediaBindings = { MEDIA_BUCKET?: R2Bucket };
@@ -32,7 +34,11 @@ export async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string>
   ).join('');
 }
 
-/** Throws when R2 refuses the write; callers must not create the D1 row in that case. */
+/**
+ * Throws when R2 refuses the write or records another size than the normalized bytes; callers must
+ * not create the D1 row in that case (and remove a stored object). The D1 row carries no payload
+ * (#12 contract), so the object R2 reports is the only copy and must match the row's size exactly.
+ */
 export async function putMediaObject(
   bucket: R2Bucket,
   ref: { id: string; sha256: string },
@@ -40,11 +46,12 @@ export async function putMediaObject(
   mime: string,
 ): Promise<void> {
   if (!ID.test(ref.id) || !HEX64.test(ref.sha256)) throw Error('invalid media object');
-  await bucket.put(mediaObjectKey(ref.id, ref.sha256), bytes, {
+  const object = await bucket.put(mediaObjectKey(ref.id, ref.sha256), bytes, {
     httpMetadata: { contentType: mime },
     // R2 rejects the write if the bytes do not match, so a truncated body never becomes an object.
     sha256: ref.sha256,
   });
+  if (!object || object.size !== bytes.length) throw Error('media object size mismatch');
 }
 
 /** Bytes from R2 only when they match the authorized D1 row exactly; otherwise null (caller falls back). */

@@ -119,13 +119,15 @@ export class MediaStore {
       // Checked before R2 so a full draft costs no object write. The trigger stays authoritative.
       const full = await this.limit(p, kind, draftId, id, value.bytes.length);
       if (full) return full;
-      // R2 first: if it refuses the bytes, no D1 row is created. If the D1 insert then fails, the
-      // object is removed below (or swept later), so it is never reachable without a D1 row.
-      // The key holds the sha256, so a repeated or colliding upload never replaces other bytes.
-      if (this.bucket)
-        await putMediaObject(this.bucket, { id, sha256: sha }, value.bytes, value.mime);
       let r: Row | null = null;
       try {
+        // R2 first: if it refuses the bytes or stores another size, no D1 row is created. If the D1
+        // insert then fails, the object is removed below (or swept later), so it is never reachable
+        // without a D1 row. The key holds the sha256, so a repeated or colliding upload never
+        // replaces other bytes. With a bucket the row holds no payload (#12 contract): the size
+        // column is the normalized length R2 confirmed, and reads match the object against it.
+        if (this.bucket)
+          await putMediaObject(this.bucket, { id, sha256: sha }, value.bytes, value.mime);
         await this.db
           .prepare(
             `INSERT INTO media_assets(id,owner_account_id,article_draft_id,project_draft_id,mime,width,height,payload,bytes,sha256,created_at_ms,object_stored_at_ms) SELECT ?,?,?,?,?,?,?,?,?,?,?,? FROM ${table(kind)} d WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND ${writer} AND NOT EXISTS(SELECT 1 FROM media_assets WHERE id=?)`,
@@ -138,7 +140,7 @@ export class MediaStore {
             value.mime,
             value.width,
             value.height,
-            value.bytes,
+            this.bucket ? null : value.bytes,
             value.bytes.length,
             sha,
             p.nowMs,
