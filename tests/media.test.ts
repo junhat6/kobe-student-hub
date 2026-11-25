@@ -450,6 +450,21 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     expect((await upload(d, id(), new Uint8Array(MEDIA_MAX_BYTES + 1))).status).toBe(413);
     expect((await upload(d, id(), new Uint8Array(0))).status).toBe(400);
     expect((await upload(d, id(), png, 0, { 'Content-Encoding': 'gzip' })).status).toBe(415);
+    // The body is read only after authorization (#295 verifier): a body that is over the limit,
+    // in a refused type or empty still gets the unauthorized 404, never 413/415/400.
+    for (const [bytes, extra] of [
+      [new Uint8Array(MEDIA_MAX_BYTES + 1), {}],
+      [png, { 'Content-Type': 'image/gif' }],
+      [new Uint8Array(0), {}],
+    ] as const) {
+      const r = await mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
+        method: 'PUT',
+        headers: { ...h(1), 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png', ...extra },
+        body: bytes,
+      });
+      expect(r.status).toBe(404);
+      await r.arrayBuffer();
+    }
     for (const path of [
       '/api/media/' + id() + '?x=1',
       '/api/media/' + id() + '#private',
@@ -857,24 +872,30 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
           .first<{ n: number }>())!.n;
     // Another student, a missing CSRF proof, a foreign Origin and a stale version all get the
     // same 404 as an unknown draft: none of them learns the draft is full.
+    // Each response body is read right after its own dispatchFetch: holding several responses
+    // and reading them later trips undici's "Body has already been read" under load.
     const refusals = [
-      await mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
-        method: 'PUT',
-        headers: { ...h(1), 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png' },
-        body: png,
-      }),
-      await upload(d, id(), png, 0, { Authorization: '' }),
-      await upload(d, id(), png, 0, { Origin: 'https://evil.example.invalid' }),
-      await upload({ ...d, version: d.version + 1 }),
-      await mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
-        method: 'PUT',
-        headers: { 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png' },
-        body: png,
-      }),
+      () =>
+        mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
+          method: 'PUT',
+          headers: { ...h(1), 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png' },
+          body: png,
+        }),
+      () => upload(d, id(), png, 0, { Authorization: '' }),
+      () => upload(d, id(), png, 0, { Origin: 'https://evil.example.invalid' }),
+      () => upload({ ...d, version: d.version + 1 }),
+      () =>
+        mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
+          method: 'PUT',
+          headers: { 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png' },
+          body: png,
+        }),
     ];
-    for (const r of refusals) {
+    for (const send of refusals) {
+      const r = await send();
+      const text = await r.text();
       expect(r.status).toBe(404);
-      expect(await r.text()).not.toContain('media_limit');
+      expect(text).not.toContain('media_limit');
     }
     expect(await count()).toBe(MEDIA_PER_DRAFT);
   });

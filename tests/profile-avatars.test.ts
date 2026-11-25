@@ -136,6 +136,11 @@ it('validates the image on the server: square, bounded, decodable PNG/JPEG only'
   expect((await put(new Uint8Array(0))).status).toBe(400);
   expect((await put(square(64), 0, 'image/png', { 'Content-Encoding': 'gzip' })).status).toBe(415);
   expect((await put(square(64), 0, 'image/gif')).status).toBe(415);
+  // The body is read only after authorization (#295 verifier): account-3 has no profile, so an
+  // over-limit, refused-type or empty body still gets the unauthorized 404, never 413/415/400.
+  expect((await put(new Uint8Array(AVATAR_MAX_BYTES + 1).fill(1), 3)).status).toBe(404);
+  expect((await put(square(64), 3, 'image/gif')).status).toBe(404);
+  expect((await put(new Uint8Array(0), 3)).status).toBe(404);
   expect(await version()).toBeNull();
   const jpegResult = await put(jpg, 0, 'image/jpeg');
   expect(jpegResult.status).toBe(201);
