@@ -59,6 +59,8 @@ export interface ProjectJournal {
   projectId: string;
   fixedArticleIds: string[];
   articleIds: string[];
+  /** The same links in order with the owner's own title and whether the article is still public. */
+  articles: { id: string; title: string; isPublic: boolean }[];
 }
 export interface PublicAuthorProjects {
   author: Profile;

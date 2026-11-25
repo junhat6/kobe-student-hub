@@ -169,7 +169,7 @@ test('owner adds and removes later articles as the project journal; readers see 
     await page.goto('/works/new');
     await page.getByRole('button', { name: '続きを編集：' + projectTitle, exact: true }).click();
     const left = page.getByRole('group', { name: '制作日誌' });
-    const gone = left.getByRole('checkbox', { name: '公開を止めた記事 1', exact: true });
+    const gone = left.getByRole('checkbox', { name: day1 + '（公開を止めた記事）', exact: true });
     await expect(gone).toBeChecked();
     await gone.click();
     await expect(gone).toHaveCount(0);

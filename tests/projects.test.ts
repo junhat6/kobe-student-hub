@@ -1101,7 +1101,12 @@ it('routes the owner-only journal links of a published project (#273)', async ()
   const path = '/api/private/project-journal/' + d.id;
   const own = await req(path);
   expect(own.status).toBe(200);
-  expect(await own.json()).toEqual({ projectId, fixedArticleIds: [], articleIds: [] });
+  expect(await own.json()).toEqual({
+    projectId,
+    fixedArticleIds: [],
+    articleIds: [],
+    articles: [],
+  });
   // Another signed-in student, a missing session, a query, a missing id and an unknown draft.
   expect((await req(path, 'GET', undefined, 2)).status).toBe(404);
   expect((await req(path, 'GET', undefined, 0, { Cookie: '' })).status).toBe(401);

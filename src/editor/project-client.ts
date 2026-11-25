@@ -128,7 +128,7 @@ export function validProjectPage(
 }
 function validJournal(v: unknown): v is ProjectJournal {
   return (
-    publicKeys(v, ['projectId', 'fixedArticleIds', 'articleIds']) &&
+    publicKeys(v, ['projectId', 'fixedArticleIds', 'articleIds', 'articles']) &&
     projectUUID(v.projectId) &&
     Array.isArray(v.fixedArticleIds) &&
     v.fixedArticleIds.length <= 3 &&
@@ -136,7 +136,16 @@ function validJournal(v: unknown): v is ProjectJournal {
     Array.isArray(v.articleIds) &&
     v.articleIds.length <= PROJECT_JOURNAL_LIMIT &&
     v.articleIds.every(projectUUID) &&
-    new Set(v.articleIds).size === v.articleIds.length
+    new Set(v.articleIds).size === v.articleIds.length &&
+    Array.isArray(v.articles) &&
+    v.articles.length === v.articleIds.length &&
+    v.articles.every(
+      (a, n) =>
+        publicKeys(a, ['id', 'title', 'isPublic']) &&
+        a.id === (v.articleIds as string[])[n] &&
+        publicText(a.title, 200) &&
+        typeof a.isPublic === 'boolean',
+    )
   );
 }
 export function validProjectAuthor(v: unknown, id: string): v is PublicAuthorProjects {

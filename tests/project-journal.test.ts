@@ -145,6 +145,7 @@ describe('project journal links (#273)', () => {
       projectId: work.projectId,
       fixedArticleIds: [fixed],
       articleIds: [],
+      articles: [],
     });
     const value = (await page(work.projectId))!;
     expect(value.articles.map((x) => x.id)).toEqual([fixed]);
@@ -212,6 +213,14 @@ describe('project journal links (#273)', () => {
     const db = await mf.getD1Database('DB');
     await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(second).run();
     expect((await page(work.projectId))!.journal.map((x) => x.id)).toEqual([first]);
+    // The owner view says which link stopped being public, from the server (verifier N1).
+    const owned = (await journal(work.draftId))!.articles;
+    expect(owned.find((x) => x.id === second)).toEqual({
+      id: second,
+      title: '日誌 2 日目',
+      isPublic: false,
+    });
+    expect(owned.find((x) => x.id === first)?.isPublic).toBe(true);
     // A stopped article cannot be linked again either.
     expect(await link(work.draftId, second, false)).not.toBeNull();
     expect(await link(work.draftId, second)).toBeNull();

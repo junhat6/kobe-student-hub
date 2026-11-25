@@ -68,16 +68,19 @@ export default function ProjectJournalLinks({
       setPending(null);
     }
   }
+  // Own public articles not fixed at publish time, plus linked ones that are still public but older
+  // than the newest-20 publication list, so every public journal entry stays visible and removable.
+  const linkedPublic = journal?.articles.filter((article) => article.isPublic) ?? [];
   const candidates = journal
-    ? (ownArticles ?? []).filter((article) => !journal.fixedArticleIds.includes(article.id))
+    ? [
+        ...(ownArticles ?? []).filter((article) => !journal.fixedArticleIds.includes(article.id)),
+        ...linkedPublic.filter((article) => !ownArticles?.some((own) => own.id === article.id)),
+      ]
     : [];
   const full = (journal?.articleIds.length ?? 0) >= PROJECT_JOURNAL_LIMIT;
-  // Linked articles that are no longer public: not shown on the project page, but they keep a slot
-  // until the owner removes them, so they stay listed here to be removed (#273 verifier L3).
-  const stopped =
-    journal && ownArticles
-      ? journal.articleIds.filter((id) => !ownArticles.some((article) => article.id === id))
-      : [];
+  // Linked articles the server reports as no longer public: not shown on the project page, but they
+  // keep a slot until the owner removes them (#273 verifier L3・N1).
+  const stopped = journal?.articles.filter((article) => !article.isPublic) ?? [];
   return (
     <fieldset className="project-article-links project-journal-links">
       <legend>制作日誌</legend>
@@ -126,15 +129,15 @@ export default function ProjectJournalLinks({
       {stopped.length > 0 && (
         <>
           <p>公開を止めた記事は作品ページに出ません。外すと枠が空きます。</p>
-          {stopped.map((id, n) => (
-            <label key={id}>
+          {stopped.map((article) => (
+            <label key={article.id}>
               <input
                 type="checkbox"
                 checked
                 disabled={!writable || pending !== null}
-                onChange={() => void toggle(id, false, '公開を止めた記事')}
+                onChange={() => void toggle(article.id, false, article.title || '公開を止めた記事')}
               />
-              公開を止めた記事 {n + 1}
+              {(article.title || '題を表示できない記事') + '（公開を止めた記事）'}
             </label>
           ))}
         </>

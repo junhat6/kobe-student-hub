@@ -442,10 +442,16 @@ export class ProjectStore {
   private async ownJournal(p: Proof, id: string): Promise<ProjectJournal | null> {
     const rs = await this.db
       .prepare(
-        `SELECT r.id project_id,r.article_ids_json,l.article_id FROM project_drafts d JOIN project_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id LEFT JOIN project_journal_links l ON l.project_id=r.id AND l.owner_account_id=d.owner_account_id WHERE d.id=? AND d.owner_account_id=? AND r.status='published' AND ${live} ORDER BY l.linked_at_ms ASC,l.article_id ASC LIMIT ${PROJECT_JOURNAL_LIMIT + 1}`,
+        `SELECT r.id project_id,r.article_ids_json,l.article_id,CASE WHEN length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 THEN c.title ELSE '' END title,CASE WHEN c.kind='article' AND c.status='published' AND c.is_sample=0 THEN 1 ELSE 0 END is_public FROM project_drafts d JOIN project_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id LEFT JOIN project_journal_links l ON l.project_id=r.id AND l.owner_account_id=d.owner_account_id LEFT JOIN content c ON c.id=l.article_id WHERE d.id=? AND d.owner_account_id=? AND r.status='published' AND ${live} ORDER BY l.linked_at_ms ASC,l.article_id ASC LIMIT ${PROJECT_JOURNAL_LIMIT + 1}`,
       )
       .bind(id, p.accountId, ...binds(p))
-      .all<{ project_id: string; article_ids_json: string; article_id: string | null }>();
+      .all<{
+        project_id: string;
+        article_ids_json: string;
+        article_id: string | null;
+        title: string | null;
+        is_public: number;
+      }>();
     const first = rs.results[0];
     if (!first || !uuid(first.project_id) || rs.results.length > PROJECT_JOURNAL_LIMIT) return null;
     let fixed: unknown;
@@ -455,14 +461,22 @@ export class ProjectStore {
       return null;
     }
     if (!Array.isArray(fixed) || fixed.length > 3 || !fixed.every(uuid)) return null;
-    const articleIds: string[] = [];
+    const articleIds: string[] = [],
+      articles: ProjectJournal['articles'] = [];
     for (const r of rs.results) {
       if (r.project_id !== first.project_id) return null;
       if (r.article_id === null) continue;
       if (!uuid(r.article_id)) return null;
       articleIds.push(r.article_id);
+      // The owner's own titles and whether each linked article is still public, decided here and not
+      // from the client's newest-20 publication list (#273 verifier N1). The page re-checks in full.
+      articles.push({
+        id: r.article_id,
+        title: typeof r.title === 'string' ? r.title : '',
+        isPublic: r.is_public === 1,
+      });
     }
-    return { projectId: first.project_id, fixedArticleIds: fixed, articleIds };
+    return { projectId: first.project_id, fixedArticleIds: fixed, articleIds, articles };
   }
   /**
    * The owner adds or removes one of their own public articles as a journal entry of their own published

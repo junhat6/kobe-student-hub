@@ -338,7 +338,12 @@ it('reads and changes journal links only through confirmed owner responses (#273
   const article = '22222222-2222-4222-8222-222222222222',
     fixed = '33333333-3333-4333-8333-333333333333';
   const calls: { path: string; init: RequestInit }[] = [];
-  let answer: unknown = { projectId: id, fixedArticleIds: [fixed], articleIds: [article] };
+  let answer: unknown = {
+    projectId: id,
+    fixedArticleIds: [fixed],
+    articleIds: [article],
+    articles: [{ id: article, title: '日誌', isPublic: true }],
+  };
   const client = createProjectClient(token, (async (path, init) => {
     calls.push({ path: String(path), init: init! });
     return Response.json(answer);
@@ -355,6 +360,20 @@ it('reads and changes journal links only through confirmed owner responses (#273
   );
   for (const bad of [
     { projectId: id, fixedArticleIds: [], articleIds: [article, article] },
+    // articles must match articleIds one to one, with a boolean public flag.
+    { projectId: id, fixedArticleIds: [], articleIds: [article], articles: [] },
+    {
+      projectId: id,
+      fixedArticleIds: [],
+      articleIds: [article],
+      articles: [{ id: article, title: '日誌', isPublic: 1 }],
+    },
+    {
+      projectId: id,
+      fixedArticleIds: [],
+      articleIds: [article],
+      articles: [{ id: fixed, title: '日誌', isPublic: true }],
+    },
     { projectId: id, fixedArticleIds: [], articleIds: [article], ownerAccountId: 'x' },
     { projectId: 'x', fixedArticleIds: [], articleIds: [] },
     { projectId: id, fixedArticleIds: [], articleIds: Array(21).fill(article) },
