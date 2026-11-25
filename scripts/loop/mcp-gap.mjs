@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// MCP 育成ループ（LOOPS.md「MCP 育成ループ」）の記録と同期。
+// MCP 育成の流れ（LOOPS.md §7「MCP 育成の流れ」）の記録と同期。
 //
 // 公式 MCP（/api/mcp）以外の経路で本番の hub を操作した出来事を「MCP の穴」として記録し、
 // docs/loop/mcp-coverage.json（MCP 対応表）の class に従って GitHub Issue の待ち行列に乗せる。
@@ -98,7 +98,8 @@ export function opForSurface(surface, coverage) {
   let bestLen = -1;
   for (const e of apiEntries(coverage)) {
     if (e.method && e.method !== method) continue;
-    if (!path.startsWith(e.path.replace(/\/$/, '')) && path !== e.path) continue;
+    // 末尾が / の型はその下だけ（/api/articles/ は /api/articles/:id に当たり、/api/articles には当たらない）
+    if (!(e.path.endsWith('/') ? path.startsWith(e.path) : path.startsWith(e.path))) continue;
     const len = e.path.length + (e.method ? 0.5 : 0);
     if (len > bestLen) {
       best = [e.op];
@@ -113,8 +114,34 @@ export function opForSurface(surface, coverage) {
 const HUB_URL = () =>
   new RegExp(`https?://${HUB_HOST.replace(/\./g, '\\.')}(/[^\\s'"\`<>)\\]]*)?`, 'g');
 // URL を書いただけ（git commit・gh issue・echo）は数えない。実際に hub へ出ていく道具のときだけ
-const NETWORK_TOOL = /(?:^|[\s;&|(])(curl|wget|xh|orca\s+browser|agent-browser|playwright)\b/;
-const D1_REMOTE = /\bwrangler\b[^\n]*\bd1\s+execute\b[^\n]*--remote\b/;
+// コマンドの先頭（行頭・; & | ( $( の直後）に置かれたものだけ。heredoc や文字列の中で名前を書いただけは数えない
+const AT_COMMAND = String.raw`(?:^|[;&|(]|\$\()[ \t]*(?:[A-Z_][A-Z0-9_]*=\S*[ \t]+)*(?:npx[ \t]+|sudo[ \t]+)?`;
+const NETWORK_TOOL = new RegExp(
+  `${AT_COMMAND}(curl|wget|xh|orca[ \\t]+browser|agent-browser|playwright)\\b`,
+  'm',
+);
+const HTTP_TOOL = new RegExp(`${AT_COMMAND}(curl|wget|xh)\\b`, 'm');
+const D1_REMOTE = new RegExp(
+  `${AT_COMMAND}wrangler\\b[^\\n]*\\bd1[ \\t]+execute\\b[^\\n]*--remote\\b`,
+  'm',
+);
+
+/** heredoc の本文（文書やスクリプトの中身）は実行ではないので落とす。 */
+export function stripHeredocs(command) {
+  const lines = command.split('\n');
+  const out = [];
+  let end = null;
+  for (const line of lines) {
+    if (end !== null) {
+      if (line.replace(/^\t+/, '') === end) end = null;
+      continue;
+    }
+    out.push(line);
+    const m = line.match(/<<-?\s*(['"]?)([A-Za-z_][\w-]*)\1/);
+    if (m) end = m[2];
+  }
+  return out.join('\n');
+}
 
 function hubPaths(text) {
   return [...text.matchAll(HUB_URL())].map((m) => {
@@ -150,14 +177,14 @@ export function eventsFromHook(input, coverage, now = new Date()) {
       out.push({ ...base, via: 'chrome', surface, op: opForSurface(surface, coverage) });
     }
   } else if (tool === 'Bash') {
-    const command = String(ti.command || '');
+    const command = stripHeredocs(String(ti.command || ''));
     if (D1_REMOTE.test(command)) {
       const known = coverage.ops.flatMap((o) => o.d1 || []);
       const tables = [...new Set(known.filter((t) => new RegExp(`\\b${t}\\b`).test(command)))];
       const surface = `d1 ${tables.length ? tables.sort().join(' ') : '?'}`;
       out.push({ ...base, via: 'd1', surface, op: opForSurface(surface, coverage) });
     } else if (NETWORK_TOOL.test(command)) {
-      const http = /(?:^|[\s;&|(])(curl|wget|xh)\b/.test(command);
+      const http = HTTP_TOOL.test(command);
       for (const p of hubPaths(command)) {
         const t = pathTemplate(p, coverage);
         if (t.startsWith('/api/mcp')) continue; // 公式 MCP そのもの
@@ -329,7 +356,7 @@ export function issueBody(plan, coverage) {
     marker(plan.op),
     ...what,
     '',
-    '件数は scripts/loop/mcp-gap.mjs の同期コメントにあります（操作 ID・経路・出どころの数だけ。中身・ID・利用者は書かない）。仕組みは docs/loop/LOOPS.md「MCP 育成ループ」。',
+    '件数は scripts/loop/mcp-gap.mjs の同期コメントにあります（操作 ID・経路・出どころの数だけ。中身・ID・利用者は書かない）。仕組みは docs/loop/LOOPS.md §7「MCP 育成の流れ」。',
   ].join('\n');
 }
 
@@ -381,8 +408,8 @@ function ensureLabels() {
     JSON.parse(gh(['label', 'list', '--limit', '200', '--json', 'name'])).map((l) => l.name),
   );
   for (const [name, color, desc] of [
-    [LABEL, '5319e7', '公式 MCP 以外の経路で行われた hub の操作（MCP 育成ループ）'],
-    [LOG_LABEL, 'c5def5', 'MCP 育成ループの同期の記録'],
+    [LABEL, '5319e7', '公式 MCP 以外の経路で行われた hub の操作（MCP 育成の流れ）'],
+    [LOG_LABEL, 'c5def5', 'MCP 育成の流れの同期の記録'],
   ])
     if (!have.has(name)) gh(['label', 'create', name, '--color', color, '--description', desc]);
 }
@@ -478,7 +505,7 @@ function sync({ dryRun }) {
     Number(
       gh(
         ['issue', 'create', '--title', LOG_TITLE, '--label', LOG_LABEL, '--body-file', '-'],
-        'MCP 育成ループの同期の記録（docs/loop/LOOPS.md「MCP 育成ループ」）。操作 ID ごとの件数だけを残す。\n',
+        'MCP 育成の流れの同期の記録（docs/loop/LOOPS.md §7「MCP 育成の流れ」）。操作 ID ごとの件数だけを残す。\n',
       )
         .trim()
         .split('/')
@@ -566,7 +593,7 @@ async function hook() {
             `[mcp-gap] このセッションは公式 MCP 以外の経路で本番 hub に触れました（${surfaces.join('、')}）。` +
             `何をしたかを操作 ID で 1 回だけ記録してください：\`node scripts/loop/mcp-gap.mjs classify --session ${session} <op> [<op>...]\`` +
             `（候補 ${guesses.length ? guesses.join(' ') : 'なし'}。一覧は \`node scripts/loop/mcp-gap.mjs ops\`。画面の確認が目的なら inspect）。` +
-            'MCP にない操作は MCP 育成ループの Issue になります（docs/loop/LOOPS.md）。',
+            'MCP にない操作は MCP 育成の流れの Issue になります（docs/loop/LOOPS.md）。',
         }),
       );
       return;

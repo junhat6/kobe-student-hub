@@ -379,7 +379,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "unknown",
-      "evidence": "2026-11-25 オーナーの方針（DECISIONS「公式 MCP 以外の経路での操作を MCP の改善の起点にする」）で人が足した。条件1〜5は main に実装（scripts/loop/mcp-gap.mjs、.claude/settings.json の PostToolUse・Stop hook、tests/mcp-coverage.test.ts 16 passed、LOOPS.md §7）。条件6は最初の gap の Issue を finish が閉じるまで未達。"
+      "evidence": "2026-11-25 オーナーの方針（DECISIONS「公式 MCP 以外の経路での操作を MCP の改善の起点にする」）で人が足した。条件1〜5は main に実装（scripts/loop/mcp-gap.mjs、.claude/settings.json の PostToolUse・Stop hook、tests/mcp-coverage.test.ts 17 passed、npm test 全体 passed、LOOPS.md §7）。作ったセッションでの動作確認：hook の誤検知（heredoc の中の道具名）を見つけて直した（heredoc の本文を落とし、コマンドの先頭位置だけを見る）。最初の sync で editor-log #221 の実績（写真つきの Chrome 取り込み4回・リモート D1 の読み取り8回）から #290（draft.media、excluded）・#291（operator.review-read、operator）と log #292 ができた。どちらも replan の判断待ち。条件6は最初の gap の Issue を finish が閉じるまで未達。R2 の独立検証は条件6の MCP ツールで行う（この変更は記録の仕組みと instructions の文で、認証・権限には触れない）。"
     }
   ]
 }

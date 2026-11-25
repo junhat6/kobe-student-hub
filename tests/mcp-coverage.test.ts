@@ -134,6 +134,21 @@ describe('hook が拾う出来事', () => {
     expect(hook('Bash', { command: 'curl -s https://hub.junhat6.com/api/mcp -d {}' })).toEqual([]);
   });
 
+  it('heredoc や文書の中で道具の名前を書いただけは数えない', () => {
+    const doc =
+      "python3 - <<'EOF'\ntext='`wrangler d1 execute --remote` や curl https://hub.junhat6.com/api/private/drafts を拾う'\nEOF";
+    expect(hook('Bash', { command: doc })).toEqual([]);
+    expect(
+      hook('Bash', {
+        command:
+          'cd /x && KSH=1 npx wrangler d1 execute DB --remote --command "SELECT 1 FROM editorial_draft_marks"',
+      }),
+    ).toHaveLength(1);
+    expect(
+      hook('Bash', { command: 'echo a; curl -s https://hub.junhat6.com/api/articles | jq .' }),
+    ).toMatchObject([{ via: 'http', op: 'article.list' }]);
+  });
+
   it('curl は API の型とメソッド、リモート D1 は既知の表の名前だけ（SQL の中身は残さない）', () => {
     const [c] = hook('Bash', {
       command:
