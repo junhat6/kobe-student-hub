@@ -336,6 +336,10 @@
   font-size: 12px;
 }
 .detail-layout .related-reading li > a {
+  /* Small and muted, but still a 44px touch target of its own (the title link is not the card). */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--ink-muted);
   font-size: 13px;
   font-weight: 700;

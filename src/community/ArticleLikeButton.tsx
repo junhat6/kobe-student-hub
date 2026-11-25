@@ -60,7 +60,8 @@ export default function ArticleLikeButton({
       : state.kind === 'error'
         ? Boolean(state.liked)
         : false;
-  const busy = state.kind === 'loading' || state.kind === 'saving';
+  // While the session is still being checked, a press would wrongly ask a signed-in reader to log in.
+  const busy = viewer.status === 'loading' || state.kind === 'loading' || state.kind === 'saving';
   // Re-read the stored state instead of resending. `attempted` is the change that may have failed.
   async function reread(confirmed: boolean | null, attempted?: boolean) {
     if (!client) return;
