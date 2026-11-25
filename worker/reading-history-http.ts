@@ -1,6 +1,7 @@
 import { SessionStore } from './auth/sessions';
 import { ReadingHistoryStore } from './reading-history';
 import { isReadingReference } from '../src/history/types';
+import { readBoundedJson } from './http-boundary';
 const PREFIX = '/api/private/reading-history';
 const BODY_LIMIT = 1024;
 const MAX_CHUNKS = 1024;
@@ -14,75 +15,8 @@ const headers = {
 };
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers });
-type Body = { ok: true; value: unknown } | { ok: false; status: number };
-async function input(request: Request): Promise<Body> {
-  const type = request.headers.get('Content-Type');
-  if (!type || !/^application\/json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?\s*$/i.test(type))
-    return { ok: false, status: 415 };
-  const encoding = request.headers.get('Content-Encoding');
-  if (encoding !== null && encoding.toLowerCase() !== 'identity') return { ok: false, status: 415 };
-  const length = request.headers.get('Content-Length');
-  if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length))))
-    return { ok: false, status: 400 };
-  if (length !== null && Number(length) > BODY_LIMIT) {
-    void request.body?.cancel().catch(() => {});
-    return { ok: false, status: 413 };
-  }
-  if (!request.body) return { ok: false, status: 400 };
-  const reader = request.body.getReader();
-  let expired = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const cancel = () => {
-    void reader.cancel().catch(() => {});
-  };
-  const read = (async (): Promise<Body> => {
-    try {
-      const bytes = new Uint8Array(BODY_LIMIT);
-      let size = 0;
-      let count = 0;
-      for (;;) {
-        const chunk = await reader.read();
-        if (expired) return { ok: false, status: 408 };
-        if (chunk.done) break;
-        if (++count > MAX_CHUNKS) {
-          cancel();
-          return { ok: false, status: 413 };
-        }
-        if (chunk.value.byteLength === 0) continue;
-        const next = size + chunk.value.byteLength;
-        if (next > BODY_LIMIT) {
-          cancel();
-          return { ok: false, status: 413 };
-        }
-        bytes.set(chunk.value, size);
-        size = next;
-      }
-      if (length !== null && Number(length) !== size) return { ok: false, status: 400 };
-      return {
-        ok: true,
-        value: JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ),
-      };
-    } catch {
-      return { ok: false, status: 400 };
-    } finally {
-      reader.releaseLock();
-    }
-  })();
-  const deadline = new Promise<Body>((resolve) => {
-    timer = setTimeout(() => {
-      expired = true;
-      cancel();
-      resolve({ ok: false, status: 408 });
-    }, 5000);
-  });
-  try {
-    return await Promise.race([read, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
+const input = (request: Request) =>
+  readBoundedJson(request, { bytes: BODY_LIMIT, chunks: MAX_CHUNKS });
 export function createReadingHistoryHandler(
   db: D1Database,
   origin: string,

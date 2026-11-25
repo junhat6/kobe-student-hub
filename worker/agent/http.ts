@@ -23,6 +23,7 @@ import {
 } from '../../src/shared/taste-ledger';
 import { serverInstructions, writingGuide } from './guide';
 import { japanDate } from '../japan-date';
+import { canonicalOrigin } from '../http-boundary';
 
 /**
  * AI agent connection boundary: OAuth 2.1 authorization server metadata and endpoints,
@@ -71,14 +72,6 @@ const textPage = (message: string, status: number) =>
     status,
     headers: { ...baseHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
   });
-
-function canonicalOrigin(origin: string) {
-  try {
-    return new URL(origin).protocol === 'https:' && new URL(origin).origin === origin;
-  } catch {
-    return false;
-  }
-}
 
 /** Reads at most `limit` bytes; null for oversize, malformed length, or unreadable bodies. */
 async function readText(request: Request, limit: number): Promise<string | null> {

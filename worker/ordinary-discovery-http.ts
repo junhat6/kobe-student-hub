@@ -1,4 +1,5 @@
 import { OrdinaryDiscoveryStore } from './ordinary-discovery';
+import { canonicalOrigin } from './http-boundary';
 const related =
   /^\/api\/discovery\/articles\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
 const headers = {
@@ -8,13 +9,6 @@ const headers = {
   'X-Content-Type-Options': 'nosniff',
   'X-Robots-Tag': 'noindex, nofollow',
 };
-function canonicalOrigin(origin: string) {
-  try {
-    return new URL(origin).protocol === 'https:' && new URL(origin).origin === origin;
-  } catch {
-    return false;
-  }
-}
 export function createOrdinaryDiscoveryHandler(
   db: D1Database,
   origin: string,

@@ -4,7 +4,6 @@ import {
   liveStudentSessionSql as writerLive,
   liveStudentSessionBindings as writerBindings,
 } from './auth/student-participation';
-import { input } from './editorial-reviews-http';
 import {
   decodeTasteAction,
   storedTasteLines,
@@ -13,6 +12,9 @@ import {
   type TasteAction,
   type TasteLine,
 } from '../src/shared/taste-ledger';
+import { canonicalOrigin, readBoundedJson } from './http-boundary';
+// Same bounds this API used when it borrowed the editorial-review reader (#283).
+const input = (request: Request) => readBoundedJson(request, { bytes: 16 * 1024, chunks: 4096 });
 
 /** The student's own ledger on the account screen (C23 condition 4, #243). */
 export const OWN_TASTE_PATH = '/api/private/my-taste';
@@ -31,13 +33,6 @@ const headers = {
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers });
 const error = (status: number, code: string) => json({ error: code }, status);
-function canonicalOrigin(origin: string) {
-  try {
-    return new URL(origin).protocol === 'https:' && new URL(origin).origin === origin;
-  } catch {
-    return false;
-  }
-}
 const sameLine = (a: TasteLine | undefined, kind: string, text: string) =>
   !!a && a.kind === kind && a.text === text;
 type OwnRow = { version: number | null; lines_json: string | null; shared_json: string | null };

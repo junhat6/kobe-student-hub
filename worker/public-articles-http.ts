@@ -1,5 +1,6 @@
 import { ArticlePublicationStore } from './publication';
 import { ArticleLikeStore } from './likes';
+import { canonicalOrigin } from './http-boundary';
 
 const ARTICLES = '/api/articles';
 const AUTHORS = '/api/authors';
@@ -18,15 +19,6 @@ const headers = {
 
 function json(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status, headers });
-}
-
-function canonicalOrigin(origin: string) {
-  try {
-    const url = new URL(origin);
-    return url.protocol === 'https:' && url.origin === origin;
-  } catch {
-    return false;
-  }
 }
 
 /** Anonymous HTTP delivery of the existing record-backed public projections. */

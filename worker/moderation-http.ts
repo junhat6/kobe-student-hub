@@ -1,5 +1,6 @@
 import { SessionStore } from './auth/sessions';
 import { ArticleModerationStore } from './moderation';
+import { canonicalOrigin, readBoundedJson } from './http-boundary';
 export interface ModerationBindings {
   MODERATION_OPERATOR_ACCOUNT_IDS?: string;
 }
@@ -35,82 +36,7 @@ const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), { status, headers });
 const error = (status: number, code: string) => json({ error: code }, status);
 const unavailable = () => error(404, 'moderation_unavailable');
-function canonicalOrigin(origin: string) {
-  try {
-    return new URL(origin).protocol === 'https:' && new URL(origin).origin === origin;
-  } catch {
-    return false;
-  }
-}
-type Body = { ok: true; value: unknown } | { ok: false; status: number };
-async function input(request: Request): Promise<Body> {
-  const type = request.headers.get('Content-Type');
-  if (!type || !/^application\/json(?:\s*;\s*charset\s*=\s*(?:utf-8|"utf-8"))?\s*$/i.test(type))
-    return { ok: false, status: 415 };
-  const encoding = request.headers.get('Content-Encoding');
-  if (encoding !== null && encoding.toLowerCase() !== 'identity') return { ok: false, status: 415 };
-  const length = request.headers.get('Content-Length');
-  if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length))))
-    return { ok: false, status: 400 };
-  if (length !== null && Number(length) > LIMIT) {
-    void request.body?.cancel().catch(() => {});
-    return { ok: false, status: 413 };
-  }
-  if (!request.body) return { ok: false, status: 400 };
-  const reader = request.body.getReader();
-  let expired = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const cancel = () => {
-    void reader.cancel().catch(() => {});
-  };
-  const read = (async (): Promise<Body> => {
-    try {
-      const bytes = new Uint8Array(LIMIT);
-      let size = 0;
-      let count = 0;
-      for (;;) {
-        const chunk = await reader.read();
-        if (expired) return { ok: false, status: 408 };
-        if (chunk.done) break;
-        if (++count > MAX_CHUNKS) {
-          cancel();
-          return { ok: false, status: 413 };
-        }
-        if (chunk.value.byteLength === 0) continue;
-        const next = size + chunk.value.byteLength;
-        if (next > LIMIT) {
-          cancel();
-          return { ok: false, status: 413 };
-        }
-        bytes.set(chunk.value, size);
-        size = next;
-      }
-      if (length !== null && Number(length) !== size) return { ok: false, status: 400 };
-      return {
-        ok: true,
-        value: JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ),
-      };
-    } catch {
-      return { ok: false, status: 400 };
-    } finally {
-      reader.releaseLock();
-    }
-  })();
-  const deadline = new Promise<Body>((resolve) => {
-    timer = setTimeout(() => {
-      expired = true;
-      cancel();
-      resolve({ ok: false, status: 408 });
-    }, 5000);
-  });
-  try {
-    return await Promise.race([read, deadline]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
+const input = (request: Request) => readBoundedJson(request, { bytes: LIMIT, chunks: MAX_CHUNKS });
 /** Existing-session reports and trusted operator decisions. No role grant or mail sender. */
 export function createModerationHandler(
   db: D1Database,
