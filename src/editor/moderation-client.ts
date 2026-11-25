@@ -1,5 +1,5 @@
 import type { EmailDeliverySummary, OwnModerationNotice } from '../notification-types';
-import { proofAuthorization } from '../shared/auth-proof';
+import { boundedReadFailure, readBoundedJson } from '../shared/http-client';
 export interface ReportInput {
   reason: string;
   detail: string;
@@ -238,85 +238,18 @@ export function createModerationClient(
     body?: ReportInput | ModerationDecisionInput | EmailRetryInput,
     csrfToken?: string,
   ): Promise<unknown> {
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let expired = false;
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const operation = (async () => {
-      const response = await fetcher(path, {
-        method: body ? 'POST' : 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers: body
-          ? {
-              Accept: 'application/json',
-              'Content-Type': 'application/json; charset=utf-8',
-              Authorization: proofAuthorization('csrf', csrfToken!),
-            }
-          : { Accept: 'application/json' },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-      if (
-        expired ||
-        response.status !== 200 ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        throw new ModerationClientError(response.status === 401 ? 'authentication' : 'unavailable');
-      }
-      const length = response.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 2097152)
-      ) {
-        void response.body.cancel().catch(() => {});
-        throw new ModerationClientError();
-      }
-      reader = response.body.getReader();
-      const bytes = new Uint8Array(2097152);
-      let size = 0,
-        count = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (expired) throw new ModerationClientError();
-          if (next.done) break;
-          if (++count > 65536 || size + next.value.byteLength > bytes.length)
-            throw new ModerationClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        return JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ) as unknown;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new ModerationClientError());
-      }, 10000);
-    });
     try {
-      return await Promise.race([operation, deadline]);
+      return await readBoundedJson(path, {
+        fetcher,
+        credentials: 'same-origin',
+        method: body ? 'POST' : 'GET',
+        ...(body ? { body, csrf: csrfToken ?? '' } : {}),
+        maxBytes: 2097152,
+      });
     } catch (error) {
-      if (error instanceof ModerationClientError) throw error;
-      throw new ModerationClientError();
-    } finally {
-      clearTimeout(timer);
-      cancel();
+      throw new ModerationClientError(
+        boundedReadFailure(error) === 'signed-out' ? 'authentication' : 'unavailable',
+      );
     }
   }
   const target = (targetId: string) => {

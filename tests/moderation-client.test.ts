@@ -178,6 +178,46 @@ describe('existing-session report and read-only operator transport', () => {
         createModerationClient((async () => make()) as typeof fetch).queue(),
       ).rejects.toBeInstanceOf(ModerationClientError);
   });
+  it('sends reads as same-origin GET without body or CSRF, and posts JSON only with a CSRF proof', async () => {
+    const calls: { path: unknown; init: RequestInit | undefined }[] = [];
+    const client = createModerationClient((async (path, init) => {
+      calls.push({ path, init });
+      return Response.json({ received: true });
+    }) as typeof fetch);
+    expect(await client.received(contentId)).toBe(true);
+    await client.report(contentId, { reason: 'x', detail: '' }, csrf, true);
+    for (const { init } of calls)
+      expect(init).toMatchObject({
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+      });
+    expect(calls[0].init?.method).toBe('GET');
+    expect(calls[0].init?.body).toBeUndefined();
+    const read = new Headers(calls[0].init?.headers);
+    expect(read.has('Authorization') || read.has('Content-Type')).toBe(false);
+    expect(calls[1].init?.method).toBe('POST');
+    expect(new Headers(calls[1].init?.headers).get('Content-Type')).toMatch(/^application\/json/);
+  });
+  it('accepts only 200 and keeps a 401 after the deadline from looking like a sign-out', async () => {
+    for (const status of [201, 204, 409, 422])
+      await expect(
+        createModerationClient((async () =>
+          Response.json({ received: true }, { status })) as typeof fetch).received(contentId),
+      ).rejects.toMatchObject({ kind: 'unavailable' });
+    vi.useFakeTimers();
+    let release: (r: Response) => void = () => {};
+    const pending = createModerationClient(
+      (() =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        })) as typeof fetch,
+    ).session();
+    const rejected = expect(pending).rejects.toMatchObject({ kind: 'unavailable' });
+    await vi.advanceTimersByTimeAsync(10000);
+    release(new Response('', { status: 401 }));
+    await rejected;
+  });
   it('does not retry an uncertain report or accept its late acknowledgement', async () => {
     vi.useFakeTimers();
     let release: (r: Response) => void = () => {};
