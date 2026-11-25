@@ -492,12 +492,19 @@ test('duplicate clicks and a late cancelled start never navigate or automaticall
     });
     await held;
     expect(calls).toHaveLength(1);
+    // polish: 準備中はボタンの文字が状態を示すので、同じ文言は読み上げだけにする（原則6）。
+    await expect(page.getByRole('status')).toHaveText('学校Googleの画面を準備しています…');
+    await expect(page.getByRole('status')).toHaveClass(/sr-only/);
+    await expect(page.getByRole('button', { name: 'Googleの画面を準備しています…' })).toBeVisible();
     const failed = page.waitForEvent(
       'requestfailed',
       (request) => new URL(request.url()).pathname === '/api/auth/register',
     );
     await page.getByRole('button', { name: '通信を中止', exact: true }).click();
     await expect(page.getByRole('button', { name: '登録状態を確認', exact: true })).toBeVisible();
+    // 失敗・中止の案内は見える文字のまま。
+    await expect(page.getByRole('status')).toBeVisible();
+    await expect(page.getByRole('status')).not.toHaveClass(/sr-only/);
     release();
     await Promise.all([failed, settled]);
     expect(page.url()).toBe(ORIGIN + '/signup');

@@ -152,20 +152,17 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
   return (
     <section className="account-entry" aria-labelledby={id + 'heading'}>
       <h1 id={id + 'heading'}>{signup ? '学生として登録する' : 'ログインする'}</h1>
-      <p className="account-privacy">
-        <Link
-          to="/guide"
-          target="_blank"
-          rel="noopener noreferrer"
-          referrerPolicy="no-referrer"
-          aria-label="利用ルールと情報の扱い（別のタブ）"
-          title="別のタブで開く"
-        >
-          利用ルールと情報の扱い
-          <Icon name="external" size={16} />
-        </Link>
-      </p>
-      <p className="account-message" role="status" aria-live="polite" aria-atomic="true">
+      {/* 進行中の文言はボタンの表示と重なるので読み上げだけにし、失敗・やり直しの案内だけを見せる（原則6）。 */}
+      <p
+        className={
+          phase === 'checking' || phase === 'starting' || phase === 'leaving'
+            ? 'account-message sr-only'
+            : 'account-message'
+        }
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         {message}
       </p>
       <form
@@ -203,6 +200,19 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
                 : '学校Googleでログイン'}
         </Button>
       </form>
+      <p className="account-privacy">
+        <Link
+          to="/guide"
+          target="_blank"
+          rel="noopener noreferrer"
+          referrerPolicy="no-referrer"
+          aria-label="利用ルールと情報の扱い（別のタブ）"
+          title="別のタブで開く"
+        >
+          利用ルールと情報の扱い
+          <Icon name="external" size={16} />
+        </Link>
+      </p>
       {(phase === 'checking' || phase === 'starting') && (
         <Button className="account-secondary" onClick={cancel}>
           通信を中止
@@ -247,9 +257,6 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
           {signup ? 'ログインする' : '学生として登録する'}
         </Link>
       </p>
-      <Link className="account-read-link" to="/">
-        記事・作品を読む
-      </Link>
     </section>
   );
 }

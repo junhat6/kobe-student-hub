@@ -24,8 +24,9 @@
   overflow-wrap: anywhere;
 }
 .account-privacy {
-  margin: 0 0 24px;
+  margin: 12px 0 0;
   color: #596e7d;
+  font-size: 14px;
 }
 .account-privacy > a {
   display: inline-flex;
@@ -134,7 +135,7 @@
   flex-wrap: wrap;
 }
 .account-switch {
-  margin: 32px 0 16px;
+  margin: 24px 0 0;
   font-size: 15px;
   line-height: 1.8;
 }
@@ -157,11 +158,6 @@
 .account-read-link {
   font-size: 15px;
   margin: 24px 0 0;
-}
-.account-entry > a.account-read-link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
 }
 .account-entry :focus-visible,
 .account-page :focus-visible {

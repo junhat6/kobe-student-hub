@@ -89,6 +89,16 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
   await page.getByLabel('入学', { exact: true }).selectOption('2026');
   await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   expect(await page.locator('.account-entry form select').count()).toBe(2);
+  // polish: 型は Google・GitHub の登録画面。利用ルールは登録ボタンのすぐ下に置き（原則7）、
+  // ヘッダーの「ホーム」と重なる「記事・作品を読む」は置かない（原則4）。
+  await expect(
+    page.locator('.account-entry form + .account-privacy').getByRole('link', {
+      name: '利用ルールと情報の扱い（別のタブ）',
+    }),
+  ).toBeVisible();
+  await expect(
+    page.locator('.account-entry').getByRole('link', { name: '記事・作品を読む' }),
+  ).toHaveCount(0);
   const guideOpen = context.waitForEvent('page');
   await page.getByRole('link', { name: '利用ルールと情報の扱い（別のタブ）', exact: true }).click();
   const guide = await guideOpen;
