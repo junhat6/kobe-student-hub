@@ -555,6 +555,12 @@
   .profile-side h1 {
     font-size: 22px;
   }
+  /* X のプロフィールの型: 学科・学年は1行に並べ、狭ければ折り返す。 */
+  .profile-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
 }
 .detail-layout .reader-context .reader-context-missing {
   margin: 0;

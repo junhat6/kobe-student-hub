@@ -32,6 +32,9 @@ export default function PublicArticleCard({
 }) {
   const paths = publicPaths(surface);
   const hue = tagHue(entry.tags[0] ?? entry.title);
+  // In a profile tab there is no author to show, so a footer row would hold only the date.
+  // Put the date on the meta line instead of spending a separated row on it (原則1).
+  const compactDate = inTypedList && !author;
   return (
     <article
       className="content-card author-lab-card"
@@ -57,6 +60,7 @@ export default function PublicArticleCard({
             </span>
           )}
           <span>{entry.minutes}分で読める</span>
+          {compactDate && <time dateTime={entry.updatedAt}>{formatDate(entry.updatedAt)}</time>}
         </div>
         <h3>
           <SurfaceLink surface={surface} className="content-card-link" to={paths.article(entry.id)}>
@@ -99,31 +103,33 @@ export default function PublicArticleCard({
               ))}
           </dl>
         )}
-        <div className="content-card-foot">
-          {author ? (
-            <SurfaceLink
-              surface={surface}
-              className="content-card-author discovery-author"
-              to={paths.author(author.id)}
-            >
-              <AuthorAvatar
-                id={author.id}
-                initials={author.initials}
-                className="mini-avatar"
-                size={28}
-              />
-              <span>
-                {author.name}
-                {(author.department || author.year) && (
-                  <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
-                )}
-              </span>
-            </SurfaceLink>
-          ) : (
-            <span />
-          )}
-          <time dateTime={entry.updatedAt}>{formatDate(entry.updatedAt)}</time>
-        </div>
+        {!compactDate && (
+          <div className="content-card-foot">
+            {author ? (
+              <SurfaceLink
+                surface={surface}
+                className="content-card-author discovery-author"
+                to={paths.author(author.id)}
+              >
+                <AuthorAvatar
+                  id={author.id}
+                  initials={author.initials}
+                  className="mini-avatar"
+                  size={28}
+                />
+                <span>
+                  {author.name}
+                  {(author.department || author.year) && (
+                    <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
+                  )}
+                </span>
+              </SurfaceLink>
+            ) : (
+              <span />
+            )}
+            <time dateTime={entry.updatedAt}>{formatDate(entry.updatedAt)}</time>
+          </div>
+        )}
       </div>
     </article>
   );

@@ -21,8 +21,14 @@ export default function PublicProjectCard({
   inTypedList?: boolean;
 }) {
   const paths = publicPaths(surface);
+  // In a profile tab there is no author, so the date moves to the meta line and the footer goes.
+  const compactDate = inTypedList && !author;
+  const published = (
+    <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)} 公開</time>
+  );
   const showMeta =
     !inTypedList ||
+    compactDate ||
     Boolean(project.githubUrl || project.demoUrl) ||
     project.stage === 'in_progress';
   return (
@@ -42,6 +48,7 @@ export default function PublicProjectCard({
             <ProjectStageMark stage={project.stage} />
             {project.githubUrl && <span>GitHub</span>}
             {project.demoUrl && <span>デモあり</span>}
+            {compactDate && published}
           </div>
         )}
         <h2>
@@ -59,29 +66,31 @@ export default function PublicProjectCard({
         </p>
         {project.githubUrl && <p className="sr-only">GitHub URL：{project.githubUrl}</p>}
         {project.demoUrl && <p className="sr-only">デモ URL：{project.demoUrl}</p>}
-        <div className="content-card-foot">
-          {author ? (
-            <SurfaceLink
-              surface={surface}
-              className="content-card-author project-card-author"
-              to={paths.projectAuthor(author.id)}
-            >
-              <AuthorAvatar
-                id={author.id}
-                initials={author.initials}
-                className="mini-avatar"
-                size={28}
-              />
-              <span>
-                {author.name}
-                <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
-              </span>
-            </SurfaceLink>
-          ) : (
-            <span />
-          )}
-          <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)} 公開</time>
-        </div>
+        {!compactDate && (
+          <div className="content-card-foot">
+            {author ? (
+              <SurfaceLink
+                surface={surface}
+                className="content-card-author project-card-author"
+                to={paths.projectAuthor(author.id)}
+              >
+                <AuthorAvatar
+                  id={author.id}
+                  initials={author.initials}
+                  className="mini-avatar"
+                  size={28}
+                />
+                <span>
+                  {author.name}
+                  <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
+                </span>
+              </SurfaceLink>
+            ) : (
+              <span />
+            )}
+            {published}
+          </div>
+        )}
       </div>
     </article>
   );
