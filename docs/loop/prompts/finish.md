@@ -25,6 +25,7 @@
 - R1 以上は PC(1280) とモバイル(390) を実際にブラウザで操作して確かめる
 - 新しい worktree で `npm run test:e2e` がほぼ全滅し「記事・作品を読み込めませんでした」になるときは、ローカル D1 未初期化。`npm run db:local`（ローカルのみ）を1回実行してから回す
 - `test:auth-browser` 系（8790番）が「already used」で止まるのは別 worktree の検査中。相手のプロセスは止めず、空くまで待つ間に `npm test`・`npm run test:e2e` を先に回す
+- `test:auth-browser` が百件以上まとめて 100ms 未満で落ちたら、途中で別 worktree に 8790 を取られた可能性が高い（run-211 は 127 件）。実装の失敗と数えず、空いてから `--last-failed` か全件で回し直す
 - 8790 の空き待ちを sandbox の中の `lsof`・`kill -0`・`pgrep` で回すと、別 worktree のプロセスが見えずに「空いた」と誤って即終わる。ポートやプロセスの確認は sandbox の外で行うか、`playwright` を回して「already used」が出なくなるまで再試行する
 - `test:e2e` は 8787 番に別 worktree の server があると黙ってそれを再利用し、ほぼ全滅する（`lsof -iTCP:8787 -sTCP:LISTEN` の cwd で確かめる）。相手は止めず、空くのを待つか、`playwright.config.ts` を継いだ一時 config で別ポート（例 8797）に向けて回す
 - その一時 config の webServer は `npm run preview -- --port 8797` にしない（preview が `--port 8787` を持つので「--port expects a single value」で起動しない）。`npx wrangler dev --ip 127.0.0.1 --port 8797 --assets .wrangler/sample-browser-assets` を直接書く
