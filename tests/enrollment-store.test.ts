@@ -3,6 +3,7 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync } from 'node:fs';
 import type { OwnEnrollmentResult } from '../src/shared/enrollment';
+import { expectBoundedJsonRoute } from './helpers/bounded-json-route';
 const ORIGIN = 'https://enrollment.example.invalid',
   NOW = 1800000000000;
 type Session = { setCookie: string; contextCookie: string; csrfToken: string };
@@ -347,4 +348,21 @@ describe('private self-declared enrollment D1 and HTTP boundary', () => {
     expect(await rows()).toEqual(before);
     expect((await request('PUT', 10, undefined, { 'X-Test-Body': 'small' })).status).toBe(200);
   }, 8000);
+});
+
+describe('bounded JSON body through this route (#287)', () => {
+  it('answers 415/400/413 and an empty body as before, at its 1 KiB limit', async () => {
+    // A stale expectedVersion decodes but the store refuses it, so nothing is written.
+    await expectBoundedJsonRoute(
+      async (body, extra = {}) =>
+        (
+          await mf.dispatchFetch(ORIGIN + '/api/private/enrollment', {
+            method: 'PUT',
+            headers: { ...headers(users[15]), ...extra },
+            ...(body === undefined ? {} : { body }),
+          })
+        ).status,
+      { bytes: 1024, valid: { ...value, expectedVersion: 7 }, accepted: 409 },
+    );
+  });
 });

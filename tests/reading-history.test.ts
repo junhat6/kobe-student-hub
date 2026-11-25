@@ -3,6 +3,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readdirSync } from 'node:fs';
 import { applyFixtureMigrations } from './helpers/migrations';
 import type { ReadingHistoryPage } from '../src/history/types';
+import { expectBoundedJsonRoute } from './helpers/bounded-json-route';
 const ORIGIN = 'https://app.example.invalid',
   NOW = 1800000000000,
   PATH = '/api/private/reading-history';
@@ -418,5 +419,34 @@ describe('private reading history with native D1 final authority', () => {
       expect(await count(n)).toBe(0);
       if (race === 'status') await db.prepare("UPDATE private_accounts SET status='active'").run();
     }
+  });
+});
+
+describe('bounded JSON body through this route (#287)', () => {
+  it('answers 415/400/413 and an empty body as before, at its 1 KiB limit', async () => {
+    // A fresh account and session: the race cases above revoke the earlier ones.
+    await (
+      await mf.getD1Database('DB')
+    )
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('history-account-5','history-subject-5','fictional-5@st.kobedenshi.ac.jp','active',?)",
+      )
+      .bind(NOW)
+      .run();
+    users[5] = (await (
+      await mf.dispatchFetch(ORIGIN + '/fixture/session', { headers: { 'X-Test-Who': '5' } })
+    ).json()) as (typeof users)[number];
+    await expectBoundedJsonRoute(
+      async (body, extra = {}) =>
+        (
+          await mf.dispatchFetch(ORIGIN + PATH, {
+            method: 'PUT',
+            headers: { ...headers(5), ...extra },
+            ...(body === undefined ? {} : { body }),
+          })
+        ).status,
+      { bytes: 1024, valid: { kind: 'article', contentId: 'learning-notes' }, accepted: 200 },
+    );
+    await clear(5);
   });
 });

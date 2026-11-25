@@ -2,6 +2,7 @@ import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import { decodeTasteAction } from '../src/shared/taste-ledger';
+import { expectBoundedJsonRoute } from './helpers/bounded-json-route';
 
 // C23 condition 4 (#243): the student's own ledger on the account screen and 「運営に見せる」.
 const ORIGIN = 'https://app.example.invalid';
@@ -344,5 +345,34 @@ describe('taste sharing (C23 condition 4, flag TASTE_SHARING_RELEASE_ENABLED)', 
       expect(await count(`SELECT count(*) AS n FROM ${table} WHERE account_id='account-z'`)).toBe(
         0,
       );
+  });
+});
+
+describe('bounded JSON body through this route (#287)', () => {
+  it('answers 415/400/413 and an empty body as before, at its 16 KiB limit', async () => {
+    // A decodable action on a version that does not exist: past the reader, refused, no change.
+    // A fresh account and session, independent of what the cases above did to theirs.
+    await (
+      await db()
+    )
+      .prepare(
+        "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES('account-q','subject-q','q@st.kobedenshi.ac.jp','active',?)",
+      )
+      .bind(NOW)
+      .run();
+    const q = await call<Session>({ action: 'session', who: 'q' });
+    await expectBoundedJsonRoute(
+      async (body, extra = {}) =>
+        (await http(OWN, {
+          method: 'POST',
+          headers: { ...browser(q, true), ...extra },
+          ...(body === undefined ? {} : { body }),
+        }))!.status,
+      {
+        bytes: 16 * 1024,
+        valid: { op: 'share', version: 999, index: 0, kind: 'writing', text: '結論を先に書く' },
+        accepted: 409,
+      },
+    );
   });
 });

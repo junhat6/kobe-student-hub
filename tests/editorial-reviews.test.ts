@@ -7,6 +7,7 @@ import {
 } from '../src/shared/editorial-review';
 import { EDITORIAL_PRODUCT_NOTES, EDITORIAL_TASTE } from '../src/agent/editorial-taste';
 import { decodeEditorialMarkList, locateMark } from '../src/shared/editorial-draft-marks';
+import { expectBoundedJsonRoute } from './helpers/bounded-json-route';
 
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1_800_000_000_000;
@@ -1061,5 +1062,20 @@ describe('locateMark', () => {
       end: 6,
     });
     expect(locateMark(text, { quote: '高い', prefix: '', suffix: '' })).toBeNull();
+  });
+});
+
+describe('bounded JSON body through this route (#287)', () => {
+  it('answers 415/400/413 and an empty body as before, at its 16 KiB limit', async () => {
+    // A non-operator's valid review passes the reader and gets the route's usual 404.
+    await expectBoundedJsonRoute(
+      async (body, extra = {}) =>
+        (await http(path(articleId), {
+          method: 'PUT',
+          headers: { ...browser(users.b, true), ...extra },
+          ...(body === undefined ? {} : { body }),
+        }))!.status,
+      { bytes: 16 * 1024, valid: review, accepted: 404 },
+    );
   });
 });
