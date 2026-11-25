@@ -3,8 +3,8 @@
  * own agent over MCP; the server only checks their shape and limits. It never judges whether a line
  * is abstract and never calls an inference API. Private: only the student's own agent reads it.
  */
-export type TasteKind = 'writing' | 'app';
-export type TasteBasis = 'instruction' | 'reviews' | 'diffs';
+type TasteKind = 'writing' | 'app';
+type TasteBasis = 'instruction' | 'reviews' | 'diffs';
 export interface TasteLine {
   kind: TasteKind;
   text: string;

@@ -14,7 +14,7 @@ export type RawSend = (
 const encoder = new TextEncoder();
 
 /** The same JSON value padded with trailing whitespace to exactly `size` UTF-8 bytes. */
-export function paddedJson(value: unknown, size: number): string {
+function paddedJson(value: unknown, size: number): string {
   const text = JSON.stringify(value);
   const length = encoder.encode(text).byteLength;
   if (length > size) throw new Error(`DTO is ${length} bytes, over ${size}`);

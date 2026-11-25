@@ -5,7 +5,7 @@ export interface PublicationStopState extends Pick<
 > {
   stopped: boolean;
 }
-export interface PublicationStopInput {
+interface PublicationStopInput {
   expectedSourceVersion: number;
   confirmStop: true;
 }

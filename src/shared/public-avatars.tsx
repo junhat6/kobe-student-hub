@@ -120,7 +120,7 @@ export function forgetPublicAvatar(id: string) {
 }
 
 /** The public icon path for a profile id, or null while unknown / when there is none. */
-export function usePublicAvatar(id: string | undefined): string | null {
+function usePublicAvatar(id: string | undefined): string | null {
   const cached = id ? known.get(id) : undefined;
   // Shown at once (also when another screen asked for it) so cards do not flash the initial.
   const remembered = cached && Date.now() - cached.at < TTL_MS ? cached.path : undefined;

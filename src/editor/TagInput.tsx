@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import Icon from '../shared/Icon';
 
 /** Same limits the server enforces (canonicalTags / publication API); the server stays the authority. */
-export const TAG_LIMIT = 5;
+const TAG_LIMIT = 5;
 const TAG_LENGTH = 24;
 const separators = /[,、，]/;
 

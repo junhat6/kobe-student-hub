@@ -12,7 +12,7 @@
 // that the object still exists; the audit (head/get and sha256 against the row) watches that.
 import { MEDIA_MAX_BYTES } from '../src/shared/media';
 
-export type MediaBindings = { MEDIA_BUCKET?: R2Bucket };
+type MediaBindings = { MEDIA_BUCKET?: R2Bucket };
 export type MediaObjectRef = { id: string; sha256: string; bytes: number };
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -199,7 +199,7 @@ export async function maintainMediaObjects(
   return result;
 }
 
-export type MediaObjectAudit = {
+type MediaObjectAudit = {
   /** Every media row in D1. */
   total: number;
   /** Rows whose bytes are still only in D1 (object_stored_at_ms IS NULL). */
@@ -282,7 +282,7 @@ export async function auditMediaObjects(
 }
 
 /** Stores the counts of one audit and keeps only the latest AUDITS_KEPT rows. */
-export async function recordMediaAudit(
+async function recordMediaAudit(
   db: D1Database,
   audit: MediaObjectAudit,
   now: number,

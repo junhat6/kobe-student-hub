@@ -36,7 +36,7 @@ const error = (status: number, code: string) => json({ error: code }, status);
 const sameLine = (a: TasteLine | undefined, kind: string, text: string) =>
   !!a && a.kind === kind && a.text === text;
 type OwnRow = { version: number | null; lines_json: string | null; shared_json: string | null };
-export type TasteActionResult =
+type TasteActionResult =
   | { ok: true; view: OwnTasteView }
   | { ok: false; reason: 'unauthorized' | 'version_conflict' | 'not_enrolled' };
 

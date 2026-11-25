@@ -12,7 +12,7 @@ import './own-taste.css';
 
 const PATH = '/api/private/my-taste';
 /** How long 「元に戻す」 stays offered before the deletion is sent (Gmail's undo window). */
-export const UNDO_MS = 6000;
+const UNDO_MS = 6000;
 const basisLabel = (line: TasteLine) =>
   line.basis === 'instruction'
     ? '本人の指示'

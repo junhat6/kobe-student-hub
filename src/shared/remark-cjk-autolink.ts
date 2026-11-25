@@ -16,7 +16,7 @@ const CJK_STOP = /[　-〿！-／：-＠［-｀｛-･]/;
 const TRAILING = /[!"'*,.:;?_~\]]+$/;
 const START = /(?:https?:\/\/|www\.)/gi;
 
-export function cutAutolink(text: string): string {
+function cutAutolink(text: string): string {
   let depth = 0;
   let end = text.length;
   for (let i = 0; i < text.length; i += 1) {

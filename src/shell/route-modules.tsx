@@ -10,9 +10,7 @@ import { accountUiEnabled, authoringUiEnabled } from '../account/routes';
  * finished, the screen renders synchronously: no fallback, no throttle. Only code is fetched;
  * no request carries the session or reads private data.
  */
-export function preloadable<P extends object>(
-  load: () => Promise<{ default: React.ComponentType<P> }>,
-) {
+function preloadable<P extends object>(load: () => Promise<{ default: React.ComponentType<P> }>) {
   let loaded: React.ComponentType<P> | null = null;
   let pending: Promise<unknown> | null = null;
   const fetchModule = () =>

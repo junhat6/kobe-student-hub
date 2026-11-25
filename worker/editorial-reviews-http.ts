@@ -30,9 +30,9 @@ const PREFIX = '/api/private/editorial-reviews/';
 /** #271: the operator's review of one of their own drafts, from its preview. */
 const DRAFT_PREFIX = '/api/private/editorial-draft-reviews/';
 /** #274: the operator's comments on passages of their own draft (赤ペン). */
-export const MARK_PREFIX = '/api/private/editorial-draft-marks/';
+const MARK_PREFIX = '/api/private/editorial-draft-marks/';
 /** The operator's 好み screen (C22 condition 5): ledger and counts only. */
-export const TASTE_PATH = '/api/private/editorial-taste';
+const TASTE_PATH = '/api/private/editorial-taste';
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Bound on rows the summary reads; far above one operator's 30 days of reviews.
 const SUMMARY_ROWS = 2000;

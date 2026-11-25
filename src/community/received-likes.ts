@@ -3,7 +3,7 @@ import type { PublicReceivedLikes } from '../public-student-types';
 /** Like counts per article as last shown on this device; null before the first visit. */
 export type SeenLikes = Record<string, number> | null;
 
-export interface ReceivedRow {
+interface ReceivedRow {
   id: string;
   title: string;
   likes: number;

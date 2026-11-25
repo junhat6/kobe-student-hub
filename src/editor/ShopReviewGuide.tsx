@@ -2,7 +2,7 @@ import { Button } from '@base-ui/react/button';
 import { QUOTE_RULES, SHOP_REVIEW_RULES } from '../agent/article-format';
 
 /** Tag examples the 北野川線沿い×ごはん entry point counts (DECISIONS 2026-11-22). */
-export const SHOP_REVIEW_TAGS = ['ごはん', '北野川線沿い'] as const;
+const SHOP_REVIEW_TAGS = ['ごはん', '北野川線沿い'] as const;
 
 /** Body skeleton for a hand-written shop review: when, what and how much, and student-facing points. */
 export const SHOP_REVIEW_TEMPLATE = `## 行った時期とお店

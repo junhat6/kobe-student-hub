@@ -3,7 +3,7 @@ import { publicArticleSqlBounds, publicProfileSqlBounds } from './publication';
 import type { PublicReceivedLikes } from '../src/public-student-types';
 
 /** The most-liked public articles returned; the rest are not listed (and not summed). */
-export const RECEIVED_LIKES_LIMIT = 20;
+const RECEIVED_LIKES_LIMIT = 20;
 const confirmedLiker = publicProfileSqlBounds.replaceAll('p.', 'confirmed.');
 
 /**

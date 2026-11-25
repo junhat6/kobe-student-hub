@@ -7,7 +7,7 @@ export interface ProjectReportInput {
 export interface ProjectReportReceipt {
   received: boolean;
 }
-export type ProjectReviewStatus = 'published' | 'hidden' | 'deleted';
+type ProjectReviewStatus = 'published' | 'hidden' | 'deleted';
 export interface ProjectReportCaseSummary {
   projectId: string;
   title: string;

@@ -1,6 +1,6 @@
 import type { PublicStudentActivity } from '../public-student-types';
 
-export interface GrassCell {
+interface GrassCell {
   date: string;
   count: number;
   /** Owner-only: items last viewed that day (private reading history). 0 on public pages. */

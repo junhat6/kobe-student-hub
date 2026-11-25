@@ -1,4 +1,4 @@
-export type ContentKind = 'article' | 'project';
+type ContentKind = 'article' | 'project';
 export interface Profile {
   id: string;
   name: string;

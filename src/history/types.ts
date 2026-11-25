@@ -1,4 +1,4 @@
-export type ReadingKind = 'article' | 'project';
+type ReadingKind = 'article' | 'project';
 export interface ReadingReference {
   kind: ReadingKind;
   contentId: string;

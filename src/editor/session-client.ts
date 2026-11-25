@@ -13,7 +13,7 @@ const keys = (v: unknown, wanted: string[]): v is Record<string, unknown> =>
   Object.keys(v).length === wanted.length &&
   wanted.every((k) => Object.hasOwn(v, k));
 /** Pauses between read-only session proof attempts; see peekSteadily. */
-export const PEEK_RETRY_DELAYS = [300, 1200] as const;
+const PEEK_RETRY_DELAYS = [300, 1200] as const;
 function wait(ms: number, signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) return reject(new SessionClientError());

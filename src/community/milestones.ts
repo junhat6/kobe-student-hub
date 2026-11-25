@@ -4,7 +4,7 @@
  * and never stored, so stopping an article quietly takes its share back. Never shown on the
  * public profile: milestones are a private pat on the back, not a ranking.
  */
-export interface Milestone {
+interface Milestone {
   key: 'first' | 'five' | 'ten' | 'fourWeeks';
   /** Short name next to the icon. */
   label: string;

@@ -13,7 +13,7 @@ import type {
   PublicStudentActivity,
 } from '../public-student-types';
 
-export class PublicStudentClientError extends Error {
+class PublicStudentClientError extends Error {
   /** Absent or not public (404 / impossible id), as opposed to a failed read. */
   readonly missing: boolean;
   constructor(missing = false) {
