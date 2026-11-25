@@ -11,6 +11,7 @@
 | --- | --- | --- |
 | オーナーのレビュー（良い/ふつう/合わない・評価項目・ひとこと） | 本番 D1 `editorial_reviews`（記事ページの運営者向け欄から入る） | 非公開 |
 | オーナーの下書きレビュー（同じ形。オーナー自身の下書きだけ） | 本番 D1 `editorial_draft_reviews`（下書きのプレビューの運営者向け欄から入る。#271） | 非公開 |
+| オーナーの箇所コメント（下書きの選んだ箇所＋コメント。赤ペン） | 本番 D1 `editorial_draft_marks`（下書きのプレビューで本文を選んで付ける。#274） | 非公開 |
 | 届いた材料 | `~/.config/kobe-student-hub/materials/inbox/`（済んだら `done/`） | 非公開 |
 | AI が作った下書きの原本 | `~/.config/kobe-student-hub/editorial/originals/<名前>.md` | 非公開 |
 | オーナー向けに作った下書きファイル | `~/ksh-drafts/<名前>.md`（MCP がつながるまで） | 非公開 |
@@ -25,6 +26,9 @@
    続けて下書きレビューを、下書きの題・本文と結ばずに読む（下書きは非公開。公開前の感想として、評価と評価項目の数、ひとことの向きだけを材料にする）：
    `SELECT r.verdict,r.points_json,r.note,r.reviewed_at_ms FROM editorial_draft_reviews r WHERE r.reviewed_at_ms > <前回の editor log の時刻> ORDER BY r.reviewed_at_ms`
    同じ下書きに何度も記録があれば、下書きごとに最後の1件だけを数える（`draft_id` は数え分けにだけ使い、どこにも書かない）。
+   続けて箇所コメントを、選んだ箇所の文（`quote`・`prefix`・`suffix`＝下書きの本文）を読まずに読む：
+   `SELECT m.draft_id,m.note,m.created_at_ms FROM editorial_draft_marks m WHERE m.created_at_ms > <前回の editor log の時刻> ORDER BY m.created_at_ms`
+   1件の箇所コメントを1件の材料として、コメントの向き（例：数字が無い・言い切りが強い）だけを数える。根拠の数は `（レビュー n件 YYYY-MM-DD）` に足してよいが、同じ下書きの箇所コメントは何件あっても1件と数える。コメントの文・箇所の文は台帳・editor log・Issue に書かない（log には件数だけ）。
 2. **差分から読む。** `originals/` の原本のうち、公開された記事（公開 API `/api/articles` で同じタイトル・近い本文）があれば、原本と公開版の差を見る。オーナーが消した文・足した文・直した言い回しは、レビューと同じ重さの材料。2週間たっても公開されない原本は「出さなかった」という材料として数える。`originals/superseded/`（店ごとに分け直す前のまとめ下書きなど）は数えない。
 3. **好みを更新する。** 1・2 から、3件以上で同じ向きのことが言えたら `EDITORIAL_TASTE` に1行足すか直す。各行は抽象的な決まりにし、末尾に根拠 `（レビュー n件 YYYY-MM-DD）` を付ける。
    - 書かない：レビュー・下書きレビューのひとことの引用、記事・下書きのタイトル・本文、書いた人の名前、店名（このファイルは公開される）。根拠の数は `（レビュー n件 YYYY-MM-DD）` に下書きレビューも足して数える。

@@ -1,0 +1,95 @@
+/* #274: operator-only comments on passages of their own draft (赤ペン). */
+::highlight(ksh-editorial-mark) {
+  background-color: #ffe08a;
+  color: #1b1f24;
+}
+.editorial-marks {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.editorial-marks h4 {
+  margin: 0;
+  font-size: 15px;
+}
+.editorial-mark-hint,
+.editorial-mark-lost,
+.editorial-mark-note {
+  margin: 0;
+  font-size: 14px;
+}
+.editorial-mark-hint {
+  color: var(--ink-muted);
+}
+.editorial-mark-lost {
+  color: #8a1a2f;
+  font-weight: 700;
+}
+.editorial-mark-quote {
+  margin: 0;
+  padding: 4px 10px;
+  border-left: 3px solid #c99400;
+  background: #fff6d6;
+  color: #1b1f24;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.editorial-mark-list li.is-lost .editorial-mark-quote {
+  border-left-color: var(--line);
+  background: transparent;
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+.editorial-mark-form {
+  display: grid;
+  gap: 8px;
+}
+.editorial-mark-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+  background: transparent;
+  color: var(--ink);
+}
+.editorial-mark-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.editorial-mark-cancel,
+.editorial-mark-delete {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+}
+.editorial-mark-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.editorial-mark-list li {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.editorial-mark-delete {
+  justify-self: start;
+}
+/* The preview's article typography must not space out the operator panel. */
+.editor-preview .editorial-marks :is(h4, p, blockquote, ol) {
+  margin: 0;
+}

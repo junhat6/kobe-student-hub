@@ -345,3 +345,157 @@ test('only an operator reviews their own draft in its preview and reads it back'
     await Promise.all(contexts.map((context) => context.close()));
   }
 });
+
+// #274 (second stage of #271): the operator selects a passage in their own draft's preview and
+// leaves a comment on it (赤ペン). It comes back on the same passage after a reload, stays listed
+// as 「元の箇所が見つかりません」 once the draft no longer has that passage, and can be deleted.
+// A student never sees the section, and nothing reaches public reads.
+test('only an operator comments on a selected passage of their own draft', async ({
+  browser,
+}, info) => {
+  const contexts: BrowserContext[] = [];
+  const key = info.project.name + '-' + Date.now().toString(36);
+  const section = (p: Page) => p.getByRole('region', { name: '箇所コメント（運営だけに表示）' });
+  const note = '架空の箇所コメント-' + key;
+  const title = '架空の赤ペン-' + key;
+  const passage = '値段の話がまだ曖昧';
+  const viewport = info.project.use.viewport ?? { width: 1280, height: 900 };
+  const openPreview = async (p: Page, name: string) => {
+    await p.goto('/drafts');
+    await p.getByRole('button', { name, exact: true }).click();
+    await expect(p.getByRole('textbox', { name: 'タイトル' })).toHaveValue(name);
+    await p.getByRole('button', { name: 'プレビュー', exact: true }).click();
+    await expect(p.locator('.editor-preview')).toBeVisible();
+  };
+  // Selects the given text inside the preview body, the way a drag or long-press would.
+  const select = (p: Page, text: string) =>
+    p.evaluate((text) => {
+      const root = document.querySelector('.editor-preview')!;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const at = (n as Text).data.indexOf(text);
+        if (at === -1) continue;
+        const range = document.createRange();
+        range.setStart(n, at);
+        range.setEnd(n, at + text.length);
+        const selection = document.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+        return;
+      }
+      throw new Error('text not in preview');
+    }, text);
+  const highlighted = (p: Page) =>
+    p.evaluate(() =>
+      [...(CSS.highlights.get('ksh-editorial-mark') ?? [])].map((r) => (r as Range).toString()),
+    );
+  try {
+    // A student previews their own draft: no section, the API is 404.
+    const student = await actor(browser, contexts, '架空の学生-' + key);
+    const own = await write(student, '/api/private/drafts', {
+      title: '学生の' + title,
+      body: '## 架空の本文\n\n学生の下書き。\n',
+    });
+    const mine = await student.context.newPage();
+    await mine.setViewportSize(viewport);
+    await openPreview(mine, '学生の' + title);
+    await expect(mine.getByRole('heading', { name: '架空の本文' })).toBeVisible();
+    await expect(section(mine)).toHaveCount(0);
+    expect(
+      (await student.context.request.get('/api/private/editorial-draft-marks/' + own.id)).status(),
+    ).toBe(404);
+
+    const operator = await actor(browser, contexts, '架空の運営者-' + key);
+    await operator.context.setExtraHTTPHeaders({ 'X-Test-Operator-Subject': operator.subject });
+    const draft = await write(operator, '/api/private/drafts', {
+      title,
+      body: `## 架空の見出し\n\n最初の段落は架空の店の話。\n\nここは${passage}。\n`,
+    });
+    expect(
+      (await operator.context.request.get('/api/private/editorial-draft-marks/' + own.id)).status(),
+    ).toBe(404);
+    const ops = await operator.context.newPage();
+    await ops.setViewportSize(viewport);
+    await openPreview(ops, title);
+    const marks = section(ops);
+    await expect(marks).toBeVisible();
+    await expect(marks).toContainText('本文の文字を選ぶと、その箇所にコメントを付けられます。');
+    await select(ops, passage);
+    const form = marks.getByRole('textbox', { name: '選んだ箇所へのコメント' });
+    await expect(form).toBeVisible();
+    await expect(marks.locator('blockquote').first()).toHaveText(passage);
+    const add = marks.getByRole('button', { name: '付ける', exact: true });
+    await expect(add).toBeDisabled();
+    await form.fill(note);
+    expect.soft(await seriousViolations(ops)).toEqual([]);
+    await add.click();
+    await expect(marks.getByRole('listitem')).toHaveCount(1);
+    await expect(marks.getByRole('listitem')).toContainText(note);
+    await expect(marks.getByRole('alert')).toHaveCount(0);
+    await expect.poll(() => highlighted(ops)).toEqual([passage]);
+    expect(
+      await ops.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await marks.scrollIntoViewIfNeeded();
+    await ops.screenshot({ path: info.outputPath('editorial-draft-mark-added.png'), scale: 'css' });
+
+    // Reload: the mark is listed again and painted on the same passage.
+    await ops.reload();
+    await openPreview(ops, title);
+    const again = section(ops);
+    await expect(again.getByRole('listitem')).toHaveCount(1);
+    await expect(again.getByRole('listitem')).toContainText(note);
+    await expect(again).not.toContainText('元の箇所が見つかりません');
+    await expect.poll(() => highlighted(ops)).toEqual([passage]);
+    await ops
+      .locator('.editor-preview')
+      .getByText('ここは' + passage)
+      .scrollIntoViewIfNeeded();
+    await ops.screenshot({
+      path: info.outputPath('editorial-draft-mark-highlight.png'),
+      scale: 'css',
+    });
+
+    // Nothing reaches public reads or the student.
+    for (const path of ['/api/articles', '/api/search?q=' + encodeURIComponent(note)]) {
+      const r = await student.context.request.get(path);
+      expect(await r.text()).not.toContain(note);
+    }
+    expect(
+      (
+        await student.context.request.get('/api/private/editorial-draft-marks/' + draft.id)
+      ).status(),
+    ).toBe(404);
+
+    // The draft changes and the passage is gone: the mark stays, marked as lost.
+    const update = await operator.context.request.put('/api/private/drafts/' + draft.id, {
+      headers: { Origin: 'https://127.0.0.1:8790', Authorization: 'Bearer csrf.' + operator.csrf },
+      data: {
+        title,
+        body: '## 架空の見出し\n\n最初の段落は架空の店の話。\n\n値段は書き直した。\n',
+        expectedVersion: draft.version,
+      },
+    });
+    expect(update.status()).toBe(200);
+    await ops.reload();
+    await openPreview(ops, title);
+    const lost = section(ops);
+    await expect(lost.getByRole('listitem')).toHaveCount(1);
+    await expect(lost.getByRole('listitem')).toContainText('元の箇所が見つかりません');
+    await expect(lost.getByRole('listitem')).toContainText(note);
+    await expect.poll(() => highlighted(ops)).toEqual([]);
+    expect.soft(await seriousViolations(ops)).toEqual([]);
+    await lost.scrollIntoViewIfNeeded();
+    await ops.screenshot({ path: info.outputPath('editorial-draft-mark-lost.png'), scale: 'css' });
+
+    // Delete it; after a reload the list stays empty.
+    await lost.getByRole('button', { name: 'この箇所コメントを削除' }).click();
+    await expect(lost.getByRole('listitem')).toHaveCount(0);
+    await ops.reload();
+    await openPreview(ops, title);
+    await expect(section(ops)).toBeVisible();
+    await expect(section(ops).getByRole('listitem')).toHaveCount(0);
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});

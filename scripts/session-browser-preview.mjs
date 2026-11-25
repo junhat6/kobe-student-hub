@@ -259,6 +259,7 @@ for (const f of [
   '0044_editorial_draft_reviews.sql',
   '0045_media_payload_optional.sql',
   '0046_project_journal_links.sql',
+  '0047_editorial_draft_marks.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')

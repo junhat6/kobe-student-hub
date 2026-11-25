@@ -6,6 +6,7 @@ import {
   decodeEditorialTasteSummary,
 } from '../src/shared/editorial-review';
 import { EDITORIAL_PRODUCT_NOTES, EDITORIAL_TASTE } from '../src/agent/editorial-taste';
+import { decodeEditorialMarkList, locateMark } from '../src/shared/editorial-draft-marks';
 
 const ORIGIN = 'https://app.example.invalid';
 const NOW = 1_800_000_000_000;
@@ -804,5 +805,261 @@ describe('editorial draft reviews', () => {
       readFileSync(file, 'utf8').includes('editorial_draft_reviews'),
     );
     expect(readers).toEqual(['worker/editorial-reviews-http.ts']);
+  });
+});
+
+// #274 (second stage of #271): the operator comments on selected passages of their own draft.
+describe('editorial draft marks', () => {
+  const marksPath = (id: string) => '/api/private/editorial-draft-marks/' + id;
+  const canary = 'カナリア箇所コメント-274';
+  const mark = { quote: '下書きの中身', prefix: '本文\n', suffix: '', note: canary };
+  const create = (who: Session, title: string) =>
+    call<{ id: string; version: number }>({
+      action: 'create',
+      url: ORIGIN + '/private/drafts',
+      method: 'POST',
+      headers: browser(who, true),
+      input: { title, body: '## 本文\n下書きの中身' },
+    });
+  const rows = async () =>
+    (await (
+      await mf.getD1Database('DB')
+    )
+      .prepare('SELECT count(*) n FROM editorial_draft_marks')
+      .first<{ n: number }>())!.n;
+  const add = (who: Session, id: string, body: unknown = mark) =>
+    http(marksPath(id), {
+      method: 'POST',
+      headers: browser(who, true),
+      body: JSON.stringify(body),
+    });
+
+  it('lets the operator add, list and delete marks on their own draft', async () => {
+    const draft = await create(users.a, '箇所コメントの下書き');
+    const empty = await http(marksPath(draft.id), { headers: browser(users.a) });
+    expect(empty!.status).toBe(200);
+    expect(JSON.parse(empty!.body)).toEqual({ marks: [] });
+    expect(empty!.headers['cache-control']).toBe('private, no-store');
+    const saved = await add(users.a, draft.id);
+    expect(saved!.status).toBe(201);
+    const first = JSON.parse(saved!.body).mark;
+    expect(first).toMatchObject({ ...mark, draftVersion: draft.version });
+    expect(Object.keys(first).sort()).toEqual(
+      ['createdAt', 'draftVersion', 'id', 'note', 'prefix', 'quote', 'suffix'].sort(),
+    );
+    const second = JSON.parse(
+      (await add(users.a, draft.id, { ...mark, quote: '本文', prefix: '## ', note: canary + '2' }))!
+        .body,
+    ).mark;
+    const listed = await http(marksPath(draft.id), { headers: browser(users.a) });
+    expect(decodeEditorialMarkList(JSON.parse(listed!.body))!.map((m) => m.id)).toEqual([
+      first.id,
+      second.id,
+    ]);
+    expect(listed!.body).not.toContain('account-a');
+    // Marks are never edited in place.
+    const db = await mf.getD1Database('DB');
+    await expect(
+      db.prepare("UPDATE editorial_draft_marks SET note='x' WHERE id=?").bind(first.id).run(),
+    ).rejects.toThrow(/not edited/);
+    // Delete one; deleting it again, or through another draft's path, is the same 404.
+    const removed = await http(marksPath(draft.id) + '/' + first.id, {
+      method: 'DELETE',
+      headers: browser(users.a, true),
+    });
+    expect(removed!.status).toBe(204);
+    const other = await create(users.a, '別の下書き');
+    for (const r of [
+      await http(marksPath(draft.id) + '/' + first.id, {
+        method: 'DELETE',
+        headers: browser(users.a, true),
+      }),
+      await http(marksPath(other.id) + '/' + second.id, {
+        method: 'DELETE',
+        headers: browser(users.a, true),
+      }),
+    ])
+      expect(r!.status).toBe(404);
+    const after = JSON.parse(
+      (await http(marksPath(draft.id), { headers: browser(users.a) }))!.body,
+    );
+    expect(after.marks.map((m: { id: string }) => m.id)).toEqual([second.id]);
+  });
+
+  it('answers everyone else, other drafts and bad requests with the same 404 and stores or deletes nothing', async () => {
+    const own = await create(users.a, '運営者の箇所下書き');
+    const students = await create(users.b, '学生の箇所下書き');
+    const kept = JSON.parse((await add(users.a, own.id))!.body).mark as { id: string };
+    const before = await rows();
+    const body = JSON.stringify(mark);
+    const write = (who: Session) => browser(who, true);
+    for (const r of [
+      // Signed out.
+      await http(marksPath(own.id)),
+      await http(marksPath(own.id), {
+        method: 'POST',
+        body,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      await http(marksPath(own.id) + '/' + kept.id, { method: 'DELETE' }),
+      // A student (not an operator) on their own draft.
+      await http(marksPath(students.id), { headers: browser(users.b) }),
+      await add(users.b, students.id),
+      // A student deleting the operator's mark.
+      await http(marksPath(own.id) + '/' + kept.id, { method: 'DELETE', headers: write(users.b) }),
+      // The operator on someone else's draft, and on a draft that does not exist.
+      await http(marksPath(students.id), { headers: browser(users.a) }),
+      await add(users.a, students.id),
+      await http(marksPath('11111111-1111-4111-8111-111111111111'), { headers: browser(users.a) }),
+      await add(users.a, '11111111-1111-4111-8111-111111111111'),
+      // A query string, a bad id, an extra path segment, a wrong CSRF token, a foreign origin.
+      await http(marksPath(own.id) + '?x=1', { headers: browser(users.a) }),
+      await http(marksPath(own.id) + '?x=1', { method: 'POST', headers: write(users.a), body }),
+      await http(marksPath(own.id) + '/' + kept.id + '?x=1', {
+        method: 'DELETE',
+        headers: write(users.a),
+      }),
+      await http(marksPath('not-a-uuid'), { headers: browser(users.a) }),
+      await http(marksPath(own.id) + '/not-a-uuid', { method: 'DELETE', headers: write(users.a) }),
+      await http(marksPath(own.id) + '/' + kept.id + '/x', {
+        method: 'DELETE',
+        headers: write(users.a),
+      }),
+      await http(marksPath(own.id), {
+        method: 'POST',
+        headers: { ...write(users.a), Authorization: 'Bearer csrf.wrong' },
+        body,
+      }),
+      await http(marksPath(own.id) + '/' + kept.id, {
+        method: 'DELETE',
+        headers: { ...write(users.a), Authorization: 'Bearer csrf.wrong' },
+      }),
+      await http(marksPath(own.id), {
+        method: 'POST',
+        headers: { ...write(users.a), Origin: 'https://evil.invalid' },
+        body,
+      }),
+      // Malformed input: extra key, empty note, empty quote, too long quote / context / note.
+      await add(users.a, own.id, { ...mark, extra: 1 }),
+      await add(users.a, own.id, { ...mark, note: '  ' }),
+      await add(users.a, own.id, { ...mark, quote: ' ' }),
+      await add(users.a, own.id, { ...mark, quote: 'あ'.repeat(201) }),
+      await add(users.a, own.id, { ...mark, prefix: 'あ'.repeat(33) }),
+      await add(users.a, own.id, { ...mark, note: 'あ'.repeat(501) }),
+      await add(users.a, own.id, { ...mark, note: 'a\u0000b' }),
+    ]) {
+      expect(r!.status).toBe(404);
+      expect(JSON.parse(r!.body)).toEqual({ error: 'editorial_review_unavailable' });
+    }
+    expect(await rows()).toBe(before);
+    for (const [p, method, allow] of [
+      [marksPath(own.id), 'PUT', 'GET, POST'],
+      [marksPath(own.id) + '/' + kept.id, 'GET', 'DELETE'],
+    ] as const) {
+      const r = await http(p, { method, headers: write(users.a) });
+      expect(r!.status).toBe(405);
+      expect(r!.headers.allow).toBe(allow);
+    }
+    // Closed with the release flag off, like the reviews.
+    expect(
+      await http(marksPath(own.id), { headers: browser(users.a), action: 'composed-closed' }),
+    ).toBeNull();
+    // The trigger refuses a row for another owner's draft even when written directly.
+    const db = await mf.getD1Database('DB');
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO editorial_draft_marks(id,reviewer_account_id,draft_id,draft_version,quote,prefix,suffix,note,created_at_ms) VALUES(?,'account-a',?,1,'q','','','n',?)",
+        )
+        .bind(crypto.randomUUID(), students.id, NOW)
+        .run(),
+    ).rejects.toThrow(/editorial draft mark unavailable/);
+    expect(await rows()).toBe(before);
+  });
+
+  it('stops at 100 marks per draft and refuses an expired session', async () => {
+    const draft = await create(users.a, '上限の下書き');
+    const db = await mf.getD1Database('DB');
+    const insert = db.prepare(
+      "INSERT INTO editorial_draft_marks(id,reviewer_account_id,draft_id,draft_version,quote,prefix,suffix,note,created_at_ms) VALUES(?,'account-a',?,1,'q','','','n',?)",
+    );
+    await db.batch(
+      Array.from({ length: 99 }, () => insert.bind(crypto.randomUUID(), draft.id, NOW)),
+    );
+    expect((await add(users.a, draft.id))!.status).toBe(201);
+    const full = await add(users.a, draft.id);
+    expect(full!.status).toBe(404);
+    await expect(insert.bind(crypto.randomUUID(), draft.id, NOW).run()).rejects.toThrow(
+      /editorial draft mark unavailable/,
+    );
+    const listed = JSON.parse(
+      (await http(marksPath(draft.id), { headers: browser(users.a) }))!.body,
+    );
+    expect(listed.marks).toHaveLength(100);
+    // Long expired: the same 404 for reading, adding and deleting.
+    const own = await create(users.a, '期限切れの箇所下書き');
+    const kept = JSON.parse((await add(users.a, own.id))!.body).mark as { id: string };
+    const before = await rows();
+    const later = NOW + 2 * 365 * 24 * 60 * 60 * 1000;
+    for (const [p, method] of [
+      [marksPath(own.id), 'GET'],
+      [marksPath(own.id), 'POST'],
+      [marksPath(own.id) + '/' + kept.id, 'DELETE'],
+    ] as const) {
+      const r = await call<Http>({
+        action: 'http',
+        now: later,
+        url: ORIGIN + p,
+        method,
+        headers: method === 'GET' ? browser(users.a) : browser(users.a, true),
+        body: method === 'POST' ? JSON.stringify(mark) : undefined,
+      });
+      expect(r!.status).toBe(404);
+    }
+    expect(await rows()).toBe(before);
+  });
+
+  it('removes the marks with the draft', async () => {
+    const draft = await create(users.a, '消す箇所下書き');
+    await add(users.a, draft.id);
+    const db = await mf.getD1Database('DB');
+    const count = () =>
+      db
+        .prepare('SELECT count(*) n FROM editorial_draft_marks WHERE draft_id=?')
+        .bind(draft.id)
+        .first<{ n: number }>();
+    expect((await count())!.n).toBe(1);
+    await db.prepare('DELETE FROM private_article_drafts WHERE id=?').bind(draft.id).run();
+    expect((await count())!.n).toBe(0);
+  });
+
+  it('is read by no public or MCP code path (only the operator handler names the table)', () => {
+    const names = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory()
+          ? names(dir + '/' + e.name)
+          : /\.(ts|tsx|mjs|js)$/.test(e.name)
+            ? [dir + '/' + e.name]
+            : [],
+      );
+    const readers = [...names('worker'), ...names('src')].filter((file) =>
+      readFileSync(file, 'utf8').includes('editorial_draft_marks'),
+    );
+    expect(readers).toEqual(['worker/editorial-reviews-http.ts']);
+  });
+});
+
+describe('locateMark', () => {
+  it('prefers the occurrence whose context matches and reports a lost passage', () => {
+    const text = 'Aの店は安い。Bの店は安い。';
+    expect(locateMark(text, { quote: '安い', prefix: 'Bの店は', suffix: '。' })).toEqual({
+      start: 11,
+      end: 13,
+    });
+    expect(locateMark(text, { quote: '安い', prefix: '', suffix: '' })).toEqual({
+      start: 4,
+      end: 6,
+    });
+    expect(locateMark(text, { quote: '高い', prefix: '', suffix: '' })).toBeNull();
   });
 });

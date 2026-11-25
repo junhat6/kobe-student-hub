@@ -11,6 +11,7 @@ import MediaAttachments from './MediaAttachments';
 import ShopReviewGuide, { withShopReviewTemplate } from './ShopReviewGuide';
 import AgentWritingPanel from '../agent/AgentWritingPanel';
 import EditorialReview from '../community/EditorialReview';
+import EditorialMarks from '../community/EditorialMarks';
 import { useAgentDrafts } from '../agent/connections-client';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
@@ -136,6 +137,7 @@ export default function DraftEditor({
   }, []);
   const [latest, setLatest] = useState<EditorDraft | null>(null);
   const [preview, setPreview] = useState(false);
+  const previewBodyRef = useRef<HTMLDivElement>(null);
   const [deletion, setDeletion] = useState<'idle' | 'confirm' | 'pending' | 'unknown'>('idle');
   const deleteButton = useRef<HTMLButtonElement>(null),
     deleteCancel = useRef<HTMLButtonElement>(null);
@@ -1015,12 +1017,14 @@ export default function DraftEditor({
                 {preview ? (
                   <div className="editor-preview" aria-label="Markdownプレビュー">
                     <h3>{text.title || '無題の下書き'}</h3>
-                    <PreviewBoundary>
-                      <MarkdownRenderer
-                        body={text.body}
-                        privateMedia={{ fetcher, scopeKey: csrfToken }}
-                      />
-                    </PreviewBoundary>
+                    <div ref={previewBodyRef}>
+                      <PreviewBoundary>
+                        <MarkdownRenderer
+                          body={text.body}
+                          privateMedia={{ fetcher, scopeKey: csrfToken }}
+                        />
+                      </PreviewBoundary>
+                    </div>
                     {!text.body && (
                       <p className="editor-muted">本文を書くと、ここに表示されます。</p>
                     )}
@@ -1030,6 +1034,15 @@ export default function DraftEditor({
                         key={'editorial-' + draft.id}
                         draftId={draft.id}
                         csrfToken={csrfToken}
+                      />
+                    )}
+                    {/* #274: operator-only passage comments; nothing unless the server answers 200. */}
+                    {ordinary && (
+                      <EditorialMarks
+                        key={'marks-' + draft.id}
+                        draftId={draft.id}
+                        csrfToken={csrfToken}
+                        target={previewBodyRef}
                       />
                     )}
                   </div>

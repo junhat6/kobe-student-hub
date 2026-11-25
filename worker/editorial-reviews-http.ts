@@ -19,10 +19,17 @@ import {
   type EditorialPoint,
 } from '../src/shared/editorial-review';
 import { DIFF_LIMITS, lineDiff } from '../src/shared/line-diff';
+import {
+  decodeEditorialMarkInput,
+  EDITORIAL_MARKS_PER_DRAFT,
+  type EditorialMarkView,
+} from '../src/shared/editorial-draft-marks';
 
 const PREFIX = '/api/private/editorial-reviews/';
 /** #271: the operator's review of one of their own drafts, from its preview. */
 const DRAFT_PREFIX = '/api/private/editorial-draft-reviews/';
+/** #274: the operator's comments on passages of their own draft (赤ペン). */
+export const MARK_PREFIX = '/api/private/editorial-draft-marks/';
 /** The operator's 好み screen (C22 condition 5): ledger and counts only. */
 export const TASTE_PATH = '/api/private/editorial-taste';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -136,6 +143,25 @@ function view(row: Row | null): EditorialReviewView | null {
     reviewedAt: new Date(row.reviewed_at_ms).toISOString(),
   };
 }
+
+type MarkRow = {
+  id: string;
+  quote: string;
+  prefix: string;
+  suffix: string;
+  note: string;
+  draft_version: number;
+  created_at_ms: number;
+};
+const markView = (row: MarkRow): EditorialMarkView => ({
+  id: row.id,
+  quote: row.quote,
+  prefix: row.prefix,
+  suffix: row.suffix,
+  note: row.note,
+  draftVersion: row.draft_version,
+  createdAt: new Date(row.created_at_ms).toISOString(),
+});
 
 /**
  * Operator-only editorial reviews of published articles. Anyone else (signed out, a student, a
@@ -259,6 +285,68 @@ export class EditorialReviewStore {
       .first<Row>();
     const review = view(row);
     return review ? { review } : null;
+  }
+  /**
+   * The operator's marks on one of their own drafts (#274), oldest first. Another owner's draft, a
+   * missing draft and a non-operator get the same null (404).
+   */
+  async draftMarks(request: Request, id: string): Promise<{ marks: EditorialMarkView[] } | null> {
+    const p = await this.operator(request);
+    if (!p) return null;
+    const auth = await this.db
+      .prepare(
+        `SELECT 1 ok FROM private_article_drafts d WHERE d.id=? AND d.owner_account_id=? AND ${live}`,
+      )
+      .bind(id, p.accountId, ...bindings(p))
+      .first<{ ok: number }>();
+    if (!auth) return null;
+    const { results } = await this.db
+      .prepare(
+        `SELECT m.id,m.quote,m.prefix,m.suffix,m.note,m.draft_version,m.created_at_ms FROM editorial_draft_marks m JOIN private_article_drafts d ON d.id=m.draft_id AND d.owner_account_id=m.reviewer_account_id WHERE m.draft_id=? AND m.reviewer_account_id=? AND ${live} ORDER BY m.created_at_ms,m.rowid LIMIT ${EDITORIAL_MARKS_PER_DRAFT}`,
+      )
+      .bind(id, p.accountId, ...bindings(p))
+      .all<MarkRow>();
+    return { marks: results.map(markView) };
+  }
+  async draftMarkCreate(
+    request: Request,
+    id: string,
+    input: unknown,
+  ): Promise<{ mark: EditorialMarkView } | null> {
+    const decoded = decodeEditorialMarkInput(input);
+    if (!decoded) return null;
+    if (!(await this.sessions.authorizeMutation(request))) return null;
+    const p = await this.operator(request);
+    if (!p) return null;
+    const row = await this.db
+      .prepare(
+        `INSERT INTO editorial_draft_marks(id,reviewer_account_id,draft_id,draft_version,quote,prefix,suffix,note,created_at_ms) SELECT ?,d.owner_account_id,d.id,d.version,?,?,?,?,? FROM private_article_drafts d WHERE d.id=? AND d.owner_account_id=? AND (SELECT count(*) FROM editorial_draft_marks m WHERE m.draft_id=d.id)<${EDITORIAL_MARKS_PER_DRAFT} AND ${live} RETURNING id,quote,prefix,suffix,note,draft_version,created_at_ms`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        decoded.quote,
+        decoded.prefix,
+        decoded.suffix,
+        decoded.note,
+        p.nowMs,
+        id,
+        p.accountId,
+        ...bindings(p),
+      )
+      .first<MarkRow>();
+    return row ? { mark: markView(row) } : null;
+  }
+  async draftMarkDelete(request: Request, id: string, markId: string): Promise<boolean> {
+    if (!(await this.sessions.authorizeMutation(request))) return false;
+    const p = await this.operator(request);
+    if (!p) return false;
+    const row = await this.db
+      .prepare(
+        `DELETE FROM editorial_draft_marks WHERE id=? AND draft_id=? AND reviewer_account_id=? AND EXISTS(SELECT 1 FROM private_article_drafts d WHERE d.id=editorial_draft_marks.draft_id AND d.owner_account_id=editorial_draft_marks.reviewer_account_id) AND ${live} RETURNING id`,
+      )
+      .bind(markId, id, p.accountId, ...bindings(p))
+      .first<{ id: string }>();
+    return row !== null;
   }
   /**
    * Counts of the operator's own latest review per article over the last 30 days. Reads only
@@ -408,6 +496,34 @@ export function createEditorialReviewHandler(
       try {
         const result = await store.summary(request);
         return result === null ? unavailable() : json(result);
+      } catch {
+        return unavailable();
+      }
+    }
+    if (url.pathname.startsWith(MARK_PREFIX)) {
+      if (!canonicalOrigin(origin)) return error(503, 'editorial_review_unavailable');
+      const [id, markId, ...rest] = url.pathname.slice(MARK_PREFIX.length).split('/');
+      if (url.search || url.hash || rest.length || !contentId(id ?? '')) return unavailable();
+      if (markId !== undefined && !contentId(markId)) return unavailable();
+      const allowed = markId === undefined ? ['GET', 'POST'] : ['DELETE'];
+      if (!allowed.includes(request.method)) {
+        const response = error(405, 'method_not_allowed');
+        response.headers.set('Allow', allowed.join(', '));
+        return response;
+      }
+      try {
+        if (request.method === 'DELETE')
+          return (await store.draftMarkDelete(request, id, markId!))
+            ? new Response(null, { status: 204, headers })
+            : unavailable();
+        if (request.method === 'GET') {
+          const result = await store.draftMarks(request, id);
+          return result === null ? unavailable() : json(result);
+        }
+        const body = await input(request);
+        if (!body.ok) return error(body.status, 'invalid_request');
+        const result = await store.draftMarkCreate(request, id, body.value);
+        return result === null ? unavailable() : json(result, 201);
       } catch {
         return unavailable();
       }

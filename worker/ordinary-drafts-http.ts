@@ -93,6 +93,7 @@ export function createOrdinaryDraftHandler(
     if (
       path.startsWith('/api/private/editorial-reviews/') ||
       path.startsWith('/api/private/editorial-draft-reviews/') ||
+      path.startsWith('/api/private/editorial-draft-marks/') ||
       path === '/api/private/editorial-taste'
     )
       return editorial(request);
