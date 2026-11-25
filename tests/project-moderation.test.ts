@@ -305,8 +305,10 @@ it('hidden snapshot images are private to the current operator and never grant u
   expect(image.status).toBe(200);
   expect(image.headers.get('Content-Type')).toBe('image/png');
   expect(image.headers.get('Cache-Control')).toBe('private, no-store');
+  // Read the dispatchFetch body before any other await; Miniflare expects it consumed at once.
+  const served = new Uint8Array(await image.arrayBuffer());
   const object = await storedObject(imageId);
-  expect(new Uint8Array(await image.arrayBuffer())).toEqual(object);
+  expect(served).toEqual(object);
   // After the contract empties payload, the size column still matches the R2 object (#260).
   await emptyPayload(imageId);
   expect(new Uint8Array(await (await req(path, 'GET', undefined, 1)).arrayBuffer())).toEqual(
@@ -407,8 +409,9 @@ it('article hidden images use the same operator projection without weakening own
   expect((await req('/api/media/' + image)).status).toBe(404);
   const read = await req(path, 'GET', undefined, 1);
   expect(read.status).toBe(200);
+  const served = new Uint8Array(await read.arrayBuffer());
   const object = await storedObject(image);
-  expect(new Uint8Array(await read.arrayBuffer())).toEqual(object);
+  expect(served).toEqual(object);
   await emptyPayload(image);
   expect(new Uint8Array(await (await req(path, 'GET', undefined, 1)).arrayBuffer())).toEqual(
     object,
