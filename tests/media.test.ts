@@ -1149,20 +1149,24 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
         404,
       );
       const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
-      // Their bytes go under another key (the sha256 differs) and, with no row, are never served;
-      // the sweep removes them after the grace period.
-      const keys = (await bucket.list({ prefix: `media/${image}/` })).objects.map((o) => o.key);
-      expect(keys).toContain(key);
-      expect(keys).toHaveLength(2);
-      expect(new Uint8Array(await (await ownRead(image)).arrayBuffer())).toEqual(png);
-      expect((await ownRead(image, 1)).status).toBe(404);
-      await mf.dispatchFetch(O + '/fixture/maintain', {
-        headers: { 'X-Test-Now': String(Date.now() + 2 * 60 * 60 * 1000), 'X-Test-Start': image },
-      });
+      // The id is taken by other bytes, so the resend is refused before any R2 write: repeating it
+      // never grows R2 past the quota with objects no row can own (#12).
+      // Other bytes from either student, sent again and again, add no object.
+      for (const [d, n] of [
+        [theirs, 1],
+        [mine, 0],
+        [theirs, 1],
+        [mine, 0],
+      ] as const)
+        expect((await upload(d, image, jpg, n, { 'Content-Type': 'image/jpeg' })).status).toBe(404);
       expect((await bucket.list({ prefix: `media/${image}/` })).objects.map((o) => o.key)).toEqual([
         key,
       ]);
       expect(new Uint8Array(await (await ownRead(image)).arrayBuffer())).toEqual(png);
+      expect((await ownRead(image, 1)).status).toBe(404);
+      // The same bytes again are the idempotent receipt, not a new object.
+      expect((await upload(mine, image)).status).toBe(201);
+      expect((await bucket.list({ prefix: `media/${image}/` })).objects).toHaveLength(1);
     },
   );
   it.runIf(r2)('copies D1-only rows to R2 and sweeps old objects that have no D1 row', async () => {

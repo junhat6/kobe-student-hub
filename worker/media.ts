@@ -117,17 +117,22 @@ export class MediaStore {
       // Cleanup is bounded, only touches old unreferenced/private orphans, and never erases a snapshot.
       await this.cleanup(p);
       // Checked before R2 so a full draft costs no object write. The trigger stays authoritative.
-      const full = await this.limit(p, kind, draftId, id, value.bytes.length);
+      const full = await this.limit(p, kind, draftId, id, sha, value.bytes.length);
+      // An id already stored with other bytes never becomes this image, so nothing goes to R2:
+      // the object would only be an orphan, and resends must not grow R2 past the quota (#12).
+      if (full === 'taken') return null;
       if (full) return full;
       let r: Row | null = null;
       try {
         // R2 first: if it refuses the bytes or stores another size, no D1 row is created. If the D1
-        // insert then fails, the object is left to the scheduled sweep, which removes objects without
-        // a row only after a grace period. Removing it here would race a resend of the same id and
-        // bytes: the key is the same, so the resend's row could land after this delete and point at
-        // nothing (#12). Without a row the object is never reachable: every read starts in D1. The
-        // key holds the sha256, so a repeated or colliding upload never replaces other bytes. With a bucket the row holds no payload (#12 contract): the size
-        // column is the normalized length R2 confirmed, and reads match the object against it.
+        // insert then fails, the object is left to the scheduled sweep, which removes objects
+        // without a row only after a grace period. Removing it here would race a resend of the same
+        // id and bytes: the key is the same, so the resend's row could land after this delete and
+        // point at nothing (#12). Without a row the object is never reachable: every read starts in
+        // D1. The key holds the sha256, so a repeated or colliding upload never replaces other
+        // bytes, and an id already taken by other bytes is refused above before any R2 write.
+        // With a bucket the row holds no payload (#12 contract): the size column is the normalized
+        // length R2 confirmed, and reads match the object against it.
         if (this.bucket)
           await putMediaObject(this.bucket, { id, sha256: sha }, value.bytes, value.mime);
         await this.db
@@ -163,8 +168,8 @@ export class MediaStore {
           .first<Row>();
       } catch (error) {
         // A concurrent upload can fill the last slot between the check and the insert.
-        const raced = await this.limit(p, kind, draftId, id, value.bytes.length);
-        if (raced) return raced;
+        const raced = await this.limit(p, kind, draftId, id, sha, value.bytes.length);
+        if (raced && raced !== 'taken') return raced;
         throw error;
       }
       return r ? receipt(r) : null;
@@ -175,13 +180,23 @@ export class MediaStore {
   /**
    * The same limits as the media_assets_insert trigger, named so the owner knows what to change.
    * A resend of an existing id is not a new image; it falls through to the idempotent receipt.
+   * The same id with other bytes is 'taken': the insert could never claim it.
    */
-  private async limit(p: Proof, kind: Kind, draftId: string, id: string, size: number) {
+  private async limit(
+    p: Proof,
+    kind: Kind,
+    draftId: string,
+    id: string,
+    sha256: string,
+    size: number,
+  ) {
     const row = await this.db
       .prepare(
-        `SELECT CASE WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=?) THEN NULL WHEN (SELECT COUNT(*) FROM media_assets WHERE ${link(kind)}=?)>=? THEN 'draft' WHEN (SELECT COUNT(*) FROM media_assets WHERE owner_account_id=?)>=? OR (SELECT COALESCE(SUM(bytes),0) FROM media_assets INDEXED BY media_bytes WHERE owner_account_id=?)+?>? THEN 'owner' WHEN (SELECT COUNT(*) FROM media_assets)>=? OR (SELECT COALESCE(SUM(bytes),0) FROM media_assets INDEXED BY media_bytes)+?>? THEN 'site' END reason WHERE ${writer}`,
+        `SELECT CASE WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=? AND sha256<>?) THEN 'taken' WHEN EXISTS(SELECT 1 FROM media_assets WHERE id=?) THEN NULL WHEN (SELECT COUNT(*) FROM media_assets WHERE ${link(kind)}=?)>=? THEN 'draft' WHEN (SELECT COUNT(*) FROM media_assets WHERE owner_account_id=?)>=? OR (SELECT COALESCE(SUM(bytes),0) FROM media_assets INDEXED BY media_bytes WHERE owner_account_id=?)+?>? THEN 'owner' WHEN (SELECT COUNT(*) FROM media_assets)>=? OR (SELECT COALESCE(SUM(bytes),0) FROM media_assets INDEXED BY media_bytes)+?>? THEN 'site' END reason WHERE ${writer}`,
       )
       .bind(
+        id,
+        sha256,
         id,
         draftId,
         MEDIA_PER_DRAFT,
@@ -195,7 +210,7 @@ export class MediaStore {
         MEDIA_GLOBAL_BYTES,
         ...writerBinds(p),
       )
-      .first<{ reason: MediaLimit | null }>();
+      .first<{ reason: MediaLimit | 'taken' | null }>();
     return row?.reason ?? null;
   }
   async list(request: Request, kind: Kind, id: string): Promise<MediaReceipt[] | null> {
