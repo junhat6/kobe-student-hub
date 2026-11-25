@@ -286,7 +286,31 @@ it('saves standalone drafts, enforces owner/CAS and lists metadata only', async 
   expect(results.map((r) => r.status).sort()).toEqual([200, 404]);
   const list = (await (await req('/api/private/project-drafts')).json()) as object[];
   expect(list.length).toBeGreaterThan(0);
-  expect(Object.keys(list[0]).sort()).toEqual(['id', 'title', 'updatedAt', 'version']);
+  expect(Object.keys(list[0]).sort()).toEqual([
+    'id',
+    'publicationId',
+    'title',
+    'updatedAt',
+    'version',
+  ]);
+});
+it('lists the public page id of a published draft only to its owner and drops it when hidden (#289)', async () => {
+  const d = await create(),
+    projectId = ((await (await publish(d)).json()) as { projectId: string }).projectId,
+    db = await mf.getD1Database('DB');
+  type Row = { id: string; publicationId: string | null };
+  const list = async (n = 0) =>
+    (await (await req('/api/private/project-drafts', 'GET', undefined, n)).json()) as Row[] | null;
+  expect((await list())?.find((r) => r.id === d.id)?.publicationId).toBe(projectId);
+  const unpublished = await create();
+  expect((await list())?.find((r) => r.id === unpublished.id)?.publicationId).toBeNull();
+  // Another student's list never names this page, so their 「作品を編集」 can open nothing.
+  expect(JSON.stringify(await list(1))).not.toContain(projectId);
+  await db
+    .prepare("UPDATE project_publications SET status='hidden' WHERE id=?")
+    .bind(projectId)
+    .run();
+  expect((await list())?.find((r) => r.id === d.id)?.publicationId).toBeNull();
 });
 it('distinguishes genuine empty discovery and storage failure', async () => {
   expect(await (await req('/public/discovery')).json()).toEqual({ cards: [] });

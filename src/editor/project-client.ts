@@ -43,7 +43,13 @@ function validFields(value: Record<string, unknown>) {
 }
 function summary(v: unknown): v is ProjectDraftSummary {
   return (
-    publicKeys(v, ['id', 'title', 'version', 'updatedAt']) &&
+    publicKeys(v, ['id', 'title', 'version', 'updatedAt', 'publicationId']) &&
+    (v.publicationId === null || projectUUID(v.publicationId)) &&
+    summaryFields(v)
+  );
+}
+function summaryFields(v: Record<string, unknown>) {
+  return (
     projectUUID(v.id) &&
     publicText(v.title, 200) &&
     version(v.version) &&
@@ -53,9 +59,7 @@ function summary(v: unknown): v is ProjectDraftSummary {
 }
 function validProjectDraft(v: unknown): v is ProjectDraft {
   return (
-    publicKeys(v, ['id', ...fields, 'version', 'updatedAt']) &&
-    validFields(v) &&
-    summary({ id: v.id, title: v.title, version: v.version, updatedAt: v.updatedAt })
+    publicKeys(v, ['id', ...fields, 'version', 'updatedAt']) && validFields(v) && summaryFields(v)
   );
 }
 function author(v: unknown): boolean {

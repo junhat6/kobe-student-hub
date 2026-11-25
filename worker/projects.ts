@@ -211,10 +211,10 @@ export class ProjectStore {
       if (!p) return null;
       const rs = await this.db
         .prepare(
-          `SELECT d.id,CASE WHEN length(CAST(d.title AS BLOB))<=800 THEN d.title ELSE NULL END title,d.version,d.updated_at_ms FROM (SELECT 1 WHERE ${live}) auth LEFT JOIN project_drafts d ON d.owner_account_id=? ORDER BY d.updated_at_ms DESC,d.id ASC LIMIT 20`,
+          `SELECT d.id,CASE WHEN length(CAST(d.title AS BLOB))<=800 THEN d.title ELSE NULL END title,d.version,d.updated_at_ms,r.id publication_id FROM (SELECT 1 WHERE ${live}) auth LEFT JOIN project_drafts d ON d.owner_account_id=? LEFT JOIN project_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id AND r.status='published' ORDER BY d.updated_at_ms DESC,d.id ASC LIMIT 20`,
         )
         .bind(...binds(p), p.accountId)
-        .all<Row>();
+        .all<Row & { publication_id: string | null }>();
       if (!rs.results.length) return null;
       const result: ProjectDraftSummary[] = [];
       for (const r of rs.results) {
@@ -225,10 +225,18 @@ export class ProjectStore {
           typeof r.title !== 'string' ||
           r.title.length > 400 ||
           r.title.includes('\0') ||
-          Array.from(r.title).length > 200
+          Array.from(r.title).length > 200 ||
+          (r.publication_id !== null && !uuid(r.publication_id))
         )
           return null;
-        result.push({ id: r.id, title: r.title, version: r.version, updatedAt: r.updated_at_ms });
+        // #289: the owner's own public page id, so 「作品を編集」 there can open this draft.
+        result.push({
+          id: r.id,
+          title: r.title,
+          version: r.version,
+          updatedAt: r.updated_at_ms,
+          publicationId: r.publication_id,
+        });
       }
       return result;
     } catch {

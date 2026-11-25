@@ -18,7 +18,10 @@ export interface ProjectDraft extends ProjectFields {
   version: number;
   updatedAt: number;
 }
-export type ProjectDraftSummary = Pick<ProjectDraft, 'id' | 'title' | 'version' | 'updatedAt'>;
+export type ProjectDraftSummary = Pick<ProjectDraft, 'id' | 'title' | 'version' | 'updatedAt'> & {
+  /** The owner's own published page for this draft (#289). Only the private list carries it. */
+  publicationId?: string | null;
+};
 export interface PublicProject extends ProjectFields {
   id: string;
   publishedOn: string;

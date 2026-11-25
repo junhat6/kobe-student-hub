@@ -14,6 +14,8 @@ import { AuthorAvatar } from '../shared/public-avatars';
 import EmptySprout from '../shared/EmptySprout';
 import ProjectStageMark from '../shared/ProjectStageMark';
 import LoadingSkeleton from '../shared/LoadingSkeleton';
+import Icon from '../shared/Icon';
+import { useViewer } from '../shell/viewer';
 
 function Works() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
@@ -59,6 +61,7 @@ function Works() {
 }
 
 function Project({ id }: { id: string }) {
+  const { viewer } = useViewer();
   const client = useMemo(() => createPublicProjectClient(fetch, 'ordinary'), []);
   const read = useMemo(() => (signal: AbortSignal) => client.read(id, signal), [client, id]);
   const { value, failed, missing, retry } = usePublicRead(id, read);
@@ -71,6 +74,9 @@ function Project({ id }: { id: string }) {
   if (!value)
     return <LoadingSkeleton shape="detail" label="作品を読み込んでいます…" className="shell" />;
   const { project, author } = value;
+  // Display-only, as on the author page: the editor opens the draft only from the owner's own
+  // server list, and every write is refused by the server unless the session owns it (#289).
+  const own = viewer.status === 'signed-in' && viewer.profile?.id === author.id;
   const articles = value.articles ?? [],
     journal = value.journal ?? [];
   return (
@@ -81,9 +87,22 @@ function Project({ id }: { id: string }) {
           ← 作品一覧へ
         </Link>
         <div className="detail-header">
-          <h1>
-            {project.title} <ProjectStageMark stage={project.stage} />
-          </h1>
+          <div className="detail-title-row">
+            <h1>
+              {project.title} <ProjectStageMark stage={project.stage} />
+            </h1>
+            {own && (
+              <Link
+                className="detail-edit"
+                to="/works/new"
+                state={{ editProject: project.id }}
+                aria-label="作品を編集"
+                title="作品を編集"
+              >
+                <Icon name="pencil" size={18} />
+              </Link>
+            )}
+          </div>
           <div className="detail-author">
             <Link className="author" to={`/students/${author.id}/works`}>
               <AuthorAvatar
@@ -101,11 +120,13 @@ function Project({ id }: { id: string }) {
               <span>
                 <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)}</time> 公開
               </span>
-              <OrdinaryProjectReport
-                key={project.id}
-                projectId={project.id}
-                onNavigationRiskChange={reportRisk}
-              />
+              {!own && (
+                <OrdinaryProjectReport
+                  key={project.id}
+                  projectId={project.id}
+                  onNavigationRiskChange={reportRisk}
+                />
+              )}
             </div>
           </div>
         </div>

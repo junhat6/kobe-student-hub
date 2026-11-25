@@ -100,6 +100,7 @@ export default function ProjectRegistration({
   onNavigationRiskChange,
   rescue,
   writable = true,
+  editPublication,
 }: {
   csrfToken: string;
   fetcher?: typeof fetch;
@@ -108,6 +109,8 @@ export default function ProjectRegistration({
   rescue?: RescueChannel;
   /** False only for a server-confirmed period outside participation: saved drafts stay readable. */
   writable?: boolean;
+  /** A public project page id from 「作品を編集」; opened only if the owner's own list has it. */
+  editPublication?: string;
 }) {
   const ordinary = surface === 'ordinary';
   const formId = useId();
@@ -210,12 +213,14 @@ export default function ProjectRegistration({
   }
   const current = (generation: number) => mounted.current && generation === revision.current;
   async function refresh() {
+    let listed: ProjectDraftSummary[] | null = null;
     await run(async (signal, g) => {
       try {
         const rows = await client.list(signal);
         if (current(g)) {
           setList(rows);
           setListFailed(false);
+          listed = rows;
         }
       } catch {
         if (current(g)) {
@@ -224,6 +229,7 @@ export default function ProjectRegistration({
         }
       }
     });
+    return listed as ProjectDraftSummary[] | null;
   }
   const inputRef = useRef(input),
     savedRef = useRef(saved);
@@ -277,10 +283,24 @@ export default function ProjectRegistration({
       }
     });
   }
+  const editTarget = useRef(editPublication);
+  // #289: open the draft behind the owner's own public page. The id is matched only against the
+  // server's owner-scoped list, so another student's page id opens nothing.
+  async function openEditTarget(rows: ProjectDraftSummary[] | null) {
+    const target = editTarget.current;
+    editTarget.current = undefined;
+    if (!target || !rows) return;
+    const row = rows.find((r) => r.publicationId === target);
+    if (row) await resume(row.id);
+    else setMessage('この作品を保存一覧から開けませんでした。下の一覧から選んでください。');
+  }
   useEffect(() => {
     mounted.current = true;
-    void refresh().then(() => {
-      if (mounted.current) return restoreRescue();
+    void refresh().then((rows) => {
+      if (!mounted.current) return;
+      // A login-expiry rescue is the student's own unsaved input; it wins over the page link.
+      if (pendingRescue.current) return restoreRescue();
+      return openEditTarget(rows);
     });
     return () => {
       cancelAutosave();

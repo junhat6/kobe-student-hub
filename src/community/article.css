@@ -33,6 +33,30 @@
   letter-spacing: 0;
   overflow-wrap: anywhere;
 }
+/* #289: the owner's pencil sits beside the title, as on GitHub and YouTube Studio. */
+.detail-layout .detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.detail-layout .detail-title-row h1 {
+  flex: 1;
+  min-width: 0;
+}
+.detail-layout .detail-edit {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-top: 2px;
+  border-radius: 8px;
+  color: var(--ink-soft);
+}
+.detail-layout .detail-edit:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
 .detail-layout .detail-summary {
   margin: 0 0 20px;
   color: var(--ink-soft);

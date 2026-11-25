@@ -110,6 +110,21 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   await page.getByLabel('作品の説明', { exact: true }).fill('PRIVATE_PROJECT_CONTINUATION');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
   await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
+  // #289: on their own project page the author gets a pencil beside the title, not 「…」.
+  await page.goto(path!);
+  const edit = page.getByRole('link', { name: '作品を編集', exact: true });
+  await expect(edit).toBeVisible();
+  await expect(edit).toHaveAttribute('title', '作品を編集');
+  await expect(page.getByRole('button', { name: 'この作品のその他の操作' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('ordinary-project-owner-edit.png'), scale: 'css' });
+  await edit.click();
+  await expect(page).toHaveURL(ORIGIN + '/works/new');
+  // It opens this project's saved draft (the private continuation), not an empty form.
+  await expect(page.getByLabel('作品タイトル', { exact: true })).toHaveValue(title);
+  await expect(page.getByLabel('作品の説明', { exact: true })).toHaveValue(
+    'PRIVATE_PROJECT_CONTINUATION',
+  );
   const guest = await browser.newContext({
     baseURL: ORIGIN,
     ignoreHTTPSErrors: true,
@@ -133,6 +148,7 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     await expect(reader.getByRole('heading', { name: title, exact: true })).toBeVisible();
     await expect(reader.locator('.project-description')).toHaveText(description);
     await expect(reader.locator('main')).not.toContainText('PRIVATE_PROJECT_CONTINUATION');
+    await expect(reader.getByRole('link', { name: '作品を編集' })).toHaveCount(0);
     expect(privateRequests).toEqual([]);
     expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -195,6 +211,11 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
     await register(reader, info);
     await reader.goto(path!);
+    // Another signed-in student sees 「…」 and no pencil.
+    await expect(
+      reader.getByRole('button', { name: 'アカウントメニュー', exact: true }),
+    ).toBeVisible();
+    await expect(reader.getByRole('link', { name: '作品を編集' })).toHaveCount(0);
     await chooseReport(reader, '作品');
     await reader.getByLabel('作品の通報理由（必須）', { exact: true }).fill('架空の通報理由');
     await reader.locator('.project-report-form').getByRole('checkbox').check();

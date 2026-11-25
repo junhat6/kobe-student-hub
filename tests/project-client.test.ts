@@ -71,9 +71,22 @@ it('accepts blank draft fields and strict own lists, but rejects mismatched IDs,
   await expect(
     createProjectClient(token, (async () =>
       Response.json(
-        Array(21).fill({ id, title: '', version: 1, updatedAt: 0 }),
+        Array(21).fill({ id, title: '', version: 1, updatedAt: 0, publicationId: null }),
       )) as typeof fetch).list(),
   ).rejects.toBeInstanceOf(ProjectClientError);
+  // #289: the own list names each draft's public page id (or null) and nothing else.
+  const listWith = (row: object) =>
+    createProjectClient(token, (async () => Response.json([row])) as typeof fetch).list();
+  const page = '22222222-2222-4222-8222-222222222222';
+  const row = { id, title: '作品', version: 1, updatedAt: 0 };
+  expect(await listWith({ ...row, publicationId: page })).toEqual([
+    { ...row, publicationId: page },
+  ]);
+  expect(await listWith({ ...row, publicationId: null })).toEqual([
+    { ...row, publicationId: null },
+  ]);
+  for (const bad of [row, { ...row, publicationId: 'not-a-uuid' }, { ...row, publicationId: 1 }])
+    await expect(listWith(bad)).rejects.toBeInstanceOf(ProjectClientError);
 });
 it('uses publication receipt without confusing null with unavailable and only posts version/confirmation', async () => {
   const calls: RequestInit[] = [];

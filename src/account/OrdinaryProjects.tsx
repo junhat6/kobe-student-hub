@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import AccountSessionBoundary from './AccountSessionBoundary';
 import ProjectRegistration from '../editor/ProjectRegistration';
 import { useUnsavedNavigation } from './useUnsavedNavigation';
@@ -21,6 +21,9 @@ function OwnProjects({
   onNavigationRiskChange: (risk: boolean) => void;
 }) {
   const participation = useOwnParticipation(csrfToken, fetcher);
+  // #289: 「作品を編集」 on the author's own project page names that page; the server list decides.
+  const state: unknown = useLocation().state;
+  const edit = (state as { editProject?: unknown } | null)?.editProject;
   return (
     <>
       <ParticipationNotice participation={participation} place="works" />
@@ -32,6 +35,7 @@ function OwnProjects({
           writable={!writesClosed(participation)}
           onNavigationRiskChange={onNavigationRiskChange}
           rescue={rescue}
+          editPublication={typeof edit === 'string' ? edit : undefined}
         />
       </ProfileFirst>
     </>
