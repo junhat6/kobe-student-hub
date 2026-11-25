@@ -319,6 +319,17 @@
 .detail-layout .related-reading li > a:hover {
   color: var(--accent-strong);
 }
+/* On a project page the list items are article titles, not author names: keep them the main,
+   readable target with a 44px row instead of the muted author style above. */
+.detail-layout .project-articles li > a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.5;
+}
 .detail-layout .related-reading h3 a:hover {
   color: var(--accent-strong);
 }

@@ -53,7 +53,10 @@ export default function PublicProjectCard({
             {project.title}
           </SurfaceLink>
         </h2>
-        <p className="content-card-summary project-description">{project.descriptionPreview}</p>
+        <p className="content-card-summary project-description">
+          {/* Blank lines between paragraphs would leave a tall gap in a short card preview. */}
+          {project.descriptionPreview.replace(/\n[^\S\n]*(?:\n[^\S\n]*)+/g, '\n')}
+        </p>
         {project.githubUrl && <p className="sr-only">GitHub URL：{project.githubUrl}</p>}
         {project.demoUrl && <p className="sr-only">デモ URL：{project.demoUrl}</p>}
         <div className="content-card-foot">

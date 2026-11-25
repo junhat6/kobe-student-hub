@@ -55,7 +55,8 @@ export function ProjectText({
       {showTitle && <h3>{value.title}</h3>}
       {technologyNames(value.technologies).length > 0 && (
         <div className="project-technologies">
-          <strong>使った技術</strong>
+          {/* Readers see the chips alone, like GitHub topics; the list keeps its name (原則1). */}
+          {surface !== 'ordinary' && <strong>使った技術</strong>}
           <ul aria-label="使った技術">
             {technologyNames(value.technologies).map((name, index) => (
               <li key={index + name}>{name}</li>
