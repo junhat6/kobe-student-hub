@@ -251,6 +251,60 @@ describe('unconnected publication snapshot boundary with real local sessions and
     ])
       expect(await publish(d.id, input)).toBeNull();
   });
+  it('refuses to publish a title a reader cannot see, but still saves it as a private draft (#286)', async () => {
+    const before = await counts();
+    for (const title of [
+      '\u{1d159}',
+      '\u{1d159}\u200d\u{1d159}',
+      '\u{16fe4}',
+      '\u{13441}',
+      '\u{13442}\u3000\u{13441}',
+      '\u2800',
+      '\u200b',
+      '\u200b\u200c\u200d',
+      '\u0301',
+      '\u3164',
+      '\ufeff ',
+      '\u00ad',
+    ]) {
+      const d = await create(title, 'body');
+      expect(d.title, JSON.stringify(title)).toBe(title);
+      expect(await publish(d.id), JSON.stringify(title)).toBeNull();
+    }
+    expect(await counts()).toEqual(before);
+    // Real titles still publish: scripts, variation selectors, emoji sequences, flags and marks.
+    for (const title of [
+      '作品',
+      'ひらがな',
+      'カタカナ',
+      'Docker 入門',
+      '葛\u{e0100}城',
+      '👩\u200d💻 Lab',
+      '🏴\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}',
+      '🇯🇵',
+      '❤\ufe0f',
+      '1\ufe0f\u20e3',
+      'ภาษาไทย',
+      'العربية',
+      'می\u200cخواهم',
+      'क्षत्रिय',
+      'e\u0301',
+      'a\u{16fe4}',
+      '♪',
+      '…',
+      '・',
+      '「」',
+      '한국어',
+      'Ελληνικά',
+      'Русский',
+      ' 前後に空白 ',
+    ]) {
+      const d = await create(title, 'body');
+      expect(await publish(d.id), JSON.stringify(title)).toEqual({
+        contentId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      });
+    }
+  });
   it('requires manually mapped non-sample bounded profiles and rejects reused private identifiers', async () => {
     const db = await mf.getD1Database('DB');
     const d = await create();

@@ -63,6 +63,8 @@ const inventory: Record<string, Inventory> = {
       // #276: linking the agent's chosen project is participation; consuming the intent is cleanup.
       linkAgentProject: ['student', 'base'],
       revise: ['student'],
+      // #286: the draft title at the published version, checked for a visible character first.
+      visibleDraftTitle: ['student'],
       getOwnReceipt: ['base'],
     },
     public: { readPublished: 1, readPublishedSelection: 1, boundedPublications: 2 },
@@ -524,11 +526,11 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 110 private SQL sites (79 base, 30 student, one explicit choice) and 20 public sites', () => {
+  it('inventory is exactly 111 private SQL sites (79 base, 31 student, one explicit choice) and 20 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(110);
+    expect(guards).toHaveLength(111);
     expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(79);
-    expect(guards.filter((guard) => guard === 'student')).toHaveLength(30);
+    expect(guards.filter((guard) => guard === 'student')).toHaveLength(31);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)

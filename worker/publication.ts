@@ -10,6 +10,7 @@ import {
 import { SessionStore } from './auth/sessions';
 import { MAX_JAPAN_DATE_MS } from './japan-date';
 import { PROJECT_JOURNAL_LIMIT } from '../src/project-types';
+import { hasVisibleCharacter } from '../src/project-input';
 import type {
   Entry,
   Profile,
@@ -285,11 +286,13 @@ export class ArticlePublicationStore {
         )
         .first<{ content_id: string }>();
       if (existing) return { contentId: existing.content_id };
+      const title = await this.visibleDraftTitle(id, m.expectedVersion, p);
+      if (title === null) return null;
       const row = await this.db
         .prepare(
           `INSERT INTO article_publications(content_id,owner_account_id,draft_id,public_profile_id,source_version,summary,tags_json,audience,prerequisite,outcome,minutes,published_at_ms,media_ids_json)
     SELECT ?,d.owner_account_id,d.id,m.public_profile_id,d.version,?,?,?,?,?,?,?,? FROM private_article_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id
-    WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND length(trim(d.title,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND length(d.title)<=200 AND instr(d.title,char(0))=0 AND length(CAST(d.title AS BLOB))<=800 AND length(trim(d.body,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND instr(d.body,char(0))=0 AND length(CAST(d.body AS BLOB))<=262144 AND ${profileBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=m.public_profile_id OR private_id.google_subject=m.public_profile_id)
+    WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND length(trim(d.title,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND length(d.title)<=200 AND instr(d.title,char(0))=0 AND length(CAST(d.title AS BLOB))<=800 AND length(trim(d.body,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND instr(d.body,char(0))=0 AND length(CAST(d.body AS BLOB))<=262144 AND ${profileBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=m.public_profile_id OR private_id.google_subject=m.public_profile_id)
     AND ${writerLive}
     ON CONFLICT(draft_id) DO UPDATE SET content_id=article_publications.content_id WHERE article_publications.owner_account_id=excluded.owner_account_id AND article_publications.public_profile_id=excluded.public_profile_id AND article_publications.source_version=excluded.source_version AND article_publications.summary=excluded.summary AND article_publications.tags_json=excluded.tags_json AND article_publications.audience=excluded.audience AND article_publications.prerequisite=excluded.prerequisite AND article_publications.outcome=excluded.outcome AND article_publications.minutes=excluded.minutes AND article_publications.media_ids_json=excluded.media_ids_json AND EXISTS(SELECT 1 FROM content c WHERE c.id=article_publications.content_id AND c.author_id=article_publications.public_profile_id AND c.kind='article' AND c.status='published' AND c.is_sample=0) RETURNING content_id`,
         )
@@ -307,6 +310,7 @@ export class ArticlePublicationStore {
           p.accountId,
           m.expectedVersion,
           p.nowMs,
+          title,
           ...writerBindings(p),
         )
         .first<{ content_id: string }>();
@@ -316,6 +320,28 @@ export class ArticlePublicationStore {
     } catch {
       return null;
     }
+  }
+  /**
+   * #286: the stored draft title at the version being published, or null when it has no character a
+   * reader can see (only blank, joiners, marks or U+1D159-like blanks). SQL trim() only knows the
+   * listed white space, so this check runs in the Worker with the same rule as project titles (#265),
+   * and the publishing statement binds this exact title so a later edit cannot slip past it.
+   * Saving such a draft stays allowed: it is private, and refusing the save could lose autosaved text.
+   */
+  private async visibleDraftTitle(
+    id: string,
+    version: number,
+    p: NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>,
+  ): Promise<string | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT d.title FROM private_article_drafts d WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND ${writerLive}`,
+      )
+      .bind(id, p.accountId, version, ...writerBindings(p))
+      .first<{ title: unknown }>();
+    return row && typeof row.title === 'string' && hasVisibleCharacter(row.title)
+      ? row.title
+      : null;
   }
   /**
    * #276: a draft an agent created for one of the student's projects joins that project's journal
@@ -356,11 +382,13 @@ export class ArticlePublicationStore {
     m: NonNullable<ReturnType<typeof metadata>>,
     p: NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>,
   ): Promise<{ contentId: string } | null> {
+    const title = await this.visibleDraftTitle(id, m.expectedVersion, p);
+    if (title === null) return null;
     const result = await this.db
       .prepare(
         `INSERT INTO article_publication_revisions(content_id,revision,source_version,title,body,summary,tags_json,audience,prerequisite,outcome,minutes,media_ids_json,published_at_ms)
       SELECT r.content_id,current.revision+1,d.version,d.title,d.body,?,?,?,?,?,?,?,? FROM private_article_drafts d JOIN article_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id JOIN account_public_profiles map ON map.owner_account_id=d.owner_account_id AND map.public_profile_id=r.public_profile_id JOIN public_profiles p ON p.id=r.public_profile_id JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id JOIN article_publication_revisions current ON current.content_id=r.content_id AND current.revision=(SELECT MAX(revision) FROM article_publication_revisions WHERE content_id=r.content_id)
-      WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND current.source_version=? AND current.source_version<d.version AND current.published_at_ms<=? AND current.revision<1000 AND ${publicBounds} AND ${writerLive}
+      WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND current.source_version=? AND current.source_version<d.version AND current.published_at_ms<=? AND current.revision<1000 AND ${publicBounds} AND ${writerLive}
       AND NOT EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=r.content_id)
       AND NOT EXISTS(SELECT 1 FROM article_reports report WHERE report.content_id=r.content_id AND report.round=COALESCE((SELECT round FROM article_moderation_state WHERE content_id=r.content_id),1)) RETURNING content_id`,
       )
@@ -377,6 +405,7 @@ export class ArticlePublicationStore {
         p.accountId,
         m.expectedVersion,
         p.nowMs,
+        title,
         m.expectedPublicationVersion,
         p.nowMs,
         ...writerBindings(p),

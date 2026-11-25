@@ -24,6 +24,7 @@ import {
 import { serverInstructions, writingGuide } from './guide';
 import { japanDate } from '../japan-date';
 import { canonicalOrigin } from '../http-boundary';
+import { hasVisibleCharacter } from '../../src/project-input';
 
 /**
  * AI agent connection boundary: OAuth 2.1 authorization server metadata and endpoints,
@@ -439,11 +440,13 @@ function writeInput(
   const { title, body, summary, tags } = a;
   if (
     typeof title !== 'string' ||
-    !title.trim() ||
+    !hasVisibleCharacter(title) ||
     chars(title) > LIMITS.title ||
     !singleLine(title)
   )
-    throw new InvalidParams('title は1〜200文字の1行の文字列にしてください。');
+    throw new InvalidParams(
+      'title は見える文字を1つ以上含む、1〜200文字の1行の文字列にしてください。',
+    );
   if (typeof body !== 'string' || new TextEncoder().encode(body).byteLength > 262144)
     throw new InvalidParams('body は256KB以内の文字列にしてください。');
   if (summary !== undefined && (typeof summary !== 'string' || chars(summary) > LIMITS.summary))

@@ -618,6 +618,10 @@ describe('MCP tools as the connected student', () => {
       { title: 'x', body: 'b', tags: ['1', '2', '3', '4', '5', '6'] },
       { title: 'x', body: 'b', summary: 's'.repeat(301) },
       { title: 'x', body: { file: 'a.md' } },
+      // #286: a title a reader cannot see is refused like a blank one.
+      { title: '\u{1d159}', body: 'b' },
+      { title: '\u2800\u200b', body: 'b' },
+      { title: '\u{13441}\u3000', body: 'b' },
     ]) {
       const r = await call(args);
       expect([r.status, r.json.error.code]).toEqual([400, -32602]);

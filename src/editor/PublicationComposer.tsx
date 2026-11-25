@@ -13,6 +13,7 @@ import {
 } from './publication-client';
 import './publication.css';
 import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
+import { hasVisibleCharacter } from '../project-input';
 import MediaPublicationPreview from './MediaPublicationPreview';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
@@ -167,7 +168,7 @@ export default function PublicationComposer({
   });
   const sourceValid = Boolean(
     referencedMediaIds(draft.body).length <= MEDIA_PER_DRAFT &&
-    draft.title.trim() &&
+    hasVisibleCharacter(draft.title) &&
     draft.body.trim() &&
     [draft.title, draft.body].every(
       (value) =>
@@ -443,7 +444,7 @@ export default function PublicationComposer({
           )}
           {!sourceValid && (
             <p className="publication-warning">
-              空白だけではないタイトルと本文を保存してください。使用できない文字がないことも確認してください。
+              見える文字を1つ以上含むタイトルと、空白だけではない本文を保存してください。使用できない文字がないことも確認してください。
             </p>
           )}
           {known && !profile && (

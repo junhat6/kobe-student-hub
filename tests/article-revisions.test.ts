@@ -181,6 +181,24 @@ describe('explicit article correction with immutable evidence', () => {
         .run(),
     ).rejects.toThrow();
   });
+  it('refuses a correction whose saved title a reader cannot see and keeps the public title (#286)', async () => {
+    const d = await create('Visible title', 'Body');
+    const first = (await publish(d.id))!;
+    let latest = d;
+    for (const title of ['\u{1d159}', '\u2800\u200b']) {
+      latest = await update(latest, title, 'New body');
+      expect(latest.title).toBe(title);
+      expect(await revise(latest)).toBeNull();
+      expect((await read(first.contentId))?.entry).toMatchObject({
+        title: 'Visible title',
+        body: 'Body',
+      });
+    }
+    // Fixing the title lets the same correction through.
+    latest = await update(latest, 'Fixed title', 'New body');
+    expect(await revise(latest)).toEqual(first);
+    expect((await read(first.contentId))?.entry.title).toBe('Fixed title');
+  });
   it('races two different publication attempts using both saved and public version guards', async () => {
     const d = await create();
     const first = (await publish(d.id))!;

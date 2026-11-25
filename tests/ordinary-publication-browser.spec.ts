@@ -715,3 +715,34 @@ test('ordinary author corrects an article at the same URL after saving and expli
     await guest.close();
   }
 });
+
+test('a saved title a reader cannot see stays a private draft and the panel says why (#286)', async ({
+  page,
+}, info) => {
+  await register(page, info);
+  const profile = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await profile.getByLabel('表示名', { exact: true }).fill('架空の学生');
+  await profile.getByLabel('自己紹介', { exact: true }).fill('架空の制作プロフィール');
+  await profile.getByRole('button', { name: '公開する', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
+  await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
+  // U+1D159 and the braille blank are not white space for trim(), but nothing shows on screen.
+  await page.getByLabel('タイトル', { exact: true }).fill('\u{1d159}⠀');
+  await page.getByLabel('Markdown本文', { exact: true }).fill('本文は見える文字です。');
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  // The draft is private, so it is still saved (autosaved text is never lost).
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
+  const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
+  await expect(composer.locator('.publication-warning')).toContainText(
+    '見える文字を1つ以上含むタイトル',
+  );
+  await expect(
+    composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true }),
+  ).toBeDisabled();
+  await page.screenshot({ path: info.outputPath(`invisible-title-${info.project.name}.png`) });
+});
