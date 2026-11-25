@@ -865,3 +865,52 @@
     padding: 0 14px 16px;
   }
 }
+/* #285: the project an agent attached to the owner's draft. Owner-only, never public. */
+.editor-draft-list small .editor-draft-project {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  color: #36556b;
+}
+.agent-project-icon {
+  flex: none;
+}
+.editor-draft-project-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #36556b;
+  overflow-wrap: anywhere;
+}
+.editor-draft-project-line .agent-project-icon {
+  margin-top: 4px;
+}
+.agent-project-notice {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #c9dcea;
+  border-radius: 10px;
+  background: #f4f9fd;
+  color: #253f52;
+}
+.agent-project-notice > p:first-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.agent-project-notice > p:first-child .agent-project-icon {
+  margin-top: 5px;
+}
+.agent-project-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #a12b2b;
+}

@@ -11,6 +11,7 @@ const state = {
   connections: [{ id, clientName: 'Codex', createdAt: 1, lastUsedAt: 2, expiresAt: 3 }],
   agentDraftIds: [],
   hints: [],
+  draftProjects: [],
 };
 const json = (value: unknown, status = 200) =>
   new Response(typeof value === 'string' ? value : JSON.stringify(value), {
@@ -53,6 +54,41 @@ describe('agent connections client — on the bounded transport', () => {
     expect(initOf(f, 1).body).toBeUndefined();
     expect(new Headers(initOf(f, 2).headers).get('Authorization')).toBe('Bearer csrf.' + csrf);
     expect(JSON.parse(String(initOf(f, 2).body))).toEqual({ decision: 'allow' });
+  });
+
+  it('reads attached projects (#285), drops malformed rows, and removes one with the CSRF proof', async () => {
+    const draftId = '22222222-2222-4222-8222-222222222222';
+    const projectId = '33333333-3333-4333-8333-333333333333';
+    const good = { draftId, projectId, projectTitle: '作品' };
+    const f = vi.fn(async (_path: string, init?: RequestInit) =>
+      init?.method === 'DELETE'
+        ? json({ removed: true })
+        : json({
+            ...state,
+            draftProjects: [
+              good,
+              { draftId: 'x', projectId, projectTitle: '不正' },
+              { draftId, projectId, projectTitle: 'あ'.repeat(201) },
+            ],
+          }),
+    );
+    const client = createAgentConnectionsClient(csrf, f as typeof fetch);
+    expect((await client.list())?.draftProjects).toEqual([good]);
+    expect(await client.unlinkDraftProject(draftId)).toBe(true);
+    expect(await client.unlinkDraftProject('../x')).toBe(false);
+    expect(f.mock.calls.map((c) => c[0])).toEqual([
+      '/api/private/agent-connections',
+      '/api/private/agent-connections/draft-projects/' + draftId,
+    ]);
+    expect(initOf(f, 1).method).toBe('DELETE');
+    expect(new Headers(initOf(f, 1).headers).get('Authorization')).toBe('Bearer csrf.' + csrf);
+    // An older Worker without the list still parses; a refused removal is reported as false.
+    const old = vi.fn(async () => json({ connections: [], agentDraftIds: [], hints: [] }));
+    expect((await listAgentConnections(old as typeof fetch))?.draftProjects).toEqual([]);
+    const refused = vi.fn(async () => json({ error: 'unavailable' }, 404));
+    expect(
+      await createAgentConnectionsClient(csrf, refused as typeof fetch).unlinkDraftProject(draftId),
+    ).toBe(false);
   });
 
   it('reads a consent request with the session cookie only, never the CSRF proof or a body', async () => {

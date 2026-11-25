@@ -18,10 +18,17 @@ export interface AgentDraftHints {
   summary: string;
   tags: string[];
 }
+/** The owner's project an agent attached to a not-yet-published draft (#285). Owner only. */
+export interface AgentDraftProject {
+  draftId: string;
+  projectId: string;
+  projectTitle: string;
+}
 export interface AgentConnectionsState {
   connections: AgentConnection[];
   agentDraftIds: string[];
   hints: AgentDraftHints[];
+  draftProjects: AgentDraftProject[];
 }
 export interface ConsentRequest {
   clientName: string;
@@ -64,15 +71,27 @@ function parseState(value: unknown): AgentConnectionsState | null {
       h.tags.length <= 5 &&
       h.tags.every((t: unknown) => text(t, 24)),
   );
+  // Older Workers do not send it; an absent list means nothing is attached.
+  const draftProjects = (Array.isArray(v.draftProjects) ? v.draftProjects : []).filter(
+    (p): p is AgentDraftProject =>
+      p &&
+      typeof p === 'object' &&
+      typeof p.draftId === 'string' &&
+      uuid.test(p.draftId) &&
+      typeof p.projectId === 'string' &&
+      uuid.test(p.projectId) &&
+      text(p.projectTitle, 200),
+  );
   return {
     connections: connections.slice(0, 20),
     agentDraftIds: agentDraftIds.slice(0, 100),
     hints: hints.slice(0, 100),
+    draftProjects: draftProjects.slice(0, 100),
   };
 }
 
 const BASE = '/api/private/agent-connections';
-/** Every answer here is a small private DTO; the list is capped at 20 + 100 + 100 rows. */
+/** Every answer here is a small private DTO; the list is capped at 20 + 100 + 100 + 100 rows. */
 const MAX_BYTES = 262144;
 const requestId = /^[A-Za-z0-9_-]{43}$/;
 
@@ -121,6 +140,17 @@ export function createAgentConnectionsClient(csrfToken: string, fetcher: typeof 
       if (!('value' in result)) return false;
       const v = result.value as Record<string, unknown> | null;
       return Boolean(v && typeof v === 'object' && v.revoked === true);
+    },
+    /** Removes the project an agent attached to the owner's draft (#285). Never retried. */
+    async unlinkDraftProject(draftId: string): Promise<boolean> {
+      if (!uuid.test(draftId)) return false;
+      const result = await call(BASE + '/draft-projects/' + draftId, fetcher, {
+        method: 'DELETE',
+        csrf: csrfToken,
+      });
+      if (!('value' in result)) return false;
+      const v = result.value as Record<string, unknown> | null;
+      return Boolean(v && typeof v === 'object' && v.removed === true);
     },
     async readRequest(
       id: string,
@@ -183,5 +213,13 @@ export function useAgentDrafts(enabled: boolean, fetcher: typeof fetch, refreshK
     load(controller.signal);
     return () => controller.abort();
   }, [load, refreshKey]);
-  return state;
+  /** After the server confirmed the removal, the draft shows no project until the next read. */
+  const dropDraftProject = useCallback(
+    (draftId: string) =>
+      setState((s) =>
+        s ? { ...s, draftProjects: s.draftProjects.filter((p) => p.draftId !== draftId) } : s,
+      ),
+    [],
+  );
+  return [state, dropDraftProject] as const;
 }

@@ -1194,6 +1194,78 @@ describe('project journal drafts (#276): own projects only, linked when the stud
         .first<{ n: number }>())!.n,
     ).toBe(0);
   });
+  it('shows the attached project to its owner only, and the owner can remove it before publishing (#285)', async () => {
+    const c = await connect('i');
+    const mine = await makeProject('i', '紐づけを見せる作品');
+    const made = await tool(c.access_token, 'create_draft', {
+      title: '紐づけを確かめる日誌',
+      body: '本文',
+      project_id: mine,
+    });
+    const draft = made.structuredContent!.draft;
+    const list = async (who: string) =>
+      JSON.parse(
+        (await http('/api/private/agent-connections', { headers: browser(users[who]) }))!.body,
+      ) as { draftProjects: { draftId: string; projectId: string; projectTitle: string }[] };
+    const own = (await list('i')).draftProjects.find((p) => p.draftId === draft.id);
+    expect(own).toEqual({ draftId: draft.id, projectId: mine, projectTitle: '紐づけを見せる作品' });
+    // Another student never sees it, and the public project page has no trace before publication.
+    expect((await list('j')).draftProjects.some((p) => p.draftId === draft.id)).toBe(false);
+    const page = JSON.stringify(await call({ action: 'journal', draft: mine }));
+    expect(page).not.toContain(draft.id);
+    expect(page).not.toContain('紐づけを確かめる日誌');
+    // Removing needs the CSRF proof and the owner's session; another student gets 404.
+    const path = '/api/private/agent-connections/draft-projects/' + draft.id;
+    expect((await http(path, { method: 'DELETE', headers: browser(users.i) }))!.status).toBe(401);
+    expect((await http(path, { method: 'DELETE', headers: browser(users.j, true) }))!.status).toBe(
+      404,
+    );
+    expect((await http(path, { method: 'GET', headers: browser(users.i) }))!.status).toBe(405);
+    expect((await list('i')).draftProjects.some((p) => p.draftId === draft.id)).toBe(true);
+    const removed = await http(path, { method: 'DELETE', headers: browser(users.i, true) });
+    expect(removed!.status).toBe(200);
+    expect(JSON.parse(removed!.body)).toEqual({ removed: true });
+    expect((await http(path, { method: 'DELETE', headers: browser(users.i, true) }))!.status).toBe(
+      404,
+    );
+    expect((await list('i')).draftProjects.some((p) => p.draftId === draft.id)).toBe(false);
+    // Publishing afterwards does not add it to the project's journal.
+    const published = await publishDraft('i', draft.id, draft.version);
+    expect(published?.contentId).toBeTruthy();
+    expect((await journalOf(mine)).map((e) => e.id)).not.toContain(published!.contentId);
+  });
+
+  it('lists no attached project once it is stopped or the draft is published', async () => {
+    const c = await connect('i');
+    const stopped = await makeProject('i', '止めて見えなくなる作品');
+    const kept = await makeProject('i', '公開で消える紐づけの作品');
+    const a = (
+      await tool(c.access_token, 'create_draft', {
+        title: '止める',
+        body: '本文',
+        project_id: stopped,
+      })
+    ).structuredContent!.draft;
+    const b = (
+      await tool(c.access_token, 'create_draft', {
+        title: '公開する',
+        body: '本文',
+        project_id: kept,
+      })
+    ).structuredContent!.draft;
+    const d = await db();
+    await d
+      .prepare("UPDATE project_publications SET status='hidden' WHERE id=?")
+      .bind(stopped)
+      .run();
+    await publishDraft('i', b.id, b.version);
+    const listed = JSON.parse(
+      (await http('/api/private/agent-connections', { headers: browser(users.i) }))!.body,
+    ) as { draftProjects: { draftId: string }[] };
+    const ids = listed.draftProjects.map((p) => p.draftId);
+    expect(ids).not.toContain(a.id);
+    expect(ids).not.toContain(b.id);
+  });
 });
 
 describe("the student's own taste ledger (C23, flag TASTE_LEDGER_RELEASE_ENABLED)", () => {

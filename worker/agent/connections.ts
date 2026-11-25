@@ -56,6 +56,11 @@ export interface TokenPair {
   refresh_token: string;
   scope: string;
 }
+export interface AgentDraftProjectView {
+  draftId: string;
+  projectId: string;
+  projectTitle: string;
+}
 export interface AgentConnectionView {
   id: string;
   clientName: string;
@@ -794,6 +799,7 @@ export class AgentConnectionStore {
     connections: AgentConnectionView[];
     agentDraftIds: string[];
     hints: AgentDraftHintsView[];
+    draftProjects: AgentDraftProjectView[];
   } | null> {
     try {
       const now = proof.nowMs;
@@ -822,6 +828,18 @@ export class AgentConnectionStore {
         )
         .bind(proof.accountId)
         .all<{ draft_id: string; summary: string; tags_json: string }>();
+      // #285: the project an agent attached to a not-yet-published draft, shown only to its owner.
+      // A stopped or someone else's project never links on publish, so it is not shown either.
+      // A database without 0048 (the previous release) keeps the rest of the list readable.
+      const projects = await this.db
+        .prepare(
+          `SELECT i.draft_id,i.project_id,CASE WHEN length(r.title)<=200 AND length(CAST(r.title AS BLOB))<=800 THEN r.title ELSE '' END AS title FROM (SELECT 1 WHERE ${liveSessionSql}) authorized JOIN agent_draft_projects i ON i.owner_account_id=? JOIN project_publications r ON r.id=i.project_id AND r.owner_account_id=i.owner_account_id AND r.status='published' WHERE NOT EXISTS(SELECT 1 FROM article_publications a WHERE a.draft_id=i.draft_id) ORDER BY i.created_at_ms DESC,i.draft_id ASC LIMIT 100`,
+        )
+        .bind(...liveSessionBindings(proof), proof.accountId)
+        .all<{ draft_id: string; project_id: string; title: string }>()
+        .catch(() => ({
+          results: [] as { draft_id: string; project_id: string; title: string }[],
+        }));
       return {
         connections: rows.results
           .filter((r) => r.id !== null)
@@ -843,6 +861,11 @@ export class AgentConnectionStore {
             return [];
           }
         }),
+        draftProjects: projects.results.map((r) => ({
+          draftId: r.draft_id,
+          projectId: r.project_id,
+          projectTitle: r.title,
+        })),
       };
     } catch {
       return null;
@@ -865,6 +888,25 @@ export class AgentConnectionStore {
           .bind(id, proof.accountId),
       ]);
       return results[0].results.length > 0;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * #285: the owner removes the project an agent attached to their draft before publishing.
+   * Deleting the intent row is the whole effect; nothing links on publish afterwards.
+   */
+  async unlinkDraftProject(proof: SessionStorageProof, draftId: unknown): Promise<boolean | null> {
+    if (!uuid(draftId)) return false;
+    try {
+      const result = await this.db
+        .prepare(
+          `DELETE FROM agent_draft_projects WHERE draft_id=? AND owner_account_id=? AND ${liveSessionSql} RETURNING draft_id`,
+        )
+        .bind(draftId, proof.accountId, ...liveSessionBindings(proof))
+        .all<{ draft_id: string }>();
+      return result.results.length > 0;
     } catch {
       return null;
     }

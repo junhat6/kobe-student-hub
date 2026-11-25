@@ -40,6 +40,8 @@ interface Props {
   openRequest?: number;
   /** Called after the reader closes the panel, so focus can return to the opener. */
   onClosed?: () => void;
+  /** #285: shown before the first publication when an agent attached the draft to a project. */
+  projectNotice?: React.ReactNode;
 }
 class SavedPreviewBoundary extends React.Component<
   { children: React.ReactNode },
@@ -73,6 +75,7 @@ export default function PublicationComposer({
   suggestionVolatile = false,
   openRequest = 0,
   onClosed,
+  projectNotice = null,
 }: Props) {
   const panel = useRef<HTMLDetailsElement>(null);
   // The ordinary writing screen has one entry to publishing: 「公開する」 at the top right. The
@@ -671,6 +674,7 @@ export default function PublicationComposer({
                     </>
                   )}
                 </fieldset>
+                {!receipt && projectNotice}
                 <p className="publication-payload-note">
                   公開するのは保存済みの版 {draft.version}{' '}
                   のタイトルと本文、および上の情報とプロフィールです。手元の未保存の追記は含みません。

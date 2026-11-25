@@ -13,6 +13,7 @@ import AgentWritingPanel from '../agent/AgentWritingPanel';
 import EditorialReview from '../community/EditorialReview';
 import EditorialMarks from '../community/EditorialMarks';
 import { useAgentDrafts } from '../agent/connections-client';
+import { AgentProjectNotice, JournalIcon, projectName } from './AgentDraftProject';
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
 import { embedLineFromPaste } from '../shared/embed';
@@ -190,7 +191,14 @@ export default function DraftEditor({
     [],
   );
   // Drafts an AI agent made through MCP, and its summary/tag suggestions (ordinary surface only).
-  const agentDrafts = useAgentDrafts(ordinary && AGENT_MCP_RELEASE_ENABLED, fetcher, list);
+  const [agentDrafts, dropDraftProject] = useAgentDrafts(
+    ordinary && AGENT_MCP_RELEASE_ENABLED,
+    fetcher,
+    list,
+  );
+  /** #285: the owner's project an agent attached; only the owner's own private list carries it. */
+  const projectOf = (id: string) => agentDrafts?.draftProjects.find((p) => p.draftId === id);
+  const draftProject = draft ? projectOf(draft.id) : undefined;
   const compositionRef = useRef(false);
   const pendingFormat = useRef<MarkdownFormat | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -826,6 +834,15 @@ export default function DraftEditor({
                       {agentDrafts?.agentDraftIds.includes(item.id)
                         ? ' · AIエージェントが作成'
                         : ''}
+                      {projectOf(item.id) && (
+                        <span
+                          className="editor-draft-project"
+                          aria-label={`作品「${projectName(projectOf(item.id)!)}」の制作日誌に入る予定`}
+                        >
+                          <JournalIcon />
+                          {projectName(projectOf(item.id)!)}
+                        </span>
+                      )}
                     </small>
                   </Button>
                 </li>
@@ -938,6 +955,15 @@ export default function DraftEditor({
           </div>
           {draft ? (
             <>
+              {draftProject && (
+                <p className="editor-draft-project-line">
+                  <JournalIcon />
+                  <span>
+                    作品「{projectName(draftProject)}
+                    」の制作日誌に入る予定です（初めて公開したとき。公開の確認で外せます）
+                  </span>
+                </p>
+              )}
               <section className="editor-writing-card" aria-label="下書きの編集">
                 <div className="editor-title-head">
                   {/* Zenn・note show the title as the page's big first line with no field label;
@@ -1213,6 +1239,17 @@ export default function DraftEditor({
                   suggestionVolatile={agentSuggestionPending}
                   openRequest={publishRequest}
                   onClosed={() => publishOpener.current?.focus()}
+                  projectNotice={
+                    draftProject && (
+                      <AgentProjectNotice
+                        project={draftProject}
+                        csrfToken={csrfToken}
+                        fetcher={fetcher}
+                        disabled={busy || publicationBusy}
+                        onRemoved={dropDraftProject}
+                      />
+                    )
+                  }
                   suggested={
                     agentMetadata?.draftId === draft.id
                       ? agentMetadata.metadata

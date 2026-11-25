@@ -1097,8 +1097,15 @@ export function createAgentHandler(
     if (url.search || url.hash) return privateJson({ error: 'unavailable' }, 404);
     const requestMatch = /^\/requests\/([A-Za-z0-9_-]{43})$/.exec(suffix);
     const grantMatch = /^\/([0-9a-f-]{36})$/.exec(suffix);
+    const projectMatch = /^\/draft-projects\/([0-9a-f-]{36})$/.exec(suffix);
     const allowed =
-      suffix === '' ? ['GET'] : requestMatch ? ['GET', 'POST'] : grantMatch ? ['DELETE'] : null;
+      suffix === ''
+        ? ['GET']
+        : requestMatch
+          ? ['GET', 'POST']
+          : grantMatch || projectMatch
+            ? ['DELETE']
+            : null;
     if (!allowed) return privateJson({ error: 'unavailable' }, 404);
     if (!allowed.includes(request.method)) {
       const response = privateJson({ error: 'method_not_allowed' }, 405);
@@ -1110,6 +1117,10 @@ export function createAgentHandler(
     if (suffix === '') {
       const list = await store.listConnections(proof);
       return list ? privateJson(list) : privateJson({ error: 'authentication_required' }, 401);
+    }
+    if (projectMatch) {
+      const removed = await store.unlinkDraftProject(proof, projectMatch[1]);
+      return removed ? privateJson({ removed: true }) : privateJson({ error: 'unavailable' }, 404);
     }
     if (grantMatch) {
       const revoked = await store.revokeConnection(proof, grantMatch[1]);

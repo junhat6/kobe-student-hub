@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { createProfileOnAccount } from './helpers/profile';
 import { AGENT_MCP_RELEASE_ENABLED } from '../src/shared/agent-release';
@@ -290,6 +291,51 @@ test("an agent's journal drafts for the student's project appear on it only afte
     expect((await made.json()).result.isError).toBeUndefined();
   }
 
+  // #285: a third entry the student sees is headed for the project, and removes before publishing.
+  const day3 = `架空のMCP日誌3日目-${info.project.name}`;
+  const made3 = await mcp(agent, token, 'create_draft', {
+    title: day3,
+    body: '## 今日やったこと\n\n日誌に入れない架空の記録です。',
+    project_id: projectId,
+  });
+  expect((await made3.json()).result.isError).toBeUndefined();
+  await page.goto('/drafts');
+  const item3 = page.locator('.editor-draft-list li', { hasText: day3 });
+  await expect(
+    item3.getByLabel(`作品「${projectTitle}」の制作日誌に入る予定`, { exact: true }),
+  ).toBeVisible();
+  await item3.getByRole('button').click();
+  await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(day3);
+  await expect(page.locator('.editor-draft-project-line')).toContainText(
+    `作品「${projectTitle}」の制作日誌に入る予定です`,
+  );
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
+  const composer3 = page.getByRole('region', { name: '保存済み版の公開', exact: true });
+  const projectNotice = composer3.getByRole('note').filter({ hasText: '制作日誌に入ります' });
+  await expect(projectNotice).toContainText(`作品「${projectTitle}」の制作日誌に入ります`);
+  expect(await noHorizontalScroll(page)).toBe(true);
+  const { violations } = await new AxeBuilder({ page })
+    .include('.agent-project-notice')
+    .include('.editor-draft-list')
+    .include('.editor-draft-project-line')
+    .analyze();
+  expect(
+    violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id),
+  ).toEqual([]);
+  await projectNotice.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: info.outputPath('draft-project-notice.png'), fullPage: true });
+  await projectNotice.getByRole('button', { name: '制作日誌に入れない', exact: true }).click();
+  await expect(projectNotice).toHaveCount(0);
+  await expect(page.locator('.editor-draft-project-line')).toHaveCount(0);
+  await expect(item3.locator('.editor-draft-project')).toHaveCount(0);
+  await composer3.getByLabel('記事の概要（300文字以内）').fill('日誌に入れない記録');
+  await composer3.getByRole('checkbox').check();
+  await composer3.getByRole('button', { name: '確認した保存済み版を公開', exact: true }).click();
+  await expect(composer3.getByRole('link', { name: 'ログインなしの読者画面を開く' })).toBeVisible();
+
   const guest = await browser.newContext({
     baseURL: ORIGIN,
     ignoreHTTPSErrors: true,
@@ -302,6 +348,8 @@ test("an agent's journal drafts for the student's project appear on it only afte
     // Drafts are private: nothing is on the project page before the student publishes.
     await expect(reader.getByRole('link', { name: day1 })).toHaveCount(0);
     await expect(reader.getByRole('link', { name: day2 })).toHaveCount(0);
+    // The entry the student removed stays off the project page even though it is published.
+    await expect(reader.getByRole('link', { name: day3 })).toHaveCount(0);
 
     // The student publishes day 1, then day 2, in the app; the page lists them in that order.
     await publishDraftInApp(page, day1);
