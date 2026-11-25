@@ -71,7 +71,8 @@ function Project({ id }: { id: string }) {
   if (!value)
     return <LoadingSkeleton shape="detail" label="作品を読み込んでいます…" className="shell" />;
   const { project, author } = value;
-  const articles = value.articles ?? [];
+  const articles = value.articles ?? [],
+    journal = value.journal ?? [];
   return (
     <div className="shell detail-layout">
       <RecordReadingHistory kind="project" contentId={project.id} />
@@ -119,6 +120,23 @@ function Project({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+        {journal.length > 0 && (
+          // #273: articles the author added after publishing, oldest first, to follow how it was made.
+          <section
+            className="related-reading project-articles project-journal"
+            aria-label="制作日誌"
+          >
+            <h2>制作日誌</h2>
+            <ol>
+              {journal.map((entry) => (
+                <li key={entry.id}>
+                  <time dateTime={entry.publishedOn}>{formatDate(entry.publishedOn)}</time>
+                  <Link to={'/articles/' + entry.id}>{entry.title}</Link>
+                </li>
+              ))}
+            </ol>
           </section>
         )}
       </article>

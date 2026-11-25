@@ -68,3 +68,19 @@
 .related-reading.project-articles {
   margin: 32px 0;
 }
+/* 制作日誌 (#273): a dated, oldest-first list; the date sits above the title on narrow screens. */
+.project-journal ol {
+  list-style: none;
+  padding: 0;
+}
+.project-journal li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: baseline;
+}
+.project-journal time {
+  color: #596e7d;
+  font-size: 0.875rem;
+  flex: none;
+}

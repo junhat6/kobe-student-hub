@@ -21,6 +21,7 @@ import type { RescueChannel } from '../account/AccountSessionBoundary';
 import Celebration from '../shared/Celebration';
 import { PROJECT_STAGES, type ProjectStage } from '../project-types';
 import ProjectStageMark, { PROJECT_STAGE_LABELS } from '../shared/ProjectStageMark';
+import ProjectJournalLinks from './ProjectJournalLinks';
 const empty: ProjectFields = {
   title: '',
   description: '',
@@ -976,16 +977,15 @@ export default function ProjectRegistration({
                   自分の公開記事を確認できませんでした。記事を紐づけずに公開できます。紐づけたい場合は「公開の確認をもう一度」を押してください。
                 </p>
               ) : !ownArticles.length ? (
-                // #168: a project published first can never gain a later article, so say so here.
+                // #273: articles published later join as the project's 制作日誌 after publishing.
                 <p>
-                  公開中の自分の記事はまだありません。記事はあとから足せません。載せたいなら
-                  <a href="/drafts">先に記事を公開</a>
-                  してください。
+                  公開中の自分の記事はまだありません。記事は作品の公開後に「制作日誌」として足せます。
+                  <a href="/drafts">記事を書く</a>
                 </p>
               ) : (
                 <>
                   <p>
-                    選んだ記事と作品が互いのページに載ります。あとから足したり外したりはできません。
+                    選んだ記事と作品が互いのページに載ります。ここで選んだ記事は外せません。公開後に別の記事を「制作日誌」として足せます。
                   </p>
                   {ownArticles.map((article) => {
                     const checked = linked.includes(article.id);
@@ -1096,6 +1096,15 @@ export default function ProjectRegistration({
               </Button>
               {stageUnknown && <p role="alert">状態の変更は未確定です。自動で再送しません。</p>}
             </div>
+          )}
+          {ordinary && saved && (published || receipt) && (
+            <ProjectJournalLinks
+              key={saved.id}
+              client={client}
+              draftId={saved.id}
+              ownArticles={ownArticles}
+              writable={writable}
+            />
           )}
           {(published || receipt) && (
             <p>

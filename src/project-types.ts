@@ -42,8 +42,23 @@ export interface PublicProjectArticleLink {
   id: string;
   title: string;
 }
+/** A journal article the owner linked after publishing (#273); shown oldest first with its first public day. */
+export interface PublicProjectJournalEntry {
+  id: string;
+  title: string;
+  publishedOn: string;
+}
+/** Most journal links one project keeps (also enforced by the 0046 insert trigger). */
+export const PROJECT_JOURNAL_LIMIT = 20;
 export interface PublicProjectPage extends PublicProjectReader {
   articles: PublicProjectArticleLink[];
+  journal: PublicProjectJournalEntry[];
+}
+/** Owner view of a published project's journal links: fixed at publish time vs. added later. */
+export interface ProjectJournal {
+  projectId: string;
+  fixedArticleIds: string[];
+  articleIds: string[];
 }
 export interface PublicAuthorProjects {
   author: Profile;

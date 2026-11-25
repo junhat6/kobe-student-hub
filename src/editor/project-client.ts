@@ -1,11 +1,13 @@
 import { readBoundedJson } from '../shared/http-client';
-import { isProjectStage, type ProjectStage } from '../project-types';
+import { isProjectStage, PROJECT_JOURNAL_LIMIT, type ProjectStage } from '../project-types';
 import type {
   ProjectDraft,
   ProjectDraftSummary,
   ProjectFields,
+  ProjectJournal,
   ProjectReceipt,
   PublicProjectArticleLink,
+  PublicProjectJournalEntry,
   PublicProjectReader,
   PublicAuthorProjects,
 } from '../project-types';
@@ -83,13 +85,19 @@ export function validProjectReader(v: unknown, id: string): v is PublicProjectRe
     Boolean(String(v.project.description).trim())
   );
 }
-/** Public project page; the lab read omits `articles`, the ordinary read always includes it (possibly empty). */
+/**
+ * Public project page; the lab read omits `articles`, the ordinary read always includes it (possibly empty).
+ * `journal` (#273) is optional so this page still reads a Worker from before the journal links.
+ */
 export function validProjectPage(
   v: unknown,
   id: string,
-): v is PublicProjectReader & { articles?: PublicProjectArticleLink[] } {
+): v is PublicProjectReader & {
+  articles?: PublicProjectArticleLink[];
+  journal?: PublicProjectJournalEntry[];
+} {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
-  const { articles, ...reader } = v as Record<string, unknown>;
+  const { articles, journal, ...reader } = v as Record<string, unknown>;
   if (!Object.hasOwn(v, 'articles')) return validProjectReader(v, id);
   return (
     validProjectReader(reader, id) &&
@@ -102,7 +110,33 @@ export function validProjectPage(
         publicText(a.title, 200) &&
         Boolean(a.title.trim()),
     ) &&
-    new Set(articles.map((a) => (a as { id: string }).id)).size === articles.length
+    new Set(articles.map((a) => (a as { id: string }).id)).size === articles.length &&
+    (!Object.hasOwn(v, 'journal') ||
+      (Array.isArray(journal) &&
+        journal.length <= PROJECT_JOURNAL_LIMIT &&
+        journal.every(
+          (a) =>
+            publicKeys(a, ['id', 'title', 'publishedOn']) &&
+            projectUUID(a.id) &&
+            publicText(a.title, 200) &&
+            Boolean(a.title.trim()) &&
+            date(a.publishedOn),
+        ) &&
+        new Set([...articles, ...journal].map((a) => (a as { id: string }).id)).size ===
+          articles.length + journal.length))
+  );
+}
+function validJournal(v: unknown): v is ProjectJournal {
+  return (
+    publicKeys(v, ['projectId', 'fixedArticleIds', 'articleIds']) &&
+    projectUUID(v.projectId) &&
+    Array.isArray(v.fixedArticleIds) &&
+    v.fixedArticleIds.length <= 3 &&
+    v.fixedArticleIds.every(projectUUID) &&
+    Array.isArray(v.articleIds) &&
+    v.articleIds.length <= PROJECT_JOURNAL_LIMIT &&
+    v.articleIds.every(projectUUID) &&
+    new Set(v.articleIds).size === v.articleIds.length
   );
 }
 export function validProjectAuthor(v: unknown, id: string): v is PublicAuthorProjects {
@@ -184,6 +218,10 @@ export function createProjectClient(csrfToken: string, fetcher: typeof fetch = f
   const publicationPath = (id: string) => {
     draftPath(id);
     return '/api/private/project-publications/' + id;
+  };
+  const journalPath = (id: string) => {
+    draftPath(id);
+    return '/api/private/project-journal/' + id;
   };
   return {
     async list(signal?: AbortSignal) {
@@ -268,6 +306,20 @@ export function createProjectClient(csrfToken: string, fetcher: typeof fetch = f
       const v = await request(publicationPath(id), 'PUT', { stage }, signal);
       if (!receipt(v) || v.publication?.project.stage !== stage) throw new ProjectClientError();
       return v.publication;
+    },
+    /** Owner-only journal links of an own published project, addressed by its draft id (#273). */
+    async journal(id: string, signal?: AbortSignal) {
+      const v = await request(journalPath(id), 'GET', undefined, signal);
+      if (!validJournal(v)) throw new ProjectClientError();
+      return v;
+    },
+    /** Adds or removes one own public article as a journal entry; returns the confirmed links. */
+    async setJournalLink(id: string, articleId: string, linked: boolean, signal?: AbortSignal) {
+      if (!projectUUID(articleId) || typeof linked !== 'boolean') throw new ProjectClientError();
+      const v = await request(journalPath(id), 'PUT', { articleId, linked }, signal);
+      if (!validJournal(v) || v.articleIds.includes(articleId) !== linked)
+        throw new ProjectClientError();
+      return v;
     },
   };
 }

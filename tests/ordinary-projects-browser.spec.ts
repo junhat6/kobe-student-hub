@@ -91,9 +91,11 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
   // C10: an author without public articles can still publish the project on its own.
   const noArticles = page.getByRole('group', { name: 'この作品の記事（任意・3件まで）' });
   await expect(noArticles.getByText('公開中の自分の記事はまだありません。')).toBeVisible();
-  // #168: before publishing, the author learns that a later article cannot be linked.
-  await expect(noArticles.getByText('記事はあとから足せません。', { exact: false })).toBeVisible();
-  await expect(noArticles.getByRole('link', { name: '先に記事を公開' })).toHaveAttribute(
+  // #168→#273: before publishing, the author learns that later articles join as the 制作日誌.
+  await expect(
+    noArticles.getByText('記事は作品の公開後に「制作日誌」として足せます。', { exact: false }),
+  ).toBeVisible();
+  await expect(noArticles.getByRole('link', { name: '記事を書く' })).toHaveAttribute(
     'href',
     '/drafts',
   );

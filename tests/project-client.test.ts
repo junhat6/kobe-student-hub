@@ -334,3 +334,57 @@ it('reads a private draft that arrives split across many stream chunks (#189 ver
     new Response(stream, { headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
   expect(await createProjectClient(token, f).read(id)).toMatchObject({ id, version: 1 });
 });
+it('reads and changes journal links only through confirmed owner responses (#273)', async () => {
+  const article = '22222222-2222-4222-8222-222222222222',
+    fixed = '33333333-3333-4333-8333-333333333333';
+  const calls: { path: string; init: RequestInit }[] = [];
+  let answer: unknown = { projectId: id, fixedArticleIds: [fixed], articleIds: [article] };
+  const client = createProjectClient(token, (async (path, init) => {
+    calls.push({ path: String(path), init: init! });
+    return Response.json(answer);
+  }) as typeof fetch);
+  expect((await client.journal(id)).articleIds).toEqual([article]);
+  expect(calls[0].path).toBe('/api/private/project-journal/' + id);
+  expect(calls[0].init.method ?? 'GET').toBe('GET');
+  expect((await client.setJournalLink(id, article, true)).articleIds).toEqual([article]);
+  expect(calls[1].init.method).toBe('PUT');
+  expect(JSON.parse(String(calls[1].init.body))).toEqual({ articleId: article, linked: true });
+  // A response that does not show the requested change, or has extra or malformed fields, is not success.
+  await expect(client.setJournalLink(id, article, false)).rejects.toBeInstanceOf(
+    ProjectClientError,
+  );
+  for (const bad of [
+    { projectId: id, fixedArticleIds: [], articleIds: [article, article] },
+    { projectId: id, fixedArticleIds: [], articleIds: [article], ownerAccountId: 'x' },
+    { projectId: 'x', fixedArticleIds: [], articleIds: [] },
+    { projectId: id, fixedArticleIds: [], articleIds: Array(21).fill(article) },
+  ]) {
+    answer = bad;
+    await expect(client.journal(id)).rejects.toBeInstanceOf(ProjectClientError);
+  }
+  const before = calls.length;
+  await expect(client.setJournalLink(id, 'not-a-uuid', true)).rejects.toBeInstanceOf(
+    ProjectClientError,
+  );
+  expect(calls).toHaveLength(before);
+  // The public page: journal is optional (older Worker), dated, and never repeats a fixed article.
+  const page = {
+    project,
+    author,
+    articles: [{ id: fixed, title: '公開時の記事' }],
+    journal: [{ id: article, title: '日誌 1 日目', publishedOn: '2026-11-20' }],
+  };
+  const read = (v: unknown) =>
+    createPublicProjectClient((async () => Response.json(v)) as typeof fetch, 'ordinary').read(id);
+  expect(await read(page)).toEqual(page);
+  const { journal: _journal, ...older } = page;
+  expect(await read(older)).toEqual(older);
+  for (const journal of [
+    [{ id: article, title: '日誌', publishedOn: 'yesterday' }],
+    [{ id: article, title: '日誌' }],
+    [{ id: fixed, title: '重複', publishedOn: '2026-11-20' }],
+    [{ id: article, title: '日誌', publishedOn: '2026-11-20', body: 'PRIVATE' }],
+    null,
+  ])
+    await expect(read({ ...page, journal })).rejects.toBeInstanceOf(ProjectClientError);
+});

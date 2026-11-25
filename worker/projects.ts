@@ -9,10 +9,12 @@ import { japanDate } from './japan-date';
 import type { Profile } from '../src/types';
 import { normalizeProjectFields } from '../src/project-input';
 import { decodePublicProfile, publicArticleSqlBounds, publicProfileSqlBounds } from './publication';
-import { isProjectStage } from '../src/project-types';
+import { isProjectStage, PROJECT_JOURNAL_LIMIT } from '../src/project-types';
 import type {
   ProjectStage,
   ProjectDraft,
+  ProjectJournal,
+  PublicProjectJournalEntry,
   ProjectDraftSummary,
   ProjectReceipt,
   PublicProjectReader,
@@ -427,6 +429,86 @@ export class ProjectStore {
       return null;
     }
   }
+  /** Owner view of the journal links of their own published project (#273); null for anything else. */
+  async readJournal(req: Request, id: unknown): Promise<ProjectJournal | null> {
+    if (req.method !== 'GET' || !uuid(id)) return null;
+    try {
+      const p = await this.sessions.storageAuthorization(req);
+      return p ? await this.ownJournal(p, id) : null;
+    } catch {
+      return null;
+    }
+  }
+  private async ownJournal(p: Proof, id: string): Promise<ProjectJournal | null> {
+    const rs = await this.db
+      .prepare(
+        `SELECT r.id project_id,r.article_ids_json,l.article_id FROM project_drafts d JOIN project_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id LEFT JOIN project_journal_links l ON l.project_id=r.id AND l.owner_account_id=d.owner_account_id WHERE d.id=? AND d.owner_account_id=? AND r.status='published' AND ${live} ORDER BY l.linked_at_ms ASC,l.article_id ASC LIMIT ${PROJECT_JOURNAL_LIMIT + 1}`,
+      )
+      .bind(id, p.accountId, ...binds(p))
+      .all<{ project_id: string; article_ids_json: string; article_id: string | null }>();
+    const first = rs.results[0];
+    if (!first || !uuid(first.project_id) || rs.results.length > PROJECT_JOURNAL_LIMIT) return null;
+    let fixed: unknown;
+    try {
+      fixed = JSON.parse(first.article_ids_json);
+    } catch {
+      return null;
+    }
+    if (!Array.isArray(fixed) || fixed.length > 3 || !fixed.every(uuid)) return null;
+    const articleIds: string[] = [];
+    for (const r of rs.results) {
+      if (r.project_id !== first.project_id) return null;
+      if (r.article_id === null) continue;
+      if (!uuid(r.article_id)) return null;
+      articleIds.push(r.article_id);
+    }
+    return { projectId: first.project_id, fixedArticleIds: fixed, articleIds };
+  }
+  /**
+   * The owner adds or removes one of their own public articles as a journal entry of their own published
+   * project (#273). Another person's article, a draft, a stopped article, an article already fixed at
+   * publish time, a stopped project and a project never published all return the same null; the 0046
+   * insert trigger re-checks the ownership and public state, so a refused link writes nothing.
+   */
+  async setJournalLink(req: Request, id: unknown, input: unknown): Promise<ProjectJournal | null> {
+    if (
+      req.method !== 'PUT' ||
+      !uuid(id) ||
+      !exact(input, ['articleId', 'linked']) ||
+      !uuid(input.articleId) ||
+      typeof input.linked !== 'boolean'
+    )
+      return null;
+    const articleId = input.articleId,
+      linked = input.linked;
+    try {
+      const p = await this.sessions.storageAuthorization(req);
+      if (!p) return null;
+      const before = await this.ownJournal(p, id);
+      if (!before) return null;
+      if (linked && before.fixedArticleIds.includes(articleId)) return null;
+      if (linked && !before.articleIds.includes(articleId)) {
+        const r = await this.db
+          .prepare(
+            `INSERT INTO project_journal_links(project_id,article_id,owner_account_id,linked_at_ms) SELECT r.id,?,d.owner_account_id,? FROM project_drafts d JOIN project_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id WHERE d.id=? AND d.owner_account_id=? AND r.id=? AND r.status='published' AND ${writerLive} ON CONFLICT(project_id,article_id) DO NOTHING RETURNING article_id`,
+          )
+          .bind(articleId, p.nowMs, id, p.accountId, before.projectId, ...writerBindings(p))
+          .first<{ article_id: string }>();
+        if (!r) return null;
+      } else if (!linked && before.articleIds.includes(articleId)) {
+        await this.db
+          .prepare(
+            `DELETE FROM project_journal_links WHERE project_id=? AND article_id=? AND owner_account_id=? AND EXISTS(SELECT 1 FROM project_drafts d JOIN project_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id WHERE d.id=? AND d.owner_account_id=? AND r.id=project_journal_links.project_id) AND ${live}`,
+          )
+          .bind(before.projectId, articleId, p.accountId, id, p.accountId, ...binds(p))
+          .run();
+      }
+      const after = await this.ownJournal(p, id);
+      return after && after.articleIds.includes(articleId) === linked ? after : null;
+    } catch {
+      return null;
+    }
+  }
   async readPublished(id: unknown): Promise<PublicProjectReader | null> {
     if (!uuid(id)) return null;
     try {
@@ -441,10 +523,14 @@ export class ProjectStore {
       return null;
     }
   }
-  /** Public project page: the snapshot plus linked articles that are still public by the same author. */
+  /**
+   * Public project page: the snapshot, the articles linked at publish time and the journal articles the
+   * owner linked later (#273). Every article is re-checked as public by the same author on each read.
+   */
   async readPublishedPage(id: unknown): Promise<PublicProjectPage | null> {
     const value = await this.readPublished(id);
     if (!value) return null;
+    let articles: PublicProjectPage['articles'] = [];
     try {
       const rows = await this.db
         .prepare(
@@ -452,14 +538,32 @@ export class ProjectStore {
         )
         .bind(value.project.id)
         .all<{ id: string; title: string }>();
-      const articles = rows.results.map((r) => ({ id: r.id, title: r.title }));
-      return articles.every((a) => uuid(a.id) && typeof a.title === 'string' && a.title.trim())
-        ? { ...value, articles }
-        : null;
+      articles = rows.results.map((r) => ({ id: r.id, title: r.title }));
+      if (!articles.every((a) => uuid(a.id) && typeof a.title === 'string' && a.title.trim()))
+        return null;
     } catch {
       // Links are supplementary: before migration 0024 reaches a database, keep the project page readable.
-      return { ...value, articles: [] };
     }
+    let journal: PublicProjectJournalEntry[] = [];
+    try {
+      const rows = await this.db
+        .prepare(
+          `SELECT c.id,c.title,publication.published_at_ms FROM project_journal_links l JOIN project_publications r ON r.id=l.project_id AND r.owner_account_id=l.owner_account_id JOIN content c ON c.id=l.article_id JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id AND publication.owner_account_id=l.owner_account_id JOIN public_profiles p ON p.id=c.author_id WHERE l.project_id=? AND r.status='published' AND c.author_id=r.public_profile_id AND NOT EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(r.article_ids_json) THEN r.article_ids_json ELSE '[]' END) fixed WHERE fixed.value=c.id) AND ${publicArticleSqlBounds} ORDER BY publication.published_at_ms ASC,c.id ASC LIMIT ${PROJECT_JOURNAL_LIMIT}`,
+        )
+        .bind(value.project.id)
+        .all<{ id: string; title: string; published_at_ms: number }>();
+      journal = [];
+      for (const r of rows.results) {
+        const publishedOn = japanDate(r.published_at_ms);
+        if (!uuid(r.id) || typeof r.title !== 'string' || !r.title.trim() || !publishedOn)
+          return null;
+        journal.push({ id: r.id, title: r.title, publishedOn });
+      }
+    } catch {
+      // Before migration 0046 reaches a database the page simply has no journal yet.
+      journal = [];
+    }
+    return { ...value, articles, journal };
   }
   async readAuthorSelection(
     id: unknown,

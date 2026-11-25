@@ -105,13 +105,15 @@ export function createPrivateProjectHandler(
     if (!url.pathname.startsWith(PREFIX)) return null;
     if (!canonicalOrigin(origin)) return error(503, 'project_unavailable');
     const match =
-      /^\/api\/private\/project-(drafts|publications)(?:\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}))?$/.exec(
+      /^\/api\/private\/project-(drafts|publications|journal)(?:\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}))?$/.exec(
         url.pathname,
       );
-    if (!match || url.search || url.hash || (match[1] === 'publications' && !match[2]))
+    if (!match || url.search || url.hash || (match[1] !== 'drafts' && !match[2]))
       return unavailable();
     const id = match[2],
       publication = match[1] === 'publications',
+      // #273: the journal links of an own published project, addressed by its draft id like the receipt.
+      journal = match[1] === 'journal',
       allowed = publication ? ['GET', 'POST', 'PUT'] : id ? ['GET', 'PUT'] : ['GET', 'POST'];
     if (!allowed.includes(request.method)) {
       const r = error(405, 'method_not_allowed');
@@ -126,21 +128,25 @@ export function createPrivateProjectHandler(
       if (!auth) return error(401, 'authentication_required');
       let result: unknown;
       if (request.method === 'GET')
-        result = publication
-          ? await store.getOwnReceipt(request, id)
-          : id
-            ? await store.getDraft(request, id)
-            : await store.listDrafts(request);
+        result = journal
+          ? await store.readJournal(request, id)
+          : publication
+            ? await store.getOwnReceipt(request, id)
+            : id
+              ? await store.getDraft(request, id)
+              : await store.listDrafts(request);
       else {
         const body = await input(request);
         if (!body.ok) return error(body.status, 'invalid_request');
-        result = publication
-          ? request.method === 'PUT'
-            ? await store.setStage(request, id, body.value)
-            : await store.publish(request, id, body.value)
-          : id
-            ? await store.saveDraft(request, id, body.value)
-            : await store.createDraft(request, body.value);
+        result = journal
+          ? await store.setJournalLink(request, id, body.value)
+          : publication
+            ? request.method === 'PUT'
+              ? await store.setStage(request, id, body.value)
+              : await store.publish(request, id, body.value)
+            : id
+              ? await store.saveDraft(request, id, body.value)
+              : await store.createDraft(request, body.value);
       }
       if (result === null) return unavailable();
       if (

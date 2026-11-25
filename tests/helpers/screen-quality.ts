@@ -23,7 +23,10 @@ function smallTargets(page: Page) {
         el instanceof HTMLInputElement && /^(checkbox|radio)$/.test(el.type)
           ? el.closest('label') || el.labels?.[0]
           : null;
-      const box = label ? label.getBoundingClientRect() : r;
+      // A card title link stretches over the whole card with ::after (cards.css), so the card is the
+      // target; measuring the text box flaked on one-line titles depending on which cards were listed.
+      const card = el.classList.contains('content-card-link') ? el.closest('.content-card') : null;
+      const box = label ? label.getBoundingClientRect() : card ? card.getBoundingClientRect() : r;
       if (style.display === 'inline' && el.parentElement) {
         const text = [...el.parentElement.childNodes].some(
           (n) => n !== el && n.nodeType === Node.TEXT_NODE && n.textContent!.trim(),

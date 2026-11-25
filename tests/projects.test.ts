@@ -1093,3 +1093,44 @@ it('keeps a published snapshot when its owner account is deleted: only owner_acc
       .run(),
   ).rejects.toThrow(/immutable project snapshot/);
 });
+it('routes the owner-only journal links of a published project (#273)', async () => {
+  const d = await create({ ...f, title: 'Journal project' });
+  const r = await publish(d);
+  expect(r.status).toBe(201);
+  const { projectId } = (await r.json()) as { projectId: string };
+  const path = '/api/private/project-journal/' + d.id;
+  const own = await req(path);
+  expect(own.status).toBe(200);
+  expect(await own.json()).toEqual({ projectId, fixedArticleIds: [], articleIds: [] });
+  // Another signed-in student, a missing session, a query, a missing id and an unknown draft.
+  expect((await req(path, 'GET', undefined, 2)).status).toBe(404);
+  expect((await req(path, 'GET', undefined, 0, { Cookie: '' })).status).toBe(401);
+  expect((await req(path + '?x=1')).status).toBe(404);
+  expect((await req('/api/private/project-journal')).status).toBe(404);
+  expect((await req('/api/private/project-journal/' + crypto.randomUUID())).status).toBe(404);
+  const post = await req(path, 'POST', { articleId: crypto.randomUUID(), linked: true });
+  expect(post.status).toBe(405);
+  expect(post.headers.get('Allow')).toBe('GET, PUT');
+  // Not an own public article, or a malformed body: the same 404, and nothing is written.
+  for (const body of [
+    { articleId: crypto.randomUUID(), linked: true },
+    { articleId: 'x', linked: true },
+    { articleId: crypto.randomUUID() },
+  ])
+    expect((await req(path, 'PUT', body)).status).toBe(404);
+  // A write without the CSRF proof never reaches the store.
+  expect(
+    (
+      await req(path, 'PUT', { articleId: crypto.randomUUID(), linked: false }, 0, {
+        Authorization: '',
+      })
+    ).status,
+  ).toBe(401);
+  const db = await mf.getD1Database('DB');
+  expect(
+    await db
+      .prepare('SELECT COUNT(*) n FROM project_journal_links WHERE project_id=?')
+      .bind(projectId)
+      .first('n'),
+  ).toBe(0);
+});

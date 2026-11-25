@@ -72,10 +72,13 @@ const inventory: Record<string, Inventory> = {
       receiptRow: ['student'],
       ownReceipt: ['base'],
       setStage: ['student'],
+      // #273: reading own journal links; adding a link is participation, removing one is cleanup.
+      ownJournal: ['base'],
+      setJournalLink: ['student', 'base'],
     },
     public: {
       readPublished: 1,
-      readPublishedPage: 1,
+      readPublishedPage: 2,
       readAuthorSelection: 2,
       readRecentPublished: 2,
     },
@@ -512,16 +515,16 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 101 private SQL sites (72 base, 28 student, one explicit choice) and 19 public sites', () => {
+  it('inventory is exactly 104 private SQL sites (74 base, 29 student, one explicit choice) and 20 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(101);
-    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(72);
-    expect(guards.filter((guard) => guard === 'student')).toHaveLength(28);
+    expect(guards).toHaveLength(104);
+    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(74);
+    expect(guards.filter((guard) => guard === 'student')).toHaveLength(29);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)
         .flatMap((item) => Object.values(item.public ?? {}))
         .reduce((a, b) => a + b, 0),
-    ).toBe(19);
+    ).toBe(20);
   });
 });
