@@ -11,6 +11,7 @@
 - `gh issue list --label claimed --state open` で他人の着手と area を見る
 - 未claimの Issue を優先順に1件：P0 → `loop:ux` P1 → `loop:finish` P1 → その他。他人が claim 中の area は避ける
 - 本番のオーナーログイン代行が要る Issue（#247 など）は、claim の前に Claude in Chrome の `list_connected_browsers` で接続を確かめる。0件なら OAuth の許可画面を通せないので選ばない
+- claim から数時間コメントも commit も無く、その worktree に動いているプロセス（`lsof -d cwd`）も Orca の端末も無ければ、止まった claim として引き継いでよい。引き継ぐと Issue にコメントし、相手の未 commit の差分（`git diff`）を土台にする（run-229 が run-225 の #286 を引き継いだ）
 - 選んだら即 `gh issue edit N --add-label claimed` し、「claimed by <session名> / <worktree> / <時刻>」とコメント
 - 該当なしなら replan を促すコメントを patrol log Issue に残して終了
 
