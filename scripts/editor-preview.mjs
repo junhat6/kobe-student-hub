@@ -34,6 +34,7 @@ for (const file of [
   'migrations/0039_media_bytes.sql',
   'migrations/0040_project_snapshot_rowid_immutable.sql',
   'migrations/0043_project_stage.sql',
+  'migrations/0045_media_payload_optional.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
@@ -95,11 +96,14 @@ for (const file of [
         : file.includes('0040')
           ? 'project_publications_rowid_immutable'
           : null;
+  // 0045 rebuilds media_assets, so it is detected by the optional payload in the table's SQL.
   const marker = file.includes('0032')
     ? `SELECT name FROM sqlite_master WHERE type='trigger' AND name='media_assets_insert' AND instr(sql,'>=16384')>0`
-    : trigger
-      ? `SELECT name FROM sqlite_master WHERE type='trigger' AND name='${trigger}'`
-      : null;
+    : file.includes('0045')
+      ? `SELECT name FROM sqlite_master WHERE type='table' AND name='media_assets' AND instr(sql,'payload BLOB CHECK(payload IS NULL')>0`
+      : trigger
+        ? `SELECT name FROM sqlite_master WHERE type='trigger' AND name='${trigger}'`
+        : null;
   const check = spawnSync(
     'npx',
     [
@@ -125,7 +129,9 @@ for (const file of [
     process.stderr.write(check.stderr);
     process.exit(check.status ?? 1);
   }
-  const expected = marker ? (trigger ?? 'media_assets_insert') : (column ?? table);
+  const expected = marker
+    ? (trigger ?? (file.includes('0045') ? 'media_assets' : 'media_assets_insert'))
+    : (column ?? table);
   if (!JSON.parse(check.stdout).some((x) => x.results?.some((row) => row.name === expected)))
     run([
       'd1',
