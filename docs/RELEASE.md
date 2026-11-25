@@ -86,6 +86,7 @@ npm run smoke -- https://hub.junhat6.com
 - migration は expand → contract で書く。1つ前の Worker でも動く形（追加だけ）にし、削除・改名・既存データの書き換えは別の列車に分ける。deploy は「migration → Worker 切り替え」の順なので、どこで失敗しても Worker の rollback だけで復旧できる。
 - 適用前のブックマークを必ずログ（Actions は job summary）に残す。
 - D1 は自動では戻さない。Time Travel の restore はブックマーク以降の利用者の書き込みも消すため、戻すかは agent が個別に判断する（判断表は `.claude/skills/release/SKILL.md`）。
+- 画像（#12）：02c30e4 から新しい画像は R2 にだけ置き、D1 に payload を持たない。手で古い版へ戻すときは R2 を先に読む 744adf0 以降にする（それより前の版では新しい画像がすべて 404）。
 
 ## 本番の設定
 
