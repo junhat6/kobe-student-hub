@@ -1138,6 +1138,25 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     },
   );
   it.runIf(r2)(
+    'removes the object of an upload that loses a new id to other bytes sent at the same time',
+    async () => {
+      const d = await draft(),
+        image = id();
+      const r = await upload(d, image, png, 0, {
+        'X-Test-Overlap': 'other',
+        'X-Test-Other-Type': 'image/jpeg',
+        'X-Test-Other-Body': btoa(String.fromCharCode(...jpg)),
+      });
+      expect(r.status).toBe(404);
+      // Only the winner's object is left; the loser's key can never belong to a row.
+      const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+      expect((await bucket.list({ prefix: `media/${image}/` })).objects.map((o) => o.key)).toEqual([
+        await objectKey(image),
+      ]);
+      expect((await ownRead(image)).headers.get('Content-Type')).toBe('image/jpeg');
+    },
+  );
+  it.runIf(r2)(
     'never lets another student overwrite a stored object by reusing its id',
     async () => {
       const mine = await draft(),

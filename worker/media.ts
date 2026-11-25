@@ -172,6 +172,11 @@ export class MediaStore {
         if (raced && raced !== 'taken') return raced;
         throw error;
       }
+      // A concurrent upload of other bytes under the same new id won the insert. This key (id plus
+      // this sha256) can never belong to a row now, so it is removed at once instead of waiting
+      // for the sweep: repeating such races must not grow R2 faster than the sweep (#12).
+      if (!r && this.bucket && (await this.limit(p, kind, draftId, id, sha, 0)) === 'taken')
+        await deleteMediaObjects(this.bucket, [{ id, sha256: sha }]);
       return r ? receipt(r) : null;
     } catch {
       return null;
