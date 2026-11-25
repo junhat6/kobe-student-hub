@@ -716,7 +716,7 @@ test('ordinary author corrects an article at the same URL after saving and expli
   }
 });
 
-test('a saved title a reader cannot see stays a private draft and the panel says why (#286)', async ({
+test('a title a reader cannot see is not saved and the editor says why (#286)', async ({
   page,
 }, info) => {
   await register(page, info);
@@ -727,22 +727,27 @@ test('a saved title a reader cannot see stays a private draft and the panel says
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   await page.getByRole('link', { name: '記事の管理', exact: true }).click();
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
-  // U+1D159 and the braille blank are not white space for trim(), but nothing shows on screen.
-  await page.getByLabel('タイトル', { exact: true }).fill('\u{1d159}⠀');
-  await page.getByLabel('Markdown本文', { exact: true }).fill('本文は見える文字です。');
-  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
-  // The draft is private, so it is still saved (autosaved text is never lost).
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
-  await page
-    .locator('.editor-main-heading')
-    .getByRole('button', { name: '公開する', exact: true })
-    .click();
-  const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
-  await expect(composer.locator('.publication-warning')).toContainText(
-    '見える文字を1つ以上含むタイトル',
-  );
+  const saves: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() !== 'GET' &&
+      new URL(request.url()).pathname.startsWith('/api/private/drafts')
+    )
+      saves.push(request.url());
+  });
+  // U+1D159 and the braille blank are not white space for trim(), but nothing shows on screen.
+  await page.getByLabel('タイトル', { exact: true }).fill('\u{1d159}\u2800');
+  await page.getByLabel('Markdown本文', { exact: true }).fill('本文は見える文字です。');
   await expect(
-    composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true }),
-  ).toBeDisabled();
+    page.getByRole('alert').filter({ hasText: 'タイトルには見える文字を1つ以上入れてください。' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeDisabled();
   await page.screenshot({ path: info.outputPath(`invisible-title-${info.project.name}.png`) });
+  // Autosave waits 2 s; nothing is sent while the title shows nothing, and the input stays.
+  await page.waitForTimeout(2600);
+  expect(saves).toEqual([]);
+  await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue('\u{1d159}\u2800');
+  await page.getByLabel('タイトル', { exact: true }).fill('見える題');
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
 });

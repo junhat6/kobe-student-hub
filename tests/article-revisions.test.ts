@@ -182,12 +182,18 @@ describe('explicit article correction with immutable evidence', () => {
     ).rejects.toThrow();
   });
   it('refuses a correction whose saved title a reader cannot see and keeps the public title (#286)', async () => {
+    const db = await mf.getD1Database('DB');
     const d = await create('Visible title', 'Body');
     const first = (await publish(d.id))!;
     let latest = d;
     for (const title of ['\u{1d159}', '\u2800\u200b']) {
-      latest = await update(latest, title, 'New body');
-      expect(latest.title).toBe(title);
+      // Saving such a title is refused; a row saved before #286 is still refused at publishing.
+      expect(await update(latest, title, 'New body')).toBeNull();
+      latest = await update(latest, 'Visible again', 'New body');
+      await db
+        .prepare('UPDATE private_article_drafts SET title=? WHERE id=?')
+        .bind(title, latest.id)
+        .run();
       expect(await revise(latest)).toBeNull();
       expect((await read(first.contentId))?.entry).toMatchObject({
         title: 'Visible title',

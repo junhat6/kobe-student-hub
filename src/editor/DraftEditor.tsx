@@ -18,6 +18,7 @@ import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
 import { embedLineFromPaste } from '../shared/embed';
 import LoadingSkeleton from '../shared/LoadingSkeleton';
+import { hasVisibleCharacter } from '../project-input';
 import {
   formatMarkdown,
   insertOwnLine,
@@ -210,9 +211,11 @@ export default function DraftEditor({
   const invalid =
     Array.from(text.title).length > 200
       ? 'タイトルは200文字以内にしてください。'
-      : bytes > 262144
-        ? '本文の容量が上限の256 KiBを超えています。'
-        : '';
+      : text.title !== '' && !hasVisibleCharacter(text.title)
+        ? 'タイトルには見える文字を1つ以上入れてください。'
+        : bytes > 262144
+          ? '本文の容量が上限の256 KiBを超えています。'
+          : '';
   const saveDisabled =
     busy ||
     publicationBusy ||

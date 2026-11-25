@@ -8,6 +8,7 @@ import {
   liveSessionBindings as bindings,
 } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
+import { hasVisibleCharacter } from '../src/project-input';
 export interface PrivateDraft {
   id: string;
   title: string;
@@ -45,6 +46,9 @@ function content(value: Record<string, unknown>) {
     typeof value.title === 'string' &&
     value.title.length <= 400 &&
     Array.from(value.title).length <= 200 &&
+    // #286: an empty title is an unfinished draft; one of only blank or invisible characters is refused
+    // like a project title (#265), so it never reaches publishing.
+    (value.title === '' || hasVisibleCharacter(value.title)) &&
     typeof value.body === 'string' &&
     value.body.length <= 262144 &&
     new TextEncoder().encode(value.body).byteLength <= 262144

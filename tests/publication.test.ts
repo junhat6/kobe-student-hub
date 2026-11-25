@@ -216,12 +216,13 @@ describe('unconnected publication snapshot boundary with real local sessions and
     for (const [title, body] of [
       ['', 'body'],
       ['title', ''],
-      ['　', 'body'],
       ['title', '\u00a0'],
     ]) {
       const d = await create(title, body);
       expect(await publish(d.id)).toBeNull();
     }
+    // #286: a title of only blank characters is refused when saving, not only when publishing.
+    expect(await create('　', 'body')).toBeNull();
     const d = await create();
     expect(await publish(d.id, { ...meta, expectedVersion: 2 })).toBeNull();
     expect(await publish(d.id, meta, users[1])).toBeNull();
@@ -251,7 +252,8 @@ describe('unconnected publication snapshot boundary with real local sessions and
     ])
       expect(await publish(d.id, input)).toBeNull();
   });
-  it('refuses to publish a title a reader cannot see, but still saves it as a private draft (#286)', async () => {
+  it('refuses to save or publish a title a reader cannot see; an empty title still saves (#286)', async () => {
+    const db = await mf.getD1Database('DB');
     const before = await counts();
     for (const title of [
       '\u{1d159}',
@@ -267,11 +269,17 @@ describe('unconnected publication snapshot boundary with real local sessions and
       '\ufeff ',
       '\u00ad',
     ]) {
-      const d = await create(title, 'body');
-      expect(d.title, JSON.stringify(title)).toBe(title);
+      expect(await create(title, 'body'), JSON.stringify(title)).toBeNull();
+      // A row saved before #286 keeps its invisible title; publishing it is still refused.
+      const d = await create('Visible', 'body');
+      await db
+        .prepare('UPDATE private_article_drafts SET title=? WHERE id=?')
+        .bind(title, d.id)
+        .run();
       expect(await publish(d.id), JSON.stringify(title)).toBeNull();
     }
     expect(await counts()).toEqual(before);
+    expect((await create('', 'body'))?.title).toBe('');
     // Real titles still publish: scripts, variation selectors, emoji sequences, flags and marks.
     for (const title of [
       '作品',
