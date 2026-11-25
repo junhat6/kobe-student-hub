@@ -76,6 +76,79 @@ describe('existing session browser client and author response-consumption guard'
       expect((error as Error).message).not.toContain('PRIVATE');
     }
   });
+  it('keeps the raw proof boundary on the shared transport (#189 step 11)', async () => {
+    const calls: RequestInit[] = [];
+    await createSessionClient((async (_path: unknown, init?: RequestInit) => {
+      calls.push(init ?? {});
+      return Response.json({ csrfToken: A });
+    }) as typeof fetch).peek();
+    expect(calls[0]).toMatchObject({
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+    });
+    expect(calls[0].body).toBeUndefined();
+    expect(new Headers(calls[0].headers).has('Authorization')).toBe(false);
+    expect(new Headers(calls[0].headers).get('Accept')).toBe('application/json');
+    const kind = async (response: () => Response) => {
+      try {
+        await createSessionClient((async () => response()) as typeof fetch).peek();
+      } catch (error) {
+        expect(error).toBeInstanceOf(SessionClientError);
+        expect((error as Error).message).not.toContain('PRIVATE');
+        return (error as SessionClientError).kind;
+      }
+      return 'accepted';
+    };
+    expect(await kind(() => Response.json({ e: 'PRIVATE' }, { status: 401 }))).toBe('signed-out');
+    for (const status of [403, 404, 409, 422, 500])
+      expect(await kind(() => Response.json({ e: 'PRIVATE' }, { status }))).toBe('unavailable');
+    expect(
+      await kind(
+        () =>
+          new Response(JSON.stringify({ csrfToken: A }), {
+            headers: { 'Content-Type': 'text/plain' },
+          }),
+      ),
+    ).toBe('unavailable');
+    expect(
+      await kind(
+        () =>
+          new Response(JSON.stringify({ csrfToken: A }), {
+            headers: { 'Content-Type': 'application/json', 'Content-Length': '4097' },
+          }),
+      ),
+    ).toBe('unavailable');
+    expect(
+      await kind(
+        () =>
+          new Response(new Uint8Array([0x7b, 0xff, 0x7d]), {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    ).toBe('unavailable');
+    expect(await kind(() => Response.json({ csrfToken: A }, { status: 201 }))).toBe('unavailable');
+    await expect(createSessionClient(fetch).logout('not-a-token')).rejects.toBeInstanceOf(
+      SessionClientError,
+    );
+  });
+  it('does not treat a 401 that arrives after the deadline as a confirmed sign-out', async () => {
+    vi.useFakeTimers();
+    let release: (value: Response) => void = () => {};
+    const pending = createSessionClient(
+      (() =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        })) as unknown as typeof fetch,
+    ).peek();
+    const settled = pending.catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(10000);
+    release(new Response(null, { status: 401 }));
+    const error = await settled;
+    expect(error).toBeInstanceOf(SessionClientError);
+    expect((error as SessionClientError).kind).toBe('unavailable');
+  });
   it('does not retry an uncertain logout or accept a late acknowledgement', async () => {
     vi.useFakeTimers();
     let release: (value: Response) => void = () => {};

@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { boundedReadFailure, readBoundedJson } from '../shared/http-client';
 export class SessionClientError extends Error {
   constructor(readonly kind: 'signed-out' | 'unavailable' = 'unavailable') {
     super('セッションの確認結果を取得できませんでした。');
@@ -28,96 +28,26 @@ function wait(ms: number, signal?: AbortSignal) {
     signal?.addEventListener('abort', stop, { once: true });
   });
 }
-/** Raw existing-cookie checks only. This client never creates a session or retries logout. */
+/**
+ * Raw existing-cookie checks only. This client never creates a session or retries logout.
+ * The bounded read (no-store, no redirects, 200 JSON only, 4 KiB, 10 s, caller abort) is the
+ * shared transport; only a 401 is a confirmed sign-out, every other failure stays unverified.
+ */
 export function createSessionClient(fetcher: typeof fetch = fetch) {
   async function request(logoutToken?: string, signal?: AbortSignal): Promise<unknown> {
-    const controller = new AbortController();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let expired = false;
-    let rejectAbort: (error: SessionClientError) => void = () => {};
-    const cancel = () => {
-      controller.abort();
-      if (reader) void reader.cancel().catch(() => {});
-    };
-    const aborted = new Promise<never>((_, reject) => {
-      rejectAbort = reject;
-    });
-    const externalAbort = () => {
-      cancel();
-      rejectAbort(new SessionClientError());
-    };
-    signal?.addEventListener('abort', externalAbort, { once: true });
-    if (signal?.aborted) externalAbort();
-    const operation = (async () => {
-      if (controller.signal.aborted) throw new SessionClientError();
-      const response = await fetcher(logoutToken ? '/api/private/logout' : '/api/private/session', {
-        method: logoutToken ? 'POST' : 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-        headers: logoutToken
-          ? { Accept: 'application/json', Authorization: proofAuthorization('csrf', logoutToken) }
-          : { Accept: 'application/json' },
-      });
-      if (
-        expired ||
-        controller.signal.aborted ||
-        response.status !== 200 ||
-        !response.body ||
-        !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
-      ) {
-        void response.body?.cancel().catch(() => {});
-        throw new SessionClientError(response.status === 401 ? 'signed-out' : 'unavailable');
-      }
-      const length = response.headers.get('Content-Length');
-      if (
-        length !== null &&
-        (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > 4096)
-      ) {
-        void response.body.cancel().catch(() => {});
-        throw new SessionClientError();
-      }
-      reader = response.body.getReader();
-      const bytes = new Uint8Array(4096);
-      let size = 0,
-        count = 0;
-      try {
-        for (;;) {
-          const next = await reader.read();
-          if (expired || controller.signal.aborted) throw new SessionClientError();
-          if (next.done) break;
-          if (++count > 4096 || size + next.value.byteLength > bytes.length)
-            throw new SessionClientError();
-          bytes.set(next.value, size);
-          size += next.value.byteLength;
-        }
-        return JSON.parse(
-          new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-        ) as unknown;
-      } finally {
-        void reader.cancel().catch(() => {});
-        reader.releaseLock();
-        reader = undefined;
-      }
-    })();
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        expired = true;
-        cancel();
-        reject(new SessionClientError());
-      }, 10000);
-    });
     try {
-      return await Promise.race([operation, deadline, aborted]);
+      return await readBoundedJson(logoutToken ? '/api/private/logout' : '/api/private/session', {
+        fetcher,
+        credentials: 'same-origin',
+        method: logoutToken ? 'POST' : 'GET',
+        csrf: logoutToken,
+        maxBytes: 4096,
+        signal,
+      });
     } catch (error) {
-      if (error instanceof SessionClientError) throw error;
-      throw new SessionClientError();
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', externalAbort);
-      cancel();
+      throw new SessionClientError(
+        boundedReadFailure(error) === 'signed-out' ? 'signed-out' : 'unavailable',
+      );
     }
   }
   async function peek(signal?: AbortSignal): Promise<string> {
