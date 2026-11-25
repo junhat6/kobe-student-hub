@@ -144,10 +144,11 @@ describe('independent ordinary-registration transport QA', () => {
     );
     await vi.advanceTimersByTimeAsync(10000);
     await rejected;
+    // The enrollment read needs no proof before it is sent (#272), so the deadline falls on EOF.
     expect(calls.map((call) => call.path)).toEqual([
       '/api/private/session',
-      '/api/private/session',
       '/api/private/enrollment',
+      '/api/private/session',
       '/api/private/session',
     ]);
     expect(calls.every((call) => call.signal?.aborted)).toBe(true);
@@ -155,7 +156,7 @@ describe('independent ordinary-registration transport QA', () => {
     expect(calls).toHaveLength(4);
   });
 
-  for (const lostAt of [3, 4])
+  for (const lostAt of [2, 3])
     it(`reports confirmed sign-out at session proof ${lostAt} without returning enrollment data`, async () => {
       let proofs = 0,
         enrollments = 0;
@@ -177,10 +178,10 @@ describe('independent ordinary-registration transport QA', () => {
     const fetcher = (async (path: unknown) => {
       if (path !== '/api/private/session') return Response.json(own);
       // From the final proof on, every attempt fails (a single drop is retried, #246).
-      if (++proofs >= 4) throw Error('PRIVATE_PROVIDER_RESPONSE');
+      if (++proofs >= 3) throw Error('PRIVATE_PROVIDER_RESPONSE');
       return Response.json({ csrfToken: csrf });
     }) as typeof fetch;
     await expectFailure(createRegistrationClient({ origin, fetcher }).inspect(), 'unavailable');
-    expect(proofs).toBe(6);
+    expect(proofs).toBe(5);
   });
 });

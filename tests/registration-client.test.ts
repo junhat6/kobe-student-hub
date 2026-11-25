@@ -435,7 +435,7 @@ describe('ordinary registration browser client', () => {
 });
 
 describe('registration return inspection', () => {
-  it('returns only a strict enrollment DTO after session proof before headers and at EOF', async () => {
+  it('returns only a strict enrollment DTO after the initial session proof, after headers and at EOF', async () => {
     const calls: Call[] = [];
     const fetcher = vi.fn(async (path: unknown, init?: RequestInit) => {
       calls.push({ path: String(path), init });
@@ -445,7 +445,6 @@ describe('registration return inspection', () => {
       await createRegistrationClient({ origin, fetcher: fetcher as typeof fetch }).inspect(),
     ).toEqual({ csrfToken: csrf, ...own });
     expect(calls.map((call) => call.path)).toEqual([
-      '/api/private/session',
       '/api/private/session',
       '/api/private/enrollment',
       '/api/private/session',
@@ -545,7 +544,7 @@ describe('registration return inspection', () => {
       fetcher: (async (path) => {
         if (path === '/api/private/session') {
           const response = Response.json({ csrfToken: current });
-          if (++proofs === 3) ready();
+          if (++proofs === 2) ready();
           return response;
         }
         return new Response(body, { headers: { 'Content-Type': 'application/json' } });
@@ -556,7 +555,7 @@ describe('registration return inspection', () => {
     current = otherCsrf;
     finish();
     await rejected;
-    expect(proofs).toBe(4);
+    expect(proofs).toBe(3);
   });
 
   it('bounds an unfinished inspection body and honors cancellation without disclosure', async () => {
@@ -617,7 +616,7 @@ describe('registration return inspection', () => {
       fetcher: (async (path, init) => {
         if (path === '/api/private/session') {
           const response = Response.json({ csrfToken: csrf });
-          if (++proofs === 3) ready();
+          if (++proofs === 2) ready();
           return response;
         }
         enrollmentSignal = init?.signal as AbortSignal;

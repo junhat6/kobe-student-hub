@@ -10,7 +10,7 @@ it('does not expose a private image Blob if the session changes at the guarded E
     unknown = vi.fn();
   const fetcher: typeof fetch = async (input) =>
     String(input) === '/api/private/session'
-      ? Response.json({ csrfToken: ++checks < 3 ? A : B })
+      ? Response.json({ csrfToken: ++checks < 2 ? A : B })
       : new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } });
   const guard = createAuthorSessionGuard({
     csrfToken: A,
@@ -20,7 +20,8 @@ it('does not expose a private image Blob if the session changes at the guarded E
     onUnverified: unknown,
   });
   await expect(createMediaClient(A, guard.fetcher).read(id)).rejects.toThrow();
-  expect(checks).toBe(3);
+  // Post-header (A) then EOF (B): a read needs no proof before it is sent (#272).
+  expect(checks).toBe(2);
   expect(mismatch).toHaveBeenCalledWith('changed');
 });
 it('consumes the complete bounded private body and all session proofs before returning a Blob', async () => {
@@ -48,7 +49,6 @@ it('consumes the complete bounded private body and all session proofs before ret
   expect(blob.size).toBe(3);
   expect(blob.type).toBe('image/png');
   expect(paths).toEqual([
-    '/api/private/session',
     '/api/private/media/' + id,
     '/api/private/session',
     '/api/private/session',

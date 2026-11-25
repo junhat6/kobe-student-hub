@@ -8,6 +8,22 @@ const A = 'a'.repeat(43),
   B = 'b'.repeat(43),
   origin = 'https://app.example.invalid';
 afterEach(() => vi.useRealTimers());
+function guardRequest(input: string | Request, init?: RequestInit) {
+  const paths: string[] = [];
+  const guard = createAuthorSessionGuard({
+    csrfToken: A,
+    origin,
+    onMismatch: vi.fn(),
+    onUnverified: vi.fn(),
+    fetcher: (async (path: string | Request) => {
+      const p = typeof path === 'string' ? path : new URL(path.url).pathname;
+      paths.push(p);
+      return p === '/api/private/session' ? Response.json({ csrfToken: A }) : Response.json({});
+    }) as unknown as typeof fetch,
+  });
+  const done = guard.fetcher(input, init).then((response) => response.text());
+  return { paths, done };
+}
 describe('existing session browser client and author response-consumption guard', () => {
   it('only checks an existing cookie and posts empty-body CSRF logout without identity fields', async () => {
     const calls: { path: unknown; init: RequestInit | undefined }[] = [];
@@ -78,7 +94,7 @@ describe('existing session browser client and author response-consumption guard'
     await vi.advanceTimersByTimeAsync(1);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
-  it('verifies before headers and after EOF without adding tokens to URLs or payloads', async () => {
+  it('verifies a read after headers and after EOF without adding tokens to URLs or payloads', async () => {
     const calls: { path: unknown; init: RequestInit | undefined }[] = [];
     const guard = createAuthorSessionGuard({
       csrfToken: A,
@@ -93,10 +109,10 @@ describe('existing session browser client and author response-consumption guard'
       }) as typeof fetch,
     });
     const response = await guard.fetcher('/api/private/drafts');
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
     expect(await response.json()).toEqual({ value: 'private response' });
+    // A read needs no proof before it is sent (#272): the post-header proof catches any change.
     expect(calls.map((c) => c.path)).toEqual([
-      '/api/private/session',
       '/api/private/drafts',
       '/api/private/session',
       '/api/private/session',
@@ -186,11 +202,12 @@ describe('existing session browser client and author response-consumption guard'
     expect(mismatch).not.toHaveBeenCalled();
     expect(unknown).not.toHaveBeenCalled();
   });
-  it('distinguishes confirmed sign-out from an unverified network failure and sends no private request', async () => {
+  it('distinguishes confirmed sign-out from an unverified network failure and sends no private write', async () => {
     for (const signedOut of [true, false]) {
       const mismatch = vi.fn(),
         unknown = vi.fn();
-      const fetcher = vi.fn(async (_path: string) => {
+      const fetcher = vi.fn(async (path: string) => {
+        if (path !== '/api/private/session') throw new Error('write must not be sent');
         if (signedOut) return new Response('', { status: 401 });
         throw new Error('PRIVATE_NETWORK');
       });
@@ -202,7 +219,9 @@ describe('existing session browser client and author response-consumption guard'
         fetcher: fetcher as unknown as typeof fetch,
         retryDelays: [0, 0],
       });
-      await expect(guard.fetcher('/api/private/drafts')).rejects.toBeInstanceOf(SessionClientError);
+      await expect(
+        guard.fetcher('/api/private/drafts', { method: 'POST', body: '{}' }),
+      ).rejects.toBeInstanceOf(SessionClientError);
       // A 401 is final at once; a network failure re-asks only the read-only proof.
       expect(fetcher).toHaveBeenCalledTimes(signedOut ? 1 : 3);
       expect(fetcher.mock.calls.every(([path]) => path === '/api/private/session')).toBe(true);
@@ -213,6 +232,46 @@ describe('existing session browser client and author response-consumption guard'
         expect(unknown).toHaveBeenCalledTimes(1);
         expect(mismatch).not.toHaveBeenCalled();
       }
+    }
+  });
+  it('sends a read at once but hands out nothing when the session changed or ended before it (#272)', async () => {
+    for (const kind of ['changed', 'signed-out'] as const) {
+      const mismatch = vi.fn(),
+        unknown = vi.fn();
+      const paths: string[] = [];
+      const guard = createAuthorSessionGuard({
+        csrfToken: A,
+        origin,
+        onMismatch: mismatch,
+        onUnverified: unknown,
+        fetcher: (async (path: string) => {
+          paths.push(path);
+          if (kind === 'signed-out') return new Response('', { status: 401 });
+          return path === '/api/private/session'
+            ? Response.json({ csrfToken: B })
+            : Response.json({ secret: 'B data' });
+        }) as unknown as typeof fetch,
+      });
+      await expect(guard.fetcher('/api/private/drafts')).rejects.toBeInstanceOf(SessionClientError);
+      expect(paths).toEqual(['/api/private/drafts', '/api/private/session']);
+      expect(mismatch).toHaveBeenCalledExactlyOnceWith(kind);
+      expect(unknown).not.toHaveBeenCalled();
+    }
+  });
+  it('proves every non-read method before sending it, whether given by init or by a Request', async () => {
+    for (const make of [
+      (m: string) => guardRequest('/api/private/drafts', { method: m }),
+      (m: string) => guardRequest(new Request(origin + '/api/private/drafts', { method: m })),
+    ])
+      for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'post']) {
+        const { paths, done } = make(method);
+        await done;
+        expect(paths[0]).toBe('/api/private/session');
+      }
+    for (const method of ['GET', 'HEAD', 'get']) {
+      const { paths, done } = guardRequest('/api/private/drafts', { method });
+      await done;
+      expect(paths[0]).toBe('/api/private/drafts');
     }
   });
   it('propagates an SDK abort to raw proof lookups and refuses foreign URLs', async () => {
@@ -230,7 +289,10 @@ describe('existing session browser client and author response-consumption guard'
       onUnverified: unverified,
       fetcher: raw,
     });
-    const pending = guard.fetcher('/api/private/drafts', { signal: controller.signal });
+    const pending = guard.fetcher('/api/private/drafts', {
+      method: 'POST',
+      signal: controller.signal,
+    });
     const rejected = expect(pending).rejects.toBeInstanceOf(SessionClientError);
     await vi.waitFor(() => expect(proofSignal).toBeDefined());
     controller.abort();
@@ -340,11 +402,11 @@ describe('existing session browser client and author response-consumption guard'
     expect(await Promise.all(responses.map((r) => r.json()))).toEqual(
       paths.map((path) => ({ path })),
     );
-    // The first proof is one request, sent before any private read and after all three asked.
-    expect(order.slice(0, 2)).toEqual(['/api/private/session', paths[0]]);
+    // The reads go out at once; their post-header proofs share one request sent after all asked.
+    expect(order.slice(0, 4)).toEqual([...paths, '/api/private/session']);
     const proofs = order.filter((path) => path === '/api/private/session').length;
-    expect(proofs).toBeLessThan(3 * paths.length);
-    expect(proofs).toBeGreaterThanOrEqual(3);
+    expect(proofs).toBeLessThan(2 * paths.length);
+    expect(proofs).toBeGreaterThanOrEqual(2);
     guard.invalidate();
   });
   it('never answers a proof asked after the shared request was sent with that earlier request', async () => {
@@ -383,7 +445,7 @@ describe('existing session browser client and author response-consumption guard'
     const fetcher = vi.fn(async (path: string, init?: RequestInit) => {
       if (path !== '/api/private/session') return Response.json({ ok: true });
       signals.push(init!.signal!);
-      if (signals.length === 1 || signals.length > 3)
+      if (signals.length === 1 || signals.length > 2)
         await new Promise<void>((resolve) => (release = resolve));
       return Response.json({ csrfToken: A });
     });
@@ -411,10 +473,10 @@ describe('existing session browser client and author response-consumption guard'
       guard.fetcher('/api/private/drafts', { signal: all.signal }),
       guard.fetcher('/api/private/profile', { signal: all.signal }),
     ];
-    await vi.waitFor(() => expect(signals).toHaveLength(4));
+    await vi.waitFor(() => expect(signals).toHaveLength(3));
     all.abort();
     for (const request of pending) await expect(request).rejects.toBeInstanceOf(SessionClientError);
-    expect(signals[3].aborted).toBe(true);
+    expect(signals[2].aborted).toBe(true);
     expect(unverified).not.toHaveBeenCalled();
   });
   it('sends no proof for a batch everyone left before it was sent, and leaves no timer behind', async () => {
@@ -432,8 +494,10 @@ describe('existing session browser client and author response-consumption guard'
       fetcher: fetcher as unknown as typeof fetch,
     };
     const before = createAuthorSessionGuard(options);
+    // Writes, so each asks a proof before it is sent.
+    const write = { method: 'POST' };
     const early = [1, 2, 3].map((i) =>
-      expect(before.fetcher('/api/private/' + i)).rejects.toBeInstanceOf(SessionClientError),
+      expect(before.fetcher('/api/private/' + i, write)).rejects.toBeInstanceOf(SessionClientError),
     );
     before.invalidate();
     await Promise.all(early);
@@ -442,7 +506,7 @@ describe('existing session browser client and author response-consumption guard'
     expect(vi.getTimerCount()).toBe(0);
     const after = createAuthorSessionGuard(options);
     const late = [1, 2, 3].map((i) =>
-      expect(after.fetcher('/api/private/' + i)).rejects.toBeInstanceOf(SessionClientError),
+      expect(after.fetcher('/api/private/' + i, write)).rejects.toBeInstanceOf(SessionClientError),
     );
     await vi.advanceTimersByTimeAsync(1);
     expect(signals).toHaveLength(1);
@@ -493,8 +557,8 @@ describe('existing session browser client and author response-consumption guard'
     const unknown = vi.fn();
     const fetcher = vi.fn(async (path: string) => {
       if (path !== '/api/private/session') return Response.json({ ok: true });
-      // The EOF proof (third) never answers until released.
-      if (++proofs === 3) await new Promise<void>((resolve) => (hold = resolve));
+      // The EOF proof (second) never answers until released.
+      if (++proofs === 2) await new Promise<void>((resolve) => (hold = resolve));
       return Response.json({ csrfToken: A });
     });
     const guard = createAuthorSessionGuard({

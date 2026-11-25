@@ -176,6 +176,13 @@ interface GuardOptions {
  * A UI-consumption guard, not authentication. Bytes may reach an SDK's temporary
  * buffer, but EOF is withheld until its session proof matches. Existing server
  * CSRF/ownership checks remain mandatory and abort cannot undo a committed write.
+ *
+ * Proofs per request (#272): a write is proved before it is sent, so it never leaves under a
+ * session that already changed. A read (GET/HEAD) is sent at once: a proof before it could not
+ * stop anything the post-header proof does not, because that proof is asked only after the
+ * server has read the cookie, so any change before or during the read fails it before the
+ * status, headers or body reach the caller (A→B→A between proofs passes either way). Every
+ * request keeps the post-header proof and the EOF proof.
  */
 export function createAuthorSessionGuard({
   csrfToken,
@@ -337,8 +344,11 @@ export function createAuthorSessionGuard({
       else void upstream?.body?.cancel().catch(() => {});
     };
     try {
+      const method = (
+        init?.method ?? (input instanceof Request ? input.method : 'GET')
+      ).toUpperCase();
       const headers = (async () => {
-        await verify(controller.signal);
+        if (method !== 'GET' && method !== 'HEAD') await verify(controller.signal);
         if (!valid) throw new SessionClientError();
         upstream = await fetcher(input, {
           ...init,
