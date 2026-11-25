@@ -24,7 +24,7 @@ import {
 type Op = {
   id: string;
   class: string;
-  tool?: string;
+  tool?: string | string[];
   api?: string[];
   pages?: string[];
   d1?: string[];
@@ -37,7 +37,7 @@ const hook = (tool_name: string, tool_input: Record<string, unknown>) =>
 
 describe('MCP 対応表（docs/loop/mcp-coverage.json）', () => {
   it('公式 MCP の全ツールが、ちょうど1つの操作の tool に現れる', () => {
-    const named = coverage.ops.filter((o) => o.tool).map((o) => o.tool);
+    const named = coverage.ops.flatMap((o) => (o.tool ? [o.tool].flat() : []));
     expect([...named].sort()).toEqual([...MCP_TOOL_NAMES].sort());
     for (const o of coverage.ops.filter((o) => o.tool)) expect(o.class).toBe('mcp');
   });

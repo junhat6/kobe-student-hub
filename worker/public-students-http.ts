@@ -55,22 +55,39 @@ export function createPublicStudentHandler(
         return error(503);
       }
     try {
-      const [a, p] = await Promise.all([
-        articles.readPublishedAuthorSelection(matched[1]),
-        projects.readAuthorSelection(matched[1]),
-      ]);
-      if (a === null || p === null) return error(503);
-      const author = a.author ?? p.author;
-      if (!author || (!a.entries.length && !p.projects.length)) return error(404);
-      if (a.author && p.author && JSON.stringify(a.author) !== JSON.stringify(p.author))
-        return error(503);
-      const avatar = await avatars.readPublicPath(author.id);
-      const value: PublicStudent = { author, avatar, entries: a.entries, projects: p.projects };
-      const body = JSON.stringify(value);
+      const value = await readPublicStudent(articles, projects, matched[1]);
+      if (value === 'missing') return error(404);
+      if (value === null) return error(503);
+      const student: PublicStudent = {
+        ...value,
+        avatar: await avatars.readPublicPath(value.author.id),
+      };
+      const body = JSON.stringify(student);
       if (new TextEncoder().encode(body).byteLength > 262144) return error(503);
       return new Response(body, { headers });
     } catch {
       return error(503);
     }
   };
+}
+
+/**
+ * The public student page without the icon: the same bounded article and project selections and
+ * the same consistency check for /api/students and the MCP get_student tool (#294).
+ * 'missing' when nothing is public; null when a selection failed (never shown as empty).
+ */
+export async function readPublicStudent(
+  articles: ArticlePublicationStore,
+  projects: ProjectStore,
+  id: string,
+): Promise<Omit<PublicStudent, 'avatar'> | 'missing' | null> {
+  const [a, p] = await Promise.all([
+    articles.readPublishedAuthorSelection(id),
+    projects.readAuthorSelection(id),
+  ]);
+  if (a === null || p === null) return null;
+  const author = a.author ?? p.author;
+  if (!author || (!a.entries.length && !p.projects.length)) return 'missing';
+  if (a.author && p.author && JSON.stringify(a.author) !== JSON.stringify(p.author)) return null;
+  return { author, entries: a.entries, projects: p.projects };
 }

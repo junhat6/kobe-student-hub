@@ -3,7 +3,7 @@
   "updated": "2026-11-25",
   "purpose": "hub の操作ごとに、公式 MCP（/api/mcp）でできるか・足してよいか・人だけかを決めた対応表（MCP 対応表）。公式 MCP 以外の経路（ブラウザ操作・画面の手作業・直接の API・リモート D1）で hub を操作した出来事は、ここの操作 ID で記録され（scripts/loop/mcp-gap.mjs）、class に従って改善の待ち行列に乗る。仕組みは LOOPS.md §7「MCP 育成の流れ」。",
   "classes": {
-    "mcp": "MCP にある（tool に名前）。別経路で行われたら『MCP にあるのに使われなかった』＝接続・説明・ツールの使い勝手の問題として loop:garden に積む",
+    "mcp": "MCP にある（tool に名前。1つの操作を複数のツールで担うときは名前の配列）。別経路で行われたら『MCP にあるのに使われなかった』＝接続・説明・ツールの使い勝手の問題として loop:garden に積む",
     "gap": "MCP に足してよい（恒久条件と C21 の境界の考え方に沿う）。loop:finish・R2 の Issue になり、finish が実装する。足したら builder が class を mcp にして tool を書き、C21 acceptance 4 への追記を replan に頼む",
     "excluded": "C21・C23 の受け入れ条件が『MCP には置かない』と名指ししている。Issue は replan の判断待ち（ラベル mcp-gap のみ）。replan が DECISIONS に理由を書いて gap に移すまで実装しない",
     "operator": "運営者だけの操作。学生向けの MCP には置かない。運営用の接続を別に設けるかは replan が判断する（ラベル mcp-gap のみ）",
@@ -35,7 +35,8 @@
     {
       "id": "public.browse",
       "label": "公開の作品・学生のページを読む",
-      "class": "gap",
+      "class": "mcp",
+      "tool": ["list_recent_projects", "get_project", "get_student"],
       "basis": "公開 DTO だけを返す読み取りで、C21 の境界の考え方（公開 DTO のみ）に沿う",
       "api": ["GET /api/projects", "GET /api/students", "GET /api/authors"],
       "pages": ["/works", "/projects/:id", "/students/:id"]

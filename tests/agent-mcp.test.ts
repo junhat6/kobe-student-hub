@@ -499,10 +499,13 @@ describe('MCP tools as the connected student', () => {
       'get_my_draft',
       'get_my_taste',
       'get_my_taste_materials',
+      'get_project',
+      'get_student',
       'get_writing_guide',
       'list_my_drafts',
       'list_my_projects',
       'list_recent_articles',
+      'list_recent_projects',
       'replace_my_taste',
       'update_draft',
       'update_published_article',
@@ -1017,6 +1020,142 @@ describe('project journal drafts (#276): own projects only, linked when the stud
     const none = await tool((await connect('a')).access_token, 'list_my_projects');
     expect(none.structuredContent!.projects).toEqual([]);
     expect(none.content[0].text).toContain('公開中の作品はまだありません');
+  });
+
+  it('reads public projects and student pages as public DTOs only, read-only (#294)', async () => {
+    const c = await connect('a');
+    const tools = (await rpc(c.access_token, 'tools/list')).json.result.tools as {
+      name: string;
+      annotations: { readOnlyHint: boolean };
+    }[];
+    for (const name of ['list_recent_projects', 'get_project', 'get_student'])
+      expect(tools.find((t) => t.name === name)?.annotations.readOnlyHint, name).toBe(true);
+
+    const recent = await tool(c.access_token, 'list_recent_projects');
+    expect(recent.isError).toBeUndefined();
+    const items = recent.structuredContent!.projects as Record<string, unknown>[];
+    const ids = items.map((p) => p.id);
+    expect(ids).toEqual(expect.arrayContaining([mine, other]));
+    expect(ids).not.toContain(hidden);
+    for (const item of items)
+      expect(Object.keys(item).sort()).toEqual(
+        [
+          'author',
+          'authorId',
+          'descriptionPreview',
+          'id',
+          'publishedOn',
+          'stage',
+          'title',
+          'url',
+        ].sort(),
+      );
+    expect(items.find((p) => p.id === other)).toMatchObject({
+      title: '他人の作品',
+      author: '公開名J',
+      authorId: 'pub-j',
+      url: ORIGIN + '/projects/' + other,
+    });
+
+    const page = await tool(c.access_token, 'get_project', {
+      id: ORIGIN + '/projects/' + other + '?x=1',
+    });
+    expect(page.isError).toBeUndefined();
+    expect(Object.keys(page.structuredContent!).sort()).toEqual([
+      'articles',
+      'author',
+      'journal',
+      'project',
+    ]);
+    expect(Object.keys(page.structuredContent!.project).sort()).toEqual(
+      [
+        'demoUrl',
+        'description',
+        'githubUrl',
+        'id',
+        'publishedOn',
+        'stage',
+        'technologies',
+        'title',
+        'url',
+      ].sort(),
+    );
+    expect(page.structuredContent!.author).toEqual({
+      id: 'pub-j',
+      name: '公開名J',
+      url: ORIGIN + '/students/pub-j',
+    });
+    expect(page.content[0].text).toContain(
+      `出典: Kobe Student Hub（学生の作品） ${ORIGIN}/projects/${other}`,
+    );
+    expect(
+      (await tool(c.access_token, 'get_project', { id: other })).structuredContent!.project.id,
+    ).toBe(other);
+    for (const id of [hidden, '00000000-0000-4000-8000-000000000000', 'not-a-uuid']) {
+      const r = await tool(c.access_token, 'get_project', { id });
+      expect(r.isError, id).toBe(true);
+      expect(r.structuredContent).toBeUndefined();
+    }
+
+    const student = await tool(c.access_token, 'get_student', {
+      id: ORIGIN + '/students/pub-i?from=%2Fworks',
+    });
+    expect(student.isError).toBeUndefined();
+    expect(Object.keys(student.structuredContent!).sort()).toEqual([
+      'articles',
+      'projects',
+      'student',
+    ]);
+    expect(student.structuredContent!.student).toEqual({
+      id: 'pub-i',
+      name: '公開名I',
+      department: '分野',
+      year: '学年',
+      bio: '自己紹介',
+      url: ORIGIN + '/students/pub-i',
+    });
+    const own = student.structuredContent!.projects as Record<string, unknown>[];
+    expect(own.map((p) => p.id)).toContain(mine);
+    expect(own.map((p) => p.id)).not.toContain(hidden);
+    for (const item of own)
+      expect(Object.keys(item).sort()).toEqual([
+        'descriptionPreview',
+        'id',
+        'publishedOn',
+        'stage',
+        'title',
+        'url',
+      ]);
+    for (const item of student.structuredContent!.articles as Record<string, unknown>[])
+      expect(Object.keys(item).sort()).toEqual([
+        'id',
+        'summary',
+        'tags',
+        'title',
+        'updatedAt',
+        'url',
+      ]);
+    // Sample authors, private account ids and unknown ids are not public student pages.
+    for (const id of ['sample-a', 'account-i', 'pub-nobody', '../pub-i']) {
+      const r = await tool(c.access_token, 'get_student', { id });
+      expect(r.isError, id).toBe(true);
+      expect(r.structuredContent).toBeUndefined();
+    }
+
+    const leaks = JSON.stringify([recent, page, student]);
+    for (const leaked of ['@st.kobedenshi.ac.jp', 'account-', 'subject-', '止めた自分の作品'])
+      expect(leaks).not.toContain(leaked);
+
+    // Only the declared input: one bounded id, no extra keys; list takes no arguments.
+    for (const [name, args] of [
+      ['get_project', { id: other, include: 'drafts' }],
+      ['get_student', { id: 'x'.repeat(2049) }],
+      ['get_student', { id: 7 }],
+      ['list_recent_projects', { limit: 100 }],
+    ] as const) {
+      const bad = await rpc(c.access_token, 'tools/call', { name, arguments: args });
+      expect([bad.status, bad.json.error?.code], name).toEqual([400, -32602]);
+    }
   });
 
   it("refuses another student's, a stopped or a missing project and saves nothing", async () => {
