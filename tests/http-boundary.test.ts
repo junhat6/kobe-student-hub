@@ -255,6 +255,13 @@ describe('the image upload routes keep no copy of their own (#295)', () => {
     expect(source).toContain(`readBoundedImage(request, ${limit})`);
     expect(source).not.toContain('getReader(');
     expect(source).not.toContain("'image/jpeg'");
+    // The body is read only after authorization: one read, placed after the one authorizeUpload
+    // call. A 404 status test cannot see a read hoisted above it whose result is used later.
+    expect(source.split('readBoundedImage(request').length - 1).toBe(1);
+    expect(source.split('authorizeUpload(').length - 1).toBe(1);
+    expect(source.indexOf('authorizeUpload(')).toBeLessThan(
+      source.indexOf('readBoundedImage(request'),
+    );
   });
 });
 
