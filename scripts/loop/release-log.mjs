@@ -86,7 +86,11 @@ export function openTrain(records, date = new Date()) {
   const t = lastDeparted(date);
   const mine = records
     .filter((r) => r.train?.slot === t.slot)
-    .sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+    // 終わった順に並べる。長い便の途中で別の agent が短い見送り（rc_running）を残しても、
+    // 後で終わった released が最後になるように（開始順だと見送りが最後に見えて、出た便を続けようとする）
+    .sort(
+      (a, b) => Date.parse(a.finishedAt ?? a.startedAt) - Date.parse(b.finishedAt ?? b.startedAt),
+    );
   const last = mine.at(-1);
   if (!last) return undefined;
   const ok = OUTCOMES[last.outcome]?.ok;

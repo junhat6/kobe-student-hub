@@ -238,8 +238,29 @@ describe('unfinished trains (2026-11-24: a train runs until it ships)', () => {
   });
 
   it('a later success closes the train', () => {
-    const late = rec('released', { startedAt: '2026-11-24T13:00:00.000Z' });
+    const late = rec('released', {
+      startedAt: '2026-11-24T13:00:00.000Z',
+      finishedAt: '2026-11-24T13:30:00.000Z',
+    });
     expect(openTrain([late, rec('ci_failed')], jst('2026-11-24T23:00:00'))).toBeUndefined();
+  });
+
+  it('orders by finish: a short rc_running skip inside a long released run does not reopen the train', () => {
+    // 2026-11-25 夜便: 22:02 開始の便が 22:30 に released。その CI 中の 22:11 に別の agent が rc_running で見送った
+    const released = rec('released', {
+      startedAt: '2026-11-25T13:02:00.000Z',
+      finishedAt: '2026-11-25T13:30:00.000Z',
+    });
+    const skip = rec('skipped', {
+      blocker: 'rc_running',
+      startedAt: '2026-11-25T13:11:00.000Z',
+      finishedAt: '2026-11-25T13:11:00.000Z',
+    });
+    const at = jst('2026-11-25T00:00:00');
+    expect(openTrain([released, skip], at)).toBeUndefined();
+    expect(releaseWake(at, { records: [released, skip], busy: '', followupMin: 90 }).wake).toBe(
+      false,
+    );
   });
 
   it('the next departure hands over: the old train is no longer continued', () => {
