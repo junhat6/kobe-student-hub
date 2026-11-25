@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   BoundedReadError,
   boundedReadFailure,
+  decodeBoundedJson,
+  readBoundedBody,
   readBoundedBytes,
   readBoundedJson,
   readBoundedJsonResponse,
@@ -433,5 +435,74 @@ describe('readBoundedJson — the one bounded transport', () => {
       }),
     ).rejects.toBeInstanceOf(BoundedReadError);
     expect(never).not.toHaveBeenCalled();
+  });
+});
+
+describe('readBoundedBody — the one bounded body reader', () => {
+  const live = () => new AbortController().signal;
+  const bytes = (n: number) => new Uint8Array(n).fill(0x61);
+
+  it('returns the streamed bytes within the caps and decodes JSON fatally', async () => {
+    const got = await readBoundedBody(streamed([bytes(3), bytes(2)]), {
+      maxBytes: 5,
+      maxChunks: 2,
+      signal: live(),
+    });
+    expect([...got]).toEqual([0x61, 0x61, 0x61, 0x61, 0x61]);
+    expect(decodeBoundedJson(new TextEncoder().encode('{"a":1}'))).toEqual({ a: 1 });
+    for (const bad of [new Uint8Array([0xff]), new TextEncoder().encode('{')])
+      expect(() => decodeBoundedJson(bad)).toThrow(BoundedReadError);
+  });
+
+  it('refuses a body over the byte or chunk cap, a bad or too large Content-Length, and a short body', async () => {
+    const cases: [Response, Parameters<typeof readBoundedBody>[1]][] = [
+      [streamed([bytes(6)]), { maxBytes: 5, signal: live() }],
+      [streamed([bytes(1), bytes(1), bytes(1)]), { maxBytes: 5, maxChunks: 2, signal: live() }],
+      [json('{}', { headers: { 'Content-Length': '6' } }), { maxBytes: 5, signal: live() }],
+      [json('{}', { headers: { 'Content-Length': '+2' } }), { maxBytes: 5, signal: live() }],
+      [
+        json('{}', { headers: { 'Content-Length': '3' } }),
+        { maxBytes: 5, exactLength: true, signal: live() },
+      ],
+      [new Response(null), { maxBytes: 5, signal: live() }],
+      [json('{}'), { maxBytes: 0, signal: live() }],
+      [json('{}'), { maxBytes: 2097153, signal: live() }],
+    ];
+    for (const [response, request] of cases)
+      await expect(readBoundedBody(response, request)).rejects.toBeInstanceOf(BoundedReadError);
+    // Without exactLength a shorter body than Content-Length is still within the cap.
+    expect(
+      (
+        await readBoundedBody(json('{}', { headers: { 'Content-Length': '3' } }), {
+          maxBytes: 5,
+          signal: live(),
+        })
+      ).byteLength,
+    ).toBe(2);
+  });
+
+  it('cancels the stream when the caller aborts mid-read and never returns the partial body', async () => {
+    const controller = new AbortController();
+    let cancelled = false;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(bytes(1));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+    );
+    const read = readBoundedBody(response, { maxBytes: 64, signal: controller.signal });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+    await expect(read).rejects.toBeInstanceOf(BoundedReadError);
+    expect(cancelled).toBe(true);
+    const before = new AbortController();
+    before.abort();
+    await expect(
+      readBoundedBody(json('{}'), { maxBytes: 64, signal: before.signal }),
+    ).rejects.toBeInstanceOf(BoundedReadError);
   });
 });

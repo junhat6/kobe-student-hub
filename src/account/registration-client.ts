@@ -1,4 +1,5 @@
 import { proofAuthorization } from '../shared/auth-proof';
+import { decodeBoundedJson, readBoundedBody } from '../shared/http-client';
 import {
   canonicalEnrollmentYears,
   type EnrollmentYears,
@@ -34,7 +35,6 @@ const keys = (value: unknown, wanted: readonly string[]): value is Record<string
   wanted.every((key) => Object.hasOwn(value, key));
 interface Operation {
   signal: AbortSignal;
-  readers: Set<ReadableStreamDefaultReader<Uint8Array>>;
 }
 
 /** A bounded browser transport only. It neither navigates nor stores identity/proofs/years. */
@@ -61,14 +61,11 @@ export function createRegistrationClient({
     signal: AbortSignal | undefined,
     run: (operation: Operation) => Promise<T>,
   ): Promise<T> {
-    const controller = new AbortController(),
-      readers = new Set<ReadableStreamDefaultReader<Uint8Array>>();
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let rejectAbort: (error: RegistrationClientError) => void = () => {};
-    const cancel = () => {
-      controller.abort();
-      for (const reader of readers) void reader.cancel().catch(() => {});
-    };
+    // Aborting also cancels any body readBoundedBody is streaming.
+    const cancel = () => controller.abort();
     const aborted = new Promise<never>((_, reject) => {
       rejectAbort = reject;
     });
@@ -86,7 +83,7 @@ export function createRegistrationClient({
     });
     const operation = (async () => {
       if (controller.signal.aborted) throw new RegistrationClientError(failure);
-      return run({ signal: controller.signal, readers });
+      return run({ signal: controller.signal });
     })();
     try {
       const result = await Promise.race([operation, deadline, aborted]);
@@ -145,38 +142,14 @@ export function createRegistrationClient({
       void result.body?.cancel().catch(() => {});
       throw new RegistrationClientError('unknown');
     }
-    const length = result.headers.get('Content-Length');
-    if (
-      length !== null &&
-      (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > LIMIT)
-    ) {
-      void result.body.cancel().catch(() => {});
-      throw new RegistrationClientError('unknown');
-    }
-    const reader = result.body.getReader();
-    operation.readers.add(reader);
-    try {
-      const bytes = new Uint8Array(LIMIT);
-      let size = 0,
-        count = 0;
-      for (;;) {
-        const part = await reader.read();
-        if (operation.signal.aborted) throw new RegistrationClientError('unknown');
-        if (part.done) break;
-        if (++count > MAX_CHUNKS || size + part.value.byteLength > LIMIT)
-          throw new RegistrationClientError('unknown');
-        bytes.set(part.value, size);
-        size += part.value.byteLength;
-      }
-      if (length !== null && Number(length) !== size) throw new RegistrationClientError('unknown');
-      return JSON.parse(
-        new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-      ) as unknown;
-    } finally {
-      operation.readers.delete(reader);
-      void reader.cancel().catch(() => {});
-      reader.releaseLock();
-    }
+    return decodeBoundedJson(
+      await readBoundedBody(result, {
+        maxBytes: LIMIT,
+        maxChunks: MAX_CHUNKS,
+        exactLength: true,
+        signal: operation.signal,
+      }),
+    );
   }
 
   function authorization(value: unknown): { authorizationUrl: string } {

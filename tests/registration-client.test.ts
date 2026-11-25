@@ -327,6 +327,37 @@ describe('ordinary registration browser client', () => {
     }
   });
 
+  it('rejects a valid command DTO only for its size: over 4096 bytes or not the declared length', async () => {
+    const dto = JSON.stringify({ commandToken: command });
+    const padded = (size: number) => dto + ' '.repeat(size - dto.length);
+    const jsonHeaders = { 'Content-Type': 'application/json' };
+    const accepted = successfulStart((path) =>
+      path.startsWith('/api/auth/command?')
+        ? new Response(padded(4096), { headers: jsonHeaders })
+        : undefined,
+    );
+    expect(await accepted.client.startRegistration(years)).toEqual({
+      authorizationUrl: authorizationUrl(),
+    });
+    for (const make of [
+      () => new Response(padded(4097), { headers: jsonHeaders }),
+      () =>
+        new Response(dto, {
+          headers: { ...jsonHeaders, 'Content-Length': String(dto.length + 1) },
+        }),
+      () =>
+        new Response(dto, {
+          headers: { ...jsonHeaders, 'Content-Length': String(dto.length - 1) },
+        }),
+    ]) {
+      const run = successfulStart((path) =>
+        path.startsWith('/api/auth/command?') ? make() : undefined,
+      );
+      await failure(run.client.startRegistration(years));
+      expect(run.calls).toHaveLength(2);
+    }
+  });
+
   it('bounds empty-chunk work and does not await stalled cancellation', async () => {
     let pulls = 0,
       cancelled = false;

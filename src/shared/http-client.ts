@@ -55,13 +55,14 @@ const MAX_BYTES = 2097152;
 const TIMEOUT_MS = 10000;
 
 const JSON_TYPE = /^application\/json(?:;|$)/i;
-const decodeJson = (bytes: Uint8Array): unknown => {
+/** Fatal UTF-8 then JSON.parse; a BoundedReadError('unavailable') on either failure. */
+export function decodeBoundedJson(bytes: Uint8Array): unknown {
   try {
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
   } catch {
     throw new BoundedReadError();
   }
-};
+}
 
 /**
  * The one bounded JSON transport for browser clients: no-store, no redirects, exact status,
@@ -89,7 +90,7 @@ export async function readBoundedJsonResponse(
   const answer = await readBounded(path, request, 'application/json', (type) =>
     JSON_TYPE.test(type),
   );
-  return { status: answer.status, value: decodeJson(answer.bytes) };
+  return { status: answer.status, value: decodeBoundedJson(answer.bytes) };
 }
 
 export type BoundedBytesRequest = Omit<BoundedJsonRequest, 'status' | 'body'> & {
@@ -112,6 +113,79 @@ export async function readBoundedBytes(
     types.includes(type),
   );
   return { bytes: answer.bytes, type: answer.type };
+}
+
+export interface BoundedBodyRequest {
+  /** Upper bound on the body (1..2097152), checked against Content-Length and the stream. */
+  maxBytes: number;
+  /** Upper bound on stream chunks (default min(maxBytes, 65536)). */
+  maxChunks?: number;
+  /** When the server sent Content-Length, require the streamed size to equal it. */
+  exactLength?: boolean;
+  /** Aborting cancels the stream and fails the read, even mid-chunk. */
+  signal: AbortSignal;
+}
+
+/**
+ * The one bounded reader of a response body, shared by this transport and by clients whose
+ * request side cannot use it (registration: manual redirects, URL check, a multi-step deadline).
+ * The status and Content-Type stay with the caller; this checks Content-Length (digits, at most
+ * maxBytes), the streamed size and chunk count, and the caller's abort. The body is always
+ * cancelled and released. Every failure is a BoundedReadError('unavailable').
+ */
+export async function readBoundedBody(
+  response: Response,
+  request: BoundedBodyRequest,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const { maxBytes, signal } = request;
+  const maxChunks = request.maxChunks ?? Math.min(maxBytes, 65536);
+  const body = response.body;
+  if (
+    !body ||
+    signal.aborted ||
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > MAX_BYTES ||
+    !Number.isSafeInteger(maxChunks) ||
+    maxChunks < 1
+  ) {
+    void body?.cancel().catch(() => {});
+    throw new BoundedReadError();
+  }
+  const length = response.headers.get('Content-Length');
+  if (
+    length !== null &&
+    (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > maxBytes)
+  ) {
+    void body.cancel().catch(() => {});
+    throw new BoundedReadError();
+  }
+  const reader = body.getReader();
+  const onAbort = () => void reader.cancel().catch(() => {});
+  signal.addEventListener('abort', onAbort, { once: true });
+  const bytes = new Uint8Array(maxBytes);
+  let size = 0,
+    count = 0;
+  try {
+    for (;;) {
+      const next = await reader.read();
+      if (signal.aborted) throw new BoundedReadError();
+      if (next.done) break;
+      if (++count > maxChunks || size + next.value.byteLength > bytes.length)
+        throw new BoundedReadError();
+      bytes.set(next.value, size);
+      size += next.value.byteLength;
+    }
+    if (request.exactLength && length !== null && Number(length) !== size)
+      throw new BoundedReadError();
+    return bytes.slice(0, size);
+  } catch {
+    throw new BoundedReadError();
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+    void reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 
 async function readBounded(
@@ -147,14 +221,10 @@ async function readBounded(
     throw new BoundedReadError();
   }
   const controller = new AbortController();
-  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let expired = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let rejectAbort: (error: BoundedReadError) => void = () => {};
-  const cancel = () => {
-    controller.abort();
-    if (reader) void reader.cancel().catch(() => {});
-  };
+  const cancel = () => controller.abort();
   const aborted = new Promise<never>((_, reject) => {
     rejectAbort = reject;
   });
@@ -201,40 +271,17 @@ async function readBounded(
                 : 'unavailable',
       );
     }
-    const length = response.headers.get('Content-Length');
-    if (
-      length !== null &&
-      (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > maxBytes)
-    ) {
-      void response.body.cancel().catch(() => {});
-      throw new BoundedReadError();
-    }
-    reader = response.body.getReader();
-    const bytes = new Uint8Array(maxBytes);
-    let size = 0,
-      count = 0;
-    try {
-      for (;;) {
-        const next = await reader.read();
-        if (expired || controller.signal.aborted) throw new BoundedReadError();
-        if (next.done) break;
-        if (++count > maxChunks || size + next.value.byteLength > bytes.length)
-          throw new BoundedReadError();
-        bytes.set(next.value, size);
-        size += next.value.byteLength;
-      }
-      if (request.exactLength && length !== null && Number(length) !== size)
-        throw new BoundedReadError();
-      return {
-        status: response.status,
-        type: response.headers.get('Content-Type') ?? '',
-        bytes: bytes.slice(0, size),
-      };
-    } finally {
-      void reader.cancel().catch(() => {});
-      reader.releaseLock();
-      reader = undefined;
-    }
+    const bytes = await readBoundedBody(response, {
+      maxBytes,
+      maxChunks,
+      exactLength: request.exactLength,
+      signal: controller.signal,
+    });
+    return {
+      status: response.status,
+      type: response.headers.get('Content-Type') ?? '',
+      bytes,
+    };
   })();
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
