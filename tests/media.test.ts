@@ -446,6 +446,10 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       [new Uint8Array([1, 2, 3]), 'image/png', 404],
     ] as const)
       expect((await upload(d, id(), bytes, 0, { 'Content-Type': type })).status).toBe(status);
+    // The shared upload reader's codes on this route (#295): one byte over the limit, empty, encoded.
+    expect((await upload(d, id(), new Uint8Array(MEDIA_MAX_BYTES + 1))).status).toBe(413);
+    expect((await upload(d, id(), new Uint8Array(0))).status).toBe(400);
+    expect((await upload(d, id(), png, 0, { 'Content-Encoding': 'gzip' })).status).toBe(415);
     for (const path of [
       '/api/media/' + id() + '?x=1',
       '/api/media/' + id() + '#private',

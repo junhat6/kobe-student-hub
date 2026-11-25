@@ -1,3 +1,4 @@
+import { readBoundedImage } from './http-boundary';
 import { MediaStore, warmMediaCodec } from './media';
 import { mediaId, MEDIA_MAX_BYTES } from '../src/shared/media';
 const security = {
@@ -12,65 +13,6 @@ const error = (status = 404) =>
     { error: status === 401 ? 'authentication_required' : 'media_unavailable' },
     { status, headers: security },
   );
-type Input = { bytes: Uint8Array<ArrayBuffer>; mime: string } | { status: number };
-async function input(request: Request): Promise<Input> {
-  const mime = request.headers.get('Content-Type');
-  if (mime !== 'image/jpeg' && mime !== 'image/png') return { status: 415 };
-  const encoding = request.headers.get('Content-Encoding');
-  if (encoding !== null && encoding !== 'identity') return { status: 415 };
-  const length = request.headers.get('Content-Length');
-  if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length))))
-    return { status: 400 };
-  if (length !== null && Number(length) > MEDIA_MAX_BYTES) {
-    void request.body?.cancel().catch(() => {});
-    return { status: 413 };
-  }
-  if (!request.body) return { status: 400 };
-  const reader = request.body.getReader();
-  let expired = false,
-    timer: ReturnType<typeof setTimeout> | undefined;
-  const cancel = () => {
-    void reader.cancel().catch(() => {});
-  };
-  const read = (async (): Promise<Input> => {
-    try {
-      const bytes = new Uint8Array(MEDIA_MAX_BYTES);
-      let size = 0,
-        count = 0;
-      for (;;) {
-        const next = await reader.read();
-        if (expired) return { status: 408 };
-        if (next.done) break;
-        if (++count > 4096 || size + next.value.byteLength > MEDIA_MAX_BYTES) {
-          cancel();
-          return { status: 413 };
-        }
-        bytes.set(next.value, size);
-        size += next.value.byteLength;
-      }
-      if (!size || (length !== null && Number(length) !== size)) return { status: 400 };
-      return { bytes: bytes.slice(0, size), mime };
-    } catch {
-      return { status: 400 };
-    } finally {
-      reader.releaseLock();
-    }
-  })();
-  try {
-    return await Promise.race([
-      read,
-      new Promise<Input>((resolve) => {
-        timer = setTimeout(() => {
-          expired = true;
-          cancel();
-          resolve({ status: 408 });
-        }, 5000);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 /** Mounted only by the existing ordinary participation source gate. No URL proxy or cookie fallback. */
 export function createMediaHandler(
   db: D1Database,
@@ -129,7 +71,7 @@ export function createMediaHandler(
           version = header && /^"[1-9]\d{0,15}"$/.test(header) ? Number(header.slice(1, -1)) : NaN;
         const kind = upload[1] as 'articles' | 'projects';
         if (!(await store.authorizeUpload(request, kind, upload[2], version))) return error();
-        const value = await input(request);
+        const value = await readBoundedImage(request, MEDIA_MAX_BYTES);
         if ('status' in value) return error(value.status);
         const result = await store.upload(
           request,

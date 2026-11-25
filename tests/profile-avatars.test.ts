@@ -4,6 +4,7 @@ import { beforeAll, afterAll, it, expect } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { encode as pngEncode } from 'fast-png';
 import jpeg from 'jpeg-js';
+import { AVATAR_MAX_BYTES } from '../src/shared/avatar';
 const O = 'https://app.example.invalid',
   NOW = 1800000000000;
 let mf: Miniflare, db: D1Database;
@@ -130,6 +131,11 @@ it('validates the image on the server: square, bounded, decodable PNG/JPEG only'
   expect((await put(new TextEncoder().encode('<svg/>'), 0, 'image/svg+xml')).status).toBe(415);
   expect((await put(new Uint8Array([137, 80, 78, 71, 1, 2, 3]))).status).toBe(422);
   expect((await put(new Uint8Array(70000).fill(1))).status).toBe(413);
+  // The shared upload reader's codes on this route (#295): one byte over the limit, empty, encoded.
+  expect((await put(new Uint8Array(AVATAR_MAX_BYTES + 1).fill(1))).status).toBe(413);
+  expect((await put(new Uint8Array(0))).status).toBe(400);
+  expect((await put(square(64), 0, 'image/png', { 'Content-Encoding': 'gzip' })).status).toBe(415);
+  expect((await put(square(64), 0, 'image/gif')).status).toBe(415);
   expect(await version()).toBeNull();
   const jpegResult = await put(jpg, 0, 'image/jpeg');
   expect(jpegResult.status).toBe(201);

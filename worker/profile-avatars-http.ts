@@ -1,3 +1,4 @@
+import { readBoundedImage } from './http-boundary';
 import { SessionStore } from './auth/sessions';
 import { ProfileAvatarStore } from './profile-avatars';
 import { warmMediaCodec } from './media';
@@ -21,65 +22,6 @@ const error = (status = 404) =>
   );
 const json = (value: unknown, status = 200) =>
   Response.json(value, { status, headers: { ...security, Vary: 'Cookie' } });
-type Input = { bytes: Uint8Array<ArrayBuffer>; mime: string } | { status: number };
-async function input(request: Request): Promise<Input> {
-  const mime = request.headers.get('Content-Type');
-  if (mime !== 'image/jpeg' && mime !== 'image/png') return { status: 415 };
-  const encoding = request.headers.get('Content-Encoding');
-  if (encoding !== null && encoding !== 'identity') return { status: 415 };
-  const length = request.headers.get('Content-Length');
-  if (length !== null && (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length))))
-    return { status: 400 };
-  if (length !== null && Number(length) > AVATAR_MAX_BYTES) {
-    void request.body?.cancel().catch(() => {});
-    return { status: 413 };
-  }
-  if (!request.body) return { status: 400 };
-  const reader = request.body.getReader();
-  let expired = false,
-    timer: ReturnType<typeof setTimeout> | undefined;
-  const cancel = () => {
-    void reader.cancel().catch(() => {});
-  };
-  const read = (async (): Promise<Input> => {
-    try {
-      const bytes = new Uint8Array(AVATAR_MAX_BYTES);
-      let size = 0,
-        count = 0;
-      for (;;) {
-        const next = await reader.read();
-        if (expired) return { status: 408 };
-        if (next.done) break;
-        if (++count > 4096 || size + next.value.byteLength > AVATAR_MAX_BYTES) {
-          cancel();
-          return { status: 413 };
-        }
-        bytes.set(next.value, size);
-        size += next.value.byteLength;
-      }
-      if (!size || (length !== null && Number(length) !== size)) return { status: 400 };
-      return { bytes: bytes.slice(0, size), mime };
-    } catch {
-      return { status: 400 };
-    } finally {
-      reader.releaseLock();
-    }
-  })();
-  try {
-    return await Promise.race([
-      read,
-      new Promise<Input>((resolve) => {
-        timer = setTimeout(() => {
-          expired = true;
-          cancel();
-          resolve({ status: 408 });
-        }, 5000);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 const ownImage = /^\/api\/private\/profile-avatar\/([0-9a-f]{16})$/;
 const publicImage = /^\/api\/profile-avatars\/([A-Za-z0-9][A-Za-z0-9_-]{0,127})\/([0-9a-f]{16})$/;
 /** Profile icon routes. Mounted only through the ordinary-authoring release gate. */
@@ -161,7 +103,7 @@ export function createProfileAvatarHandler(
       if (request.method === 'DELETE')
         return (await store.remove(request)) ? json({ avatar: null }) : error();
       if (!(await store.authorizeUpload(request))) return error();
-      const body = await input(request);
+      const body = await readBoundedImage(request, AVATAR_MAX_BYTES);
       if ('status' in body) return error(body.status);
       const result = await store.replace(request, body.bytes, body.mime);
       return result ? json(result, 201) : error(422);

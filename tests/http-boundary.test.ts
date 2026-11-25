@@ -1,6 +1,11 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canonicalOrigin, readBoundedJson } from '../worker/http-boundary';
+import {
+  canonicalOrigin,
+  IMAGE_BODY_MAX_CHUNKS,
+  readBoundedImage,
+  readBoundedJson,
+} from '../worker/http-boundary';
 
 const limits = { bytes: 64, chunks: 4 };
 const encoder = new TextEncoder();
@@ -148,6 +153,111 @@ describe('readBoundedJson — the one bounded JSON request reader (#283)', () =>
   });
 });
 
+describe('readBoundedImage — the one bounded image upload reader (#295)', () => {
+  const image = (body: BodyInit | null, headers: Record<string, string> = {}) =>
+    new Request('https://hub.example/api/private/x', {
+      method: 'PUT',
+      body,
+      headers: { 'Content-Type': 'image/png', ...headers },
+      // @ts-expect-error -- required by undici for a stream body
+      duplex: 'half',
+    });
+  const bytes = (size: number) => new Uint8Array(size).fill(7);
+
+  it('reads a body of exactly the byte limit and rejects one byte more with 413', async () => {
+    const result = await readBoundedImage(image(bytes(64)), 64);
+    expect(result).toEqual({ bytes: bytes(64), mime: 'image/png' });
+    expect(await readBoundedImage(image(bytes(65)), 64)).toEqual({ status: 413 });
+  });
+
+  it('keeps the Content-Type it accepted (jpeg and png only, exact match)', async () => {
+    expect(await readBoundedImage(image(bytes(3), { 'Content-Type': 'image/jpeg' }), 64)).toEqual({
+      bytes: bytes(3),
+      mime: 'image/jpeg',
+    });
+  });
+
+  it('answers 413 from the declared length alone, without waiting for the body', async () => {
+    const declared = image(stream([], { hang: true }), { 'Content-Length': '65' });
+    expect(await readBoundedImage(declared, 64)).toEqual({ status: 413 });
+    const exact = image(stream([bytes(64)]), { 'Content-Length': '64' });
+    expect('bytes' in (await readBoundedImage(exact, 64))).toBe(true);
+  });
+
+  it('rejects an undeclared streamed body that grows past the limit with 413', async () => {
+    expect(await readBoundedImage(image(stream([bytes(40), bytes(25)])), 64)).toEqual({
+      status: 413,
+    });
+  });
+
+  it('bounds chunk count (zero-byte chunks included) at 4096', async () => {
+    expect(IMAGE_BODY_MAX_CHUNKS).toBe(4096);
+    const parts = (n: number) => [
+      ...Array.from({ length: n - 1 }, () => new Uint8Array(0)),
+      bytes(1),
+    ];
+    expect('bytes' in (await readBoundedImage(image(stream(parts(4096))), 64))).toBe(true);
+    expect(await readBoundedImage(image(stream(parts(4097))), 64)).toEqual({ status: 413 });
+  });
+
+  it.each([
+    ['image/svg+xml', {}],
+    ['image/gif', {}],
+    ['text/plain', {}],
+    ['image/png; charset=utf-8', {}],
+    ['IMAGE/PNG', {}],
+    ['image/png', { 'Content-Encoding': 'gzip' }],
+    ['image/png', { 'Content-Encoding': 'Identity' }],
+  ])('answers 415 for Content-Type %j %j', async (type, extra) => {
+    expect(await readBoundedImage(image(bytes(3), { 'Content-Type': type, ...extra }), 64)).toEqual(
+      { status: 415 },
+    );
+  });
+
+  it('accepts an explicit identity Content-Encoding', async () => {
+    const r = await readBoundedImage(image(bytes(3), { 'Content-Encoding': 'identity' }), 64);
+    expect('bytes' in r).toBe(true);
+  });
+
+  it.each([
+    ['malformed Content-Length', () => image(stream([bytes(2)]), { 'Content-Length': '2x' })],
+    [
+      'Content-Length beyond a safe integer',
+      () => image(stream([bytes(2)]), { 'Content-Length': '99999999999999999999' }),
+    ],
+    ['mismatched Content-Length', () => image(stream([bytes(2)]), { 'Content-Length': '3' })],
+    ['missing body', () => image(null)],
+    ['empty body', () => image(new Uint8Array(0))],
+    ['empty stream', () => image(stream([new Uint8Array(0)]))],
+  ])('answers 400 for %s', async (_name, request) => {
+    expect(await readBoundedImage(request(), 64)).toEqual({ status: 400 });
+  });
+
+  it('answers 408 when the body does not finish within 5 seconds', async () => {
+    vi.useFakeTimers();
+    const pending = readBoundedImage(image(stream([bytes(1)], { hang: true })), 64);
+    await vi.advanceTimersByTimeAsync(4999);
+    let settled = false;
+    void pending.then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await pending).toEqual({ status: 408 });
+  });
+});
+
+describe('the image upload routes keep no copy of their own (#295)', () => {
+  it.each([
+    ['worker/media-http.ts', 'MEDIA_MAX_BYTES'],
+    ['worker/profile-avatars-http.ts', 'AVATAR_MAX_BYTES'],
+  ])('%s reads the upload only through readBoundedImage with %s', (file, limit) => {
+    const source = readFileSync(file, 'utf8');
+    expect(source).toContain(`readBoundedImage(request, ${limit})`);
+    expect(source).not.toContain('getReader(');
+    expect(source).not.toContain("'image/jpeg'");
+  });
+});
+
 describe('the private JSON APIs keep no copy of their own (#283)', () => {
   const files = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
@@ -166,8 +276,8 @@ describe('the private JSON APIs keep no copy of their own (#283)', () => {
   });
 
   it('reads JSON request bodies only through readBoundedJson', () => {
-    // A hand-rolled reader shows up as the JSON Content-Type pattern; the binary upload readers
-    // (media, avatars) never test for application/json. The OAuth dynamic client registration
+    // A hand-rolled reader shows up as the JSON Content-Type pattern; the image upload reader
+    // (readBoundedImage) never tests for application/json. The OAuth dynamic client registration
     // reader is a deliberate exception: it answers RFC 7591 errors (null → invalid_client_metadata),
     // not 415/413, and accepts only the unquoted utf-8 charset. Changing it is a separate R2 change.
     expect(
