@@ -1,4 +1,4 @@
-import { proofAuthorization } from '../shared/auth-proof';
+import { readBoundedBytes, readBoundedJson, readBoundedJsonResponse } from '../shared/http-client';
 import {
   mediaId,
   privateMediaPath,
@@ -51,84 +51,41 @@ function receipt(v: unknown): v is MediaReceipt {
       r.bytes <= PNG_HIGH_RES_BYTES)
   );
 }
-async function bounded(response: Response, limit: number, signal?: AbortSignal) {
-  const length = response.headers.get('Content-Length');
-  if (
-    !response.body ||
-    (length !== null &&
-      (!/^\d+$/.test(length) || !Number.isSafeInteger(Number(length)) || Number(length) > limit))
-  ) {
-    void response.body?.cancel().catch(() => {});
-    throw new MediaClientError();
-  }
-  const reader = response.body.getReader(),
-    bytes = new Uint8Array(limit);
-  let size = 0,
-    count = 0;
-  try {
-    for (;;) {
-      const next = await reader.read();
-      if (signal?.aborted) throw new MediaClientError();
-      if (next.done) break;
-      if (++count > 8192 || size + next.value.length > limit) throw new MediaClientError();
-      bytes.set(next.value, size);
-      size += next.value.length;
-    }
-    if (length !== null && Number(length) !== size) throw new MediaClientError();
-    return bytes.slice(0, size);
-  } finally {
-    void reader.cancel().catch(() => {});
-    reader.releaseLock();
-  }
-}
+/** Image bytes are not JSON, but take the same bounded transport (no-store, no redirect, caps, deadline). */
+const IMAGE_TYPES = ['image/png', 'image/jpeg'] as const;
+const LIST_MAX_BYTES = 4096,
+  RECEIPT_MAX_BYTES = 1024,
+  REMOVE_MAX_BYTES = 128,
+  MAX_CHUNKS = 8192;
+const exact = (v: unknown, fields: string): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).sort().join(',') === fields;
 export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fetch) {
-  async function request(
-    path: string,
-    init: RequestInit,
-    limit: number,
-    expected: number,
-    signal?: AbortSignal,
-    refusal?: number,
-  ) {
-    const controller = new AbortController(),
-      abort = () => controller.abort();
-    signal?.addEventListener('abort', abort, { once: true });
-    if (signal?.aborted) abort();
-    const timer = setTimeout(abort, 8000);
+  const common = {
+    fetcher,
+    credentials: 'same-origin',
+    maxChunks: MAX_CHUNKS,
+    exactLength: true,
+  } as const;
+  /** Every transport failure becomes the one opaque MediaClientError; no request is resent. */
+  async function guarded<T>(run: () => Promise<T>): Promise<T> {
     try {
-      const r = await fetcher(path, {
-        ...init,
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: controller.signal,
-      });
-      if (r.status !== expected && r.status !== refusal) {
-        void r.body?.cancel().catch(() => {});
-        throw new MediaClientError();
-      }
-      const bytes = await bounded(r, limit, controller.signal);
-      if (controller.signal.aborted) throw new MediaClientError();
-      return { bytes, type: r.headers.get('Content-Type'), status: r.status };
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', abort);
+      return await run();
+    } catch {
+      throw new MediaClientError();
     }
   }
-  const json = (bytes: Uint8Array) =>
-    JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
   return {
     async read(id: string, signal?: AbortSignal): Promise<Blob> {
       if (!mediaId(id)) throw new MediaClientError();
-      const r = await request(
-        privateMediaPath(id),
-        { headers: { Accept: 'image/png, image/jpeg' } },
-        MEDIA_MAX_BYTES,
-        200,
-        signal,
+      const r = await guarded(() =>
+        readBoundedBytes(privateMediaPath(id), {
+          ...common,
+          types: IMAGE_TYPES,
+          maxBytes: MEDIA_MAX_BYTES,
+          ...(signal ? { signal } : {}),
+        }),
       );
-      if (!r.bytes.length || (r.type !== 'image/png' && r.type !== 'image/jpeg'))
-        throw new MediaClientError();
+      if (!r.bytes.length) throw new MediaClientError();
       return new Blob([r.bytes], { type: r.type });
     },
     async list(
@@ -137,22 +94,15 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
       signal?: AbortSignal,
     ): Promise<MediaReceipt[]> {
       if (!mediaId(draftId)) throw new MediaClientError();
-      const r = await request(
-          `/api/private/media/${kind}/${draftId}`,
-          { headers: { Accept: 'application/json' } },
-          4096,
-          200,
-          signal,
-        ),
-        v = json(r.bytes);
-      if (
-        !r.type?.startsWith('application/json') ||
-        !v ||
-        typeof v !== 'object' ||
-        Object.keys(v).join(',') !== 'images'
-      )
-        throw new MediaClientError();
-      const images = (v as { images: unknown }).images;
+      const v = await guarded(() =>
+        readBoundedJson(`/api/private/media/${kind}/${draftId}`, {
+          ...common,
+          maxBytes: LIST_MAX_BYTES,
+          ...(signal ? { signal } : {}),
+        }),
+      );
+      if (!exact(v, 'images')) throw new MediaClientError();
+      const images = v.images;
       if (
         !Array.isArray(images) ||
         images.length > MEDIA_PER_DRAFT ||
@@ -180,63 +130,40 @@ export function createMediaClient(csrfToken: string, fetcher: typeof fetch = fet
         !['image/png', 'image/jpeg'].includes(blob.type)
       )
         throw new MediaClientError();
-      const r = await request(
-          `/api/private/media/${kind}/${draftId}/${id}`,
-          {
-            method: 'PUT',
-            headers: {
-              Accept: 'application/json',
-              'Content-Type': blob.type,
-              'If-Match': `"${version}"`,
-              Authorization: proofAuthorization('csrf', csrfToken),
-            },
-            body: blob,
-          },
-          1024,
-          201,
-          signal,
-          409,
-        ),
-        v = json(r.bytes);
+      // 201 is the receipt; 409 is a definite refusal that names the reached limit (nothing saved).
+      const r = await guarded(() =>
+        readBoundedJsonResponse(`/api/private/media/${kind}/${draftId}/${id}`, {
+          ...common,
+          method: 'PUT',
+          body: blob,
+          csrf: csrfToken,
+          ifMatch: version,
+          statuses: [201, 409],
+          maxBytes: RECEIPT_MAX_BYTES,
+          ...(signal ? { signal } : {}),
+        }),
+      );
+      const v = r.value;
       if (r.status === 409) {
-        const refusal = v as { error?: unknown; limit?: unknown } | null;
-        if (
-          r.type?.startsWith('application/json') &&
-          refusal &&
-          typeof refusal === 'object' &&
-          Object.keys(refusal).sort().join(',') === 'error,limit' &&
-          refusal.error === 'media_limit' &&
-          mediaLimit(refusal.limit)
-        )
-          throw new MediaLimitError(refusal.limit);
+        if (exact(v, 'error,limit') && v.error === 'media_limit' && mediaLimit(v.limit))
+          throw new MediaLimitError(v.limit);
         throw new MediaClientError();
       }
-      if (
-        !r.type?.startsWith('application/json') ||
-        !receipt(v) ||
-        v.id !== id ||
-        v.mime !== blob.type
-      )
-        throw new MediaClientError();
+      if (!receipt(v) || v.id !== id || v.mime !== blob.type) throw new MediaClientError();
       return v;
     },
     async remove(id: string, signal?: AbortSignal) {
       if (!mediaId(id)) throw new MediaClientError();
-      const r = await request(
-          privateMediaPath(id),
-          { method: 'DELETE', headers: { Authorization: proofAuthorization('csrf', csrfToken) } },
-          128,
-          200,
-          signal,
-        ),
-        v = json(r.bytes);
-      if (
-        !v ||
-        typeof v !== 'object' ||
-        Object.keys(v).join(',') !== 'deleted' ||
-        (v as { deleted: unknown }).deleted !== true
-      )
-        throw new MediaClientError();
+      const v = await guarded(() =>
+        readBoundedJson(privateMediaPath(id), {
+          ...common,
+          method: 'DELETE',
+          csrf: csrfToken,
+          maxBytes: REMOVE_MAX_BYTES,
+          ...(signal ? { signal } : {}),
+        }),
+      );
+      if (!exact(v, 'deleted') || v.deleted !== true) throw new MediaClientError();
     },
   };
 }

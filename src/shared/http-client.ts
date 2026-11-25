@@ -33,6 +33,11 @@ export interface BoundedJsonRequest {
   body?: unknown;
   /** Sent as the CSRF proof. Invalid tokens throw before any request. */
   csrf?: string;
+  /**
+   * The version a write expects, sent as `If-Match: "<n>"`. Only a positive safe integer on a
+   * request that also carries `csrf`; anything else throws before any request.
+   */
+  ifMatch?: number;
   /** The only accepted status (default 200). */
   status?: number;
   /** Upper bound on the decoded body (1..2097152; a published article body is up to 256 KiB before JSON escaping). */
@@ -49,14 +54,74 @@ export interface BoundedJsonRequest {
 const MAX_BYTES = 2097152;
 const TIMEOUT_MS = 10000;
 
+const JSON_TYPE = /^application\/json(?:;|$)/i;
+const decodeJson = (bytes: Uint8Array): unknown => {
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+  } catch {
+    throw new BoundedReadError();
+  }
+};
+
 /**
  * The one bounded JSON transport for browser clients: no-store, no redirects, exact status,
  * `application/json` only, Content-Length and streamed size caps, fatal UTF-8, a 10 s
  * deadline and caller abort. Validation of the parsed value stays with each client.
  */
 export async function readBoundedJson(path: string, request: BoundedJsonRequest): Promise<unknown> {
-  const { fetcher, credentials, method, body, csrf, signal, onResponse } = request;
-  const expected = request.status ?? 200;
+  const { status, ...rest } = request;
+  return (await readBoundedJsonResponse(path, { ...rest, statuses: [status ?? 200] })).value;
+}
+
+export type BoundedJsonStatusRequest = Omit<BoundedJsonRequest, 'status'> & {
+  /**
+   * Every status whose JSON body the caller reads (for example 201 and a 409 refusal that names
+   * which limit was reached). Any other status fails as in readBoundedJson, without the body.
+   */
+  statuses: readonly number[];
+};
+
+/** readBoundedJson for a caller that must tell several answered statuses apart by their body. */
+export async function readBoundedJsonResponse(
+  path: string,
+  request: BoundedJsonStatusRequest,
+): Promise<{ status: number; value: unknown }> {
+  const answer = await readBounded(path, request, 'application/json', (type) =>
+    JSON_TYPE.test(type),
+  );
+  return { status: answer.status, value: decodeJson(answer.bytes) };
+}
+
+export type BoundedBytesRequest = Omit<BoundedJsonRequest, 'status' | 'body'> & {
+  /** The only accepted Content-Types, compared exactly; also sent as Accept. */
+  types: readonly string[];
+};
+
+/**
+ * The same transport for a non-JSON body (a private image): status 200 only, the Content-Type
+ * must equal one of `types`, and the bytes are returned unparsed with that type.
+ */
+export async function readBoundedBytes(
+  path: string,
+  request: BoundedBytesRequest,
+): Promise<{ bytes: Uint8Array<ArrayBuffer>; type: string }> {
+  const { types, ...rest } = request;
+  if (!types.length || types.some((type) => !/^[a-z]+\/[a-z0-9.+-]+$/.test(type)))
+    throw new BoundedReadError();
+  const answer = await readBounded(path, { ...rest, statuses: [200] }, types.join(', '), (type) =>
+    types.includes(type),
+  );
+  return { bytes: answer.bytes, type: answer.type };
+}
+
+async function readBounded(
+  path: string,
+  request: BoundedJsonStatusRequest,
+  accept: string,
+  acceptType: (type: string) => boolean,
+): Promise<{ status: number; type: string; bytes: Uint8Array<ArrayBuffer> }> {
+  const { fetcher, credentials, method, body, csrf, ifMatch, signal, onResponse } = request;
+  const statuses = request.statuses;
   const maxBytes = request.maxBytes;
   const maxChunks = request.maxChunks ?? Math.min(maxBytes, 65536);
   // Read a Blob's type once: the checked value is the one sent, even if a subclass's getter changes.
@@ -67,7 +132,11 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
     maxBytes > MAX_BYTES ||
     !Number.isSafeInteger(maxChunks) ||
     maxChunks < 1 ||
+    !statuses.length ||
+    statuses.some((status) => !Number.isInteger(status) || status < 200 || status > 599) ||
     (body !== undefined && csrf === undefined) ||
+    (ifMatch !== undefined &&
+      (csrf === undefined || !Number.isSafeInteger(ifMatch) || ifMatch < 1)) ||
     (blobType !== undefined && !/^[a-z]+\/[a-z0-9.+-]+$/.test(blobType))
   )
     throw new BoundedReadError();
@@ -97,9 +166,10 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
   if (signal?.aborted) onAbort();
   const work = (async () => {
     if (controller.signal.aborted) throw new BoundedReadError();
-    const headers: Record<string, string> = { Accept: 'application/json' };
+    const headers: Record<string, string> = { Accept: accept };
     if (body !== undefined) headers['Content-Type'] = blobType ?? 'application/json';
     if (authorization !== undefined) headers.Authorization = authorization;
+    if (ifMatch !== undefined) headers['If-Match'] = `"${ifMatch}"`;
     const response = await fetcher(path, {
       ...(method === undefined ? {} : { method }),
       credentials,
@@ -113,9 +183,9 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
     if (
       expired ||
       controller.signal.aborted ||
-      response.status !== expected ||
+      !statuses.includes(response.status) ||
       !response.body ||
-      !/^application\/json(?:;|$)/i.test(response.headers.get('Content-Type') ?? '')
+      !acceptType(response.headers.get('Content-Type') ?? '')
     ) {
       void response.body?.cancel().catch(() => {});
       const answered = !expired && !controller.signal.aborted;
@@ -155,9 +225,11 @@ export async function readBoundedJson(path: string, request: BoundedJsonRequest)
       }
       if (request.exactLength && length !== null && Number(length) !== size)
         throw new BoundedReadError();
-      return JSON.parse(
-        new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
-      ) as unknown;
+      return {
+        status: response.status,
+        type: response.headers.get('Content-Type') ?? '',
+        bytes: bytes.slice(0, size),
+      };
     } finally {
       void reader.cancel().catch(() => {});
       reader.releaseLock();

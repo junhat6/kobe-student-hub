@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   BoundedReadError,
   boundedReadFailure,
+  readBoundedBytes,
   readBoundedJson,
+  readBoundedJsonResponse,
   type BoundedJsonRequest,
 } from '../src/shared/http-client';
 
@@ -315,5 +317,121 @@ describe('readBoundedJson — the one bounded transport', () => {
       onResponse,
     });
     expect(onResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the body of each listed status and still withholds the body of any other', async () => {
+    const answer = (r: Response) =>
+      readBoundedJsonResponse('/api/x', {
+        fetcher: (async () => r) as typeof fetch,
+        credentials: 'same-origin',
+        maxBytes: 64,
+        statuses: [201, 409],
+      });
+    expect(await answer(json('{"a":1}', { status: 201 }))).toEqual({
+      status: 201,
+      value: { a: 1 },
+    });
+    expect(await answer(json('{"b":2}', { status: 409 }))).toEqual({
+      status: 409,
+      value: { b: 2 },
+    });
+    for (const status of [200, 404, 422]) {
+      const error = await answer(json('"PRIVATE"', { status })).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BoundedReadError);
+    }
+    await expect(
+      answer(new Response('{}', { status: 409, headers: { 'Content-Type': 'text/plain' } })),
+    ).rejects.toBeInstanceOf(BoundedReadError);
+    const never = vi.fn();
+    for (const statuses of [[], [199], [600], [200.5]])
+      await expect(
+        readBoundedJsonResponse('/api/x', {
+          fetcher: never as typeof fetch,
+          credentials: 'omit',
+          maxBytes: 64,
+          statuses,
+        }),
+      ).rejects.toBeInstanceOf(BoundedReadError);
+    expect(never).not.toHaveBeenCalled();
+  });
+
+  it('sends If-Match only as a quoted positive version on a write with a CSRF proof', async () => {
+    const fetcher = vi.fn(async () => json('{}', { status: 201 }));
+    await readBoundedJson('/api/private/x', {
+      fetcher: fetcher as typeof fetch,
+      credentials: 'same-origin',
+      method: 'PUT',
+      csrf,
+      ifMatch: 7,
+      status: 201,
+      maxBytes: 64,
+    });
+    const init = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(new Headers(init.headers).get('If-Match')).toBe('"7"');
+    fetcher.mockClear();
+    for (const [ifMatch, proof] of [
+      [7, undefined],
+      [0, csrf],
+      [-1, csrf],
+      [1.5, csrf],
+      [2 ** 53, csrf],
+    ] as const)
+      expect(
+        await failure('/api/private/x', {
+          fetcher: fetcher as typeof fetch,
+          credentials: 'same-origin',
+          method: 'PUT',
+          ifMatch,
+          maxBytes: 64,
+          ...(proof === undefined ? {} : { csrf: proof }),
+        }),
+      ).toBe('unavailable');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('returns non-JSON bytes only for status 200 and an exactly listed type, under the same caps', async () => {
+    const image = (type: string, init: ResponseInit = {}, bytes = new Uint8Array([1, 2, 3])) =>
+      new Response(bytes, { ...init, headers: { 'Content-Type': type, ...(init.headers ?? {}) } });
+    const fetcher = vi.fn(async () => image('image/png'));
+    const read = (f: typeof fetch, maxBytes = 8) =>
+      readBoundedBytes('/api/private/media/x', {
+        fetcher: f,
+        credentials: 'same-origin',
+        types: ['image/png', 'image/jpeg'],
+        maxBytes,
+        exactLength: true,
+      });
+    const got = await read(fetcher as typeof fetch);
+    expect(got.type).toBe('image/png');
+    expect([...got.bytes]).toEqual([1, 2, 3]);
+    const init = (fetcher.mock.calls[0] as unknown as [string, RequestInit])[1];
+    expect(new Headers(init.headers).get('Accept')).toBe('image/png, image/jpeg');
+    expect(init).toMatchObject({
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+    });
+    expect(new Headers(init.headers).has('Authorization')).toBe(false);
+    for (const r of [
+      image('image/gif'),
+      image('image/png; charset=utf-8'),
+      image('IMAGE/PNG'),
+      image('image/png', { status: 201 }),
+      image('image/png', { status: 404 }),
+      image('image/png', { headers: { 'Content-Length': '9' } }),
+      image('image/png', { headers: { 'Content-Length': '4' } }),
+      image('image/png', {}, new Uint8Array(9)),
+    ])
+      await expect(read((async () => r) as typeof fetch)).rejects.toBeInstanceOf(BoundedReadError);
+    const never = vi.fn();
+    await expect(
+      readBoundedBytes('/api/x', {
+        fetcher: never as typeof fetch,
+        credentials: 'omit',
+        types: [],
+        maxBytes: 8,
+      }),
+    ).rejects.toBeInstanceOf(BoundedReadError);
+    expect(never).not.toHaveBeenCalled();
   });
 });
