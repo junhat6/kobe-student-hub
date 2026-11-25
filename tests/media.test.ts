@@ -1076,7 +1076,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     },
   );
   it.runIf(r2)(
-    'creates no D1 row when R2 refuses the bytes, and leaves no object when D1 refuses the row',
+    'creates no D1 row when R2 refuses the bytes, and leaves objects without a row to the sweep',
     async () => {
       const d = await draft(),
         failed = id();
@@ -1094,8 +1094,7 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       expect(
         await db.prepare('SELECT 1 FROM media_assets WHERE id=?').bind(sized).first(),
       ).toBeNull();
-      expect((await bucket.list({ prefix: `media/${sized}/` })).objects).toEqual([]);
-      // The writer is suspended between the R2 put and the D1 insert; the object must not survive.
+      // The writer is suspended between the R2 put and the D1 insert; the row must not be created.
       const raced = id();
       expect((await upload(d, raced, png, 0, { 'X-Test-Race': '1' })).status).toBe(404);
       await db.prepare("UPDATE private_accounts SET status='active' WHERE id='account-0'").run();
@@ -1105,7 +1104,37 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       expect(
         await db.prepare('SELECT 1 FROM media_assets WHERE id=?').bind(raced).first(),
       ).toBeNull();
-      expect((await bucket.list({ prefix: `media/${raced}/` })).objects).toEqual([]);
+      // Objects stored for a failed upload stay until the sweep (#12: deleting them at once would
+      // race a resend of the same image). With no row they are never served, and the sweep removes
+      // them once the grace period has passed.
+      for (const image of [sized, raced]) {
+        expect((await bucket.list({ prefix: `media/${image}/` })).objects).toHaveLength(1);
+        expect((await ownRead(image)).status).toBe(404);
+        expect((await publicRead(image)).status).toBe(404);
+      }
+      // Inside the grace period the sweep keeps them (an upload of the same id may be in flight).
+      const sweep = (image: string, at: number) =>
+        mf.dispatchFetch(O + '/fixture/maintain', {
+          headers: { 'X-Test-Now': String(at), 'X-Test-Start': image },
+        });
+      await sweep(sized, Date.now());
+      expect((await bucket.list({ prefix: `media/${sized}/` })).objects).toHaveLength(1);
+      for (const image of [sized, raced]) await sweep(image, Date.now() + 2 * 60 * 60 * 1000);
+      for (const image of [sized, raced])
+        expect((await bucket.list({ prefix: `media/${image}/` })).objects).toEqual([]);
+    },
+  );
+  it.runIf(r2)(
+    'keeps the object of an upload that succeeds while a resend of the same image fails',
+    async () => {
+      const d = await draft(),
+        image = id();
+      // The resend fails after the first upload stored the object but before its row exists.
+      expect((await upload(d, image, png, 0, { 'X-Test-Overlap': '1' })).status).toBe(201);
+      expect((await stored(image)).object_stored_at_ms).toBe(NOW);
+      const own = await ownRead(image);
+      expect(own.status).toBe(200);
+      expect(new Uint8Array(await own.arrayBuffer())).toEqual(png);
     },
   );
   it.runIf(r2)(
@@ -1120,6 +1149,16 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
         404,
       );
       const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+      // Their bytes go under another key (the sha256 differs) and, with no row, are never served;
+      // the sweep removes them after the grace period.
+      const keys = (await bucket.list({ prefix: `media/${image}/` })).objects.map((o) => o.key);
+      expect(keys).toContain(key);
+      expect(keys).toHaveLength(2);
+      expect(new Uint8Array(await (await ownRead(image)).arrayBuffer())).toEqual(png);
+      expect((await ownRead(image, 1)).status).toBe(404);
+      await mf.dispatchFetch(O + '/fixture/maintain', {
+        headers: { 'X-Test-Now': String(Date.now() + 2 * 60 * 60 * 1000), 'X-Test-Start': image },
+      });
       expect((await bucket.list({ prefix: `media/${image}/` })).objects.map((o) => o.key)).toEqual([
         key,
       ]);

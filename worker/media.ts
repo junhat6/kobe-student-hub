@@ -122,9 +122,11 @@ export class MediaStore {
       let r: Row | null = null;
       try {
         // R2 first: if it refuses the bytes or stores another size, no D1 row is created. If the D1
-        // insert then fails, the object is removed below (or swept later), so it is never reachable
-        // without a D1 row. The key holds the sha256, so a repeated or colliding upload never
-        // replaces other bytes. With a bucket the row holds no payload (#12 contract): the size
+        // insert then fails, the object is left to the scheduled sweep, which removes objects without
+        // a row only after a grace period. Removing it here would race a resend of the same id and
+        // bytes: the key is the same, so the resend's row could land after this delete and point at
+        // nothing (#12). Without a row the object is never reachable: every read starts in D1. The
+        // key holds the sha256, so a repeated or colliding upload never replaces other bytes. With a bucket the row holds no payload (#12 contract): the size
         // column is the normalized length R2 confirmed, and reads match the object against it.
         if (this.bucket)
           await putMediaObject(this.bucket, { id, sha256: sha }, value.bytes, value.mime);
@@ -164,8 +166,6 @@ export class MediaStore {
         const raced = await this.limit(p, kind, draftId, id, value.bytes.length);
         if (raced) return raced;
         throw error;
-      } finally {
-        if (!r) await this.dropUnclaimedObject(id, sha);
       }
       return r ? receipt(r) : null;
     } catch {
@@ -197,19 +197,6 @@ export class MediaStore {
       )
       .first<{ reason: MediaLimit | null }>();
     return row?.reason ?? null;
-  }
-  /** Removes an object written for a failed upload, unless a D1 row with the same id+sha owns it. */
-  private async dropUnclaimedObject(id: string, sha256: string) {
-    if (!this.bucket) return;
-    try {
-      const owned = await this.db
-        .prepare('SELECT 1 FROM media_assets WHERE id=? AND sha256=?')
-        .bind(id, sha256)
-        .first();
-      if (!owned) await deleteMediaObjects(this.bucket, [{ id, sha256 }]);
-    } catch {
-      // Swept later.
-    }
   }
   async list(request: Request, kind: Kind, id: string): Promise<MediaReceipt[] | null> {
     if (request.method !== 'GET' || !mediaId(id)) return null;

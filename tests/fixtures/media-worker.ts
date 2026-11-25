@@ -41,8 +41,9 @@ const readOnlyBucket = (bucket: R2Bucket): R2Bucket =>
       throw Error('write refused: multipart');
     },
   }) as unknown as R2Bucket;
-export default {
-  async fetch(request: Request, env: { DB: D1Database; MEDIA_BUCKET?: R2Bucket }) {
+type Env = { DB: D1Database; MEDIA_BUCKET?: R2Bucket };
+const fixture = {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const origin = 'https://app.example.invalid',
       url = new URL(request.url),
       now = Number(request.headers.get('X-Test-Now') ?? 1800000000000);
@@ -167,11 +168,46 @@ export default {
       );
     }
     let count = 0;
+    // Same-id overlap (#12 low 1): while this upload sits between its R2 put and its D1 insert, a
+    // second upload of the same id and bytes runs to the end and fails at its own insert.
+    const overlap = request.headers.has('X-Test-Overlap')
+      ? await request.clone().arrayBuffer()
+      : null;
     const db = new Proxy(env.DB, {
       get(target, key) {
         if (key === 'prepare')
           return (sql: string) => {
             count++;
+            if (
+              sql.startsWith('INSERT INTO media_assets') &&
+              request.headers.has('X-Test-Insert-Fail')
+            )
+              throw Error('fixture d1 failure');
+            if (sql.startsWith('INSERT INTO media_assets') && overlap) {
+              const statement = target.prepare(sql);
+              return {
+                bind: (...values: unknown[]) => {
+                  const bound = statement.bind(...values);
+                  return {
+                    run: async () => {
+                      const headers = new Headers(request.headers);
+                      headers.delete('X-Test-Overlap');
+                      headers.set('X-Test-Insert-Fail', '1');
+                      const failed = await fixture.fetch(
+                        new Request(request.url, {
+                          method: request.method,
+                          headers,
+                          body: overlap,
+                        }),
+                        env,
+                      );
+                      if (failed.status !== 404) throw Error('overlapping upload did not fail');
+                      return bound.run();
+                    },
+                  };
+                },
+              };
+            }
             if (sql.startsWith('INSERT INTO media_assets') && request.headers.has('X-Test-Race')) {
               const statement = target.prepare(sql);
               return new Proxy(statement, {
@@ -243,3 +279,4 @@ export default {
     return Response.json({ unhandled: true, queries: count }, { status: 404 });
   },
 };
+export default fixture;
