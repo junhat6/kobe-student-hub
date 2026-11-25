@@ -166,7 +166,7 @@ beforeAll(async () => {
       .filter(Boolean);
     await db.batch(statements.map((sql) => db.prepare(sql)));
   }
-  for (const who of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
+  for (const who of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'])
     await db
       .prepare(
         "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
@@ -193,8 +193,23 @@ beforeAll(async () => {
       "INSERT INTO account_public_profiles(owner_account_id,public_profile_id) VALUES('account-f','pub-f')",
     )
     .run();
+  // "i" and "j" are two students with public profiles for the project journal (#276).
+  for (const who of ['i', 'j']) {
+    await db
+      .prepare(
+        "INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) VALUES(?,?,'分野','学年','自己紹介','J',0)",
+      )
+      .bind('pub-' + who, '公開名' + who.toUpperCase())
+      .run();
+    await db
+      .prepare(
+        'INSERT INTO account_public_profiles(owner_account_id,public_profile_id) VALUES(?,?)',
+      )
+      .bind('account-' + who, 'pub-' + who)
+      .run();
+  }
   users = {};
-  for (const who of ['a', 'b', 'c', 'd', 'f', 'g', 'h'])
+  for (const who of ['a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'j'])
     users[who] = await call<Session>({ action: 'session', who });
   // "e" has a live session but no enrollment period (graduated / not yet declared).
   users.e = await call<Session>({ action: 'session', who: 'e', enrollment: false });
@@ -486,6 +501,7 @@ describe('MCP tools as the connected student', () => {
       'get_my_taste_materials',
       'get_writing_guide',
       'list_my_drafts',
+      'list_my_projects',
       'list_recent_articles',
       'replace_my_taste',
       'update_draft',
@@ -912,6 +928,213 @@ describe('the publish boundary: humans publish first, agents may edit what is al
       body: '本文',
       version: p.version,
     });
+  });
+});
+
+describe('project journal drafts (#276): own projects only, linked when the student publishes', () => {
+  const db = () => mf.getD1Database('DB');
+  const makeProject = async (who: string, title: string, now = NOW) =>
+    (
+      await call<{ projectId: string }>({
+        action: 'project',
+        url: ORIGIN + '/private/project-drafts',
+        method: 'POST',
+        headers: browser(users[who], true),
+        input: { title, description: '架空の作品説明', githubUrl: '', demoUrl: '' },
+        now,
+      })
+    ).projectId;
+  const publishDraft = (who: string, draftId: string, version: number, now = NOW) =>
+    call<{ contentId: string } | null>({
+      action: 'publish',
+      url: ORIGIN + '/private/publication',
+      method: 'POST',
+      headers: browser(users[who], true),
+      draft: draftId,
+      input: {
+        expectedVersion: version,
+        confirmPublic: true,
+        summary: '今日やったこと',
+        tags: ['日誌'],
+        minutes: 2,
+      },
+      now,
+    });
+  const journalOf = async (projectId: string) =>
+    (await call<{ journal: { id: string; title: string }[] } | null>({
+      action: 'journal',
+      draft: projectId,
+    }))!.journal;
+  const counts = async () => {
+    const d = await db();
+    return d
+      .prepare(
+        "SELECT (SELECT count(*) FROM private_article_drafts WHERE owner_account_id='account-i') AS drafts,(SELECT count(*) FROM agent_draft_origins WHERE account_id='account-i') AS origins,(SELECT count(*) FROM agent_draft_hints WHERE account_id='account-i') AS hints,(SELECT count(*) FROM agent_draft_projects) AS intents",
+      )
+      .first<{ drafts: number; origins: number; hints: number; intents: number }>();
+  };
+  let mine: string, other: string, hidden: string;
+  beforeAll(async () => {
+    mine = await makeProject('i', '自分の作品');
+    hidden = await makeProject('i', '止めた自分の作品');
+    other = await makeProject('j', '他人の作品');
+    await (
+      await db()
+    )
+      .prepare("UPDATE project_publications SET status='hidden' WHERE id=?")
+      .bind(hidden)
+      .run();
+  });
+
+  it("lists only the student's own live published projects, and nothing private", async () => {
+    const c = await connect('i');
+    const r = await tool(c.access_token, 'list_my_projects');
+    expect(r.isError).toBeUndefined();
+    expect(r.structuredContent!.projects).toEqual([
+      {
+        id: mine,
+        title: '自分の作品',
+        publishedOn: '2027-01-15',
+        url: ORIGIN + '/projects/' + mine,
+      },
+    ]);
+    const text = JSON.stringify(r);
+    for (const leaked of [
+      other,
+      hidden,
+      '他人の作品',
+      '@st.kobedenshi.ac.jp',
+      'account-',
+      'subject-',
+    ])
+      expect(text).not.toContain(leaked);
+    const j = await tool((await connect('j')).access_token, 'list_my_projects');
+    expect(j.structuredContent!.projects.map((p: { id: string }) => p.id)).toEqual([other]);
+    const none = await tool((await connect('a')).access_token, 'list_my_projects');
+    expect(none.structuredContent!.projects).toEqual([]);
+    expect(none.content[0].text).toContain('公開中の作品はまだありません');
+  });
+
+  it("refuses another student's, a stopped or a missing project and saves nothing", async () => {
+    const c = await connect('i');
+    const before = await counts();
+    for (const project_id of [other, hidden, '00000000-0000-4000-8000-000000000000']) {
+      const r = await tool(c.access_token, 'create_draft', {
+        title: '日誌',
+        body: '## 今日',
+        summary: '概要',
+        tags: ['日誌'],
+        project_id,
+      });
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toContain('その作品は見つかりません');
+    }
+    const bad = await rpc(c.access_token, 'tools/call', {
+      name: 'create_draft',
+      arguments: { title: '日誌', body: '本文', project_id: 'not-a-uuid' },
+    });
+    expect(bad.json.result?.structuredContent).toBeUndefined();
+    expect(await counts()).toEqual(before);
+    // The trigger re-checks the boundary even if a Worker query were wrong.
+    const d = await db();
+    const draft = await d
+      .prepare("SELECT id FROM private_article_drafts WHERE owner_account_id='account-i' LIMIT 1")
+      .first<{ id: string } | null>();
+    const ownDraft =
+      draft?.id ??
+      (await tool(c.access_token, 'create_draft', { title: '置き場', body: '本文' }))
+        .structuredContent!.draft.id;
+    for (const project of [other, hidden])
+      await expect(
+        d
+          .prepare(
+            "INSERT INTO agent_draft_projects(draft_id,project_id,owner_account_id,created_at_ms) VALUES(?,?,'account-i',?)",
+          )
+          .bind(ownDraft, project, NOW)
+          .run(),
+      ).rejects.toThrow(/agent draft project unavailable/);
+  });
+
+  it('joins the project journal only when the student publishes, in publication order, once', async () => {
+    const c = await connect('i');
+    const first = await tool(c.access_token, 'create_draft', {
+      title: '1日目の制作日誌',
+      body: '## やったこと\n画面を作った',
+      project_id: mine,
+    });
+    expect(first.isError).toBeUndefined();
+    const second = await tool(c.access_token, 'create_draft', {
+      title: '2日目の制作日誌',
+      body: '## やったこと\nAPI をつないだ',
+      project_id: mine,
+    });
+    const [d1, d2] = [first.structuredContent!.draft, second.structuredContent!.draft];
+    const d = await db();
+    expect(
+      (
+        await d
+          .prepare('SELECT draft_id,project_id FROM agent_draft_projects WHERE draft_id IN (?,?)')
+          .bind(d1.id, d2.id)
+          .all()
+      ).results,
+    ).toHaveLength(2);
+    await expect(
+      d
+        .prepare('UPDATE agent_draft_projects SET project_id=? WHERE draft_id=?')
+        .bind(other, d1.id)
+        .run(),
+    ).rejects.toThrow(/immutable agent draft project/);
+    // A draft is never on the public project page.
+    expect(await journalOf(mine)).toEqual([]);
+
+    // The student publishes the second one first; the page orders by publication date.
+    const p2 = await publishDraft('i', d2.id, d2.version, NOW + 1000);
+    const p1 = await publishDraft('i', d1.id, d1.version, NOW + 2000);
+    expect(p1 && p2).toBeTruthy();
+    expect((await journalOf(mine)).map((e) => [e.id, e.title])).toEqual([
+      [p2!.contentId, '2日目の制作日誌'],
+      [p1!.contentId, '1日目の制作日誌'],
+    ]);
+    const intents = await d
+      .prepare('SELECT count(*) AS n FROM agent_draft_projects WHERE draft_id IN (?,?)')
+      .bind(d1.id, d2.id)
+      .first<{ n: number }>();
+    expect(intents!.n).toBe(0);
+
+    // A link the student removes is not restored by a retried publication.
+    await d
+      .prepare('DELETE FROM project_journal_links WHERE project_id=? AND article_id=?')
+      .bind(mine, p1!.contentId)
+      .run();
+    expect(await publishDraft('i', d1.id, d1.version, NOW + 3000)).toEqual(p1);
+    expect((await journalOf(mine)).map((e) => e.id)).toEqual([p2!.contentId]);
+  });
+
+  it('still publishes the article when the project was stopped before publication', async () => {
+    const c = await connect('i');
+    const later = await makeProject('i', 'あとで止める作品');
+    const made = await tool(c.access_token, 'create_draft', {
+      title: '止める前に書いた日誌',
+      body: '本文',
+      project_id: later,
+    });
+    const draft = made.structuredContent!.draft;
+    const d = await db();
+    await d.prepare("UPDATE project_publications SET status='hidden' WHERE id=?").bind(later).run();
+    const published = await publishDraft('i', draft.id, draft.version);
+    expect(published?.contentId).toBeTruthy();
+    expect(
+      (await d
+        .prepare('SELECT count(*) AS n FROM project_journal_links WHERE project_id=?')
+        .bind(later)
+        .first<{ n: number }>())!.n,
+    ).toBe(0);
+    expect(
+      (await d
+        .prepare('SELECT count(*) AS n FROM agent_draft_projects WHERE draft_id=?')
+        .bind(draft.id)
+        .first<{ n: number }>())!.n,
+    ).toBe(0);
   });
 });
 

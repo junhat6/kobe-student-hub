@@ -9,6 +9,7 @@ import {
 } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
 import { MAX_JAPAN_DATE_MS } from './japan-date';
+import { PROJECT_JOURNAL_LIMIT } from '../src/project-types';
 import type {
   Entry,
   Profile,
@@ -309,9 +310,44 @@ export class ArticlePublicationStore {
           ...writerBindings(p),
         )
         .first<{ content_id: string }>();
-      return row ? { contentId: row.content_id } : null;
+      if (!row) return null;
+      await this.linkAgentProject(id, row.content_id, p);
+      return { contentId: row.content_id };
     } catch {
       return null;
+    }
+  }
+  /**
+   * #276: a draft an agent created for one of the student's projects joins that project's journal
+   * when the student publishes it for the first time. Used once: the intent row is removed, so a
+   * link the student later removes on the project screen never comes back. Best effort — the
+   * publication has already happened, so a stopped project, the 20-link limit or a database
+   * without migration 0048 only skips the link (the student can still add it on the project screen).
+   */
+  private async linkAgentProject(
+    draftId: string,
+    contentId: string,
+    p: NonNullable<Awaited<ReturnType<SessionStore['storageAuthorization']>>>,
+  ) {
+    try {
+      await this.db
+        .prepare(
+          `INSERT INTO project_journal_links(project_id,article_id,owner_account_id,linked_at_ms) SELECT i.project_id,r.content_id,r.owner_account_id,? FROM agent_draft_projects i JOIN article_publications r ON r.draft_id=i.draft_id AND r.owner_account_id=i.owner_account_id JOIN project_publications project ON project.id=i.project_id AND project.owner_account_id=i.owner_account_id AND project.public_profile_id=r.public_profile_id WHERE i.draft_id=? AND i.owner_account_id=? AND r.content_id=? AND project.status='published' AND (SELECT COUNT(*) FROM project_journal_links l WHERE l.project_id=i.project_id)<${PROJECT_JOURNAL_LIMIT} AND ${writerLive} ON CONFLICT(project_id,article_id) DO NOTHING`,
+        )
+        .bind(p.nowMs, draftId, p.accountId, contentId, ...writerBindings(p))
+        .run();
+    } catch {
+      // The trigger re-checks the same boundary; a refusal leaves the article published, unlinked.
+    }
+    try {
+      await this.db
+        .prepare(
+          `DELETE FROM agent_draft_projects WHERE draft_id=? AND owner_account_id=? AND ${live}`,
+        )
+        .bind(draftId, p.accountId, ...liveSessionBindings(p))
+        .run();
+    } catch {
+      // Before migration 0048 there is nothing to consume.
     }
   }
   /** One guarded INSERT creates immutable evidence and updates the public projection in its trigger. */

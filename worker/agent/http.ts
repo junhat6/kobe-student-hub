@@ -22,6 +22,7 @@ import {
   type TasteLine,
 } from '../../src/shared/taste-ledger';
 import { serverInstructions, writingGuide } from './guide';
+import { japanDate } from '../japan-date';
 
 /**
  * AI agent connection boundary: OAuth 2.1 authorization server metadata and endpoints,
@@ -206,10 +207,18 @@ const TOOLS = [
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
   {
+    name: 'list_my_projects',
+    title: '自分の公開中の作品一覧',
+    description:
+      '接続した本人の公開中の作品（新しい順に最大20件）を、ID・タイトル・公開日・URL で返す。作品の制作日誌を下書きにするとき、create_draft の project_id に渡す ID をここで選ぶ。',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
     name: 'create_draft',
     title: '下書きを作る',
     description:
-      '本人の非公開の下書きを1本作る（公開はしない）。受け取るのはタイトル・本文 Markdown（front matter なし）・任意の概要案とタグ案だけ。秘密らしき形があれば種類と行番号を注意として返す（検査は完全ではない）。1アカウント1日10件まで。',
+      '本人の非公開の下書きを1本作る（公開はしない）。受け取るのはタイトル・本文 Markdown（front matter なし）・任意の概要案とタグ案・任意の project_id だけ。project_id に list_my_projects で選んだ本人の作品を渡すと、本人がアプリでこの下書きを初めて公開したときに、その作品の制作日誌に並ぶ。秘密らしき形があれば種類と行番号を注意として返す（検査は完全ではない）。1アカウント1日10件まで。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -225,6 +234,11 @@ const TOOLS = [
           maxItems: 5,
           items: { type: 'string', minLength: 1, maxLength: 24 },
           description: 'タグの案',
+        },
+        project_id: {
+          type: 'string',
+          pattern: uuidPattern,
+          description: '制作日誌として紐づける本人の公開中の作品の ID（list_my_projects で読む）',
         },
       },
       required: ['title', 'body'],
@@ -385,6 +399,8 @@ const writeFailureText: Record<Exclude<DraftWriteResult, { ok: true }>['reason']
   daily_limit: '今日作れる下書きの数（1日10件）に達しました。明日以降にしてください。',
   not_enrolled:
     '在籍期間の外なので下書きを保存できません。本人にアプリで在籍年度を確かめてもらってください。',
+  project_not_found:
+    'その作品は見つかりません（本人の公開中の作品だけを紐づけられます）。list_my_projects で ID を確かめてください。下書きは保存していません。',
 };
 
 const publishedEditFailureText: Record<
@@ -418,7 +434,7 @@ function writeInput(
   const a = args as Record<string, unknown>;
   const allowed =
     name === 'create_draft'
-      ? ['title', 'body', 'summary', 'tags']
+      ? ['title', 'body', 'summary', 'tags', 'project_id']
       : name === 'update_draft'
         ? ['id', 'title', 'body', 'summary', 'tags', 'expected_version']
         : ['id', 'title', 'body', 'expected_version'];
@@ -445,6 +461,12 @@ function writeInput(
       ))
   )
     throw new InvalidParams('tags は5個まで、1個24文字以内の文字列の配列にしてください。');
+  const projectId = a.project_id;
+  if (
+    projectId !== undefined &&
+    (typeof projectId !== 'string' || !new RegExp(uuidPattern).test(projectId))
+  )
+    throw new InvalidParams('project_id に list_my_projects で読んだ作品の ID を渡してください。');
   let expectedVersion: number | undefined;
   if (name !== 'create_draft') {
     const v = a.expected_version;
@@ -463,7 +485,14 @@ function writeInput(
           tags: Array.isArray(tags) ? [...new Set((tags as string[]).map((t) => t.trim()))] : [],
         }
       : null;
-  return { id: a.id, title, body, hints, expectedVersion };
+  return {
+    id: a.id,
+    title,
+    body,
+    hints,
+    expectedVersion,
+    projectId: typeof projectId === 'string' ? projectId : null,
+  };
 }
 
 /** replace_my_taste input: the whole ledger, typed and bounded. */
@@ -585,6 +614,27 @@ export function createAgentHandler(
           { drafts },
         );
       }
+      case 'list_my_projects': {
+        const projects = await store.listProjects(access);
+        if (!projects) return null;
+        const items = projects.map((p) => ({
+          id: p.id,
+          title: p.title,
+          publishedOn: japanDate(p.publishedAt),
+          url: origin + '/projects/' + p.id,
+        }));
+        return ok(
+          items.length
+            ? items
+                .map(
+                  (p) =>
+                    `- ${p.title || '（無題）'}　id: ${p.id}　公開: ${p.publishedOn}　${p.url}`,
+                )
+                .join('\n')
+            : '公開中の作品はまだありません。作品は本人がアプリで公開します。',
+          { projects: items },
+        );
+      }
       case 'get_my_draft': {
         const draft = await store.readDraft(access, a.id);
         if (draft === null) return null;
@@ -600,7 +650,7 @@ export function createAgentHandler(
         const findings = scanDraft(input.title, input.body);
         const result =
           name === 'create_draft'
-            ? await store.createDraft(access, input.title, input.body, input.hints)
+            ? await store.createDraft(access, input.title, input.body, input.hints, input.projectId)
             : await store.updateDraft(
                 access,
                 input.id,

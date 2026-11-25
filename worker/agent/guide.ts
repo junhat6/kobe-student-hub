@@ -31,6 +31,7 @@ export function writingGuide(origin: string, personal: string[] = []) {
     '3. ログに無いこと（そのとき一番困ったこと・後輩に一言・いまならどうするか）を本人に聞く。聞けないときは「（ここに〇〇を書く）」と空けておく。',
     '4. create_draft で下書きを作る（タイトル・本文の Markdown、任意で概要案 summary とタグ案 tags）。既存の下書きを直すときは get_my_draft で版を確かめてから update_draft。',
     `5. 本人に「アプリの下書き画面（${origin}/drafts）で読んで直してから公開してください」と伝える。初めての公開は本人だけが行う。`,
+    '   作品の制作日誌にするときは、list_my_projects で本人の公開中の作品を選び、その ID を create_draft の project_id に渡す。本人がアプリで公開すると、その作品の制作日誌に公開日の順で並ぶ（公開前の下書きは作品ページに出ない）。',
     '6. 本人がすでに公開した記事を直すときは、list_my_drafts で「公開中」の下書きを選び、get_my_draft で版を確かめてから update_published_article。公開したまま反映されるので、本人に頼まれた直しだけにし、終わったら記事の URL を本人に伝える。',
     '',
     '## 守ること',

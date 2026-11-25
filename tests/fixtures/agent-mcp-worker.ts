@@ -2,6 +2,7 @@ import { createFixtureSession } from '../helpers/coordinated-fixture';
 import { ArticlePublicationStore } from '../../worker/publication';
 import { PrivateDraftStore } from '../../worker/drafts';
 import { createAgentHandler } from '../../worker/agent/http';
+import { ProjectStore } from '../../worker/projects';
 // Test-only fictional sessions. The agent handler is composed exactly as production does, enabled.
 export default {
   async fetch(request: Request, env: { DB: D1Database }) {
@@ -59,6 +60,23 @@ export default {
       return Response.json(
         await new ArticlePublicationStore(env.DB, origin, clock).publish(target, i.draft, i.input),
       );
+    if (i.action === 'project') {
+      // A published project of the session's student (#276), made through the app's own store.
+      const store = new ProjectStore(env.DB, origin, clock);
+      const draft = await store.createDraft(target, i.input);
+      if (!draft) return Response.json(null);
+      return Response.json(
+        await store.publish(
+          new Request(origin + '/private/x', { method: 'POST', headers: i.headers }),
+          draft.id,
+          { expectedVersion: draft.version, confirmPublic: true },
+        ),
+      );
+    }
+    if (i.action === 'journal') {
+      const store = new ProjectStore(env.DB, origin, clock);
+      return Response.json(await store.readPublishedPage(i.draft));
+    }
     return Response.json(null, { status: 400 });
   },
 };

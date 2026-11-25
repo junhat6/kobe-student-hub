@@ -78,8 +78,20 @@ export type DraftWriteResult =
   | { ok: true; draft: AgentDraft }
   | {
       ok: false;
-      reason: 'unauthorized' | 'not_found' | 'version_conflict' | 'daily_limit' | 'not_enrolled';
+      reason:
+        | 'unauthorized'
+        | 'not_found'
+        | 'version_conflict'
+        | 'daily_limit'
+        | 'not_enrolled'
+        | 'project_not_found';
     };
+/** One of the student's own live published projects (#276). Only fields already on its public page. */
+export interface AgentProject {
+  id: string;
+  title: string;
+  publishedAt: number;
+}
 /** Editing an already published article while it stays published. Never a first publication. */
 export type PublishedEditResult =
   | { ok: true; draft: AgentDraft; articleId: string }
@@ -526,15 +538,49 @@ export class AgentConnectionStore {
     }
   }
 
-  private async writeFailure(a: AgentAccess, now: number): Promise<DraftWriteResult> {
+  /**
+   * The student's own live published projects (#276), newest first, at most 20. Another student's
+   * project, a stopped or hidden one and drafts are never returned; nothing private is selected.
+   */
+  async listProjects(a: AgentAccess): Promise<AgentProject[] | null> {
+    try {
+      const now = this.now();
+      const rows = await this.db
+        .prepare(
+          `SELECT r.id,CASE WHEN length(r.title)<=200 AND length(CAST(r.title AS BLOB))<=800 THEN r.title ELSE '' END title,r.published_at_ms FROM (SELECT 1 WHERE ${liveAccess}) authorized LEFT JOIN project_publications r ON r.owner_account_id=? AND r.status='published' AND r.published_at_ms<=? ORDER BY r.published_at_ms DESC,r.id ASC LIMIT 20`,
+        )
+        .bind(...accessBindings(a, now), a.accountId, now)
+        .all<{ id: string | null; title: string; published_at_ms: number }>();
+      if (!rows.results.length) return null;
+      return rows.results
+        .filter((r): r is { id: string; title: string; published_at_ms: number } => uuid(r.id))
+        .map((r) => ({ id: r.id, title: r.title, publishedAt: r.published_at_ms }));
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeFailure(
+    a: AgentAccess,
+    now: number,
+    projectId: string | null = null,
+  ): Promise<DraftWriteResult> {
     const state = await this.db
       .prepare(
-        `SELECT (SELECT 1 WHERE ${liveAccess}) AS live,(SELECT 1 WHERE ${periodSql}) AS enrolled,(SELECT count(*) FROM agent_draft_origins WHERE account_id=? AND created_at_ms>?) AS today`,
+        `SELECT (SELECT 1 WHERE ${liveAccess}) AS live,(SELECT 1 WHERE ${periodSql}) AS enrolled,(SELECT 1 FROM project_publications WHERE id=? AND owner_account_id=? AND status='published') AS project,(SELECT count(*) FROM agent_draft_origins WHERE account_id=? AND created_at_ms>?) AS today`,
       )
-      .bind(...accessBindings(a, now), ...periodBindings(a, now), a.accountId, now - DAY_MS)
-      .first<{ live: number | null; enrolled: number | null; today: number }>();
+      .bind(
+        ...accessBindings(a, now),
+        ...periodBindings(a, now),
+        projectId,
+        a.accountId,
+        a.accountId,
+        now - DAY_MS,
+      )
+      .first<{ live: number | null; enrolled: number | null; project: number | null }>();
     if (!state?.live) return { ok: false, reason: 'unauthorized' };
     if (!state.enrolled) return { ok: false, reason: 'not_enrolled' };
+    if (projectId !== null && !state.project) return { ok: false, reason: 'project_not_found' };
     return { ok: false, reason: 'daily_limit' };
   }
 
@@ -543,14 +589,21 @@ export class AgentConnectionStore {
     title: string,
     body: string,
     hints: DraftHints | null = null,
+    projectId: string | null = null,
   ): Promise<DraftWriteResult | null> {
+    if (projectId !== null && !uuid(projectId)) return { ok: false, reason: 'project_not_found' };
     try {
       const now = this.now();
       const id = crypto.randomUUID();
+      // #276: the project must be the student's own live published one, checked in the same INSERT,
+      // so a refused project saves nothing at all (no draft, no origin, no hints).
+      const projectSql = projectId
+        ? " AND EXISTS(SELECT 1 FROM project_publications r WHERE r.id=? AND r.owner_account_id=? AND r.status='published')"
+        : '';
       const results = await this.db.batch([
         this.db
           .prepare(
-            `INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) SELECT ?,?,?,?,1,? WHERE ${liveAccess} AND ${periodSql} AND (SELECT count(*) FROM agent_draft_origins WHERE account_id=? AND created_at_ms>?)<? RETURNING id,title,body,version,updated_at_ms,1 AS by_agent`,
+            `INSERT INTO private_article_drafts(id,owner_account_id,title,body,version,updated_at_ms) SELECT ?,?,?,?,1,? WHERE ${liveAccess} AND ${periodSql} AND (SELECT count(*) FROM agent_draft_origins WHERE account_id=? AND created_at_ms>?)<?${projectSql} RETURNING id,title,body,version,updated_at_ms,1 AS by_agent`,
           )
           .bind(
             id,
@@ -563,6 +616,7 @@ export class AgentConnectionStore {
             a.accountId,
             now - DAY_MS,
             DAILY_AGENT_DRAFTS,
+            ...(projectId ? [projectId, a.accountId] : []),
           ),
         this.db
           .prepare(
@@ -570,9 +624,18 @@ export class AgentConnectionStore {
           )
           .bind(a.grantId, now, id, a.accountId),
         ...(hints ? [this.hintsStatement(a, id, hints, now)] : []),
+        ...(projectId
+          ? [
+              this.db
+                .prepare(
+                  'INSERT INTO agent_draft_projects(draft_id,project_id,owner_account_id,created_at_ms) SELECT id,?,owner_account_id,? FROM private_article_drafts WHERE id=? AND owner_account_id=?',
+                )
+                .bind(projectId, now, id, a.accountId),
+            ]
+          : []),
       ]);
       const row = results[0].results[0] as DraftRow | undefined;
-      return row ? { ok: true, draft: draftDto(row) } : await this.writeFailure(a, now);
+      return row ? { ok: true, draft: draftDto(row) } : await this.writeFailure(a, now, projectId);
     } catch {
       return null;
     }

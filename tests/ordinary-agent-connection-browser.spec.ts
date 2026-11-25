@@ -204,3 +204,119 @@ test('"許可しない" sends the agent back without a code and leaves no connec
   await expect(page.locator('main')).toContainText('この接続の依頼は使えません');
   await agent.dispose();
 });
+
+/** Consent in the browser and a token for the agent, as in the first test, without its checks. */
+async function connectAgent(page: Page, agent: APIRequestContext, clientName: string) {
+  const { clientId, verifier, authorize } = await startAgent(agent, clientName);
+  let callback: URL | null = null;
+  await page.route(REDIRECT + '**', async (route) => {
+    callback = new URL(route.request().url());
+    await route.fulfill({ status: 200, contentType: 'text/html', body: '<p>fictional agent</p>' });
+  });
+  await page.goto(authorize);
+  await page.getByRole('button', { name: '接続を許可する', exact: true }).click();
+  await expect.poll(() => callback?.searchParams.get('code') ?? null).not.toBeNull();
+  const tokenResponse = await agent.post('/api/oauth/token', {
+    form: {
+      grant_type: 'authorization_code',
+      code: callback!.searchParams.get('code')!,
+      client_id: clientId,
+      redirect_uri: REDIRECT,
+      code_verifier: verifier,
+      resource: ORIGIN + '/api/mcp',
+    },
+  });
+  expect(tokenResponse.status()).toBe(200);
+  await page.unroute(REDIRECT + '**');
+  return (await tokenResponse.json()).access_token as string;
+}
+
+async function publishDraftInApp(page: Page, title: string) {
+  await page.goto('/drafts');
+  const item = page.locator('.editor-draft-list li', { hasText: title });
+  await expect(item).toContainText('AIエージェントが作成');
+  await item.getByRole('button').click();
+  await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(title);
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
+  const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
+  await composer.getByLabel('記事の概要（300文字以内）').fill('架空の制作日誌');
+  await composer.getByRole('checkbox').check();
+  await composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true }).click();
+  await expect(composer.getByRole('link', { name: 'ログインなしの読者画面を開く' })).toBeVisible();
+}
+
+// #276: the student's agent reads their own projects, drafts journal entries for one of them,
+// and only the student's own publication in the app puts them on the project page, by date.
+test("an agent's journal drafts for the student's project appear on it only after the student publishes them", async ({
+  page,
+  playwright,
+  browser,
+}, info) => {
+  const agent = await playwright.request.newContext({ baseURL: ORIGIN, ignoreHTTPSErrors: true });
+  await register(page, info);
+  const projectTitle = `架空の日誌つき作品-${info.project.name}`;
+  await page.goto('/works/new');
+  await page.getByLabel('作品タイトル', { exact: true }).fill(projectTitle);
+  await page.getByLabel('作品の説明', { exact: true }).fill('架空の作品説明');
+  await page.getByRole('button', { name: '作品を保存', exact: true }).click();
+  await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: '作品を公開する', exact: true }).click();
+  const open = page.getByRole('link', { name: 'ログインなしで作品を見る' });
+  await expect(open).toBeVisible();
+  const projectPath = (await open.getAttribute('href'))!;
+  const projectId = projectPath.split('/').pop()!;
+
+  const token = await connectAgent(page, agent, '架空の日誌エージェント ' + info.project.name);
+  const listed = await mcp(agent, token, 'list_my_projects', {});
+  expect(listed.status()).toBe(200);
+  const projects = (await listed.json()).result.structuredContent.projects as {
+    id: string;
+    title: string;
+  }[];
+  expect(projects).toEqual([expect.objectContaining({ id: projectId, title: projectTitle })]);
+  expect(JSON.stringify(projects)).not.toContain('@');
+
+  const day1 = `架空のMCP日誌1日目-${info.project.name}`,
+    day2 = `架空のMCP日誌2日目-${info.project.name}`;
+  for (const title of [day1, day2]) {
+    const made = await mcp(agent, token, 'create_draft', {
+      title,
+      body: '## 今日やったこと\n\n架空の制作記録です。',
+      project_id: projectId,
+    });
+    expect((await made.json()).result.isError).toBeUndefined();
+  }
+
+  const guest = await browser.newContext({
+    baseURL: ORIGIN,
+    ignoreHTTPSErrors: true,
+    viewport: page.viewportSize() ?? undefined,
+  });
+  try {
+    const reader = await guest.newPage();
+    await reader.goto(projectPath);
+    await expect(reader.getByRole('heading', { name: projectTitle })).toBeVisible();
+    // Drafts are private: nothing is on the project page before the student publishes.
+    await expect(reader.getByRole('link', { name: day1 })).toHaveCount(0);
+    await expect(reader.getByRole('link', { name: day2 })).toHaveCount(0);
+
+    // The student publishes day 1, then day 2, in the app; the page lists them in that order.
+    await publishDraftInApp(page, day1);
+    await publishDraftInApp(page, day2);
+    await reader.reload();
+    const section = reader.getByRole('region', { name: '制作日誌' });
+    await expect(section.getByRole('link')).toHaveText([day1, day2]);
+    await expect(section.locator('time')).toHaveCount(2);
+    expect(await noHorizontalScroll(reader)).toBe(true);
+    await reader.screenshot({
+      path: info.outputPath('project-journal-from-agent.png'),
+      fullPage: true,
+    });
+  } finally {
+    await guest.close();
+    await agent.dispose();
+  }
+});
