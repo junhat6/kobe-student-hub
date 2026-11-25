@@ -72,7 +72,7 @@ function ProfileLayout({
   ] as const;
   return (
     <div className="shell student-profile">
-      <aside className="profile-side" aria-label="投稿者">
+      <aside className={'profile-side' + (own ? '' : ' has-report')} aria-label="投稿者">
         <div className="profile-vcard">
           <span className={'avatar profile-avatar' + (avatar ? ' has-image' : '')}>
             {avatar ? <img src={avatar} alt="" width={256} height={256} /> : person.initials}
@@ -101,16 +101,17 @@ function ProfileLayout({
             )}
           </ul>
         )}
+        {/* Last in the person column: below the details on PC, beside the name on phones (#293). */}
+        {!own && (
+          <div className="profile-report-slot">
+            <ProfileReport
+              key={person.id}
+              profileId={person.id}
+              onNavigationRiskChange={reportRisk}
+            />
+          </div>
+        )}
       </aside>
-      {!own && (
-        <div className="profile-report-slot">
-          <ProfileReport
-            key={person.id}
-            profileId={person.id}
-            onNavigationRiskChange={reportRisk}
-          />
-        </div>
-      )}
       <div className="profile-main">
         {counts && <ActivityGrass id={person.id} />}
         <nav aria-label="投稿者の活動" className="profile-tabs">

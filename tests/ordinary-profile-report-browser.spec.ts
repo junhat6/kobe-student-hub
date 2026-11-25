@@ -21,6 +21,35 @@ async function seriousViolations(page: Page) {
     .map((v) => ({ id: v.id, targets: v.nodes.map((n) => n.target.join(' ')) }));
 }
 
+// #293: on phones the 「…」 sits at the right of the name row (as on X and Instagram), and
+// 「通報を受け付けました」 wraps below it without covering the name; on PC it stays under the person.
+async function expectReportPlacement(page: Page) {
+  const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
+  const width = page.viewportSize()!.width;
+  const vcard = await box('.profile-vcard'),
+    name = await box('.profile-side h1'),
+    trigger = await box('.profile-report-slot .report-menu-trigger');
+  const status = page.locator('.profile-report-slot').getByRole('status');
+  const done = (await status.count()) ? await status.boundingBox() : null;
+  const apart = (a: typeof name, b: typeof name) =>
+    a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+  if (width < 860) {
+    expect(trigger.y).toBeLessThan(vcard.y + vcard.height);
+    expect(trigger.x).toBeGreaterThanOrEqual(name.x + name.width);
+    expect(trigger.x + trigger.width).toBeLessThanOrEqual(width);
+    if (done) {
+      expect(done.y).toBeGreaterThanOrEqual(trigger.y + trigger.height);
+      expect(done.x + done.width).toBeLessThanOrEqual(width);
+      expect(apart(done, name)).toBe(true);
+    }
+  } else {
+    const side = await box('.profile-side');
+    expect(trigger.y).toBeGreaterThanOrEqual(vcard.y + vcard.height);
+    expect(trigger.x + trigger.width).toBeLessThanOrEqual(side.x + side.width);
+    if (done) expect(done.x + done.width).toBeLessThanOrEqual(side.x + side.width);
+  }
+}
+
 test('a student reports a public profile and an operator reads it with the reported text', async ({
   browser,
   page,
@@ -65,6 +94,7 @@ test('a student reports a public profile and an operator reads it with the repor
     const readerPage = await reader.context.newPage();
     await readerPage.setViewportSize(page.viewportSize()!);
     await readerPage.goto(profilePath);
+    await expectReportPlacement(readerPage);
     await chooseReport(readerPage, 'プロフィール');
     const reason = readerPage.getByLabel('プロフィールの通報理由（必須）', { exact: true });
     await expect(reason).toBeEditable();
@@ -81,6 +111,7 @@ test('a student reports a public profile and an operator reads it with the repor
       .getByRole('status');
     await expect(status).toContainText('通報を受け付けました');
     await expect(status.locator('svg')).toBeVisible();
+    await expectReportPlacement(readerPage);
     // The private reason no longer stays on screen, even when the dialog is opened again.
     await expect(reason).toHaveCount(0);
     await expect(

@@ -391,7 +391,6 @@
 .student-profile {
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
   gap: 40px;
   align-items: start;
   padding-top: 32px;
@@ -469,16 +468,14 @@
   flex: none;
   color: var(--ink-muted);
 }
-/* Reporting is the small 「…」 under the person (#228). */
+/* Reporting is the small 「…」 under the person on PC (#228). */
 .profile-report-slot {
-  grid-column: 1;
   min-width: 0;
+  margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
 .profile-main {
-  grid-column: 2;
-  grid-row: 1 / span 2;
   min-width: 0;
 }
 .profile-tabs {
@@ -531,17 +528,44 @@
   /* Phone layout as on GitHub: small avatar beside the name, then the rest stacked. */
   .student-profile {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
     gap: 24px;
     padding-top: 20px;
   }
-  .profile-main,
-  .profile-report-slot {
-    grid-column: auto;
-    grid-row: auto;
+  /* 「…」 sits at the right of the name row, as on X and Instagram (#293). fit-content keeps
+     「通報を受け付けました」 beside the button from squeezing the name; it wraps below instead. */
+  .profile-side.has-report {
+    grid-template-columns: minmax(0, 1fr) fit-content(112px);
+    column-gap: 12px;
   }
-  .profile-report-slot {
+  .profile-side.has-report > * {
+    grid-column: 1 / -1;
+  }
+  .profile-side.has-report > .profile-vcard {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  .profile-side.has-report > .profile-report-slot {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: center;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .profile-report-slot .report-menu {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .profile-report-slot .report-menu-done {
+    align-items: flex-start;
     order: 1;
+    white-space: normal;
+    word-break: keep-all;
+    text-align: right;
+  }
+  .profile-report-slot .report-menu-done .icon {
+    flex: none;
+    margin-top: 2px;
   }
   .profile-vcard {
     grid-template-columns: auto minmax(0, 1fr);

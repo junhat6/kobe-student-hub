@@ -53,7 +53,11 @@ export default function ReportMenu({
       {submitted && (
         <p className="report-menu-done" role="status">
           <Icon name="check" size={16} />
-          通報を受け付けました
+          <span>
+            通報を
+            <wbr />
+            受け付けました
+          </span>
         </p>
       )}
       {started && (
