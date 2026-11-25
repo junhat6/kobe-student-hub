@@ -465,6 +465,23 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
       expect(r.status).toBe(404);
       await r.arrayBuffer();
     }
+    // Behaviour, not source shape: an unauthorized upload whose body never ends is answered with
+    // 404 at once. A read started before authorization finishes (in sequence or in parallel) would
+    // wait for the body and answer only at the 5 second deadline.
+    const started = Date.now();
+    const hanging = await mf.dispatchFetch(O + `/api/private/media/articles/${d.id}/${id()}`, {
+      method: 'PUT',
+      headers: { ...h(1), 'If-Match': `"${d.version}"`, 'Content-Type': 'image/png' },
+      body: new ReadableStream<Uint8Array>({
+        start(c) {
+          c.enqueue(png.subarray(0, 8));
+        },
+      }),
+      duplex: 'half',
+    } as Parameters<typeof mf.dispatchFetch>[1]);
+    expect(hanging.status).toBe(404);
+    await hanging.arrayBuffer();
+    expect(Date.now() - started).toBeLessThan(2000);
     for (const path of [
       '/api/media/' + id() + '?x=1',
       '/api/media/' + id() + '#private',

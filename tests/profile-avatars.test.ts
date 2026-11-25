@@ -141,6 +141,23 @@ it('validates the image on the server: square, bounded, decodable PNG/JPEG only'
   expect((await put(new Uint8Array(AVATAR_MAX_BYTES + 1).fill(1), 3)).status).toBe(404);
   expect((await put(square(64), 3, 'image/gif')).status).toBe(404);
   expect((await put(new Uint8Array(0), 3)).status).toBe(404);
+  // Behaviour, not source shape: an unauthorized upload whose body never ends is answered with
+  // 404 at once. A read started before authorization finishes (in sequence or in parallel) would
+  // wait for the body and answer only at the 5 second deadline.
+  const started = Date.now();
+  const hanging = await mf.dispatchFetch(O + own, {
+    method: 'PUT',
+    headers: { ...h(3), 'Content-Type': 'image/png' },
+    body: new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(new Uint8Array([137, 80, 78, 71]));
+      },
+    }),
+    duplex: 'half',
+  } as Parameters<typeof mf.dispatchFetch>[1]);
+  expect(hanging.status).toBe(404);
+  await hanging.arrayBuffer();
+  expect(Date.now() - started).toBeLessThan(2000);
   expect(await version()).toBeNull();
   const jpegResult = await put(jpg, 0, 'image/jpeg');
   expect(jpegResult.status).toBe(201);
