@@ -45,12 +45,13 @@ export function oneLineRejectedCodePoint(value: string): string | null {
 /**
  * Characters that show nothing on their own: white space of every width (U+3000 included), marks, joiners,
  * control and format characters, default-ignorables, the braille blank, and the two graphic characters that
- * render as blank, MUSICAL SYMBOL NULL NOTEHEAD U+1D159 and KHITAN SMALL SCRIPT FILLER U+16FE4 (#265).
+ * render as blank, MUSICAL SYMBOL NULL NOTEHEAD U+1D159, KHITAN SMALL SCRIPT FILLER U+16FE4 and the
+ * EGYPTIAN HIEROGLYPH FULL/HALF BLANK U+13441–13442 (#265).
  * The list is short on purpose: a broader class (all symbols, an unassigned range) would refuse real titles
  * on a newer or older Unicode version, while these are the ones known to pass every other rule.
  */
 const SHOWS_NOTHING =
-  /[\s\p{Z}\p{M}\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}\u2800\u{1D159}\u{16FE4}]/u;
+  /[\s\p{Z}\p{M}\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}\u2800\u{1D159}\u{16FE4}\u{13441}\u{13442}]/u;
 /** True when the text has at least one character a reader can see. */
 export function hasVisibleCharacter(value: string): boolean {
   return Array.from(value).some((c) => !SHOWS_NOTHING.test(c));

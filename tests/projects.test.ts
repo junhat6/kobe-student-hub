@@ -1072,6 +1072,8 @@ it('refuses a title of only blank or invisible characters on save and on publica
     '\u{1d159}\u200d\u{1d159}',
     '\u{16fe4}',
     '\u{16fe4}\u200d\u{16fe4}',
+    '\u{13441}',
+    '\u{13442}\u3000\u{13441}',
   ];
   for (const title of blank) {
     expect(hasVisibleCharacter(title), title).toBe(false);
