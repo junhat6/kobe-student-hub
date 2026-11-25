@@ -62,6 +62,7 @@
 - 自分の push だけで main-health が赤く手元で再現しないときは、`gh workflow run ci.yml --ref tmp/<名前>` で一時ブランチの版を並べて切り分ける（main-health は concurrency が全体で1つなので、一時ブランチで回すと main の検査を取り消す）。#277 は無関係に見える profile-reports が、テストが増えた負荷で崩れていた
 - サーバーが確かめてから状態が変わるチェックボックスは、spec で `check()` を使わず `click()` の後に `toBeChecked()` を待つ（`check()` は即時に変わらないと「did not change its state」で落ちる。#273）
 - 上限（bytes・Content-Length・宣言長）のテストは、有効な DTO の本文で境界ちょうどが通り±1で落ちる形にする（不正な DTO で当てると別の理由で落ち、上限を緩める mutation が生き残る。#189 12段目）
+- mutation・前後比較をシェルの loop で回すときは `bash -c` の中で回す（zsh は `$F` のファイル一覧を分割せず、vitest が0件で黙って終わり「落ちない＝通った」と誤読しかけた。run-228）。既存テストの末尾に足す経路テストは、前のケースが session を失効させるので新しいアカウントとセッションを作る
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 - 検証依頼を書いたら、同じ周回で Agent tool の別 context verifier を起動して結果まで見届ける（書くだけで終えると誰も検証せず Issue が止まる。#269）。指摘を直したら毎回新しい verifier で再確認する
 
