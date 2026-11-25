@@ -63,6 +63,7 @@
 - 他の表から外部キーで参照される表（media_assets 等）を作り直すときは、DROP＋RENAME にしない（`defer_foreign_keys` でも commit で FK 違反になる）。退避表へ写す→DROP→同じ名前で作り直す→写し戻す、の順にし、テストは `db.batch` で1 transaction として当てる（0045、#12）
 - 自分の push だけで main-health が赤く手元で再現しないときは、`gh workflow run ci.yml --ref tmp/<名前>` で一時ブランチの版を並べて切り分ける（main-health は concurrency が全体で1つなので、一時ブランチで回すと main の検査を取り消す）。#277 は無関係に見える profile-reports が、テストが増えた負荷で崩れていた
 - サーバーが確かめてから状態が変わるチェックボックスは、spec で `check()` を使わず `click()` の後に `toBeChecked()` を待つ（`check()` は即時に変わらないと「did not change its state」で落ちる。#273）
+- 「未認可の body を読まない」は状態コードでも source の形の静的検査でも守り切れない（読み取りを前に動かしても 404 は変わらず、`Promise.all` 等で静的検査も抜ける）。未認可の PUT に終わらない stream を付けて送り、すぐ 404 が返ることを見る（#295。認可の promise を先に作って read を await しない形は抜ける既知の限界）
 - 上限（bytes・Content-Length・宣言長）のテストは、有効な DTO の本文で境界ちょうどが通り±1で落ちる形にする（不正な DTO で当てると別の理由で落ち、上限を緩める mutation が生き残る。#189 12段目）
 - mutation・前後比較をシェルの loop で回すときは `bash -c` の中で回す（zsh は `$F` のファイル一覧を分割せず、vitest が0件で黙って終わり「落ちない＝通った」と誤読しかけた。run-228）。既存テストの末尾に足す経路テストは、前のケースが session を失効させるので新しいアカウントとセッションを作る
 - vitest が `TypeError: Body is unusable: Body has already been read`（undici）で落ちるのは、`mf.dispatchFetch()` の応答を受けてから別の await（R2・D1 の読み取りなど）を挟み、後で `res.arrayBuffer()`／`text()` を読む形が原因。Miniflare は body をすぐ読む前提なので、応答の body を先に読んでから他の await をする（run-232 は再実行で通したが main-health が再び赤に。mend run-119）
