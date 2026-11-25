@@ -66,6 +66,7 @@
 - 上限（bytes・Content-Length・宣言長）のテストは、有効な DTO の本文で境界ちょうどが通り±1で落ちる形にする（不正な DTO で当てると別の理由で落ち、上限を緩める mutation が生き残る。#189 12段目）
 - mutation・前後比較をシェルの loop で回すときは `bash -c` の中で回す（zsh は `$F` のファイル一覧を分割せず、vitest が0件で黙って終わり「落ちない＝通った」と誤読しかけた。run-228）。既存テストの末尾に足す経路テストは、前のケースが session を失効させるので新しいアカウントとセッションを作る
 - vitest が `TypeError: Body is unusable: Body has already been read`（undici、テスト側の `res.arrayBuffer()`／`text()`）で1件だけ落ちるのは負荷による揺れ（run-232 で media・project-moderation に1回ずつ、どちらも再実行で green）。実装の失敗と数えず、`--failed` で回し直す
+- 振る舞いの前提を変えたら（例：失敗した upload の R2 object を即時に消さず sweep に任せる）、`rg` で同じ前提の古い検査（「object 0」など）も探して直す。競合の検査は手元では片側にしか当たらず、CI の負荷でだけ反対側に当たって main health が赤くなる（11874ae → 81cc509）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 - 検証依頼を書いたら、同じ周回で Agent tool の別 context verifier を起動して結果まで見届ける（書くだけで終えると誰も検証せず Issue が止まる。#269）。指摘を直したら毎回新しい verifier で再確認する
 
