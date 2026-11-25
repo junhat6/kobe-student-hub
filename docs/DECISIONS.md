@@ -2,6 +2,13 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-25 — 写真の画像処理は Antigravity CLI のセッションが受け持つ（オーナーの決定を受けた受け側）
+
+オーナーの決定：写真の画像処理（BeReal 集合写真の切り抜きなど）は Antigravity CLI のセッションが担当し、処理済みのファイルを `~/ksh-materials/processed/` に置く。これを受けて次のように決める。
+
+1. **editor が下書きに写真を置くとき、BeReal 系の写真は `processed/` 側を先に探して使う。** 同じ写真の処理済みが無いときだけ元ファイルを使い、editor 自身は切り抜き・加工をしない（作る係と画像を整える係を分ける。同じ写真を二重に処理しない）。
+2. 採らない場合の影響：元ファイルを使うと、BeReal の二画面合成や写り込んだ他人の顔がそのまま下書きに入り、オーナーが公開の直前に差し替える手間が残る。
+
 ## 2026-11-24 — オーナーの画面操作フィードバックを受けた方針（セッション長期化・下書きレビュー・作品日誌・技術スタック）
 
 きっかけ：2026-11-24 夜のオーナー動作確認動画（非公開。`~/video-inbox/`）で、本番（r2026.11.24.1）を操作しながらの所見・不満・新機能アイデアを受け取った。これを受けて次のように決める。
