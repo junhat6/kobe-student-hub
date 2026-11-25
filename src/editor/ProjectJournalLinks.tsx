@@ -72,6 +72,12 @@ export default function ProjectJournalLinks({
     ? (ownArticles ?? []).filter((article) => !journal.fixedArticleIds.includes(article.id))
     : [];
   const full = (journal?.articleIds.length ?? 0) >= PROJECT_JOURNAL_LIMIT;
+  // Linked articles that are no longer public: not shown on the project page, but they keep a slot
+  // until the owner removes them, so they stay listed here to be removed (#273 verifier L3).
+  const stopped =
+    journal && ownArticles
+      ? journal.articleIds.filter((id) => !ownArticles.some((article) => article.id === id))
+      : [];
   return (
     <fieldset className="project-article-links project-journal-links">
       <legend>制作日誌</legend>
@@ -115,6 +121,22 @@ export default function ProjectJournalLinks({
               </label>
             );
           })}
+        </>
+      )}
+      {stopped.length > 0 && (
+        <>
+          <p>公開を止めた記事は作品ページに出ません。外すと枠が空きます。</p>
+          {stopped.map((id, n) => (
+            <label key={id}>
+              <input
+                type="checkbox"
+                checked
+                disabled={!writable || pending !== null}
+                onChange={() => void toggle(id, false, '公開を止めた記事')}
+              />
+              公開を止めた記事 {n + 1}
+            </label>
+          ))}
         </>
       )}
       {unknown && <p role="alert">日誌の変更を確かめられませんでした。自動で再送しません。</p>}

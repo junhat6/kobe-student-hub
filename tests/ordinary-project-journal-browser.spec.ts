@@ -155,6 +155,25 @@ test('owner adds and removes later articles as the project journal; readers see 
       day1,
     ]);
     expect(path2).toMatch(/^\/articles\/[0-9a-f-]{36}$/);
+
+    // Day 1 stops being public: readers no longer see it, and the owner can still remove its link.
+    await page.goto('/account');
+    const records = page.getByRole('region', { name: '自分の公開記録', exact: true });
+    await records.getByRole('button', { name: '公開を止める：' + day1, exact: true }).click();
+    const stop = page.getByRole('alertdialog', { name: /の公開を止めますか/ });
+    await stop.getByRole('button', { name: '公開を止める', exact: true }).click();
+    await expect(stop).toBeHidden();
+    await reader.goto(projectPath);
+    await expect(reader.getByRole('heading', { name: projectTitle, exact: true })).toBeVisible();
+    await expect(reader.getByRole('region', { name: '制作日誌' })).toHaveCount(0);
+    await page.goto('/works/new');
+    await page.getByRole('button', { name: '続きを編集：' + projectTitle, exact: true }).click();
+    const left = page.getByRole('group', { name: '制作日誌' });
+    const gone = left.getByRole('checkbox', { name: '公開を止めた記事 1', exact: true });
+    await expect(gone).toBeChecked();
+    await gone.click();
+    await expect(gone).toHaveCount(0);
+    await expect(left.getByRole('checkbox', { name: day2, exact: true })).not.toBeChecked();
   } finally {
     await guest.close();
   }

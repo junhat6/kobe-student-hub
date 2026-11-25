@@ -225,6 +225,39 @@ describe('project journal links (#273)', () => {
     expect(await rows()).toEqual([{ project_id: work.projectId, article_id: second }]);
   });
 
+  // Verifier M1・L1 (#273): each trigger condition is checked on its own, below the limit.
+  it('the insert trigger refuses a stopped or deleted project and a sample article on their own', async () => {
+    const db = await mf.getD1Database('DB');
+    const insert = (projectId: string, articleId: string) =>
+      db
+        .prepare(
+          "INSERT INTO project_journal_links(project_id,article_id,owner_account_id,linked_at_ms) VALUES(?,?,'private-a',?)",
+        )
+        .bind(projectId, articleId, NOW)
+        .run();
+    const spare = await project('止める作品');
+    for (const status of ['hidden', 'deleted']) {
+      await db
+        .prepare('UPDATE project_publications SET status=? WHERE id=?')
+        .bind(status, spare.projectId)
+        .run();
+      await expect(insert(spare.projectId, first)).rejects.toThrow(/journal link unavailable/);
+    }
+    expect(await rows(spare.projectId)).toEqual([]);
+    const sample = await article('見本扱いの記事');
+    await db.prepare('UPDATE content SET is_sample=1 WHERE id=?').bind(sample).run();
+    await expect(insert(work.projectId, sample)).rejects.toThrow(/journal link unavailable/);
+    // Written straight to the table, the article fixed at publish time is still shown only once.
+    await insert(work.projectId, fixed);
+    const value = (await page(work.projectId))!;
+    expect(value.articles.map((x) => x.id)).toEqual([fixed]);
+    expect(value.journal.map((x) => x.id)).toEqual([second]);
+    await db
+      .prepare('DELETE FROM project_journal_links WHERE project_id=? AND article_id=?')
+      .bind(work.projectId, fixed)
+      .run();
+  });
+
   it('the insert trigger re-checks ownership, account status, project status and the limit', async () => {
     const db = await mf.getD1Database('DB');
     const insert = (projectId: string, articleId: string, owner = 'private-a') =>
