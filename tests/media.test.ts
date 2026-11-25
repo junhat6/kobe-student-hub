@@ -1799,6 +1799,37 @@ describe('migration 0045 on a database that already has published images', () =>
       d = await draft(`Saved ![diagram](/api/media/${published})`);
     expect((await upload(d, published)).status).toBe(201);
     expect(await publication(d, [published])).not.toBeNull();
+    // A published project holds its own grant on media_assets (project_publication_media).
+    const projectImage = id(),
+      project = await call<{ id: string }>('project-draft', {
+        title: 'Image project',
+        description: `![screen](/api/media/${projectImage})`,
+        githubUrl: '',
+        demoUrl: '',
+      });
+    expect(
+      (
+        await mf.dispatchFetch(O + `/api/private/media/projects/${project.id}/${projectImage}`, {
+          method: 'PUT',
+          headers: { ...h(), 'Content-Type': 'image/png', 'If-Match': '"1"' },
+          body: png,
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await call<{ projectId: string } | null>('project-publish', {
+          id: project.id,
+          input: { expectedVersion: 1, confirmPublic: true, mediaIds: [projectImage] },
+        })
+      )?.projectId,
+    ).toBeTruthy();
+    const grants = () =>
+      db
+        .prepare(
+          "SELECT 'a' kind,content_id owner,media_id FROM article_publication_media UNION ALL SELECT 'p',project_id,media_id FROM project_publication_media ORDER BY 1,2,3",
+        )
+        .all();
     // A row the previous Worker wrote without the size column and before R2 held it.
     await db
       .prepare(
@@ -1808,16 +1839,15 @@ describe('migration 0045 on a database that already has published images', () =>
       .run();
     const rows = () => db.prepare('SELECT * FROM media_assets ORDER BY id').all();
     const before = await rows(),
+      grantsBefore = await grants(),
       schemaBefore = await schemaOf(db);
-    expect(
-      (await db.prepare('SELECT COUNT(*) n FROM article_publication_media').first<{ n: number }>())!
-        .n,
-    ).toBe(1);
+    expect(grantsBefore.results.map((g) => (g as { kind: string }).kind)).toEqual(['a', 'p']);
 
     // One batch, as the D1 migrations command applies it.
     await db.batch(statements().map((sql) => db.prepare(sql)));
 
     expect((await rows()).results).toEqual(before.results);
+    expect((await grants()).results).toEqual(grantsBefore.results);
     const schemaAfter = await schemaOf(db);
     const changed = new Set(['media_assets', 'media_assets_bytes_insert']);
     expect(schemaAfter.map((s) => s.name)).toEqual(schemaBefore.map((s) => s.name));
@@ -1827,14 +1857,27 @@ describe('migration 0045 on a database that already has published images', () =>
     expect((await db.prepare('PRAGMA foreign_key_list(media_assets)').all()).results.length).toBe(
       3,
     );
-    // The grant still points at the row and is still enforced.
-    const r = await publicRead(published);
-    expect(r.status).toBe(200);
-    expect(new Uint8Array(await r.arrayBuffer())).toEqual(png);
+    // Both grants still point at their rows and are still enforced.
+    for (const image of [published, projectImage]) {
+      const r = await publicRead(image);
+      expect(r.status).toBe(200);
+      expect(new Uint8Array(await r.arrayBuffer())).toEqual(png);
+    }
+    expect(
+      (await db.prepare('PRAGMA foreign_key_list(project_publication_media)').all()).results,
+    ).toContainEqual(expect.objectContaining({ table: 'media_assets', from: 'media_id' }));
     await expect(
       db
         .prepare(
           'INSERT INTO article_publication_media(content_id,media_id) SELECT content_id,? FROM article_publication_media LIMIT 1',
+        )
+        .bind(id())
+        .run(),
+    ).rejects.toThrow(/FOREIGN KEY/);
+    await expect(
+      db
+        .prepare(
+          'INSERT INTO project_publication_media(project_id,media_id) SELECT project_id,? FROM project_publication_media LIMIT 1',
         )
         .bind(id())
         .run(),
@@ -1876,15 +1919,18 @@ describe('migration 0045 on a database that already has published images', () =>
       .first<{ sql: string }>())!.sql;
     await db.prepare('DROP TRIGGER media_assets_content_immutable').run();
     try {
-      await db.prepare('UPDATE media_assets SET payload=NULL WHERE id=?').bind(published).run();
+      for (const image of [published, projectImage])
+        await db.prepare('UPDATE media_assets SET payload=NULL WHERE id=?').bind(image).run();
       await expect(
         db.prepare('UPDATE media_assets SET payload=NULL WHERE id=?').bind(pending).run(),
       ).rejects.toThrow(/CHECK/);
     } finally {
       await db.prepare(guard).run();
     }
-    const after = await publicRead(published);
-    expect(after.status).toBe(200);
-    expect(new Uint8Array(await after.arrayBuffer())).toEqual(png);
+    for (const image of [published, projectImage]) {
+      const after = await publicRead(image);
+      expect(after.status).toBe(200);
+      expect(new Uint8Array(await after.arrayBuffer())).toEqual(png);
+    }
   });
 });
