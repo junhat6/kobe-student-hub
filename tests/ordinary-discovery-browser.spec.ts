@@ -320,29 +320,40 @@ test('a failed like change keeps the confirmed state and re-reads instead of res
     expect(stored.status()).toBe(200);
     const page = await liker.context.newPage();
     const writes: string[] = [];
+    let readFails = false;
     await page.route('**/api/private/article-likes/**', async (route) => {
-      if (route.request().method() === 'GET') return route.continue();
+      if (route.request().method() === 'GET')
+        return readFails ? route.fulfill({ status: 503, body: '' }) : route.continue();
       writes.push(route.request().method());
       await route.fulfill({ status: 503, body: '' });
     });
     await page.goto('/articles/' + source.id);
-    const like = page.getByRole('button', { name: 'いいね済み', exact: true });
+    // The label stays "いいね"; the filled heart and aria-pressed carry the liked state (原則2).
+    const like = page.getByRole('button', { name: 'いいね', exact: true });
     await expect(like).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'いいね済み', exact: true })).toHaveCount(0);
     await like.click();
-    // The unlike failed: the button must not claim "not liked" while the server still has it.
-    const check = page.getByRole('button', { name: '状態を確認', exact: true });
-    await expect(check).toBeVisible();
+    // The unlike failed: the screen re-reads by itself (no "状態を確認" button, 原則4) and
+    // shows the stored state plus a visible failure, without claiming "not liked".
+    await expect(page.getByText('いいねを変更できませんでした。', { exact: true })).toBeVisible();
+    await expect(like).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: '状態を確認', exact: true })).toHaveCount(0);
+    expect(writes).toHaveLength(1);
+    // When the stored state cannot be read either, only then is "もう一度" offered.
+    readFails = true;
+    await like.click();
+    const again = page.getByRole('button', { name: 'もう一度', exact: true });
+    await expect(again).toBeVisible();
     await expect(
-      page.getByText('保存できたか確認できませんでした', { exact: false }),
+      page.getByText('いいねの状態を確認できませんでした。', { exact: false }),
     ).toBeVisible();
-    expect(writes).toHaveLength(1);
-    await check.click();
-    await expect(page.getByRole('button', { name: 'いいね済み', exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    // Pressing again re-read the stored state; it did not resend the failed change.
-    expect(writes).toHaveLength(1);
+    expect(writes).toHaveLength(2);
+    readFails = false;
+    await again.click();
+    await expect(like).toHaveAttribute('aria-pressed', 'true');
+    await expect(again).toHaveCount(0);
+    // "もう一度" re-read the stored state; it did not resend the failed change.
+    expect(writes).toHaveLength(2);
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
   }

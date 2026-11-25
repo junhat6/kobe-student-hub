@@ -10,11 +10,14 @@ type State =
   | { kind: 'loading' }
   | { kind: 'ready'; liked: boolean }
   | { kind: 'saving'; liked: boolean }
-  | { kind: 'error'; liked: boolean | null };
+  | { kind: 'error'; liked: boolean | null }
+  // The change did not take: the server confirmed the old state after the failure.
+  | { kind: 'failed'; liked: boolean };
 
 /**
- * One-tap public like for signed-in readers. A failed change is never retried
- * automatically; the reader sees the last confirmed state and can try again.
+ * One-tap public like for signed-in readers. A failed change is never resent
+ * automatically: the button re-reads the stored state by itself (原則4) and only
+ * an unreadable state or a change that did not take is shown in visible text (原則6).
  */
 export default function ArticleLikeButton({
   contentId,
@@ -52,12 +55,28 @@ export default function ArticleLikeButton({
   }, [client, contentId]);
   // After a failed save, keep showing the last state the server confirmed.
   const liked =
-    state.kind === 'ready' || state.kind === 'saving'
+    state.kind === 'ready' || state.kind === 'saving' || state.kind === 'failed'
       ? state.liked
       : state.kind === 'error'
         ? Boolean(state.liked)
         : false;
   const busy = state.kind === 'loading' || state.kind === 'saving';
+  // Re-read the stored state instead of resending. `attempted` is the change that may have failed.
+  async function reread(confirmed: boolean | null, attempted?: boolean) {
+    if (!client) return;
+    setState({ kind: 'loading' });
+    try {
+      const stored = await client.read(contentId);
+      setState(
+        attempted === undefined || stored === attempted
+          ? { kind: 'ready', liked: stored }
+          : { kind: 'failed', liked: stored },
+      );
+    } catch {
+      setState({ kind: 'error', liked: confirmed });
+      refresh();
+    }
+  }
   async function toggle() {
     if (viewer.status !== 'signed-in') {
       setHint('login');
@@ -66,13 +85,7 @@ export default function ArticleLikeButton({
     if (!client || busy || state.kind === 'idle') return;
     if (state.kind === 'error') {
       // The last change may or may not have been stored: re-read instead of resending.
-      setState({ kind: 'loading' });
-      try {
-        setState({ kind: 'ready', liked: await client.read(contentId) });
-      } catch {
-        setState({ kind: 'error', liked: state.liked });
-        refresh();
-      }
+      await reread(state.liked);
       return;
     }
     const current = liked;
@@ -85,9 +98,8 @@ export default function ArticleLikeButton({
       const value = await client.set(contentId, !current);
       setState({ kind: 'ready', liked: value });
     } catch {
-      // Unknown outcome: show the last confirmed state, not the attempted one.
-      setState({ kind: 'error', liked: current });
-      refresh();
+      // Unknown outcome: never resend; read what the server stored (the screen re-reads itself).
+      await reread(current, !current);
     }
   }
   return (
@@ -97,6 +109,7 @@ export default function ArticleLikeButton({
           type="button"
           className={'like-toggle' + (liked ? ' is-liked' : '')}
           aria-pressed={viewer.status === 'signed-in' && state.kind !== 'error' ? liked : undefined}
+          title={liked ? 'いいねを取り消す' : undefined}
           disabled={busy}
           onClick={() => void toggle()}
         >
@@ -109,13 +122,28 @@ export default function ArticleLikeButton({
               strokeLinejoin="round"
             />
           </svg>
-          {state.kind === 'error' ? '状態を確認' : liked ? 'いいね済み' : 'いいね'}
+          {/* The filled heart and aria-pressed say "liked"; the label stays the same (原則2). */}
+          いいね
         </button>
         {actions}
       </div>
-      <p className="article-like-note" role="status" aria-live="polite">
+      <p
+        className={
+          'article-like-note' +
+          (state.kind === 'error' || state.kind === 'failed' ? ' is-error' : '')
+        }
+        role="status"
+        aria-live="polite"
+      >
         {state.kind === 'error' ? (
-          '保存できたか確認できませんでした。「状態を確認」を押すと、保存されている状態を読み直します。'
+          <>
+            いいねの状態を確認できませんでした。
+            <button type="button" className="article-like-retry" onClick={() => void toggle()}>
+              もう一度
+            </button>
+          </>
+        ) : state.kind === 'failed' ? (
+          'いいねを変更できませんでした。'
         ) : hint === 'login' ? null : hint === 'profile' ? null : (
           // Liking is public: a globe and one line instead of a paragraph (原則2).
           <>

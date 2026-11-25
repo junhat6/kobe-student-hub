@@ -63,6 +63,24 @@
   margin-right: 4px;
   vertical-align: -2px;
 }
+.article-like-note.is-error {
+  color: #b8243f;
+  font-weight: 700;
+}
+/* Only shown when the stored state could not be read; 44px target without a second row. */
+.article-like-retry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent-strong);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 .article-like-note a {
   color: var(--accent-strong);
   text-decoration: underline;

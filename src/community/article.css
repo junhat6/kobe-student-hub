@@ -284,8 +284,40 @@
 .detail-layout .related-reading li a {
   text-decoration: none;
 }
+.detail-layout .related-reading h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.5;
+}
 .detail-layout .related-reading h3 a {
+  /* The title is the card's main target: a full-width row of at least 44px. */
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--ink);
+}
+/* Card hierarchy like Zenn/note: bold title, muted two-line summary, small author (原則7). */
+.detail-layout .related-reading li > p:not(.related-reading-reason) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+.detail-layout .related-reading .related-reading-reason {
+  margin: 0;
+  font-size: 12px;
+}
+.detail-layout .related-reading li > a {
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.detail-layout .related-reading li > a:hover {
+  color: var(--accent-strong);
 }
 .detail-layout .related-reading h3 a:hover {
   color: var(--accent-strong);

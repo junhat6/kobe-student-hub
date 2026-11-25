@@ -154,7 +154,7 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
     await back.click();
     await expect(bare).toHaveURL(new RegExp(articlePath + '$'));
     await bare.getByRole('button', { name: 'いいね', exact: true }).click();
-    await expect(bare.getByRole('button', { name: 'いいね済み', exact: true })).toHaveAttribute(
+    await expect(bare.getByRole('button', { name: 'いいね', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -165,7 +165,8 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
     await reader.goto(articlePath);
     await expect(reader.getByText(publicNote, { exact: true })).toBeVisible();
     await reader.getByRole('button', { name: 'いいね', exact: true }).click();
-    const liked = reader.getByRole('button', { name: 'いいね済み', exact: true });
+    // The label stays "いいね"; the filled heart and aria-pressed say it is liked (原則2).
+    const liked = reader.getByRole('button', { name: 'いいね', exact: true });
     await expect(liked).toHaveAttribute('aria-pressed', 'true');
     await expect(reader.getByText(publicNote, { exact: true })).toBeVisible();
     // #175: the pointer still rests on the button right after pressing it; the liked label
@@ -183,7 +184,7 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
       scale: 'css',
     });
     await reader.reload();
-    await expect(reader.getByRole('button', { name: 'いいね済み', exact: true })).toHaveAttribute(
+    await expect(reader.getByRole('button', { name: 'いいね', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -201,8 +202,10 @@ test('a signed-in student likes and unlikes; the like is public and the guidance
     ).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible();
 
-    // Unlike: the button returns to "いいね", it persists, and the public page drops it.
-    await reader.getByRole('button', { name: 'いいね済み', exact: true }).click();
+    await expect(reader.getByRole('button', { name: 'いいね済み', exact: true })).toHaveCount(0);
+
+    // Unlike: the heart empties (aria-pressed false), it persists, and the public page drops it.
+    await reader.getByRole('button', { name: 'いいね', exact: true }).click();
     await expect(reader.getByRole('button', { name: 'いいね', exact: true })).toHaveAttribute(
       'aria-pressed',
       'false',
