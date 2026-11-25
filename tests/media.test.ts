@@ -814,14 +814,24 @@ describe.each([{ r2: false }, { r2: true }])('media storage (r2: $r2)', ({ r2 })
     const last = [id(), id()];
     const final = await Promise.all(last.map((image) => upload(d, image)));
     expect(final.map((r) => r.status).sort()).toEqual([201, 409]);
-    // The refused image leaves no private object behind, whichever check refused it.
+    // The refused image gets no row. Refused by the check before R2, it never wrote an object;
+    // refused by the insert trigger after R2, its object is left to the sweep (11874ae: deleting it
+    // at once would race a resend of the same image), so it must be gone after the grace period.
     const refused = last[final.findIndex((r) => r.status === 409)];
-    if (r2)
-      expect(
-        (await (await mf.getR2Bucket('MEDIA_BUCKET')).list({ prefix: `media/${refused}/` }))
-          .objects,
-      ).toHaveLength(0);
     const db = await mf.getD1Database('DB');
+    expect(
+      await db.prepare('SELECT 1 FROM media_assets WHERE id=?').bind(refused).first(),
+    ).toBeNull();
+    if (r2) {
+      const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+      expect(
+        (await bucket.list({ prefix: `media/${refused}/` })).objects.length,
+      ).toBeLessThanOrEqual(1);
+      await mf.dispatchFetch(O + '/fixture/maintain', {
+        headers: { 'X-Test-Now': String(Date.now() + 2 * 60 * 60 * 1000), 'X-Test-Start': refused },
+      });
+      expect((await bucket.list({ prefix: `media/${refused}/` })).objects).toEqual([]);
+    }
     expect(
       (
         await db
