@@ -1110,6 +1110,64 @@ describe('project journal drafts (#276): own projects only, linked when the stud
     expect((await journalOf(mine)).map((e) => e.id)).toEqual([p2!.contentId]);
   });
 
+  const publishAppArticle = async (title: string, now = NOW) => {
+    const draft = await call<{ id: string; version: number }>({
+      action: 'create',
+      url: ORIGIN + '/private/drafts',
+      method: 'POST',
+      headers: browser(users.i, true),
+      input: { title, body: '本文' },
+      now,
+    });
+    return publishDraft('i', draft.id, draft.version, now);
+  };
+
+  it('publishes past a full journal (20 links) without linking, and consumes the intent', async () => {
+    const full = await makeProject('i', '日誌が満杯の作品');
+    const d = await db();
+    for (let k = 0; k < 20; k++) {
+      const published = await publishAppArticle('満杯にする記事' + k);
+      await d
+        .prepare(
+          "INSERT INTO project_journal_links(project_id,article_id,owner_account_id,linked_at_ms) VALUES(?,?,'account-i',?)",
+        )
+        .bind(full, published!.contentId, NOW)
+        .run();
+    }
+    const c = await connect('i');
+    const made = await tool(c.access_token, 'create_draft', {
+      title: '21本目の日誌',
+      body: '本文',
+      project_id: full,
+    });
+    const draft = made.structuredContent!.draft;
+    const published = await publishDraft('i', draft.id, draft.version);
+    expect(published?.contentId).toBeTruthy();
+    const state = await d
+      .prepare(
+        'SELECT (SELECT count(*) FROM project_journal_links WHERE project_id=?) AS links,(SELECT count(*) FROM project_journal_links WHERE article_id=?) AS mine,(SELECT count(*) FROM agent_draft_projects WHERE draft_id=?) AS intents',
+      )
+      .bind(full, published!.contentId, draft.id)
+      .first<{ links: number; mine: number; intents: number }>();
+    expect(state).toEqual({ links: 20, mine: 0, intents: 0 });
+  });
+
+  it('publishes as before on a database without migration 0048', async () => {
+    const d = await db();
+    await d.prepare('ALTER TABLE agent_draft_projects RENAME TO agent_draft_projects_hidden').run();
+    try {
+      const published = await publishAppArticle('0048 の無い DB で公開する記事');
+      expect(published?.contentId).toBeTruthy();
+      const c = await connect('i');
+      const listed = await tool(c.access_token, 'list_my_projects');
+      expect(listed.structuredContent!.projects.length).toBeGreaterThan(0);
+    } finally {
+      await d
+        .prepare('ALTER TABLE agent_draft_projects_hidden RENAME TO agent_draft_projects')
+        .run();
+    }
+  });
+
   it('still publishes the article when the project was stopped before publication', async () => {
     const c = await connect('i');
     const later = await makeProject('i', 'あとで止める作品');

@@ -598,7 +598,7 @@ export class AgentConnectionStore {
       // #276: the project must be the student's own live published one, checked in the same INSERT,
       // so a refused project saves nothing at all (no draft, no origin, no hints).
       const projectSql = projectId
-        ? " AND EXISTS(SELECT 1 FROM project_publications r WHERE r.id=? AND r.owner_account_id=? AND r.status='published')"
+        ? " AND EXISTS(SELECT 1 FROM project_publications r WHERE r.id=? AND r.owner_account_id=? AND r.status='published' AND r.published_at_ms<=?)"
         : '';
       const results = await this.db.batch([
         this.db
@@ -616,7 +616,7 @@ export class AgentConnectionStore {
             a.accountId,
             now - DAY_MS,
             DAILY_AGENT_DRAFTS,
-            ...(projectId ? [projectId, a.accountId] : []),
+            ...(projectId ? [projectId, a.accountId, now] : []),
           ),
         this.db
           .prepare(
