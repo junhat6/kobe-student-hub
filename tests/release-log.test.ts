@@ -137,6 +137,7 @@ describe('media audit in the release record', () => {
     missing: 1,
     mismatched: 0,
     complete: 1,
+    retained: 2,
   };
   const canary = {
     id: '11111111-2222-4333-8444-555555555555',
@@ -161,9 +162,12 @@ describe('media audit in the release record', () => {
       missing: 1,
       mismatched: 0,
       complete: true,
+      retained: 2,
     });
     const body = formatRecord({ ...record, mediaAudit: audit });
-    expect(body).toContain('不一致あり：行 5・未写し 1・R2 欠落 1・size/sha256 不一致 0');
+    expect(body).toContain(
+      '不一致あり：行 5・未写し 1・R2 欠落 1・size/sha256 不一致 0・D1 に本体が残る行 2',
+    );
     expect(body).toContain('20:00:00 JST 測定');
     for (const value of Object.values(canary)) expect(body).not.toContain(value);
     expect(parseRecord(body).mediaAudit).toEqual(audit);
@@ -178,12 +182,29 @@ describe('media audit in the release record', () => {
     expect(formatMediaAudit(partial)).toMatch(/^不一致あり：.*一部のみ/);
   });
 
+  it('shows how many rows still keep their bytes in D1 (#12), and omits it for older records', () => {
+    expect(MEDIA_AUDIT_SQL).toContain(
+      "(SELECT COUNT(*) FROM media_assets WHERE typeof(payload)<>'null') retained",
+    );
+    const erased = parseMediaAudit([
+      { results: [{ ...row, pending: 0, missing: 0, checked: 5, retained: 0 }] },
+    ]);
+    expect(formatMediaAudit(erased)).toMatch(/^一致：.*・D1 に本体が残る行 0（/);
+    const { retained: _, ...older } = erased;
+    expect(formatMediaAudit(older)).not.toContain('D1 に本体');
+    expect(formatMediaAudit(older)).toMatch(
+      /^一致：行 5・未写し 0・R2 欠落 0・size\/sha256 不一致 0（/,
+    );
+  });
+
   it('records that it could not audit instead of failing the train', () => {
     expect(parseMediaAudit([{ results: [] }])).toEqual({ error: 'まだ照合の記録がありません' });
     expect(parseMediaAudit([{ results: [{ ...row, total: -1 }] }])).toHaveProperty('error');
     expect(parseMediaAudit(undefined)).toHaveProperty('error');
     expect(parseMediaAudit([{ results: [{ ...row, pending: 9 }] }])).toHaveProperty('error');
     expect(parseMediaAudit([{ results: [{ ...row, missing: 5 }] }])).toHaveProperty('error');
+    expect(parseMediaAudit([{ results: [{ ...row, retained: -1 }] }])).toHaveProperty('error');
+    expect(parseMediaAudit([{ results: [{ ...row, retained: null }] }])).toHaveProperty('error');
     expect(parseMediaAudit([{ results: [{ ...row, measured_at_ms: 2 ** 52 }] }])).toHaveProperty(
       'error',
     );

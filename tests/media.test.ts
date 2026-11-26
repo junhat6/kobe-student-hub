@@ -14,6 +14,11 @@ import {
   MEDIA_PER_DRAFT,
   type MediaReceipt,
 } from '../src/shared/media';
+import {
+  MEDIA_AUDIT_SQL,
+  parseMediaAudit,
+  // @ts-expect-error plain ESM script without type declarations
+} from '../scripts/loop/media-audit.mjs';
 const O = 'https://app.example.invalid',
   NOW = 1800000000000;
 type Session = { setCookie: string; contextCookie: string; csrfToken: string };
@@ -2255,11 +2260,29 @@ describe('the cron erases a D1 payload only after R2 holds the same bytes (#12)'
         )
         .bind(...ids, source)
         .first<{ n: number }>())!.n;
+    // The release train reads the erase progress with the audit SQL (#12): rows still holding a
+    // payload, counted when the SELECT runs, over the whole table.
+    expect(
+      await mf.dispatchFetch(O + '/fixture/audit-if-due', {
+        headers: { 'X-Test-Now': String(NOW) },
+      }),
+    ).toHaveProperty('status', 200);
+    const retained = async () => {
+      const audit = parseMediaAudit([await db.prepare(MEDIA_AUDIT_SQL).all()]);
+      const all = (await db
+        .prepare('SELECT COUNT(*) n FROM media_assets WHERE payload IS NOT NULL')
+        .first<{ n: number }>())!.n;
+      expect(audit.retained).toBe(all);
+      return all;
+    };
+    const before = await retained();
     // Eleven rows wait; one run erases a batch of 8, the next the rest, then nothing.
     expect(await run(ids[4])).toMatchObject({ copied: 1, erased: 8 });
     expect(await left()).toBe(3);
+    expect(await retained()).toBe(before - 8);
     expect(await run(ids[4])).toMatchObject({ copied: 0, erased: 3 });
     expect(await left()).toBe(0);
+    expect(await retained()).toBe(before - 11);
     expect(await run(ids[4])).toMatchObject({ copied: 0, erased: 0 });
   });
   it('erases verified rows, keeps rows whose object is missing or differs, and still serves every image', async () => {
