@@ -2079,6 +2079,120 @@ describe('migration 0045 on a database that already has published images', () =>
     }
   });
 });
+// #12 contract, third step: an existing row may drop its payload only once R2 holds it.
+describe('migration 0050 lets only a payload recorded in R2 be erased', () => {
+  beforeAll(() => boot(true, '0050'));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  const statements = () =>
+    readFileSync('migrations/0050_media_payload_erasable.sql', 'utf8')
+      .split(/^-- @statement\s*$/m)
+      .map((part) => part.replace(/^--.*$/gm, '').trim())
+      .filter(Boolean);
+
+  it('keeps rows and other schema, and refuses every update but the erase of a copied payload', async () => {
+    const db = await mf.getD1Database('DB'),
+      published = id(),
+      pending = id(),
+      skewed = id(),
+      d = await draft(`Saved ![diagram](/api/media/${published})`),
+      previous = { 'X-Test-Previous-Worker': '1' };
+    // The previous Worker kept payload in D1; the cron then copied the row to R2.
+    expect((await upload(d, published, png, 0, previous)).status).toBe(201);
+    expect(await publication(d, [published])).not.toBeNull();
+    expect(
+      await mf
+        .dispatchFetch(O + '/fixture/maintain', {
+          headers: {
+            'X-Test-Now': String(NOW),
+            'X-Test-Start': '00000000-0000-0000-0000-000000000000',
+          },
+        })
+        .then((r) => r.json()),
+    ).toEqual({ copied: 1, swept: 0 });
+    // A row R2 does not hold yet, and one whose size column disagrees with its payload.
+    await db
+      .prepare(
+        "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,sha256,created_at_ms) VALUES(?,'account-0',?,'image/jpeg',1,1,zeroblob(9),?,?)",
+      )
+      .bind(pending, d.id, '0'.repeat(64), NOW)
+      .run();
+    const bytesGuard = (await db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?")
+      .bind('media_assets_bytes_insert')
+      .first<{ sql: string }>())!.sql;
+    await db.prepare('DROP TRIGGER media_assets_bytes_insert').run();
+    try {
+      await db
+        .prepare(
+          "INSERT INTO media_assets(id,owner_account_id,article_draft_id,mime,width,height,payload,bytes,sha256,created_at_ms,object_stored_at_ms) VALUES(?,'account-0',?,'image/jpeg',1,1,zeroblob(9),8,?,?,?)",
+        )
+        .bind(skewed, d.id, '0'.repeat(64), NOW, NOW)
+        .run();
+    } finally {
+      await db.prepare(bytesGuard).run();
+    }
+    const rows = () => db.prepare('SELECT * FROM media_assets ORDER BY id').all();
+    const schema = () =>
+      db
+        .prepare(
+          "SELECT type,name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name",
+        )
+        .all<{ type: string; name: string; sql: string }>();
+    const before = await rows(),
+      schemaBefore = (await schema()).results;
+
+    // One batch, as the D1 migrations command applies it.
+    await db.batch(statements().map((sql) => db.prepare(sql)));
+
+    expect((await rows()).results).toEqual(before.results);
+    const schemaAfter = (await schema()).results;
+    expect(schemaAfter.map((s) => s.name)).toEqual(schemaBefore.map((s) => s.name));
+    for (const [i, s] of schemaAfter.entries())
+      if (s.name !== 'media_assets_content_immutable') expect(s.sql).toBe(schemaBefore[i].sql);
+
+    const update = (set: string, image = published, ...binds: unknown[]) =>
+      db
+        .prepare(`UPDATE media_assets SET ${set} WHERE id=?`)
+        .bind(...binds, image)
+        .run();
+    // Not copied to R2, size disagreeing, or anything but NULL: refused as before.
+    await expect(update('payload=NULL', pending)).rejects.toThrow('immutable media');
+    await expect(update('payload=NULL', skewed)).rejects.toThrow('immutable media');
+    await expect(update("payload=x'00'")).rejects.toThrow('immutable media');
+    await expect(update('payload=payload')).rejects.toThrow('immutable media');
+    // The erase may not carry any other change with it.
+    for (const [set, ...binds] of [
+      ["payload=NULL,mime='image/jpeg'"],
+      ['payload=NULL,width=width+1'],
+      ['payload=NULL,height=height+1'],
+      ['payload=NULL,sha256=?', 'f'.repeat(64)],
+      ['payload=NULL,created_at_ms=created_at_ms+1'],
+      ['payload=NULL,object_stored_at_ms=object_stored_at_ms+1'],
+      ['payload=NULL,bytes=bytes-1'],
+      ['payload=NULL,id=?', id()],
+    ] as [string, ...unknown[]][])
+      await expect(update(set, published, ...binds), set).rejects.toThrow('immutable media');
+    expect((await rows()).results).toEqual(before.results);
+
+    // The copied row drops its payload and keeps everything else; R2 serves it to the same readers.
+    const row = () => db.prepare('SELECT * FROM media_assets WHERE id=?').bind(published).first();
+    const kept = (await row()) as Record<string, unknown>;
+    await update('payload=NULL');
+    expect(await row()).toEqual({ ...kept, payload: null });
+    expect(kept.bytes).toBe(png.length);
+    for (const r of [await publicRead(published), await ownRead(published)]) {
+      expect(r.status).toBe(200);
+      expect(new Uint8Array(await r.arrayBuffer())).toEqual(png);
+    }
+    // Once gone, payload cannot come back or change.
+    await expect(update('payload=?', published, png)).rejects.toThrow('immutable media');
+    await expect(update('payload=NULL')).rejects.toThrow('immutable media');
+    // Unrelated columns stay writable as before (the draft link is cleared when a draft goes).
+    await expect(update('article_draft_id=NULL')).resolves.toBeTruthy();
+  });
+});
 describe('protected publication tables refuse INSERT OR REPLACE (#265)', () => {
   beforeAll(() => boot(true));
   afterAll(async () => {
