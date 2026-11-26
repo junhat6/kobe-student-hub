@@ -49,7 +49,10 @@ const eraseFaultDb = (db: D1Database, fault: string): D1Database => {
   let calls = 0;
   return new Proxy(db, {
     get(target, prop) {
-      if (prop !== 'prepare') return Reflect.get(target, prop);
+      if (prop !== 'prepare') {
+        const value = Reflect.get(target, prop);
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
       return (sql: string) => {
         const statement = target.prepare(sql);
         if (!sql.startsWith(ERASE)) return statement;
