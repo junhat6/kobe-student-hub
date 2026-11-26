@@ -135,8 +135,7 @@ export default function OwnPublications({
         {message}
       </p>
       {ordinary && notice && (
-        <p className="own-publications-notice" role="status">
-          <Icon name="check" size={18} />
+        <p className="sr-only" role="status">
           {notice}
         </p>
       )}
@@ -199,24 +198,38 @@ export default function OwnPublications({
                           row.title
                         )}
                       </strong>
-                      <span
-                        className={'own-publications-state own-publications-state-' + row.status}
-                      >
-                        {ordinary
-                          ? row.status === 'hidden'
-                            ? '一時非公開'
-                            : row.status === 'deleted'
-                              ? '公開停止済み'
-                              : '公開中'
-                          : row.status === 'hidden'
+                      {!ordinary && (
+                        <span
+                          className={'own-publications-state own-publications-state-' + row.status}
+                        >
+                          {row.status === 'hidden'
                             ? '一時非公開（記録上）'
                             : row.status === 'deleted'
                               ? '削除状態（記録上）'
                               : '公開中（記録上）'}
-                      </span>
+                        </span>
+                      )}
                     </div>
                     {ordinary ? (
                       <p className="own-publications-meta">
+                        {row.status === 'published' ? (
+                          <span
+                            className="own-publications-state own-publications-state-published"
+                            role="img"
+                            aria-label="公開中"
+                            title="公開中"
+                          >
+                            <Icon name="globe" size={14} />
+                          </span>
+                        ) : (
+                          <span
+                            className={
+                              'own-publications-state own-publications-state-' + row.status
+                            }
+                          >
+                            {row.status === 'hidden' ? '一時非公開' : '公開停止済み'}
+                          </span>
+                        )}
                         <time dateTime={new Date(row.publishedAt).toISOString()}>
                           {stamp(row.publishedAt)}
                         </time>

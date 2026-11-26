@@ -444,6 +444,13 @@
   background: #e7f6ec;
   color: #1c6b3a;
 }
+/* 公開中 is the usual state of this list: a globe icon (as on the profile heading), not a word. */
+:is(.account-home, .ordinary-drafts) .own-publications-state-published {
+  display: inline-flex;
+  padding: 0;
+  background: none;
+  color: var(--ink-muted, #636d79);
+}
 :is(.account-home, .ordinary-drafts) .own-publications-state-hidden {
   background: #fff4e0;
   color: #8a5300;
@@ -454,6 +461,10 @@
 }
 .own-publications-meta {
   grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   margin: 0 !important;
   font-size: 13px !important;
   color: var(--ink-muted, #636d79);
@@ -485,12 +496,13 @@
     padding: 18px;
     border-radius: 16px;
   }
-  :is(.account-home, .ordinary-drafts) .own-publications li {
-    grid-template-columns: 1fr;
+  /* Title on its own line; the state, date and 公開を止める share the next one. */
+  :is(.account-home, .ordinary-drafts) .own-publications-row {
+    grid-column: 1 / -1;
   }
   :is(.account-home, .ordinary-drafts) .own-publications-actions {
-    grid-column: 1;
-    grid-row: auto;
+    grid-column: 2;
+    grid-row: 2;
   }
   /* Keep the kind icon beside the title instead of alone on its own line. */
   :is(.account-home, .ordinary-drafts) .own-publications-row > strong {
