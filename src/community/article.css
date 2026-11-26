@@ -1,8 +1,9 @@
 /* Article and project detail pages. */
 .detail-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 32px;
+  /* #312: at 1280px the body text stays at least 720px wide (734px) beside the author card. */
+  grid-template-columns: minmax(0, 1fr) 272px;
+  gap: 24px;
   align-items: start;
   margin-top: 32px;
 }
@@ -256,6 +257,83 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--accent-strong) !important;
+}
+/* #312: the shared author card. A long bio is cut at 4 lines; the profile link carries the rest. */
+.author-side p.author-card-bio {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.author-side p.author-card-counts {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.author-card-counts strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+.author-card-others {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.author-card-others h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.author-card-others ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.author-card-others li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.author-card-others li a {
+  display: block;
+  min-width: 0;
+  padding: 6px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink) !important;
+}
+.author-card-others li a:hover {
+  text-decoration: underline;
+}
+.author-card-kind {
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+/* On a phone the card follows the body instead of disappearing. */
+@media (max-width: 720px) {
+  .detail-layout .side-box.author-card {
+    display: block;
+    margin-top: 24px;
+  }
+  /* 44px touch targets on a phone. */
+  .author-card-others li a {
+    line-height: 44px;
+    padding: 0;
+  }
+  .author-card .author-side-more {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
 }
 /* Report: a quiet text action at the end of the article. */
 .detail-layout .report-panel button {

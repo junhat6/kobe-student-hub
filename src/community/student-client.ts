@@ -8,6 +8,7 @@ import {
 import { validProjectAuthor } from '../editor/project-client';
 import { validPublicAvatar } from '../shared/avatar';
 import type {
+  PublicAuthorCard,
   PublicReceivedLikes,
   PublicStudent,
   PublicStudentActivity,
@@ -78,6 +79,30 @@ export function validReceivedLikes(value: unknown): value is PublicReceivedLikes
   }
   return true;
 }
+const PROJECT_ID = ARTICLE_ID;
+export function validAuthorCard(value: unknown): value is PublicAuthorCard {
+  if (!publicKeys(value, ['articles', 'projects', 'recent']) || !Array.isArray(value.recent))
+    return false;
+  const { articles, projects, recent } = value;
+  for (const n of [articles, projects])
+    if (!Number.isSafeInteger(n) || (n as number) < 0 || (n as number) > 100000) return false;
+  if (recent.length > 4) return false;
+  const seen = new Set<string>();
+  const shown = { article: 0, project: 0 };
+  for (const row of recent) {
+    if (!publicKeys(row, ['kind', 'id', 'title'])) return false;
+    const { kind, id, title } = row;
+    if (kind !== 'article' && kind !== 'project') return false;
+    if (typeof id !== 'string' || !(kind === 'article' ? ARTICLE_ID : PROJECT_ID).test(id))
+      return false;
+    if (seen.has(kind + id)) return false;
+    if (typeof title !== 'string' || !title.trim() || title.length > 200) return false;
+    seen.add(kind + id);
+    shown[kind]++;
+  }
+  // A listed item is a counted one; a list longer than the counts is an inconsistent read.
+  return shown.article <= (articles as number) && shown.project <= (projects as number);
+}
 /** Ordinary anonymous profile, with both bounded public activity selections in one DTO. */
 export function createPublicStudentClient(fetcher: typeof fetch = fetch) {
   return {
@@ -102,6 +127,22 @@ export function createPublicStudentClient(fetcher: typeof fetch = fetch) {
           32768,
         );
         if (!validActivity(value)) throw new PublicStudentClientError();
+        return value;
+      } catch (error) {
+        throw new PublicStudentClientError(publicReadMissing(error));
+      }
+    },
+    /** The author card beside an article or project (#312). Its failure leaves the card plain. */
+    async readCard(id: string, signal?: AbortSignal): Promise<PublicAuthorCard> {
+      if (!publicSlug(id)) throw new PublicStudentClientError(true);
+      try {
+        const value = await readAnonymousJson(
+          '/api/students/' + id + '/card',
+          fetcher,
+          signal,
+          8192,
+        );
+        if (!validAuthorCard(value)) throw new PublicStudentClientError();
         return value;
       } catch (error) {
         throw new PublicStudentClientError(publicReadMissing(error));

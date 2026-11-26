@@ -429,7 +429,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "closed",
-      "evidence": "2026-11-27 オーナーの UX フィードバック（DECISIONS 2026-11-27）で replan が足した。 条件1・4 は #312、条件2・3 は #313（R2）。リンク先が本人のものかの確認は合否に含めない（通報で運営が判断する）。"
+      "evidence": "2026-11-27 オーナーの UX フィードバック（DECISIONS 2026-11-27）で replan が足した。 条件1・4 は #312、条件2・3 は #313（R2）。リンク先が本人のものかの確認は合否に含めない（通報で運営が判断する）。 条件1・4 は #312 で main に入った（記事・作品で共通の AuthorCard、公開読み取り /api/students/:id/card は件数と新しい4件の種別・id・タイトルだけ。PC1280 で本文 734px、モバイル390 は本文の後ろ。tests/ordinary-author-card-browser.spec.ts・tests/public-students.test.ts・tests/author-card.test.ts）。条件2・3（#313）が残る。"
     }
   ]
 }

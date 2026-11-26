@@ -7,6 +7,7 @@ import PublicProjectCard from '../editor/PublicProjectCard';
 import PublicArticleCard from '../editor/PublicArticleCard';
 import { ProjectText } from '../editor/ProjectRegistration';
 import OrdinaryProjectReport from './OrdinaryProjectReport';
+import AuthorCard from './AuthorCard';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import { useUnsavedNavigation } from '../account/useUnsavedNavigation';
 import './discovery.css';
@@ -175,11 +176,12 @@ function Project({ id }: { id: string }) {
         )}
       </article>
       <aside>
-        <section className="side-box">
-          <h2>つくった学生</h2>
-          <Link to={`/students/${author.id}/works`}>{author.name}</Link>
-          <p>{author.bio}</p>
-        </section>
+        <AuthorCard
+          author={author}
+          heading="つくった学生"
+          current={{ kind: 'project', id: project.id }}
+          profilePath={`/students/${author.id}/works`}
+        />
       </aside>
     </div>
   );

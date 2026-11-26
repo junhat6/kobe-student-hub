@@ -4,7 +4,11 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
 import { ArticlePublicationStore } from '../worker/publication';
 import { ProjectStore } from '../worker/projects';
-import type { PublicStudent, PublicStudentActivity } from '../src/public-student-types';
+import type {
+  PublicAuthorCard,
+  PublicStudent,
+  PublicStudentActivity,
+} from '../src/public-student-types';
 import { withProjectSnapshotUnlocked } from './helpers/project-snapshot';
 import { readPublicStudent } from '../worker/public-students-http';
 
@@ -317,6 +321,58 @@ describe('ordinary shared public student with actual Workers/D1', () => {
     }
     expect((await student(2)).entries).toHaveLength(1);
   });
+  it('reads the author card: public counts and newest titles only, hidden items neither counted nor listed (#312)', async () => {
+    const card = async (index: number) => {
+      const response = await request('/api/students/' + authors[index] + '/card');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(response.headers.has('Set-Cookie')).toBe(false);
+      const text = await response.text();
+      expect(text).not.toMatch(
+        /private-account|subject-|st\.kobedenshi|Public saved body|Public summary|likes|follow/,
+      );
+      return JSON.parse(text) as PublicAuthorCard;
+    };
+    expect(await card(0)).toEqual({
+      articles: 1,
+      projects: 0,
+      recent: [{ kind: 'article', id: articles[0], title: 'Public article' }],
+    });
+    expect(await card(1)).toEqual({
+      articles: 0,
+      projects: 1,
+      recent: [{ kind: 'project', id: projects[1], title: 'Public project' }],
+    });
+    const both = await card(2);
+    expect(Object.keys(both).sort()).toEqual(['articles', 'projects', 'recent']);
+    expect([both.articles, both.projects]).toEqual([1, 1]);
+    expect(both.recent.map((v) => v.kind + ':' + v.id).sort()).toEqual(
+      ['article:' + articles[2], 'project:' + projects[2]].sort(),
+    );
+    for (const v of both.recent) expect(Object.keys(v).sort()).toEqual(['id', 'kind', 'title']);
+    const db = await mf.getD1Database('DB');
+    await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(articles[2]).run();
+    try {
+      expect(await card(2)).toEqual({
+        articles: 0,
+        projects: 1,
+        recent: [{ kind: 'project', id: projects[2], title: 'Public project' }],
+      });
+    } finally {
+      await db.prepare("UPDATE content SET status='published' WHERE id=?").bind(articles[2]).run();
+    }
+    for (const id of [authors[3], 'shun', 'private-account-0', 'subject-0'])
+      expect((await request('/api/students/' + id + '/card')).status).toBe(404);
+    const wrong = await request(
+      '/api/students/' + authors[2] + '/card',
+      'POST',
+      undefined,
+      {},
+      { 'X-Test-Forbid-Db': '1' },
+    );
+    expect(wrong.status).toBe(405);
+    expect(wrong.headers.get('X-Fixture-Db-Calls')).toBe('0');
+  });
   it('does not publish orphan/sample/private identities and removes an author once both activities stop', async () => {
     expect((await request('/api/students/' + authors[3])).status).toBe(404);
     for (const id of ['shun', 'private-account-0', 'subject-0'])
@@ -335,6 +391,7 @@ describe('ordinary shared public student with actual Workers/D1', () => {
     }
     expect((await request('/api/students/' + authors[2])).status).toBe(404);
     expect((await request('/api/students/' + authors[2] + '/activity')).status).toBe(404);
+    expect((await request('/api/students/' + authors[2] + '/card')).status).toBe(404);
   });
   it('bounds the selected snapshots at twenty per kind and the combined DTO at262144bytes', async () => {
     for (let i = 0; i < 21; i++) {
@@ -346,6 +403,12 @@ describe('ordinary shared public student with actual Workers/D1', () => {
     expect(value.projects).toHaveLength(20);
     expect(new Set(value.entries.map((v) => v.id)).size).toBe(20);
     expect(new Set(value.projects.map((v) => v.id)).size).toBe(20);
+    // The card counts every public item, not the bounded selection, and lists only the newest 4.
+    const card = (await (
+      await request('/api/students/' + authors[4] + '/card')
+    ).json()) as PublicAuthorCard;
+    expect([card.articles, card.projects]).toEqual([21, 21]);
+    expect(card.recent).toHaveLength(4);
   });
   it('keeps disabled, unconfigured and malformed/method/origin paths closed without storage access', async () => {
     const good = '/api/students/' + authors[0];

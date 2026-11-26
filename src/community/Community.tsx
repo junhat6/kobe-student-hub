@@ -9,6 +9,7 @@ import MarkdownRenderer from '../MarkdownRenderer';
 import type { Entry, Profile, PublishedArticleDetail } from '../types';
 import { createOrdinaryDiscoveryClient } from './discovery-client';
 import RelatedReading from './RelatedReading';
+import AuthorCard from './AuthorCard';
 import { RecordReadingHistory } from '../history/RecordReadingHistory';
 import './discovery.css';
 import { createPublicationClient } from '../editor/publication-client';
@@ -195,25 +196,12 @@ function StudentArticle({ id }: { id: string }) {
         <RelatedReading key={`related-${entry.id}`} id={entry.id} />
       </article>
       <aside>
-        <section className="side-box author-side">
-          <h2>書いた学生</h2>
-          <Link className="author-side-name" to={`/students/${author.id}`}>
-            <AuthorAvatar
-              id={author.id}
-              initials={author.initials}
-              className="mini-avatar"
-              size={44}
-            />
-            <span>
-              {author.name}
-              <small>{[author.department, author.year].filter(Boolean).join(' · ')}</small>
-            </span>
-          </Link>
-          {author.bio && <p>{author.bio}</p>}
-          <Link className="author-side-more" to={`/students/${author.id}`}>
-            ほかの記事・作品を見る →
-          </Link>
-        </section>
+        <AuthorCard
+          author={author}
+          heading="書いた学生"
+          current={{ kind: 'article', id: entry.id }}
+          profilePath={`/students/${author.id}`}
+        />
       </aside>
     </div>
   );

@@ -22,3 +22,14 @@ export interface PublicStudentActivity {
 export interface PublicReceivedLikes {
   articles: { id: string; title: string; likes: number }[];
 }
+
+/**
+ * The author card beside an article or project (#312): public counts and the newest few public
+ * items by title. No likes, views or followers.
+ */
+export interface PublicAuthorCard {
+  articles: number;
+  projects: number;
+  /** Newest first, at most 4 so the page can drop the item being read and still show 3. */
+  recent: { kind: 'article' | 'project'; id: string; title: string }[];
+}
