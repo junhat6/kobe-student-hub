@@ -131,20 +131,27 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
   await expect(summary.getByRole('listitem')).toHaveCount(4);
   await expect(summary).toContainText('一般に公開しないもの：');
   await expect(summary).toContainText('閲覧履歴');
-  await expect(summary).toContainText('運営は安全の確保などのために確認することがあります。');
+  await expect(summary).toContainText('外部のAIサービスによる処理を含む');
   await expect(summary.getByRole('link', { name: '問い合わせ', exact: true })).toHaveAttribute(
     'href',
     '#contact',
   );
-  const loginRecords = guide.locator('details', { hasText: 'ログイン記録の詳しい扱い' });
+  const loginRecords = guide.locator('details', { hasText: 'ログイン記録の整理と消去の限界' });
   const tempRecord = loginRecords.getByText('期限から24時間の猶予後に少量ずつ整理します', {
     exact: false,
   });
   await expect(tempRecord).toBeHidden();
-  await loginRecords.getByText('ログイン記録の詳しい扱い', { exact: true }).click();
+  await loginRecords.getByText('ログイン記録の整理と消去の限界', { exact: true }).click();
   await expect(tempRecord).toBeVisible();
   const identity = guide.locator('details', { hasText: '本人確認の詳しい扱い' });
   await expect(identity).toContainText('メールアドレスや公開URLだけでは本人と判断しません。');
+  const identityRule = identity.getByText('メールアドレスや公開URLだけでは本人と判断しません。', {
+    exact: false,
+  });
+  await expect(identityRule).toBeHidden();
+  await identity.getByText('本人確認の詳しい扱い', { exact: true }).focus();
+  await guide.keyboard.press('Enter');
+  await expect(identityRule).toBeVisible();
   expect(external).toEqual([]);
   expect(await guide.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(await guide.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

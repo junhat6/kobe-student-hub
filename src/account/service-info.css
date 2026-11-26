@@ -78,12 +78,10 @@
   display: flex;
   align-items: center;
   min-height: 44px;
+  gap: 8px;
+  list-style: none;
   cursor: pointer;
   font-weight: 700;
-}
-.service-info-more > summary {
-  list-style: none;
-  gap: 8px;
 }
 .service-info-more > summary::-webkit-details-marker {
   display: none;

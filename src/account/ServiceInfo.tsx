@@ -24,7 +24,7 @@ export default function ServiceInfo() {
       <p>学校の学びや制作を、記事・作品で共有する場所です。学校公式のサービスではありません。</p>
       <section className="service-info-summary" aria-labelledby="summary">
         <h2 id="summary">要点</h2>
-        <ul>
+        <ul role="list">
           <li>
             <Icon name="globe" size={18} />
             <span>
@@ -38,14 +38,14 @@ export default function ServiceInfo() {
               <strong>一般に公開しないもの：</strong>
               学校メール、入学・卒業予定年度、下書き、未公開の画像
               {authoringUiEnabled ? '、閲覧履歴' : ''}
-              。運営は安全の確保などのために確認することがあります。
+              。運営は改善や安全の確保のために確認・分析することがあります（外部のAIサービスによる処理を含む）。
             </span>
           </li>
           <li>
             <Icon name="pencil" size={18} />
             <span>
               <strong>投稿するとき：</strong>
-              自分の学び・制作を自分で確かめて書く。他の人の個人情報や無断の文章・画像は載せない。
+              自分の学び・制作を自分で確かめて書く。他の人の個人情報や、許可なく使えない文章・画像は載せない。
             </span>
           </li>
           <li>
@@ -128,7 +128,7 @@ export default function ServiceInfo() {
           公開停止すると新しい閲覧から外れます。停止はデータ全体の消去や、すでに読者に届いた内容の回収ではありません。
         </p>
         <details className="service-info-more">
-          <summary>ログイン記録の詳しい扱い</summary>
+          <summary>ログイン記録の整理と消去の限界</summary>
           <p>
             ログイン用の一時記録は有効期限で利用を拒否し、期限から24時間の猶予後に少量ずつ整理しますが、バックアップを含む消去時刻を保証するものではありません。
           </p>
