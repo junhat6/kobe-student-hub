@@ -642,6 +642,12 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
     page.locator('.editor-draft-list').boundingBox(),
   ]);
   expect(rowBox && listBox && Math.abs(rowBox.width - listBox.width) <= 1).toBe(true);
+  // The 「下書き」 tab names the list, so its heading is for screen readers only, and a row
+  // shows the date without the internal version number (原則1).
+  await expect(page.getByRole('heading', { name: '保存した下書き', level: 2 })).toHaveClass(
+    /sr-only/,
+  );
+  await expect(row).not.toContainText('版');
   const { violations } = await new AxeBuilder({ page }).include('.draft-editor').analyze();
   expect(
     violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id),
@@ -653,6 +659,9 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
   // A short body shows neither the size meter nor the Markdown hint (原則1・4).
   await expect(page.locator('.editor-writing-footer')).toHaveCount(0);
   await expect(page.getByText('Markdownで書けます', { exact: true })).toHaveCount(0);
+  // Like the title, the body keeps its name for assistive technology only (原則1、型: Zenn).
+  await expect(body(page)).toBeVisible();
+  await expect(page.locator('label[for="draft-body"]')).toHaveClass(/sr-only/);
   // A short title keeps its count for assistive technology only, so the focused field's
   // outline has nothing to cover (#279).
   await title(page).focus();

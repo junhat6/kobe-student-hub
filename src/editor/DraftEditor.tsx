@@ -818,7 +818,8 @@ export default function DraftEditor({
               </Button>
             )}
             <div className="editor-list-heading">
-              <h2>保存した下書き</h2>
+              {/* The 「下書き」 tab already names this list; the heading stays for screen readers (原則1). */}
+              <h2 className={ordinary ? 'sr-only' : undefined}>保存した下書き</h2>
               {(!ordinary || listError) && (
                 <Button
                   className="editor-link-button"
@@ -848,7 +849,10 @@ export default function DraftEditor({
                   >
                     <span>{item.title || '無題の下書き'}</span>
                     <small id={'draft-stamp-' + item.id} aria-hidden="true">
-                      {stamp(item.updatedAt)} · 版 {item.version}
+                      {/* The version number only matters to the lab's conflict checks; students
+                        see the date, like Zenn・note (原則1). */}
+                      {stamp(item.updatedAt)}
+                      {ordinary ? '' : ` · 版 ${item.version}`}
                       {agentDrafts?.agentDraftIds.includes(item.id)
                         ? ' · AIエージェントが作成'
                         : ''}
@@ -1144,7 +1148,12 @@ export default function DraftEditor({
                         </span>
                       )}
                     </div>
-                    <label className="editor-body-label" htmlFor="draft-body">
+                    {/* Like the title, the body is named for screen readers only; the placeholder
+                        and toolbar already show where to write (原則1、型: Zenn・note). */}
+                    <label
+                      className={'editor-body-label' + (ordinary ? ' sr-only' : '')}
+                      htmlFor="draft-body"
+                    >
                       Markdown本文
                     </label>
                     <textarea
