@@ -166,7 +166,7 @@ beforeAll(async () => {
       .filter(Boolean);
     await db.batch(statements.map((sql) => db.prepare(sql)));
   }
-  for (const who of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'])
+  for (const who of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'])
     await db
       .prepare(
         "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
@@ -209,7 +209,7 @@ beforeAll(async () => {
       .run();
   }
   users = {};
-  for (const who of ['a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'j'])
+  for (const who of ['a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'j', 'k'])
     users[who] = await call<Session>({ action: 'session', who });
   // "e" has a live session but no enrollment period (graduated / not yet declared).
   users.e = await call<Session>({ action: 'session', who: 'e', enrollment: false });
@@ -251,6 +251,79 @@ describe('discovery and the closed release gate', () => {
     expect(bad.status).toBe(401);
     expect(bad.headers['www-authenticate']).toContain('error="invalid_token"');
     expect((await http('/api/mcp'))!.status).toBe(405);
+  });
+});
+
+describe('the /mcp alias (Codex CLI registered with /mcp and sent it as the resource)', () => {
+  it('serves its own metadata and a 401 that points to it', async () => {
+    const prm = JSON.parse((await http('/.well-known/oauth-protected-resource/mcp'))!.body);
+    expect(prm).toMatchObject({ resource: ORIGIN + '/mcp', authorization_servers: [ORIGIN] });
+    const root = JSON.parse((await http('/.well-known/oauth-protected-resource'))!.body);
+    expect(root.resource).toBe(ORIGIN + '/api/mcp');
+    const r = await http('/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    expect(r!.status).toBe(401);
+    expect(r!.headers['www-authenticate']).toContain(
+      `resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp"`,
+    );
+    expect((await http('/mcp'))!.status).toBe(405);
+    expect(await http('/mcpx')).toBeNull();
+    expect(await http('/.well-known/oauth-protected-resource/mcpx')).toBeNull();
+  });
+  // "k" is used only here, so this connection does not change the other students' lists.
+  it('accepts resource=/mcp at authorize and token, and the token works on both paths', async () => {
+    const clientId = await registerClient('Codex');
+    const { r, verifier } = await startAuthorization(clientId, { resource: ORIGIN + '/mcp' });
+    expect(r.status).toBe(302);
+    const location = new URL(r.headers.location);
+    expect(location.origin + location.pathname).toBe(ORIGIN + '/connect');
+    const requestId = location.searchParams.get('request')!;
+    const decided = await http('/api/private/agent-connections/requests/' + requestId, {
+      method: 'POST',
+      headers: browser(users.k, true),
+      body: JSON.stringify({ decision: 'allow' }),
+    });
+    const code = new URL(JSON.parse(decided!.body).redirectTo).searchParams.get('code')!;
+    const token = await http(
+      '/api/oauth/token',
+      form({
+        grant_type: 'authorization_code',
+        code,
+        client_id: clientId,
+        redirect_uri: REDIRECT,
+        code_verifier: verifier,
+        resource: ORIGIN + '/mcp',
+      }),
+    );
+    expect(token!.status).toBe(200);
+    const access = JSON.parse(token!.body).access_token as string;
+    const viaAlias = await http('/mcp', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + access,
+        'Content-Type': 'application/json',
+        'MCP-Protocol-Version': '2025-06-18',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+    expect(viaAlias!.status).toBe(200);
+    expect(JSON.parse(viaAlias!.body).result.tools.length).toBeGreaterThan(0);
+    expect((await rpc(access, 'tools/list')).status).toBe(200);
+  });
+  it('still rejects look-alike resources', async () => {
+    const clientId = await registerClient();
+    for (const resource of [
+      ORIGIN + '/mcp/',
+      ORIGIN + '/mcpx',
+      ORIGIN + '/api/mcp/',
+      'https://other.example/mcp',
+    ]) {
+      const { r } = await startAuthorization(clientId, { resource });
+      expect(new URL(r.headers.location).searchParams.get('error')).toBe('invalid_target');
+    }
   });
 });
 

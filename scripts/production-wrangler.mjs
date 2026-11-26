@@ -82,6 +82,7 @@ export function productionConfig(inputs, root = process.cwd()) {
       not_found_handling: 'single-page-application',
       run_worker_first: [
         '/api/*',
+        '/mcp',
         '/trial-assets',
         '/trial-assets/*',
         '/.well-known/oauth-protected-resource',

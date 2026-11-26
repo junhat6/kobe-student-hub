@@ -34,6 +34,10 @@ import { readPublicStudent } from '../public-students-http';
  * The server only authenticates and stores; it never calls an inference API.
  */
 export const MCP_PATH = '/api/mcp';
+// `/mcp` is the URL people guess first (Codex CLI 0.169 was registered with it on 2026-11-26 and
+// sent it as the RFC 8707 resource). Serve the same endpoint there, each path with its own RFC 9728
+// metadata, so whichever URL a client was given is the resource it asks for and gets.
+const MCP_PATHS = [MCP_PATH, '/mcp'] as const;
 const PRM_PATH = '/.well-known/oauth-protected-resource';
 const ASM_PATH = '/.well-known/oauth-authorization-server';
 const PRIVATE = '/api/private/agent-connections';
@@ -601,8 +605,10 @@ export function createAgentHandler(
   const sessions = new SessionStore(db, origin, clock);
   const articles = new ArticlePublicationStore(db, origin, clock);
   const projects = new ProjectStore(db, origin, clock);
-  const resource = origin + MCP_PATH;
-  const resourceMetadataUrl = origin + PRM_PATH + MCP_PATH;
+  // Both paths are one resource server with one token store, so either identifier is accepted.
+  const knownResources = new Set([...MCP_PATHS.map((p) => origin + p), origin, origin + '/']);
+  const unknownResource = (p: URLSearchParams) =>
+    p.getAll('resource').some((r) => !knownResources.has(r));
   const draftsUrl = origin + '/drafts';
 
   async function callTool(
@@ -1019,17 +1025,17 @@ export function createAgentHandler(
     );
   }
 
-  const unauthorized = (invalid: boolean) =>
+  const unauthorized = (invalid: boolean, path: string) =>
     publicJson({ error: invalid ? 'invalid_token' : 'authentication_required' }, 401, {
-      'WWW-Authenticate': `Bearer resource_metadata="${resourceMetadataUrl}", scope="${SCOPE}"${invalid ? ', error="invalid_token"' : ''}`,
+      'WWW-Authenticate': `Bearer resource_metadata="${origin + PRM_PATH + path}", scope="${SCOPE}"${invalid ? ', error="invalid_token"' : ''}`,
     });
 
-  async function mcp(request: Request): Promise<Response> {
+  async function mcp(request: Request, path: string): Promise<Response> {
     if (request.method !== 'POST')
       return publicJson({ error: 'method_not_allowed' }, 405, { Allow: 'POST' });
     const authorization = request.headers.get('Authorization');
     const access = await store.authenticate(authorization);
-    if (!access) return unauthorized(authorization !== null);
+    if (!access) return unauthorized(authorization !== null, path);
     const type = request.headers.get('Content-Type') ?? '';
     if (!/^application\/json\b/i.test(type))
       return publicJson({ error: 'unsupported_media_type' }, 415);
@@ -1143,7 +1149,7 @@ export function createAgentHandler(
           if (e instanceof InvalidParams) return error(-32602, e.message, 400);
           throw e;
         }
-        if (!result) return unauthorized(true);
+        if (!result) return unauthorized(true, path);
         return reply(complete(result as unknown as Record<string, unknown>));
       }
       default:
@@ -1205,9 +1211,7 @@ export function createAgentHandler(
     const scope = p.get('scope');
     if (scope !== null && scope.split(' ').some((s) => s && s !== SCOPE))
       return back('invalid_scope');
-    const resources = p.getAll('resource');
-    if (resources.some((r) => r !== resource && r !== origin && r !== origin + '/'))
-      return back('invalid_target');
+    if (unknownResource(p)) return back('invalid_target');
     const requestId = await store.createRequest({
       clientId: client.clientId,
       redirectUri,
@@ -1287,9 +1291,7 @@ export function createAgentHandler(
     if (!p) return oauthError('invalid_request');
     if (request.headers.get('Authorization')) return oauthError('invalid_client', 401);
     const one = (key: string) => (p.getAll(key).length === 1 ? p.get(key) : null);
-    const resources = p.getAll('resource');
-    if (resources.some((r) => r !== resource && r !== origin && r !== origin + '/'))
-      return oauthError('invalid_target');
+    if (unknownResource(p)) return oauthError('invalid_target');
     const grantType = one('grant_type');
     const pair =
       grantType === 'authorization_code'
@@ -1378,10 +1380,11 @@ export function createAgentHandler(
   return async (request: Request): Promise<Response | null> => {
     const url = new URL(request.url);
     const path = url.pathname;
+    const mcpPath = MCP_PATHS.find((p) => p === path);
+    const prmPath = path === PRM_PATH ? MCP_PATH : MCP_PATHS.find((p) => PRM_PATH + p === path);
     const publicPath =
-      path === MCP_PATH ||
-      path === PRM_PATH ||
-      path === PRM_PATH + MCP_PATH ||
+      mcpPath !== undefined ||
+      prmPath !== undefined ||
       path === ASM_PATH ||
       path.startsWith('/api/oauth/');
     const privatePath = path === PRIVATE || path.startsWith(PRIVATE + '/');
@@ -1392,12 +1395,12 @@ export function createAgentHandler(
       return new Response(null, { status: 204, headers: { ...baseHeaders, ...cors } });
     try {
       if (privatePath) return await connections(request, url);
-      if (path === MCP_PATH) return await mcp(request);
-      if (path === PRM_PATH || path === PRM_PATH + MCP_PATH) {
+      if (mcpPath) return await mcp(request, mcpPath);
+      if (prmPath) {
         if (request.method !== 'GET')
           return publicJson({ error: 'method_not_allowed' }, 405, { Allow: 'GET' });
         return publicJson({
-          resource,
+          resource: origin + prmPath,
           authorization_servers: [origin],
           scopes_supported: [SCOPE],
           bearer_methods_supported: ['header'],
