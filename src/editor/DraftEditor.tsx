@@ -18,6 +18,7 @@ import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
 import { embedLineFromPaste } from '../shared/embed';
 import { findAiMemos, removeAiMemos } from './ai-memo';
+import { findPhotoMarkers, placeAtMarker } from './photo-marker';
 import LoadingSkeleton from '../shared/LoadingSkeleton';
 import { hasVisibleCharacter } from '../project-input';
 import {
@@ -686,6 +687,7 @@ export default function DraftEditor({
     setText((t) => ({ ...t, body: result.body }));
   }
   const aiMemoCount = useMemo(() => findAiMemos(text.body).length, [text.body]);
+  const photoMarkers = useMemo(() => findPhotoMarkers(text.body), [text.body]);
   function removeMemos() {
     if (editingLocked || compositionRef.current) return;
     cancelAutosave();
@@ -1249,6 +1251,11 @@ export default function DraftEditor({
                     onInsert={(value) => {
                       cancelAutosave();
                       setText((t) => ({ ...t, body: t.body + value }));
+                    }}
+                    markers={photoMarkers}
+                    onPlace={(marker, path) => {
+                      cancelAutosave();
+                      setText((t) => ({ ...t, body: placeAtMarker(t.body, marker, path) }));
                     }}
                   />
                 </section>

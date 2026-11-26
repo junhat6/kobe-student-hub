@@ -119,3 +119,31 @@
   color: var(--ink-soft, #46525f);
   font-size: 13px;
 }
+.media-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 12px;
+}
+.media-target label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.media-target select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+.media-target .media-note {
+  flex-basis: 100%;
+  max-width: none;
+  margin: 0;
+}

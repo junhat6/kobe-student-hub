@@ -14,7 +14,7 @@ export interface AiMemo {
 const OPENERS = ['（AIメモ', '(AIメモ'];
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
-function fencedRanges(body: string) {
+export function fencedRanges(body: string) {
   const ranges: AiMemo[] = [];
   let open: { start: number; marker: string } | null = null;
   let start = 0;

@@ -19,6 +19,7 @@ import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
 import { describeFindings, scanDraft } from '../shared/secret-scan';
 import { findAiMemos } from './ai-memo';
+import { findPhotoMarkers } from './photo-marker';
 import Celebration from '../shared/Celebration';
 import TagInput from './TagInput';
 import { createPublicDiscoveryClient } from './public-discovery-client';
@@ -380,6 +381,8 @@ export default function PublicationComposer({
   );
   // #302: like the secret notice, a reminder that never blocks publishing.
   const savedAiMemos = useMemo(() => findAiMemos(draft.body).length, [draft.body]);
+  // #303: the same reminder for 「（写真：…）」 markers the agent left for images.
+  const savedPhotoMarkers = useMemo(() => findPhotoMarkers(draft.body).length, [draft.body]);
   const [suggestionUsed, setSuggestionUsed] = useState<AgentArticleMetadata | null>(null);
   const suggestionOffered = Boolean(
     suggested &&
@@ -571,6 +574,17 @@ export default function PublicationComposer({
                   <p>
                     保存済みの版に AI のメモ「（AIメモ：…）」が{savedAiMemos}
                     件残っています。このまま公開すると読者に見えます。書く画面の「AIメモを消す」で消せます。
+                  </p>
+                </div>
+              )}
+              {savedPhotoMarkers > 0 && (
+                <div
+                  className="publication-secret-notice publication-photo-marker-notice"
+                  role="note"
+                >
+                  <p>
+                    保存済みの版に写真・図の印「（写真：…）」が{savedPhotoMarkers}
+                    か所残っています。このまま公開すると読者に見えます。書く画面の「画像」で印の位置に画像を入れるか、印を消してください。
                   </p>
                 </div>
               )}

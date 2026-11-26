@@ -1,4 +1,5 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
+import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { accountMenu } from './helpers/header';
 import { encode as pngEncode } from 'fast-png';
@@ -516,4 +517,38 @@ test('the picker waits for the first image list so a slow list cannot overwrite 
   await expect(input).toBeEnabled();
   await attach(page, 'image/png', screen);
   await expect(panel.locator('.media-grid figure')).toHaveCount(1);
+});
+test('an image replaces the chosen 「（写真：…）」 marker, the next marker is chosen, and publishing warns while one is left (#303)', async ({
+  page,
+}, info) => {
+  await article(page, info);
+  const body = page.getByLabel('Markdown本文', { exact: true });
+  await body.fill('## 店内\n\n（写真：カウンター席）\n\n本文。\n\n（図：待ち時間の比較）');
+  const panel = page.locator('.media-attachments'),
+    where = panel.getByLabel('入れる場所', { exact: true });
+  await expect(where).toHaveValue('1:（写真：カウンター席）');
+  await expect(panel).toContainText('写真・図の印が2か所');
+  const axe = await new AxeBuilder({ page }).include('.media-attachments').analyze();
+  expect(axe.violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await panel.screenshot({ path: info.outputPath('image-panel-marker-target.png') });
+  const first = await attach(page, 'image/png', screen);
+  await expect(body).toHaveValue(
+    `## 店内\n\n![カウンター席](/api/media/${first.id})\n\n本文。\n\n（図：待ち時間の比較）`,
+  );
+  await expect(panel.locator('p[aria-live="polite"]')).toHaveText(
+    '画像を保存して「写真：カウンター席」の位置に入れました。位置情報などは消してあります。',
+  );
+  await expect(where).toHaveValue('1:（図：待ち時間の比較）');
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await expect(page.locator('.publication-photo-marker-notice')).toContainText('1か所');
+  await panel.getByRole('button', { name: '本文へ参照を入れる', exact: true }).click();
+  await expect(body).toHaveValue(
+    `## 店内\n\n![カウンター席](/api/media/${first.id})\n\n本文。\n\n![待ち時間の比較](/api/media/${first.id})`,
+  );
+  await expect(where).toHaveCount(0);
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await expect(page.locator('.publication-photo-marker-notice')).toHaveCount(0);
 });

@@ -3,6 +3,7 @@ import { Button } from '@base-ui/react/button';
 import { createMediaClient, MediaLimitError, prepareImage } from './media-client';
 import PrivateImage from './PrivateImage';
 import { MEDIA_PER_DRAFT, publicMediaPath, type MediaReceipt } from '../shared/media';
+import type { PhotoMarker } from './photo-marker';
 import './media.css';
 interface Props {
   kind: 'articles' | 'projects';
@@ -11,6 +12,9 @@ interface Props {
   fetcher: typeof fetch;
   disabled: boolean;
   onInsert: (text: string) => void;
+  /** 「（写真：…）」 markers in the body (#303). With them, the student picks where the image goes. */
+  markers?: PhotoMarker[];
+  onPlace?: (marker: PhotoMarker, path: string) => void;
   onBusy?: (busy: boolean) => void;
   onUncertain?: (uncertain: boolean) => void;
 }
@@ -21,6 +25,8 @@ export default function MediaAttachments({
   fetcher,
   disabled,
   onInsert,
+  markers = [],
+  onPlace,
   onBusy,
   onUncertain,
 }: Props) {
@@ -35,6 +41,19 @@ export default function MediaAttachments({
     locked = useRef(false),
     file = useRef<HTMLInputElement>(null),
     controller = useRef<AbortController | null>(null);
+  // null follows the first remaining marker, so after one is filled the next is chosen.
+  const [target, setTarget] = useState<string | null>(null);
+  const placeable = onPlace ? markers : [];
+  const chosen =
+    target === 'end' ? undefined : (placeable.find((m) => m.key === target) ?? placeable[0]);
+  function insert(id: string) {
+    if (chosen && onPlace) {
+      onPlace(chosen, publicMediaPath(id));
+      return `「${chosen.kind}：${chosen.label}」の位置に入れました。`;
+    }
+    onInsert(`\n\n![画像](${publicMediaPath(id)})\n`);
+    return '本文に入れました。';
+  }
   useEffect(() => {
     current.current = true;
     setImages([]);
@@ -115,8 +134,7 @@ export default function MediaAttachments({
       if (!current.current) return;
       setPending(null);
       setImages((old) => [...old.filter((i) => i.id !== r.id), r]);
-      onInsert(`\n\n![画像](${publicMediaPath(r.id)})\n`);
-      setMessage('画像を保存して本文に入れました。位置情報などは消してあります。');
+      setMessage(`画像を保存して${insert(r.id)}位置情報などは消してあります。`);
     } catch (error) {
       if (!current.current) return;
       if (error instanceof MediaLimitError) {
@@ -182,6 +200,29 @@ export default function MediaAttachments({
           />
         </label>
       </div>
+      {placeable.length > 0 && (
+        <div className="media-target">
+          <label htmlFor={'media-target-' + draft.id}>入れる場所</label>
+          <select
+            id={'media-target-' + draft.id}
+            value={chosen ? chosen.key : 'end'}
+            disabled={disabled || busy}
+            onChange={(e) => setTarget(e.target.value)}
+          >
+            {placeable.map((m) => (
+              <option key={m.key} value={m.key}>
+                {m.kind}：{m.label}
+                {m.ordinal > 1 ? `（${m.ordinal}つ目）` : ''}
+              </option>
+            ))}
+            <option value="end">本文の最後</option>
+          </select>
+          <p className="media-note">
+            本文に写真・図の印が{placeable.length}
+            か所あります。選んだ印を画像に置き換え、印の言葉を画像の説明にします。
+          </p>
+        </div>
+      )}
       <p aria-live="polite">{message}</p>
       {loaded && !listFailed && images.length >= MEDIA_PER_DRAFT && (
         <p className="media-note">画像は1つの下書きに{MEDIA_PER_DRAFT}枚までです。</p>
@@ -227,7 +268,7 @@ export default function MediaAttachments({
             </figcaption>
             <Button
               disabled={disabled || busy || Boolean(pending)}
-              onClick={() => onInsert(`\n\n![画像](${publicMediaPath(image.id)})\n`)}
+              onClick={() => setMessage(insert(image.id))}
             >
               本文へ参照を入れる
             </Button>
