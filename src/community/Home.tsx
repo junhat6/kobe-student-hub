@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { usePublicRead, ReadFailure } from './public-read';
 import { createOrdinaryDiscoveryClient } from './discovery-client';
 import { createPublicWorksClient } from '../editor/public-works-client';
@@ -14,72 +14,21 @@ import LoadingSkeleton from '../shared/LoadingSkeleton';
 
 type View = 'recent' | 'popular' | 'recommended';
 
-function Hero() {
-  const navigate = useNavigate();
-  const { viewer } = useViewer();
-  const [input, setInput] = useState('');
-  const signedIn = viewer.status === 'signed-in';
+/**
+ * The top no longer opens with a hero (#309): a signed-in reader goes straight to the cards and
+ * uses the header's 探す and 書く. A signed-out visitor still gets one line saying what this place
+ * is and the way to join, so a first visit is not left guessing.
+ */
+function SignedOutBand() {
   return (
-    <section className="home-hero">
-      <div className="shell home-hero-inner">
-        <p className="home-eyebrow">神戸電子の学生がつくる、学びと制作の記録</p>
-        <h1>
-          <span className="home-phrase">少し先を行く</span>
-          <span className="home-phrase">誰かの経験が、</span>
-          <br />
-          <span className="home-phrase">自分の</span>
-          <span className="home-phrase">
-            <em>次の一歩</em>になる。
-          </span>
-        </h1>
-        <p className="home-lead">
-          授業で気づいたこと、制作で試したこと、つくったもの。同じ学校の学生の記事と作品から、次にやってみることを見つけよう。
+    <section className="home-band" aria-label="Kobe Student Hub について">
+      <div className="shell home-band-inner">
+        <p className="home-band-text">
+          神戸電子の学生が、学びと制作の経験を記事と作品で共有する場所です。
         </p>
-        <form
-          className="searchbox home-search"
-          role="search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            navigate(
-              '/search' + (input.trim() ? '?' + new URLSearchParams({ q: input.trim() }) : ''),
-            );
-          }}
-        >
-          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
-            <path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-          <label className="sr-only" htmlFor="community-search">
-            記事・タグ・投稿者を検索
-          </label>
-          <input
-            id="community-search"
-            type="search"
-            value={input}
-            placeholder="キーワード、タグ、投稿者で探す"
-            onChange={(event) => setInput(event.target.value)}
-          />
-          <Button type="submit">検索</Button>
-        </form>
-        <div className="home-hero-actions">
-          {signedIn ? (
-            <>
-              <Link className="primary" to="/drafts">
-                記事を書く
-              </Link>
-              <Link className="secondary" to="/works/new">
-                作品を登録する
-              </Link>
-            </>
-          ) : viewer.status === 'loading' ? null : (
-            <>
-              <Link className="primary" to="/signup">
-                学校Googleで登録して書く
-              </Link>
-              <span className="home-hero-note">読むだけならログインは不要です</span>
-            </>
-          )}
-        </div>
+        <Link className="primary home-band-action" to="/signup">
+          学校Googleで登録して書く
+        </Link>
       </div>
     </section>
   );
@@ -131,7 +80,10 @@ export default function Home() {
   const client = useMemo(() => createOrdinaryDiscoveryClient(fetch), []);
   const read = useMemo(() => (signal: AbortSignal) => client.home(signal), [client]);
   const { value, failed, retry } = usePublicRead('feed', read);
-  const { viewer } = useViewer();
+  const { viewer, session } = useViewer();
+  // Nothing above the cards changes once shown: until the first session answer arrives the cards
+  // wait as a skeleton, so the band never appears and then vanishes, nor pushes shown cards down.
+  const settled = session !== null || viewer.status === 'unknown';
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
   const normalized = query.trim().normalize('NFKC').toLocaleLowerCase('ja');
@@ -162,8 +114,9 @@ export default function Home() {
   );
   return (
     <div className="home community-feed">
-      <Hero />
-      {value && <AreaEntrance count={areaEntranceCount(value.recent)} />}
+      <h1 className="sr-only">Kobe Student Hub</h1>
+      {session === 'absent' && <SignedOutBand />}
+      {value && settled && <AreaEntrance count={areaEntranceCount(value.recent)} />}
       <section className="shell home-section" aria-labelledby="home-articles-title">
         <div className="home-section-head">
           <h2 id="home-articles-title">記事</h2>
@@ -201,7 +154,7 @@ export default function Home() {
         )}
         {failed ? (
           <ReadFailure subject="記事一覧" retry={retry} />
-        ) : !value ? (
+        ) : !value || !settled ? (
           <LoadingSkeleton shape="cards" label="記事を読み込んでいます…" />
         ) : !value.recent.length ? (
           <div className="empty home-empty">

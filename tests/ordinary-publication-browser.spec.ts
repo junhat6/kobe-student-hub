@@ -229,7 +229,8 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
       .click();
     await expect(reader).toHaveURL(/\/students\/[A-Za-z0-9_-]+\/likes$/);
     await expect(reader.getByRole('heading', { name: '架空の学生', exact: true })).toBeVisible();
-    await reader.goto('/');
+    // #309: the top has no search box of its own; search lives on /search.
+    await reader.goto('/search');
     await reader.getByRole('searchbox').fill('AI技術選定');
     await reader.getByRole('button', { name: '検索', exact: true }).click();
     await expect(
@@ -283,6 +284,7 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
       reader.getByRole('link', { name: '架空のAI技術選定ノート', exact: true }),
     ).toHaveCount(0);
     // C09: after the owner's stop the article also leaves search and the author's profile.
+    await reader.goto('/search');
     await reader.getByRole('searchbox').fill('AI技術選定');
     await reader.getByRole('button', { name: '検索', exact: true }).click();
     await expect(reader).toHaveURL(/\/search\?/);

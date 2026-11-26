@@ -1,5 +1,6 @@
 import { completeGoogleFormPost } from './helpers/google-form-post';
-import { test, expect, type Browser, type BrowserContext } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 
 // C01: an anonymous reader meets real articles and works on the top page, newest first,
 // never mixed with the fictional sample catalog, and every card leads somewhere.
@@ -173,6 +174,103 @@ test('anonymous top lists real articles and works newest first and every card le
     // The fictional catalog stays reachable by direct URL and always says it is a sample.
     await page.goto('/articles/learning-notes');
     await expect(page.getByText(/サンプル/).first()).toBeVisible();
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
+});
+
+// #309 (C26-4): the top opens on the cards. A signed-in reader gets no hero at all (search and
+// 書く live in the header) and sees the first card's title without scrolling; a signed-out
+// visitor gets one short band saying what this is and how to join. The band is decided once
+// the session answers, so it never shows and then vanishes, and never pushes shown cards down.
+test('top has no hero: a short band when signed out, straight to the cards when signed in', async ({
+  browser,
+  page,
+}, info) => {
+  const contexts: BrowserContext[] = [];
+  const key = info.project.name + '-' + Date.now().toString(36);
+  const mobile = info.project.name.includes('mobile');
+  const viewport = mobile ? { width: 390, height: 844 } : { width: 1280, height: 800 };
+  // Records, in order, when the band and the first article card first enter the DOM.
+  const watch = () => {
+    const seen: string[] = [];
+    (window as unknown as { __seen: string[] }).__seen = seen;
+    new MutationObserver(() => {
+      for (const [name, selector] of [
+        ['band', '.home-band'],
+        ['card', 'section[aria-labelledby="home-articles-title"] .content-card'],
+      ])
+        if (!seen.includes(name) && document.querySelector(selector)) seen.push(name);
+      if (seen.includes('band') && !document.querySelector('.home-band')) seen.push('band-gone');
+    }).observe(document, { childList: true, subtree: true });
+  };
+  const slowSession = async (target: Page) =>
+    target.route('**/api/private/session', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.continue();
+    });
+  try {
+    const owner = await actor(browser, contexts, '架空の帯の投稿者-' + key);
+    await article(owner, '帯の下の記事-' + key);
+
+    // Signed out: a slow session answer still shows the band before (never after) the cards.
+    await page.setViewportSize(viewport);
+    await page.addInitScript(watch);
+    await slowSession(page);
+    await page.goto('/');
+    const band = page.locator('.home-band');
+    await expect(band).toBeVisible();
+    await expect(band.getByRole('link', { name: '学校Googleで登録して書く' })).toHaveAttribute(
+      'href',
+      '/signup',
+    );
+    await expect(band).toContainText('学びと制作の経験を記事と作品で共有する場所');
+    const signedOutCards = page.locator(
+      'section[aria-labelledby="home-articles-title"] .content-card',
+    );
+    await expect(signedOutCards.first()).toBeVisible();
+    expect(await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen)).toEqual([
+      'band',
+      'card',
+    ]);
+    const bandHeight = (await band.boundingBox())!.height;
+    expect(bandHeight).toBeLessThanOrEqual(mobile ? 220 : 160);
+    await expect(page.locator('main')).not.toContainText('次の一歩');
+    await expect(page.locator('main').getByRole('searchbox')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+    await page.screenshot({ path: info.outputPath('home-signed-out.png'), scale: 'css' });
+
+    // Signed in: no band at any moment, no hero actions, and the first title is above the fold.
+    const reader = await owner.context.newPage();
+    await reader.setViewportSize(viewport);
+    await reader.addInitScript(watch);
+    await slowSession(reader);
+    await reader.goto('/');
+    const cards = reader.locator('section[aria-labelledby="home-articles-title"] .content-card');
+    await expect(cards.first()).toBeVisible();
+    await expect(reader.getByRole('button', { name: 'アカウントメニュー' })).toBeVisible();
+    expect(await reader.evaluate(() => (window as unknown as { __seen: string[] }).__seen)).toEqual(
+      ['card'],
+    );
+    await expect(reader.locator('.home-band')).toHaveCount(0);
+    await expect(reader.locator('main').getByRole('link', { name: '記事を書く' })).toHaveCount(0);
+    await expect(reader.locator('main').getByRole('link', { name: '作品を登録する' })).toHaveCount(
+      0,
+    );
+    await expect(reader.locator('main').getByRole('searchbox')).toHaveCount(0);
+    expect(await reader.evaluate(() => scrollY)).toBe(0);
+    const title = (await cards.first().locator('h3').boundingBox())!;
+    expect(title.y + title.height).toBeLessThanOrEqual(viewport.height);
+    expect(await reader.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      viewport.width,
+    );
+    await reader.screenshot({ path: info.outputPath('home-signed-in.png'), scale: 'css' });
+    const { violations } = await new AxeBuilder({ page: reader }).analyze();
+    expect(
+      violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id),
+    ).toEqual([]);
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
   }

@@ -221,7 +221,7 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     await reader.goto('/works');
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
     const searchTitle = async () => {
-      await reader.goto('/');
+      await reader.goto('/search');
       await reader.getByRole('searchbox').fill(title);
       await reader.getByRole('button', { name: '検索', exact: true }).click();
       await expect(reader).toHaveURL(/\/search\?/);

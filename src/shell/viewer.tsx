@@ -29,14 +29,25 @@ export type Viewer =
         { id: string; name: string; initials: string; avatar: string | null } | null | undefined;
     };
 
+/**
+ * Whether the last answer from the server proved a session: 'present' as soon as the first
+ * read-only proof succeeds (before the profile is read), 'absent' on a definite signed-out
+ * answer, null before any answer. It is kept while a later re-check runs, so layout that only
+ * depends on "signed in or not" (the home band, #309) does not flicker on each focus re-read.
+ * Display only, like Viewer.
+ */
+export type SessionHint = 'present' | 'absent' | null;
+
 interface ViewerContextValue {
   viewer: Viewer;
+  session: SessionHint;
   refresh: () => void;
   logout: () => Promise<boolean>;
 }
 
 const ViewerContext = createContext<ViewerContextValue>({
   viewer: { status: 'signed-out' },
+  session: 'absent',
   refresh: () => {},
   logout: async () => false,
 });
@@ -98,6 +109,7 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
   const [viewer, setViewer] = useState<Viewer>(
     authoringUiEnabled ? { status: 'loading' } : { status: 'signed-out' },
   );
+  const [session, setSession] = useState<SessionHint>(authoringUiEnabled ? null : 'absent');
   const [generation, setGeneration] = useState(0);
   const refresh = useCallback(() => setGeneration((value) => value + 1), []);
   const viewerRef = useRef(viewer);
@@ -112,6 +124,7 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
         for (let attempt = 0; attempt < 2; attempt++) {
           const csrfToken = await client.peek(controller.signal);
           if (controller.signal.aborted) return;
+          setSession('present');
           if (csrfToken !== shownToken.current) {
             shownToken.current = null;
             setViewer({ status: 'loading' });
@@ -131,11 +144,9 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (controller.signal.aborted) return;
         shownToken.current = null;
-        setViewer(
-          error instanceof SessionClientError && error.kind === 'signed-out'
-            ? { status: 'signed-out' }
-            : { status: 'unknown' },
-        );
+        const signedOut = error instanceof SessionClientError && error.kind === 'signed-out';
+        if (signedOut) setSession('absent');
+        setViewer(signedOut ? { status: 'signed-out' } : { status: 'unknown' });
       }
     })();
     return () => controller.abort();
@@ -195,7 +206,10 @@ export function ViewerProvider({ children }: { children: ReactNode }) {
     window.location.assign('/');
     return true;
   }, [client, viewer, refresh]);
-  const value = useMemo(() => ({ viewer, refresh, logout }), [viewer, refresh, logout]);
+  const value = useMemo(
+    () => ({ viewer, session, refresh, logout }),
+    [viewer, session, refresh, logout],
+  );
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
 }
 

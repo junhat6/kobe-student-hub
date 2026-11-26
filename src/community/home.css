@@ -1,61 +1,24 @@
-.home-hero {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(60% 90% at 90% 0%, #dbe8ff 0%, transparent 60%),
-    radial-gradient(40% 70% at 0% 100%, #ffe9dc 0%, transparent 65%), var(--surface);
+.home-band {
+  background: linear-gradient(90deg, #eef4ff 0%, var(--surface) 75%);
   border-bottom: 1px solid var(--line);
 }
-.home-hero-inner {
-  padding-top: 64px;
-  padding-bottom: 56px;
-  max-width: 1200px;
-}
-.home-eyebrow {
-  margin: 0 0 12px;
-  color: var(--accent-strong);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-.home-hero h1 {
-  margin: 0;
-  font-size: clamp(30px, 4.6vw, 48px);
-  line-height: 1.35;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--ink);
-  text-wrap: balance;
-}
-.home-phrase {
-  /* Break the catch copy only between phrases, never inside a word (「誰／かの」). */
-  display: inline-block;
-}
-.home-hero h1 em {
-  font-style: normal;
-  background: linear-gradient(transparent 62%, #ffd7c2 62%);
-}
-.home-lead {
-  max-width: 600px;
-  margin: 18px 0 28px;
-  color: var(--ink-soft);
-  font-size: 16px;
-}
-.home-search {
-  max-width: 640px;
-  color: var(--ink-muted);
-}
-.home-hero-actions {
+.home-band-inner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px 16px;
-  margin-top: 24px;
-  min-height: 44px;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding-top: 20px;
+  padding-bottom: 20px;
 }
-.home-hero-note {
-  color: var(--ink-muted);
-  font-size: 13px;
+.home-band-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+.home-band-action {
+  flex: none;
 }
 .home-section {
   margin-top: 48px;
@@ -152,11 +115,11 @@
   margin-top: 0;
 }
 @media (max-width: 720px) {
-  .home-hero-inner {
-    padding-top: 36px;
-    padding-bottom: 32px;
+  .home-band-inner {
+    padding-top: 16px;
+    padding-bottom: 16px;
   }
-  .home-lead {
+  .home-band-text {
     font-size: 15px;
   }
   .home-section {
