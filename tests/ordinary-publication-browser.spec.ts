@@ -120,7 +120,8 @@ async function publishArticle(page: Page, info: TestInfo, title = '架空のAI�
   await composer.getByLabel('想定読者（任意）').fill('AIで制作している学生');
   await composer.getByLabel('前提知識（任意）').fill('特別な前提知識は不要');
   await composer.getByLabel('読んだあとにできること（任意）').fill('自分の判断を説明する');
-  await expect(composer.getByLabel('読了時間の目安（分）')).toHaveValue('1');
+  // #307: the reading-time input is gone; the server derives it from the body.
+  await expect(composer.getByLabel('読了時間の目安（分）')).toHaveCount(0);
   // C09: the owner can read the exact saved snapshot before publishing, and nothing is
   // published until the explicit confirmation is checked and the button is pressed.
   const snapshot = composer.locator('details.publication-snapshot');

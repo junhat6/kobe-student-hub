@@ -138,6 +138,31 @@ test('anonymous top lists real articles and works newest first and every card le
 
     const works = page.locator('section[aria-labelledby="home-works-title"] .content-card');
     await expect(works.first().getByRole('link', { name: 'トップの作品-' + key })).toBeVisible();
+    // #307: a card shows only the frame, kind, title, author and time. Reading time, summary,
+    // reader context, tags and the work description stay off the card.
+    const articleCard = articles.filter({ hasText: '改稿した記事-' + key });
+    const workCard = works.filter({ hasText: 'トップの作品-' + key });
+    for (const card of [articleCard, workCard]) {
+      await expect(card.locator('.content-card-band')).toBeVisible();
+      await expect(card.locator('time')).toHaveCount(1);
+      await expect(card.locator('.content-card-author')).toBeVisible();
+      await expect(card.getByRole('link')).toHaveText([
+        card === articleCard ? '改稿した記事-' + key : 'トップの作品-' + key,
+        /架空/,
+      ]);
+    }
+    await expect(articleCard).not.toContainText('分で読める');
+    await expect(articleCard).not.toContainText(metadata.summary);
+    await expect(articleCard).not.toContainText('# トップ');
+    await expect(workCard).not.toContainText('トップに並ぶ架空の作品');
+    // Kind by icon and word as well as colour, and the two kinds differ in colour.
+    await expect(articleCard.locator('.content-card-kind')).toHaveText('記事');
+    await expect(workCard.locator('.content-card-kind')).toHaveText('作品');
+    await expect(articleCard.locator('.content-card-kind svg')).toHaveCount(1);
+    await expect(workCard.locator('.content-card-kind svg')).toHaveCount(1);
+    const kindColour = (card: typeof articleCard) =>
+      card.locator('.content-card-kind').evaluate((node) => getComputedStyle(node).color);
+    expect(await kindColour(articleCard)).not.toBe(await kindColour(workCard));
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       page.viewportSize()!.width,
     );

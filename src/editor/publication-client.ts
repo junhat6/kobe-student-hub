@@ -8,7 +8,11 @@ import { publicMomentKeys } from '../shared/display';
 export interface PublicationMetadata {
   summary: string;
   tags: string[];
-  minutes: number;
+  /**
+   * Reading time in minutes. Left out by the publish panel (#307): the server derives it from the
+   * draft body. Still sent when an agent suggested one, so existing routes keep working.
+   */
+  minutes?: number;
   audience: string;
   prerequisite: string;
   outcome: string;
@@ -63,12 +67,12 @@ export function canonicalTags(value: unknown): string[] | null {
   return tags.sort();
 }
 export function checkedMetadata(v: unknown): PublicationMetadata | null {
+  const fields = ['summary', 'tags', 'audience', 'prerequisite', 'outcome'];
   if (
-    !keys(v, ['summary', 'tags', 'minutes', 'audience', 'prerequisite', 'outcome']) ||
+    !(keys(v, fields) || keys(v, [...fields, 'minutes'])) ||
     !text(v.summary, 300) ||
-    !Number.isInteger(v.minutes) ||
-    Number(v.minutes) < 1 ||
-    Number(v.minutes) > 240 ||
+    (v.minutes !== undefined &&
+      (!Number.isInteger(v.minutes) || Number(v.minutes) < 1 || Number(v.minutes) > 240)) ||
     !text(v.audience, 200) ||
     !text(v.prerequisite, 200) ||
     !text(v.outcome, 200)
@@ -79,7 +83,7 @@ export function checkedMetadata(v: unknown): PublicationMetadata | null {
     ? {
         summary: v.summary,
         tags,
-        minutes: v.minutes as number,
+        ...(v.minutes === undefined ? {} : { minutes: v.minutes as number }),
         audience: v.audience,
         prerequisite: v.prerequisite,
         outcome: v.outcome,
@@ -185,7 +189,7 @@ export function matchesPublication(value: PublicationReceipt, attempt: Publicati
     e.body === attempt.draft.body &&
     e.summary === m.summary &&
     JSON.stringify(e.tags) === JSON.stringify(m.tags) &&
-    e.minutes === m.minutes &&
+    (m.minutes === undefined || e.minutes === m.minutes) &&
     e.audience === m.audience &&
     e.prerequisite === m.prerequisite &&
     e.outcome === m.outcome &&

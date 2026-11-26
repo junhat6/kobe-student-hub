@@ -293,73 +293,30 @@
   font-size: 18px;
   font-weight: 800;
 }
-.detail-layout .related-reading ul {
+/* #307: related items, この作品の記事 and 制作日誌 are the same cards as the lists, in a grid. */
+.detail-layout :is(.related-reading-cards, .project-article-cards) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.detail-layout .related-reading li {
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--bg);
-}
-.detail-layout .related-reading li a {
-  text-decoration: none;
-}
-.detail-layout .related-reading h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-.detail-layout .related-reading h3 a {
-  /* The title is the card's main target: a full-width row of at least 44px. */
+.detail-layout :is(.related-reading-cards, .project-article-cards) > li {
   display: flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--ink);
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
-/* Card hierarchy like Zenn/note: bold title, muted two-line summary, small author (原則7). */
-.detail-layout .related-reading li > p:not(.related-reading-reason) {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  margin: 0 0 8px;
-  color: var(--ink-muted);
-  font-size: 14px;
+.detail-layout :is(.related-reading-cards, .project-article-cards) > li > .content-card {
+  flex: 1;
 }
 .detail-layout .related-reading .related-reading-reason {
   margin: 0;
   font-size: 12px;
-}
-.detail-layout .related-reading li > a {
-  /* Small and muted, but still a 44px touch target of its own (the title link is not the card). */
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--ink-muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-.detail-layout .related-reading li > a:hover {
-  color: var(--accent-strong);
-}
-/* On a project page the list items are article titles, not author names: keep them the main,
-   readable target with a 44px row instead of the muted author style above. */
-.detail-layout .project-articles li > a {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--ink);
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.5;
-}
-.detail-layout .related-reading h3 a:hover {
-  color: var(--accent-strong);
 }
 .related-reading-empty {
   color: var(--ink-muted);

@@ -271,12 +271,11 @@ test('ordinary search finds article-only and project-only authors and preserves 
       .getByRole('link', { name: '# AI', exact: true })
       .click();
     await expect(page).toHaveURL(ORIGIN + '/search?type=article&tag=AI');
-    await page
-      .locator('.content-card-tags')
-      .first()
-      .getByRole('link', { name: '# AI', exact: true })
-      .click();
-    await expect(page).toHaveURL(ORIGIN + '/search?type=article&tag=AI');
+    // #307: cards carry no tag chips; the tag stays in the search chips and on the article page.
+    await expect(page.locator('main .content-card').first()).toBeVisible();
+    await expect(
+      page.locator('main .content-card').getByRole('link', { name: '# AI' }),
+    ).toHaveCount(0);
     await page.goto('/search?' + new URLSearchParams({ q: key, type: 'project', tag: 'AI' }));
     await expect(page.locator('main')).not.toContainText('タグは記事が対象です。');
     await page.getByRole('button', { name: 'タグ「# AI」を解除', exact: true }).click();

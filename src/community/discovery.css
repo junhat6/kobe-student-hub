@@ -35,52 +35,20 @@
   padding-top: 24px;
   border-top: 1px solid #d6e3ed;
 }
-.related-reading ul {
-  list-style: none;
-  padding: 0;
-}
-.related-reading li {
-  padding: 20px 0;
-  border-bottom: 1px solid #d6e3ed;
-  overflow-wrap: anywhere;
-}
-.related-reading h3 {
-  margin: 4px 0 8px;
-  font-size: 1.125rem;
-}
-.related-reading p {
-  margin: 8px 0;
-}
 .related-reading .related-reading-reason,
 .related-reading-limit {
   color: #596e7d;
   font-size: 0.875rem;
 }
 
-.related-reading a {
+.related-reading-empty a {
   color: #076db3;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.related-reading a:hover {
+.related-reading-empty a:hover {
   color: #054c7b;
 }
 .related-reading.project-articles {
   margin: 32px 0;
-}
-/* 制作日誌 (#273): a dated, oldest-first list; the date sits above the title on narrow screens. */
-.project-journal ol {
-  list-style: none;
-  padding: 0;
-}
-.project-journal li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  align-items: baseline;
-}
-.project-journal time {
-  color: #596e7d;
-  font-size: 0.875rem;
-  flex: none;
 }

@@ -92,8 +92,9 @@ test('anonymous readers discover a fresh work then its project and author withou
       .filter({ has: reader.locator('a[href="/lab/projects/' + data.id + '"]') });
     await test.step('Read the fresh work without private or active content', async () => {
       await reader.goto('/lab/works');
-      // #301: the card shows the readable text only, not raw HTML or Markdown image syntax.
-      await expect(card.getByText('制作で試したこと', { exact: true })).toBeVisible();
+      // #307: the card is title-first and shows no description, so no raw HTML or Markdown either.
+      await expect(card.getByText('作品', { exact: true })).toBeVisible();
+      await expect(card).not.toContainText('制作で試したこと');
       await expect(card).not.toContainText('worksInjected');
       await expect(card).not.toContainText('![image]');
       await expect(card).not.toContainText('feedには出さない紹介');
@@ -108,9 +109,9 @@ test('anonymous readers discover a fresh work then its project and author withou
       await expect(
         reader.getByRole('heading', { name: '架空の制作投稿者の公開作品', exact: true }),
       ).toBeVisible();
-      await expect(
-        reader.getByText('GitHub URL：https://example.invalid/?public=link#view', { exact: true }),
-      ).toBeVisible();
+      // #307: the work card is title-first; the GitHub URL stays on the project page only.
+      await expect(reader.getByRole('link', { name: data.title, exact: true })).toBeVisible();
+      await expect(reader.getByText(/GitHub URL：/)).toHaveCount(0);
     });
     await test.step('Navigate works to articles and back without delaying the clicks', async () => {
       await reader.getByRole('link', { name: '公開作品を探す', exact: true }).click();

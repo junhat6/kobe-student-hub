@@ -54,7 +54,6 @@ test('independent explicit publication receipt opens anonymous recent feed witho
   await composer
     .getByLabel('記事の概要（300文字以内）', { exact: true })
     .fill('新着から出会うための架空の概要');
-  await composer.getByLabel('読了時間の目安（分）', { exact: true }).fill('2');
   await composer
     .getByRole('checkbox', {
       name: '保存済みの版と公開情報を確認し、ログインしていない読者にも見える記事としてローカルで公開します',

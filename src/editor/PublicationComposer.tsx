@@ -159,11 +159,13 @@ export default function PublicationComposer({
   const metadata = checkedMetadata({
     summary: fields.summary,
     tags: tags ?? [null],
+    // #307: no reading-time input. Left out, the server derives it from the published body; only an
+    // agent's suggestion (applySuggestion) still sends a number.
     minutes: /^\d{1,3}$/.test(fields.minutes)
       ? Number(fields.minutes)
-      : ordinary && !fields.minutes
-        ? Math.min(240, Math.max(1, Math.ceil(Array.from(draft.body).length / 600)))
-        : NaN,
+      : fields.minutes
+        ? NaN
+        : undefined,
     audience: fields.audience,
     prerequisite: fields.prerequisite,
     outcome: fields.outcome,
@@ -211,7 +213,7 @@ export default function PublicationComposer({
               : {
                   summary: e.summary,
                   tags: e.tags.join(', '),
-                  minutes: String(e.minutes),
+                  minutes: '',
                   audience: e.audience,
                   prerequisite: e.prerequisite,
                   outcome: e.outcome,
@@ -277,7 +279,7 @@ export default function PublicationComposer({
       (!metadata ||
         metadata.summary !== receipt.entry.summary ||
         JSON.stringify(metadata.tags) !== JSON.stringify(receipt.entry.tags) ||
-        metadata.minutes !== receipt.entry.minutes ||
+        (metadata.minutes !== undefined && metadata.minutes !== receipt.entry.minutes) ||
         metadata.audience !== receipt.entry.audience ||
         metadata.prerequisite !== receipt.entry.prerequisite ||
         metadata.outcome !== receipt.entry.outcome),
@@ -391,8 +393,7 @@ export default function PublicationComposer({
       suggested.tags.length ||
       suggested.audience ||
       suggested.prerequisite ||
-      suggested.outcome ||
-      suggested.minutes),
+      suggested.outcome),
   );
   const showForm =
     ordinary || !receipt || Boolean(attempt && !matchesPublication(receipt, attempt));
@@ -634,21 +635,6 @@ export default function PublicationComposer({
                       タグの文字数・件数・重複を確認してください。
                     </p>
                   )}
-                  <label htmlFor="publication-minutes">読了時間の目安（分）</label>
-                  <input
-                    id="publication-minutes"
-                    type="number"
-                    min={1}
-                    max={240}
-                    readOnly={readOnly}
-                    value={fields.minutes || (ordinary ? String(metadata?.minutes ?? '') : '')}
-                    onChange={(event) => change('minutes', event.target.value)}
-                  />
-                  <small>
-                    {ordinary
-                      ? '本文から目安を計算しています。1〜240分の範囲で変更できます。'
-                      : '1〜240分。自分で目安を入力してください。'}
-                  </small>
                   {ordinary ? (
                     <details
                       className="publication-optional"

@@ -67,9 +67,7 @@ function metadata(value: unknown) {
   ];
   if (
     Reflect.ownKeys(v).some((k) => typeof k !== 'string' || !allowed.includes(k)) ||
-    !['expectedVersion', 'confirmPublic', 'summary', 'tags', 'minutes'].every((k) =>
-      Object.hasOwn(v, k),
-    )
+    !['expectedVersion', 'confirmPublic', 'summary', 'tags'].every((k) => Object.hasOwn(v, k))
   )
     return null;
   if (
@@ -78,10 +76,11 @@ function metadata(value: unknown) {
     v.expectedVersion < 1 ||
     v.confirmPublic !== true ||
     !chars(v.summary, 300) ||
-    typeof v.minutes !== 'number' ||
-    !Number.isInteger(v.minutes) ||
-    v.minutes < 1 ||
-    v.minutes > 240
+    (Object.hasOwn(v, 'minutes') &&
+      (typeof v.minutes !== 'number' ||
+        !Number.isInteger(v.minutes) ||
+        v.minutes < 1 ||
+        v.minutes > 240))
   )
     return null;
   if (
@@ -108,9 +107,16 @@ function metadata(value: unknown) {
     audience: optional.audience,
     prerequisite: optional.prerequisite,
     outcome: optional.outcome,
-    minutes: v.minutes,
+    /** null: derive it from the published body with {@link minutesFromBody} (#307). */
+    minutes: (v.minutes as number | undefined) ?? null,
   };
 }
+/**
+ * #307: reading time when the publish request leaves it out — about 600 characters a minute (the
+ * rate the publish panel used to prefill), kept in 1..240. SQL on the same draft row, so the number
+ * always matches the body the statement publishes. `d` is the private_article_drafts alias.
+ */
+const minutesFromBody = `MIN(240,MAX(1,(length(d.body)+599)/600))`;
 
 type PublicRow = {
   id: string;
@@ -275,7 +281,7 @@ export class ArticlePublicationStore {
       const existing = await this.db
         .prepare(
           `SELECT r.content_id FROM article_publications r JOIN private_article_drafts d ON d.id=r.draft_id JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id JOIN content c ON c.id=r.content_id
-    WHERE r.draft_id=? AND r.owner_account_id=? AND d.owner_account_id=r.owner_account_id AND r.public_profile_id=m.public_profile_id AND r.source_version=? AND r.summary=? AND r.tags_json=? AND r.audience=? AND r.prerequisite=? AND r.outcome=? AND r.minutes=? AND r.media_ids_json=? AND r.published_at_ms<=? AND c.kind='article' AND c.status='published' AND c.is_sample=0 AND c.author_id=r.public_profile_id AND ${profileBounds}
+    WHERE r.draft_id=? AND r.owner_account_id=? AND d.owner_account_id=r.owner_account_id AND r.public_profile_id=m.public_profile_id AND r.source_version=? AND r.summary=? AND r.tags_json=? AND r.audience=? AND r.prerequisite=? AND r.outcome=? AND (? IS NULL OR r.minutes=?) AND r.media_ids_json=? AND r.published_at_ms<=? AND c.kind='article' AND c.status='published' AND c.is_sample=0 AND c.author_id=r.public_profile_id AND ${profileBounds}
     AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=m.public_profile_id OR private_id.google_subject=m.public_profile_id)
     AND ${writerLive}`,
         )
@@ -289,6 +295,7 @@ export class ArticlePublicationStore {
           m.prerequisite,
           m.outcome,
           m.minutes,
+          m.minutes,
           m.mediaJson,
           p.nowMs,
           ...writerBindings(p),
@@ -300,7 +307,7 @@ export class ArticlePublicationStore {
       const row = await this.db
         .prepare(
           `INSERT INTO article_publications(content_id,owner_account_id,draft_id,public_profile_id,source_version,summary,tags_json,audience,prerequisite,outcome,minutes,published_at_ms,media_ids_json)
-    SELECT ?,d.owner_account_id,d.id,m.public_profile_id,d.version,?,?,?,?,?,?,?,? FROM private_article_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id
+    SELECT ?,d.owner_account_id,d.id,m.public_profile_id,d.version,?,?,?,?,?,COALESCE(?,${minutesFromBody}),?,? FROM private_article_drafts d JOIN account_public_profiles m ON m.owner_account_id=d.owner_account_id JOIN public_profiles p ON p.id=m.public_profile_id
     WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND length(trim(d.title,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND length(d.title)<=200 AND instr(d.title,char(0))=0 AND length(CAST(d.title AS BLOB))<=800 AND length(trim(d.body,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND instr(d.body,char(0))=0 AND length(CAST(d.body AS BLOB))<=262144 AND ${profileBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=m.public_profile_id OR private_id.google_subject=m.public_profile_id)
     AND ${writerLive}
     ON CONFLICT(draft_id) DO UPDATE SET content_id=article_publications.content_id WHERE article_publications.owner_account_id=excluded.owner_account_id AND article_publications.public_profile_id=excluded.public_profile_id AND article_publications.source_version=excluded.source_version AND article_publications.summary=excluded.summary AND article_publications.tags_json=excluded.tags_json AND article_publications.audience=excluded.audience AND article_publications.prerequisite=excluded.prerequisite AND article_publications.outcome=excluded.outcome AND article_publications.minutes=excluded.minutes AND article_publications.media_ids_json=excluded.media_ids_json AND EXISTS(SELECT 1 FROM content c WHERE c.id=article_publications.content_id AND c.author_id=article_publications.public_profile_id AND c.kind='article' AND c.status='published' AND c.is_sample=0) RETURNING content_id`,
@@ -396,7 +403,7 @@ export class ArticlePublicationStore {
     const result = await this.db
       .prepare(
         `INSERT INTO article_publication_revisions(content_id,revision,source_version,title,body,summary,tags_json,audience,prerequisite,outcome,minutes,media_ids_json,published_at_ms)
-      SELECT r.content_id,current.revision+1,d.version,d.title,d.body,?,?,?,?,?,?,?,? FROM private_article_drafts d JOIN article_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id JOIN account_public_profiles map ON map.owner_account_id=d.owner_account_id AND map.public_profile_id=r.public_profile_id JOIN public_profiles p ON p.id=r.public_profile_id JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id JOIN article_publication_revisions current ON current.content_id=r.content_id AND current.revision=(SELECT MAX(revision) FROM article_publication_revisions WHERE content_id=r.content_id)
+      SELECT r.content_id,current.revision+1,d.version,d.title,d.body,?,?,?,?,?,COALESCE(?,${minutesFromBody}),?,? FROM private_article_drafts d JOIN article_publications r ON r.draft_id=d.id AND r.owner_account_id=d.owner_account_id JOIN account_public_profiles map ON map.owner_account_id=d.owner_account_id AND map.public_profile_id=r.public_profile_id JOIN public_profiles p ON p.id=r.public_profile_id JOIN content c ON c.id=r.content_id AND c.author_id=r.public_profile_id JOIN article_publication_revisions current ON current.content_id=r.content_id AND current.revision=(SELECT MAX(revision) FROM article_publication_revisions WHERE content_id=r.content_id)
       WHERE d.id=? AND d.owner_account_id=? AND d.version=? AND d.updated_at_ms<=? AND d.title=? AND current.source_version=? AND current.source_version<d.version AND current.published_at_ms<=? AND current.revision<1000 AND ${publicBounds} AND ${writerLive}
       AND NOT EXISTS(SELECT 1 FROM article_publication_stops WHERE content_id=r.content_id)
       AND NOT EXISTS(SELECT 1 FROM article_reports report WHERE report.content_id=r.content_id AND report.round=COALESCE((SELECT round FROM article_moderation_state WHERE content_id=r.content_id),1)) RETURNING content_id`,

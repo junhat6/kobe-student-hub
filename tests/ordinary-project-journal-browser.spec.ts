@@ -132,8 +132,15 @@ test('owner adds and removes later articles as the project journal; readers see 
     const reader = await guest.newPage();
     await reader.goto(projectPath);
     const section = reader.getByRole('region', { name: '制作日誌' });
-    await expect(section.getByRole('link')).toHaveText([day1, day2]);
+    // #307: the journal is the same article card as the lists, oldest first, with the list weight.
+    await expect(section.locator('.content-card-link')).toHaveText([day1, day2]);
+    await expect(section.locator('.content-card .content-card-kind')).toHaveText(['記事', '記事']);
     await expect(section.locator('time')).toHaveCount(2);
+    expect(
+      await section
+        .locator('.content-card h3')
+        .evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).fontWeight)),
+    ).toEqual(['700', '700']);
     expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
@@ -151,9 +158,9 @@ test('owner adds and removes later articles as the project journal; readers see 
     await expect(reloaded.getByRole('checkbox', { name: day2, exact: true })).not.toBeChecked();
     await expect(reloaded.getByRole('checkbox', { name: day2, exact: true })).toBeEnabled();
     await reader.goto(projectPath);
-    await expect(reader.getByRole('region', { name: '制作日誌' }).getByRole('link')).toHaveText([
-      day1,
-    ]);
+    await expect(
+      reader.getByRole('region', { name: '制作日誌' }).locator('.content-card-link'),
+    ).toHaveText([day1]);
     expect(path2).toMatch(/^\/articles\/[0-9a-f-]{36}$/);
 
     // Day 1 stops being public: readers no longer see it, and the owner can still remove its link.

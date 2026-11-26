@@ -73,6 +73,15 @@ describe('explicit saved-version publication client', () => {
       { ...metadata, ownerId: 'private' },
     ])
       expect(checkedMetadata(value)).toBeNull();
+    // #307: the publish panel leaves the reading time out; the server derives it.
+    const { minutes: _omitted, ...withoutMinutes } = metadata;
+    expect(checkedMetadata(withoutMinutes)).toEqual({
+      ...withoutMinutes,
+      tags: canonicalTags(withoutMinutes.tags),
+    });
+    expect(checkedMetadata({ ...withoutMinutes, minutes: undefined })).not.toHaveProperty(
+      'minutes',
+    );
   });
   it('posts only metadata/version/confirmation with request-bound CSRF, never draft content or identity', async () => {
     let path: unknown, init: RequestInit | undefined;

@@ -76,7 +76,9 @@ test('unknown-URL readers discover a fresh publication then its author through a
       .filter({ has: reader.locator('a[href="/lab/articles/' + data.ids[1] + '"]') });
     await expect(card).toContainText('次に試せる公開記事');
     await expect(reader.getByText('公開していない秘密の下書き')).toHaveCount(0);
-    await expect(card.getByText('基本操作', { exact: true })).toBeVisible();
+    // #307: the card is title-first; tags stay on the article page and the search chips.
+    await expect(card.getByText('基本操作', { exact: true })).toHaveCount(0);
+    await expect(card.getByText('記事', { exact: true })).toBeVisible();
     await card.getByRole('link', { name: '次に試せる公開記事', exact: true }).click();
     await expect(
       reader.getByRole('heading', { name: '次に試せる公開記事', exact: true }),

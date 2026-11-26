@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { createPublicProjectClient } from '../editor/public-project-client';
 import { createPublicWorksClient } from '../editor/public-works-client';
 import PublicProjectCard from '../editor/PublicProjectCard';
+import PublicArticleCard from '../editor/PublicArticleCard';
 import { ProjectText } from '../editor/ProjectRegistration';
 import OrdinaryProjectReport from './OrdinaryProjectReport';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
@@ -132,15 +133,19 @@ function Project({ id }: { id: string }) {
         </div>
         <ProjectText value={project} showTitle={false} surface="ordinary" />
         {articles.length > 0 && (
+          // #307: the same card as the lists. These links carry only id and title, so no time.
           <section className="related-reading project-articles" aria-label="この作品の記事">
             <h2>この作品の記事</h2>
-            <ul>
+            <div className="project-article-cards">
               {articles.map((article) => (
-                <li key={article.id}>
-                  <Link to={'/articles/' + article.id}>{article.title}</Link>
-                </li>
+                <PublicArticleCard
+                  key={article.id}
+                  entry={article}
+                  author={author}
+                  surface="ordinary"
+                />
               ))}
-            </ul>
+            </div>
           </section>
         )}
         {journal.length > 0 && (
@@ -150,11 +155,19 @@ function Project({ id }: { id: string }) {
             aria-label="制作日誌"
           >
             <h2>制作日誌</h2>
-            <ol>
+            <ol className="project-article-cards">
               {journal.map((entry) => (
                 <li key={entry.id}>
-                  <PublicTime day={entry.publishedOn} at={entry.publishedAt} />
-                  <Link to={'/articles/' + entry.id}>{entry.title}</Link>
+                  <PublicArticleCard
+                    entry={{
+                      id: entry.id,
+                      title: entry.title,
+                      updatedAt: entry.publishedOn,
+                      publishedAt: entry.publishedAt,
+                    }}
+                    author={author}
+                    surface="ordinary"
+                  />
                 </li>
               ))}
             </ol>

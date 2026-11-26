@@ -196,6 +196,22 @@ describe('unconnected publication snapshot boundary with real local sessions and
       expect(await publish(d.id, { ...meta, ...change })).toBeNull();
     expect((await read(results[0]!.contentId))?.entry.summary).toBe(meta.summary);
   });
+  it('derives the reading time from the published body when the request leaves it out (#307)', async () => {
+    const { minutes: _omitted, ...withoutMinutes } = meta;
+    for (const [body, minutes] of [
+      ['# Stored body', 1],
+      ['界'.repeat(1201), 3],
+      ['a'.repeat(150000), 240],
+    ] as const) {
+      const d = await create('Derived minutes', body);
+      const receipt = (await publish(d.id, withoutMinutes))!;
+      expect((await read(receipt.contentId))?.entry.minutes).toBe(minutes);
+      // A receipt-only retry without minutes returns the same publication.
+      expect(await publish(d.id, withoutMinutes)).toEqual(receipt);
+    }
+    const d = await create('Null minutes', '本文');
+    expect(await publish(d.id, { ...withoutMinutes, minutes: null })).toBeNull();
+  });
   it('rolls back publication records and content together when content insertion aborts or ignores', async () => {
     const db = await mf.getD1Database('DB');
     for (const failure of ['ABORT', 'IGNORE']) {

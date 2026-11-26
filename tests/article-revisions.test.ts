@@ -110,6 +110,21 @@ describe('explicit article correction with immutable evidence', () => {
       { ...meta, expectedVersion: d.version, expectedPublicationVersion: previous, ...extra },
       user,
     );
+  it('recomputes the reading time from the corrected body when the revision leaves it out (#307)', async () => {
+    const { minutes: _omitted, ...withoutMinutes } = meta;
+    const d = await create('Minutes title', '短い本文');
+    const first = (await publish(d.id, withoutMinutes))!;
+    expect((await read(first.contentId))?.entry.minutes).toBe(1);
+    const saved = await update(d, 'Minutes title', '界'.repeat(1800));
+    expect(
+      await publish(d.id, {
+        ...withoutMinutes,
+        expectedVersion: saved.version,
+        expectedPublicationVersion: 1,
+      }),
+    ).toEqual(first);
+    expect((await read(first.contentId))?.entry.minutes).toBe(3);
+  });
   it('updates the stable public URL only after confirmation and preserves both snapshots/creation time', async () => {
     const d = await create('Original title', 'Original body');
     const first = (await publish(d.id))!;

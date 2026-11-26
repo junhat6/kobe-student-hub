@@ -142,7 +142,6 @@ test('a student hands the draft to their own agent, imports its file, and publis
   await expect(summary).toHaveValue('AIエージェントが書いた架空の概要です。');
   await expect(composer.getByLabel('公開されるタグ')).toHaveText('AIエージェント架空');
   await expect(composer.getByLabel('想定読者（任意）')).toHaveValue('架空の読者');
-  await expect(composer.getByLabel('読了時間の目安（分）')).toHaveValue('3');
   await composer.getByRole('checkbox').check();
   await composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true }).click();
   const publicLink = composer.getByRole('link', { name: 'ログインなしの読者画面を開く' });
@@ -157,6 +156,8 @@ test('a student hands the draft to their own agent, imports its file, and publis
 
   // 6. A reader can hand the published article to their own agent as Markdown with its source.
   await page.goto(articlePath);
+  // #307: the panel has no reading-time input, but the agent's `minutes: 3` is still published.
+  await expect(page.locator('.detail-dates')).toContainText('約3分');
   await page.getByRole('button', { name: /AIに渡す/ }).click();
   await expect(page.locator('.agent-handoff [role="status"]')).toHaveText('コピーしました');
   const handed = await page.evaluate(() => navigator.clipboard.readText());

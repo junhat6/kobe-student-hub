@@ -413,7 +413,7 @@
       "risk": "R2",
       "status": "unverified",
       "production": "closed",
-      "evidence": "2026-11-27 オーナーの UX フィードバック（DECISIONS 2026-11-27）で replan が足した。 条件1・2 は #307、条件3 は #308、条件4 は #309、条件5 は #311（選ぶ・R2）と #310（自動カード）。 条件3 は #308 で main に入った（公開 DTO に publishedAt、src/shared/display.ts の formatPublicTime、境界の単体テストと HTTPS ブラウザー検査）。 条件4 は #309 で main に入った（ログイン済みはヒーローなし、未ログインは1行と登録の帯。帯はセッションの最初の答えで決め、それまでカードはスケルトンのまま。tests/ordinary-home-browser.spec.ts が PC1280×800・モバイル390×844 で帯の高さ・1枚目のタイトルがスクロールなしで見えること・帯が出てから消えないことを測る）。"
+      "evidence": "2026-11-27 オーナーの UX フィードバック（DECISIONS 2026-11-27）で replan が足した。 条件1・2 は #307、条件3 は #308、条件4 は #309、条件5 は #311（選ぶ・R2）と #310（自動カード）。 条件3 は #308 で main に入った（公開 DTO に publishedAt、src/shared/display.ts の formatPublicTime、境界の単体テストと HTTPS ブラウザー検査）。 条件4 は #309 で main に入った（ログイン済みはヒーローなし、未ログインは1行と登録の帯。帯はセッションの最初の答えで決め、それまでカードはスケルトンのまま。tests/ordinary-home-browser.spec.ts が PC1280×800・モバイル390×844 で帯の高さ・1枚目のタイトルがスクロールなしで見えること・帯が出てから消えないことを測る）。 条件1・2 は #307 で main に入った（記事・作品のカードを絵の枠・種別のアイコンと名前・タイトル・投稿者・公開時期だけにし、種別の色を固定。作品ページの「この作品の記事」「制作日誌」と関連も同じカード。公開パネルの読了時間の入力を外し、省略時はサーバーが本文の長さから 1〜240 分を入れる。tests/ordinary-home-browser.spec.ts・ordinary-project-journal-browser.spec.ts・ordinary-project-links-browser.spec.ts が形と見出しの太さを測る）。作品の「制作中」の印（#275）はカードに残した。"
     },
     {
       "id": "C27",

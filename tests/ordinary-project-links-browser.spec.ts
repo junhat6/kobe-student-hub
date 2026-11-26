@@ -90,6 +90,13 @@ test('owner links own article to a project; readers move both ways directly', as
     await reader.goto(projectPath);
     const section = reader.getByRole('region', { name: 'この作品の記事' });
     await expect(section.getByRole('link', { name: articleTitle, exact: true })).toBeVisible();
+    // #307: the same card as the lists (kind, title at the list weight, author), not a bold list.
+    const card = section.locator('.content-card', { hasText: articleTitle });
+    await expect(card.locator('.content-card-kind')).toHaveText('記事');
+    await expect(card.locator('.content-card-author')).toBeVisible();
+    expect(await card.locator('h3').evaluate((node) => getComputedStyle(node).fontWeight)).toBe(
+      '700',
+    );
     expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );

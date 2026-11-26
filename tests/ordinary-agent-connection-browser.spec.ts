@@ -357,7 +357,8 @@ test("an agent's journal drafts for the student's project appear on it only afte
     await publishDraftInApp(page, day2);
     await reader.reload();
     const section = reader.getByRole('region', { name: '制作日誌' });
-    await expect(section.getByRole('link')).toHaveText([day1, day2]);
+    // #307: journal entries are article cards; the title links are the card links.
+    await expect(section.locator('.content-card-link')).toHaveText([day1, day2]);
     await expect(section.locator('time')).toHaveCount(2);
     expect(await noHorizontalScroll(reader)).toBe(true);
     await reader.screenshot({

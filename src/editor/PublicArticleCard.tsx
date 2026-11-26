@@ -6,10 +6,20 @@ import '../shared/cards.css';
 import { AuthorAvatar } from '../shared/public-avatars';
 import Icon from '../shared/Icon';
 import { PublicTime } from '../shared/PublicTime';
+import ContentKindMark from '../shared/ContentKindMark';
 
 /**
- * Article card. The title stays the only link name for assistive technology;
- * a stretched pseudo-element makes the whole card a click target.
+ * What a card needs: the id and title, plus the public day/time when the list has them. The project
+ * page's 「この作品の記事」 links carry only id and title, so their cards show no time (#307).
+ */
+export type ArticleCardEntry = Pick<PublishedArticleSummary, 'id' | 'title'> &
+  Partial<Pick<PublishedArticleSummary, 'tags' | 'updatedAt' | 'publishedAt'>>;
+
+/**
+ * Article card (#307): picture frame, kind, title, author and public time only. Reading time,
+ * summary, reader context and tags stay on the article page and the search chips, so a list reads
+ * by title. The title stays the only link name for assistive technology; a stretched
+ * pseudo-element makes the whole card a click target.
  */
 export default function PublicArticleCard({
   entry,
@@ -18,93 +28,64 @@ export default function PublicArticleCard({
   badge,
   likeCount,
   inTypedList = false,
+  headingLevel = 3,
 }: {
-  entry: PublishedArticleSummary;
+  entry: ArticleCardEntry;
   author?: PublicArticleAuthor;
   surface?: PublicSurface;
   badge?: string;
   /** Public like count shown as a heart and a number (note・Zenn); the full phrase stays in the name. */
   likeCount?: number;
   /**
-   * The list around the card already says these are articles (a profile tab). Drop the colour band
-   * and the kind label so the title sits at the top and the type is not repeated (#236).
+   * The list around the card already says these are articles (a profile tab). Drop the picture
+   * frame and the kind label so the title sits at the top and the type is not repeated (#236).
    */
   inTypedList?: boolean;
+  headingLevel?: 2 | 3;
 }) {
   const paths = publicPaths(surface);
-  const hue = tagHue(entry.tags[0] ?? entry.title);
+  const hue = tagHue(entry.tags?.[0] ?? entry.title);
+  const Heading = headingLevel === 2 ? 'h2' : 'h3';
+  const time = entry.updatedAt ? <PublicTime day={entry.updatedAt} at={entry.publishedAt} /> : null;
   // In a profile tab there is no author to show, so a footer row would hold only the date.
   // Put the date on the meta line instead of spending a separated row on it (原則1).
   const compactDate = inTypedList && !author;
+  const showMeta = !inTypedList || Boolean(badge) || likeCount !== undefined || compactDate;
   return (
     <article
-      className="content-card author-lab-card"
+      className="content-card content-card-article author-lab-card"
       style={{ '--card-hue': hue } as React.CSSProperties}
     >
       {!inTypedList && (
+        // The picture frame: a colour band for now; images arrive with #310/#311.
         <div className="content-card-band" aria-hidden="true">
-          <span>{entry.tags[0] ? '# ' + entry.tags[0] : '記事'}</span>
+          <Icon name="doc" size={28} />
         </div>
       )}
       <div className="content-card-body">
-        <div className="content-card-meta">
-          {!inTypedList && <span className="content-card-kind">記事</span>}
-          {badge && <span className="content-card-badge">{badge}</span>}
-          {likeCount !== undefined && (
-            <span
-              className="content-card-badge content-card-likes"
-              title={`公開いいね ${String(likeCount)}件`}
-            >
-              <Icon name="heart" size={13} />
-              <span aria-hidden="true">{likeCount}</span>
-              <span className="sr-only">{`公開いいね ${String(likeCount)}件`}</span>
-            </span>
-          )}
-          <span>{entry.minutes}分で読める</span>
-          {compactDate && <PublicTime day={entry.updatedAt} at={entry.publishedAt} />}
-        </div>
-        <h3>
+        {showMeta && (
+          <div className="content-card-meta">
+            {!inTypedList && <ContentKindMark kind="article" />}
+            {badge && <span className="content-card-badge">{badge}</span>}
+            {likeCount !== undefined && (
+              <span
+                className="content-card-badge content-card-likes"
+                title={`公開いいね ${String(likeCount)}件`}
+              >
+                <Icon name="heart" size={13} />
+                <span aria-hidden="true">{likeCount}</span>
+                <span className="sr-only">{`公開いいね ${String(likeCount)}件`}</span>
+              </span>
+            )}
+            {compactDate && time}
+          </div>
+        )}
+        <Heading>
           <SurfaceLink surface={surface} className="content-card-link" to={paths.article(entry.id)}>
             {entry.title}
           </SurfaceLink>
-        </h3>
-        {entry.summary && <p className="content-card-summary">{entry.summary}</p>}
-        {entry.tags.length > 0 && (
-          <div className="content-card-tags">
-            {entry.tags.map((tag) =>
-              surface === 'ordinary' ? (
-                <SurfaceLink
-                  surface={surface}
-                  key={tag}
-                  to={`/search?type=article&tag=${encodeURIComponent(tag)}`}
-                >
-                  # {tag}
-                </SurfaceLink>
-              ) : (
-                <span key={tag}># {tag}</span>
-              ),
-            )}
-          </div>
-        )}
-        {(entry.audience || entry.prerequisite || entry.outcome) && (
-          <dl className="content-card-context">
-            {(
-              [
-                ['想定読者', entry.audience],
-                ['前提知識', entry.prerequisite],
-                ['読んだあとにできること', entry.outcome],
-              ] as const
-            )
-              .filter(([, text]) => text)
-              .map(([label, text]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{text}</dd>
-                </div>
-              ))}
-          </dl>
-        )}
-        {!compactDate && (
+        </Heading>
+        {!compactDate && (author || time) && (
           <div className="content-card-foot">
             {author ? (
               <SurfaceLink
@@ -128,7 +109,7 @@ export default function PublicArticleCard({
             ) : (
               <span />
             )}
-            <PublicTime day={entry.updatedAt} at={entry.publishedAt} />
+            {time}
           </div>
         )}
       </div>

@@ -89,7 +89,8 @@ test('independent actual UI publication receipt opens anonymous works while save
   await expect(form(page).getByRole('status')).toContainText('確認した入力を保存しました');
   await input.fill('未保存の版三の説明');
   await popup.reload();
-  await expect(feed(popup)).toContainText('公開保存版一の架空説明');
+  // #307: cards no longer show the description; the public page below shows version one.
+  await expect(feed(popup).getByRole('link', { name: t.title, exact: true })).toBeVisible();
   await expect(feed(popup)).not.toContainText('私的な保存版二の説明');
   await shot(feed(popup), info.project.name, '01-receipt-feed-original-public-version.png');
   await shot(form(page), info.project.name, '02-private-saved-two-unsaved-three.png');

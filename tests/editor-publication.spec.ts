@@ -65,7 +65,6 @@ async function prepare(page: Page, summary = '公開する記事の概要') {
   await region.getByText('公開前の確認（ローカル専用）', { exact: true }).click();
   await region.getByLabel('記事の概要（300文字以内）', { exact: true }).fill(summary);
   await region.getByLabel('タグ（5件まで）', { exact: true }).fill(' Ｇｉｔ, 学び ');
-  await region.getByLabel('読了時間の目安（分）', { exact: true }).fill('5');
   return region;
 }
 const publish = (page: Page) =>
@@ -157,9 +156,9 @@ test('saved preview and explicit confirmation publish the snapshot to a cookie-f
     confirmPublic: true,
     summary: '確認し直した概要',
     tags: ['Git', '学び'],
-    minutes: 5,
   });
-  for (const key of ['title', 'body', 'ownerId', 'publicProfileId'])
+  // #307: no reading-time input; the server derives it from the published body.
+  for (const key of ['title', 'body', 'ownerId', 'publicProfileId', 'minutes'])
     expect(payload).not.toHaveProperty(key);
   await expect(readerLink(page)).toHaveAttribute('target', '_blank');
   const href = (await readerLink(page).getAttribute('href'))!;
