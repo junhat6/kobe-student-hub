@@ -132,6 +132,7 @@ describe('hook が拾う出来事', () => {
       [],
     );
     expect(hook('Bash', { command: 'curl -s https://hub.junhat6.com/api/mcp -d {}' })).toEqual([]);
+    expect(hook('Bash', { command: 'curl -s https://hub.junhat6.com/mcp -d {}' })).toEqual([]);
   });
 
   it('heredoc や文書の中で道具の名前を書いただけは数えない', () => {

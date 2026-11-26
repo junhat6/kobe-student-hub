@@ -187,7 +187,7 @@ export function eventsFromHook(input, coverage, now = new Date()) {
       const http = HTTP_TOOL.test(command);
       for (const p of hubPaths(command)) {
         const t = pathTemplate(p, coverage);
-        if (t.startsWith('/api/mcp')) continue; // 公式 MCP そのもの
+        if (t.startsWith('/api/mcp') || t === '/mcp') continue; // 公式 MCP そのもの（/mcp は別名）
         const surface = t.startsWith('/api/') ? `${curlMethod(command)} ${t}` : `page ${t}`;
         out.push({
           ...base,
