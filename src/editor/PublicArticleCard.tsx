@@ -7,6 +7,7 @@ import { AuthorAvatar } from '../shared/public-avatars';
 import Icon from '../shared/Icon';
 import { PublicTime } from '../shared/PublicTime';
 import ContentKindMark from '../shared/ContentKindMark';
+import CardArt from '../shared/CardArt';
 
 /**
  * What a card needs: the id and title, plus the public day/time when the list has them. The project
@@ -44,7 +45,8 @@ export default function PublicArticleCard({
   headingLevel?: 2 | 3;
 }) {
   const paths = publicPaths(surface);
-  const hue = tagHue(entry.tags?.[0] ?? entry.title);
+  // #310: the colour and the pattern follow the id, so a card keeps its look through edits.
+  const hue = tagHue(entry.id);
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
   const time = entry.updatedAt ? <PublicTime day={entry.updatedAt} at={entry.publishedAt} /> : null;
   // In a profile tab there is no author to show, so a footer row would hold only the date.
@@ -57,9 +59,8 @@ export default function PublicArticleCard({
       style={{ '--card-hue': hue } as React.CSSProperties}
     >
       {!inTypedList && (
-        // The picture frame: a colour band for now; images arrive with #310/#311.
         <div className="content-card-band" aria-hidden="true">
-          <Icon name="doc" size={28} />
+          <CardArt kind="article" id={entry.id} tag={entry.tags?.[0]} />
         </div>
       )}
       <div className="content-card-body">

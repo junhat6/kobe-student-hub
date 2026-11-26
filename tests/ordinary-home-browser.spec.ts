@@ -151,6 +151,20 @@ test('anonymous top lists real articles and works newest first and every card le
         /架空/,
       ]);
     }
+    // #310: a card with no image shows the device-drawn picture. It is decoration, the article
+    // composition carries the first tag and never the title, the work composition has no text,
+    // and both frames keep one aspect ratio so cards in a row line up.
+    const articleArt = articleCard.locator('.content-card-band svg.card-art-article');
+    const workArt = workCard.locator('.content-card-band svg.card-art-project');
+    await expect(articleArt).toHaveAttribute('aria-hidden', 'true');
+    await expect(workArt).toHaveAttribute('aria-hidden', 'true');
+    await expect(articleArt.locator('text')).toHaveText('#トップ');
+    await expect(articleArt).not.toContainText('改稿した記事');
+    await expect(workArt.locator('text')).toHaveCount(0);
+    for (const card of [articleCard, workCard]) {
+      const box = (await card.locator('.content-card-band').boundingBox())!;
+      expect(Math.abs(box.width / box.height - 2)).toBeLessThan(0.02);
+    }
     await expect(articleCard).not.toContainText('分で読める');
     await expect(articleCard).not.toContainText(metadata.summary);
     await expect(articleCard).not.toContainText('# トップ');

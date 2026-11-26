@@ -8,7 +8,7 @@ import { AuthorAvatar } from '../shared/public-avatars';
 import ProjectStageMark from '../shared/ProjectStageMark';
 import { PublicTime } from '../shared/PublicTime';
 import ContentKindMark from '../shared/ContentKindMark';
-import Icon from '../shared/Icon';
+import CardArt from '../shared/CardArt';
 
 /**
  * Work card (#307): the same shape as the article card — picture frame, kind, title, author and
@@ -42,11 +42,11 @@ export default function PublicProjectCard({
   return (
     <article
       className="content-card content-card-project"
-      style={{ '--card-hue': tagHue(project.title) } as React.CSSProperties}
+      style={{ '--card-hue': tagHue(project.id) } as React.CSSProperties}
     >
       {!inTypedList && (
         <div className="content-card-band" aria-hidden="true">
-          <Icon name="cube" size={28} />
+          <CardArt kind="project" id={project.id} />
         </div>
       )}
       <div className="content-card-body">

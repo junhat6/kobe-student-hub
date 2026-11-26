@@ -22,22 +22,83 @@
 .content-card:focus-within {
   border-color: hsl(var(--card-hue) 55% 55%);
 }
-.content-card-band {
-  height: 72px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background:
-    radial-gradient(120% 140% at 100% 0%, hsl(var(--card-hue) 80% 86%) 0%, transparent 60%),
-    hsl(var(--card-hue) 60% 95%);
-  color: hsl(var(--card-hue) 40% 45%);
+/*
+ * The picture frame (#310). Every card with a frame keeps the same aspect ratio, so cards in a row
+ * line up; an attached preview image (#311) uses the same variable with object-fit: cover.
+ */
+.content-card {
+  --card-frame-ratio: 2 / 1;
+  --card-art-ground: hsl(var(--card-hue) 62% 94%);
+  --card-art-pattern: hsl(var(--card-hue) 48% 80%);
+  --card-art-paper: var(--surface, #fff);
+  --card-art-ink: hsl(var(--card-hue) 45% 30%);
+  --card-art-soft: hsl(var(--card-hue) 40% 72%);
 }
-.content-card-project .content-card-band {
-  background: linear-gradient(
-    135deg,
-    hsl(var(--card-hue) 70% 92%),
-    hsl(calc(var(--card-hue) + 40) 70% 90%)
-  );
+.content-card-band {
+  display: block;
+  aspect-ratio: var(--card-frame-ratio);
+  overflow: hidden;
+  background: var(--card-art-ground);
+}
+.card-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.card-art-ground {
+  fill: var(--card-art-ground);
+}
+.card-art-pattern {
+  fill: var(--card-art-pattern);
+  stroke: var(--card-art-pattern);
+}
+.card-art-pattern .card-art-line {
+  fill: none;
+  stroke-width: 6;
+}
+.card-art-pattern circle:not(.card-art-line) {
+  stroke: none;
+}
+.card-art-sheet-paper {
+  fill: var(--card-art-paper);
+  stroke: var(--card-art-ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.card-art-sheet-fold {
+  fill: var(--card-art-soft);
+  stroke: var(--card-art-ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.card-art-sheet-text {
+  fill: none;
+  stroke: var(--card-art-soft);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.card-art-label {
+  fill: var(--card-art-ink);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  paint-order: stroke;
+  stroke: var(--card-art-ground);
+  stroke-width: 8px;
+  stroke-linejoin: round;
+}
+.card-art-cube path {
+  stroke: var(--card-art-ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.card-art-cube-top {
+  fill: var(--card-art-paper);
+}
+.card-art-cube-left {
+  fill: var(--card-art-soft);
+}
+.card-art-cube-right {
+  fill: var(--card-art-pattern);
 }
 .content-card-body {
   display: flex;
