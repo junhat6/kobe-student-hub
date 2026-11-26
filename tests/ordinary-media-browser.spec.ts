@@ -555,3 +555,77 @@ test('an image replaces the chosen 「（写真：…）」 marker, the next mar
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
   await expect(page.locator('.publication-photo-marker-notice')).toHaveCount(0);
 });
+test('the public card shows the first body image, the owner picks another, and the frame keeps its ratio (#311)', async ({
+  page,
+  browser,
+}, info) => {
+  await article(page, info);
+  const first = await attach(page, 'image/png', screen);
+  const second = await attach(page, 'image/jpeg', photo);
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
+  const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
+  await composer.getByLabel('記事の概要（300文字以内）').fill('カードの画像を選ぶ保存版');
+  await composer.getByRole('checkbox').check();
+  await composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true }).click();
+  await expect(composer.getByRole('link', { name: 'ログインなしの読者画面を開く' })).toBeVisible();
+  const chooser = page.getByRole('group', { name: 'カードに出す画像', exact: true });
+  await expect(chooser.getByRole('radio', { name: /既定/ })).toBeChecked();
+  const guest = await browser.newContext({
+    baseURL: O,
+    ignoreHTTPSErrors: true,
+    viewport: page.viewportSize() ?? undefined,
+  });
+  try {
+    const reader = await guest.newPage();
+    const card = reader.locator('.content-card', { hasText: '架空の画像付き記事' }).first();
+    const cardImage = card.locator('.content-card-band img');
+    await reader.goto('/search');
+    await expect(cardImage).toHaveAttribute('src', '/api/media/' + first.id);
+    expect(await cardImage.getAttribute('loading')).toBe('lazy');
+    await cardImage.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => cardImage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+      .toBeGreaterThan(0);
+    // The frame keeps the card's 2:1 ratio, and the image is cropped to it.
+    const box = (await card.locator('.content-card-band').boundingBox())!;
+    expect(Math.abs(box.width / box.height - 2)).toBeLessThan(0.05);
+    expect(await cardImage.evaluate((img) => getComputedStyle(img).objectFit)).toBe('cover');
+    expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    // The owner picks the second image; the public card follows without a new publication.
+    const saved = page.waitForResponse(
+      (r) =>
+        r.request().method() === 'PUT' &&
+        new URL(r.url()).pathname.startsWith('/api/private/card-images/articles/'),
+    );
+    await chooser.getByRole('radio', { name: '2枚目の画像' }).click();
+    expect((await saved).status()).toBe(200);
+    await expect(chooser.getByRole('radio', { name: '2枚目の画像' })).toBeChecked();
+    await expect(chooser.getByRole('status')).toHaveText('カードに出す画像を保存しました。');
+    expect(await new AxeBuilder({ page }).include('.card-image-chooser').analyze()).toHaveProperty(
+      'violations',
+      [],
+    );
+    await page.screenshot({ path: info.outputPath('card-image-chooser.png'), fullPage: true });
+    await reader.reload();
+    await expect(cardImage).toHaveAttribute('src', '/api/media/' + second.id);
+    await cardImage.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => cardImage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+      .toBeGreaterThan(0);
+    await reader.screenshot({ path: info.outputPath('card-image-search.png') });
+    // Back to the default.
+    await chooser.getByRole('radio', { name: /既定/ }).click();
+    await expect(chooser.getByRole('status')).toHaveText('既定に戻しました。');
+    await reader.reload();
+    await expect(cardImage).toHaveAttribute('src', '/api/media/' + first.id);
+  } finally {
+    await guest.close();
+  }
+});

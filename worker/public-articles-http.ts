@@ -1,6 +1,8 @@
 import { ArticlePublicationStore } from './publication';
 import { ArticleLikeStore } from './likes';
 import { canonicalOrigin } from './http-boundary';
+import { CardImageStore } from './card-images';
+import type { PublicDiscovery } from '../src/types';
 
 const ARTICLES = '/api/articles';
 const AUTHORS = '/api/authors';
@@ -29,6 +31,7 @@ export function createPublicArticleHandler(
 ) {
   const publications = new ArticlePublicationStore(db, origin, clock);
   const likes = new ArticleLikeStore(db, origin, clock);
+  const images = new CardImageStore(db, origin, clock);
   return async (request: Request): Promise<Response | null> => {
     const url = new URL(request.url);
     const articleRoute = url.pathname === ARTICLES || url.pathname.startsWith(ARTICLES + '/');
@@ -59,6 +62,18 @@ export function createPublicArticleHandler(
             : await publications.readPublishedAuthor(author![1]);
       if (result === null) {
         return recent ? json({ error: 'publication_unavailable' }, 503) : unavailable();
+      }
+      // #311: the search list's cards carry their picture; other routes are unchanged.
+      if (recent) {
+        const cards = (result as PublicDiscovery).cards;
+        const paths = await images.readPublicPaths(
+          cards.map((card) => card.entry.id),
+          [],
+        );
+        for (const card of cards) {
+          const image = paths.get(card.entry.id);
+          if (image) card.entry = { ...card.entry, image };
+        }
       }
       const body = JSON.stringify(result);
       const limit = article ? ARTICLE_BYTES : LIST_BYTES;

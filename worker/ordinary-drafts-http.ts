@@ -14,6 +14,7 @@ import { createPrivateProjectHandler } from './projects-http';
 import { createPrivateProjectReportHandler } from './project-reports-http';
 import { createPrivateProfileReportHandler } from './profile-reports-http';
 import { createMediaHandler } from './media-http';
+import { createCardImageHandler } from './card-images';
 import { createProfileAvatarHandler } from './profile-avatars-http';
 import { createOrdinaryDiscoveryHandler } from './ordinary-discovery-http';
 import { createEditorialReviewHandler } from './editorial-reviews-http';
@@ -42,6 +43,7 @@ export function createOrdinaryDraftHandler(
     createReadingHistoryHandler(db, origin, clock),
     createOwnActivityHandler(db, origin, clock),
     createMediaHandler(db, origin, clock, options.mediaBucket),
+    createCardImageHandler(db, origin, clock),
     createOrdinaryDiscoveryHandler(db, origin, clock),
     createPublicStudentHandler(db, origin, clock),
     createPublicArticleHandler(db, origin, clock),

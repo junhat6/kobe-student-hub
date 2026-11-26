@@ -1,4 +1,5 @@
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
+import { cardKeys } from '../shared/card-image';
 import { readAnonymousJson } from './anonymous-public-read';
 import type { PublicAuthorArticles } from '../types';
 import { canonicalTags } from './publication-client';
@@ -30,7 +31,7 @@ export function validPublicSummary(
   entry: unknown,
 ): entry is import('../types').PublishedArticleSummary {
   if (
-    !publicMomentKeys(
+    !cardKeys(
       entry,
       [
         'id',
@@ -43,7 +44,7 @@ export function validPublicSummary(
         'updatedAt',
         'minutes',
       ],
-      'updatedAt',
+      (value, keys) => publicMomentKeys(value, keys, 'updatedAt'),
     )
   )
     return false;

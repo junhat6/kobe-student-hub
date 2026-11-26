@@ -1,4 +1,6 @@
 import { ProjectStore } from './projects';
+import { CardImageStore } from './card-images';
+import type { PublicProjectDiscovery, PublicProjectPage } from '../src/project-types';
 
 const projectPath =
   /^\/api\/projects\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
@@ -18,6 +20,7 @@ export function createPublicProjectHandler(
   clock: () => number = Date.now,
 ) {
   const store = new ProjectStore(db, origin, clock);
+  const images = new CardImageStore(db, origin, clock);
   return async (request: Request): Promise<Response | null> => {
     const url = new URL(request.url);
     if (
@@ -52,6 +55,32 @@ export function createPublicProjectHandler(
           ? await store.readPublishedPage(project[1])
           : await store.readAuthor(author![1]);
       if (value === null) return error(recent ? 503 : 404);
+      // #311: card pictures for the works list and the project page's article cards.
+      if (recent) {
+        const cards = (value as PublicProjectDiscovery).cards;
+        const paths = await images.readPublicPaths(
+          [],
+          cards.map((card) => card.project.id),
+        );
+        for (const card of cards) {
+          const image = paths.get(card.project.id);
+          if (image) card.project = { ...card.project, image };
+        }
+      } else if (project) {
+        const page = value as PublicProjectPage;
+        const paths = await images.readPublicPaths(
+          [...page.articles, ...page.journal].map((entry) => entry.id),
+          [],
+        );
+        page.articles = page.articles.map((entry) => {
+          const image = paths.get(entry.id);
+          return image ? { ...entry, image } : entry;
+        });
+        page.journal = page.journal.map((entry) => {
+          const image = paths.get(entry.id);
+          return image ? { ...entry, image } : entry;
+        });
+      }
       const body = JSON.stringify(value);
       if (new TextEncoder().encode(body).byteLength > (project ? 65536 : 262144))
         return error(recent ? 503 : 404);

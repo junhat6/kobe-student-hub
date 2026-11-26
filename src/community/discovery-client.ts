@@ -1,4 +1,5 @@
 import { readAnonymousJson } from '../editor/anonymous-public-read';
+import { cardKeys } from '../shared/card-image';
 import {
   publicKeys,
   publicSlug,
@@ -97,10 +98,8 @@ export function validRelatedDiscovery(value: unknown, id: string): value is Rela
 }
 function projectCard(row: Record<string, unknown>): boolean {
   return (
-    publicMomentKeys(
-      row.project,
-      ['id', 'title', 'descriptionPreview', 'publishedOn'],
-      'publishedOn',
+    cardKeys(row.project, ['id', 'title', 'descriptionPreview', 'publishedOn'], (v, k) =>
+      publicMomentKeys(v, k, 'publishedOn'),
     ) &&
     uuid(row.project.id) &&
     publicText(row.project.title, 200) &&

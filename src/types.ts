@@ -50,7 +50,10 @@ export type PublishedArticleSummary = Pick<
   | 'updatedAt'
   | 'publishedAt'
   | 'minutes'
->;
+> & {
+  /** Public media path of the card picture (#311); absent without a public image or from an older Worker. */
+  image?: string;
+};
 export interface PublicAuthorArticles {
   author: Profile;
   entries: PublishedArticleSummary[];

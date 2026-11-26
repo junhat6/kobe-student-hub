@@ -15,6 +15,7 @@ import './publication.css';
 import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import { hasVisibleCharacter } from '../project-input';
 import MediaPublicationPreview from './MediaPublicationPreview';
+import CardImageChooser from './CardImageChooser';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
 import { describeFindings, scanDraft } from '../shared/secret-scan';
@@ -556,6 +557,15 @@ export default function PublicationComposer({
                 </SavedPreviewBoundary>
               </details>
               <MediaPublicationPreview body={draft.body} fetcher={fetcher} scopeKey={csrfToken} />
+              {ordinary && (
+                <CardImageChooser
+                  kind="articles"
+                  draftId={draft.id}
+                  body={draft.body}
+                  csrfToken={csrfToken}
+                  fetcher={fetcher}
+                />
+              )}
               {secretFindings.length > 0 && (
                 <div className="publication-secret-notice" role="note">
                   <p>

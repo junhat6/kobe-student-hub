@@ -1,4 +1,5 @@
 import { readBoundedJson } from '../shared/http-client';
+import { cardKeys } from '../shared/card-image';
 import { isProjectStage, PROJECT_JOURNAL_LIMIT, type ProjectStage } from '../project-types';
 import type {
   ProjectDraft,
@@ -110,7 +111,7 @@ export function validProjectPage(
     articles.length <= 3 &&
     articles.every(
       (a) =>
-        publicKeys(a, ['id', 'title']) &&
+        cardKeys(a, ['id', 'title'], publicKeys) &&
         projectUUID(a.id) &&
         publicText(a.title, 200) &&
         Boolean(a.title.trim()),
@@ -121,7 +122,9 @@ export function validProjectPage(
         journal.length <= PROJECT_JOURNAL_LIMIT &&
         journal.every(
           (a) =>
-            publicMomentKeys(a, ['id', 'title', 'publishedOn'], 'publishedOn') &&
+            cardKeys(a, ['id', 'title', 'publishedOn'], (x, k) =>
+              publicMomentKeys(x, k, 'publishedOn'),
+            ) &&
             projectUUID(a.id) &&
             publicText(a.title, 200) &&
             Boolean(a.title.trim()) &&

@@ -20,6 +20,7 @@ import './project.css';
 import MarkdownRenderer from '../MarkdownRenderer';
 import MediaAttachments from './MediaAttachments';
 import MediaPublicationPreview from './MediaPublicationPreview';
+import CardImageChooser from './CardImageChooser';
 import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import type { RescueChannel } from '../account/AccountSessionBoundary';
 import Celebration from '../shared/Celebration';
@@ -968,6 +969,15 @@ export default function ProjectRegistration({
             fetcher={fetcher}
             scopeKey={csrfToken}
           />
+          {surface === 'ordinary' && writable && (
+            <CardImageChooser
+              kind="projects"
+              draftId={saved.id}
+              body={saved.description}
+              csrfToken={csrfToken}
+              fetcher={fetcher}
+            />
+          )}
           {/* Ordinary authors get these reads automatically; the buttons appear only to recover. */}
           {(!ordinary || saveUnknown) && (
             <Button disabled={busy} onClick={() => void inspect(saved.id)}>

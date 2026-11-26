@@ -165,6 +165,7 @@ function Project({ id }: { id: string }) {
                       title: entry.title,
                       updatedAt: entry.publishedOn,
                       publishedAt: entry.publishedAt,
+                      image: entry.image,
                     }}
                     author={author}
                     surface="ordinary"

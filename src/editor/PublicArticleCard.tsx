@@ -7,14 +7,14 @@ import { AuthorAvatar } from '../shared/public-avatars';
 import Icon from '../shared/Icon';
 import { PublicTime } from '../shared/PublicTime';
 import ContentKindMark from '../shared/ContentKindMark';
-import CardArt from '../shared/CardArt';
+import CardPicture from '../shared/CardPicture';
 
 /**
  * What a card needs: the id and title, plus the public day/time when the list has them. The project
  * page's 「この作品の記事」 links carry only id and title, so their cards show no time (#307).
  */
 export type ArticleCardEntry = Pick<PublishedArticleSummary, 'id' | 'title'> &
-  Partial<Pick<PublishedArticleSummary, 'tags' | 'updatedAt' | 'publishedAt'>>;
+  Partial<Pick<PublishedArticleSummary, 'tags' | 'updatedAt' | 'publishedAt' | 'image'>>;
 
 /**
  * Article card (#307): picture frame, kind, title, author and public time only. Reading time,
@@ -60,7 +60,7 @@ export default function PublicArticleCard({
     >
       {!inTypedList && (
         <div className="content-card-band" aria-hidden="true">
-          <CardArt kind="article" id={entry.id} tag={entry.tags?.[0]} />
+          <CardPicture kind="article" id={entry.id} tag={entry.tags?.[0]} image={entry.image} />
         </div>
       )}
       <div className="content-card-body">

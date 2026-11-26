@@ -8,7 +8,7 @@ import { AuthorAvatar } from '../shared/public-avatars';
 import ProjectStageMark from '../shared/ProjectStageMark';
 import { PublicTime } from '../shared/PublicTime';
 import ContentKindMark from '../shared/ContentKindMark';
-import CardArt from '../shared/CardArt';
+import CardPicture from '../shared/CardPicture';
 
 /**
  * Work card (#307): the same shape as the article card — picture frame, kind, title, author and
@@ -46,7 +46,7 @@ export default function PublicProjectCard({
     >
       {!inTypedList && (
         <div className="content-card-band" aria-hidden="true">
-          <CardArt kind="project" id={project.id} />
+          <CardPicture kind="project" id={project.id} image={project.image} />
         </div>
       )}
       <div className="content-card-body">

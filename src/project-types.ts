@@ -48,6 +48,8 @@ export interface PublicProjectReader {
 export interface PublicProjectArticleLink {
   id: string;
   title: string;
+  /** Public media path of the card picture (#311). */
+  image?: string;
 }
 /** A journal article the owner linked after publishing (#273); shown oldest first with its first public day. */
 export interface PublicProjectJournalEntry {
@@ -56,6 +58,8 @@ export interface PublicProjectJournalEntry {
   publishedOn: string;
   /** UTC ISO publish time behind `publishedOn` (#308); an older Worker sends only the day. */
   publishedAt?: string;
+  /** Public media path of the card picture (#311). */
+  image?: string;
 }
 /** Most journal links one project keeps (also enforced by the 0046 insert trigger). */
 export const PROJECT_JOURNAL_LIMIT = 20;
@@ -83,7 +87,10 @@ export interface ProjectReceipt {
 export type ProjectDiscoverySummary = Pick<
   PublicProjectSummary,
   'id' | 'title' | 'descriptionPreview' | 'publishedOn' | 'publishedAt'
->;
+> & {
+  /** Public media path of the card picture (#311); absent without a public image. */
+  image?: string;
+};
 /** Cross-author card used by home and related reading; it carries no stage. */
 export interface ProjectDiscoveryCard {
   project: ProjectDiscoverySummary;

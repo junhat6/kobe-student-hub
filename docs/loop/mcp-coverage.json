@@ -91,6 +91,13 @@
       "api": ["POST /api/private/media", "GET /api/private/media"]
     },
     {
+      "id": "card.image",
+      "label": "記事・作品のカードに出す画像を、添付済みの画像から選ぶ・既定に戻す",
+      "class": "excluded",
+      "basis": "#311「合否から外すもの」：MCP から選ぶ口は、別経路での実施が記録されたら mcp-gap で判断する（replan の分類待ち）",
+      "api": ["GET /api/private/card-images", "PUT /api/private/card-images"]
+    },
+    {
       "id": "draft.project-link",
       "label": "下書きを作品の制作日誌に紐づける・外す",
       "class": "mcp",

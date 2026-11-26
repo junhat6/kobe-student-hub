@@ -1,4 +1,5 @@
 import type { PublicProjectDiscovery } from '../project-types';
+import { cardKeys } from '../shared/card-image';
 import { readAnonymousJson } from './anonymous-public-read';
 import { publicKeys, publicText, publicSlug } from './public-author-client';
 import { projectUUID } from './project-client';
@@ -26,10 +27,10 @@ function valid(value: unknown): value is PublicProjectDiscovery {
   return value.cards.every((card) => {
     if (
       !publicKeys(card, ['project', 'author']) ||
-      !publicMomentKeys(
+      !cardKeys(
         card.project,
         ['id', 'title', 'descriptionPreview', 'publishedOn', 'stage'],
-        'publishedOn',
+        (v, k) => publicMomentKeys(v, k, 'publishedOn'),
       ) ||
       !isProjectStage(card.project.stage) ||
       !publicKeys(card.author, ['id', 'name', 'department', 'year', 'initials'])
