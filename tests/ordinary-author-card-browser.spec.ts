@@ -73,6 +73,19 @@ test('the author card shows public counts and the newest other works on articles
       'href',
       '/students/' + author.profileId,
     );
+    // #314: after the body the card is the only way to the author; the like and share box
+    // holds actions only, so the same person does not appear twice on a phone.
+    await expect(page.locator('.article-end a[href^="/students/"]')).toHaveCount(0);
+    await expect(page.getByText('この記事を書いた人')).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        (href) =>
+          [...document.querySelectorAll(`a[href="${href}"]`)].filter(
+            (a) => !a.closest('.detail-author, .author-card, header.topbar, nav'),
+          ).length,
+        '/students/' + author.profileId,
+      ),
+    ).toBe(0);
     expect.soft(await seriousViolations(page)).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,

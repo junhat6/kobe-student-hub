@@ -112,11 +112,7 @@ test('a student sets an icon, readers see it, and an operator removes a reported
     const publicIcon = new RegExp(`^/api/profile-avatars/${author.profileId}/[0-9a-f]{16}$`);
     await page.goto('/articles/' + article.contentId);
     await expect(page.locator('.detail-author .avatar')).toBeVisible();
-    for (const at of [
-      '.detail-author .avatar',
-      '.author-side-name .mini-avatar',
-      '.article-end-author .mini-avatar',
-    ]) {
+    for (const at of ['.detail-author .avatar', '.author-side-name .mini-avatar']) {
       // Icons load lazily, and the side box is not shown on a phone.
       if (!(await page.locator(at).isVisible())) continue;
       await page.locator(at).scrollIntoViewIfNeeded();

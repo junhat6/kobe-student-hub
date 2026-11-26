@@ -178,19 +178,6 @@ function StudentArticle({ id }: { id: string }) {
               </>
             }
           />
-          <Link className="article-end-author" to={`/students/${author.id}`}>
-            <AuthorAvatar
-              id={author.id}
-              initials={author.initials}
-              className="mini-avatar"
-              size={40}
-            />
-            <span>
-              <small>この記事を書いた人</small>
-              {author.name}
-            </span>
-            <span aria-hidden="true">→</span>
-          </Link>
         </div>
         <EditorialReview key={`editorial-${entry.id}`} contentId={entry.id} />
         <RelatedReading key={`related-${entry.id}`} id={entry.id} />
