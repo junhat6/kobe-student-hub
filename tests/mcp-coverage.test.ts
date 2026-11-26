@@ -18,6 +18,7 @@ import {
   readEvents,
   syncComment,
   tally,
+  unseenMcpOps,
   // @ts-expect-error plain ESM script without type declarations
 } from '../scripts/loop/mcp-gap.mjs';
 
@@ -88,6 +89,27 @@ describe('経路の型と操作 ID', () => {
       '/api/private/drafts/:id',
     );
     expect(pathTemplate('/somewhere/secret-name/deeper', coverage)).toBe('/somewhere/*');
+    // コマンドの文字が付いた ID（"<uuid>;"）や展開されていない変数も残さない
+    expect(pathTemplate('/api/media/0b4f2c1e-1111-4222-8333-444455556666;', coverage)).toBe(
+      '/api/media/:id',
+    );
+    expect(pathTemplate('/api/projects/$id', coverage)).toBe('/api/projects/:id');
+    expect(pathTemplate('/api/articles/git-branches', coverage)).toBe('/api/articles/git-branches');
+  });
+
+  it('curl の後ろに ; が続いても ID を記録しない', () => {
+    const [e] = eventsFromHook(
+      {
+        tool_name: 'Bash',
+        session_id: 'abcdef0123456789',
+        tool_input: {
+          command:
+            'curl -sI https://hub.junhat6.com/api/media/0b4f2c1e-1111-4222-8333-444455556666; echo',
+        },
+      },
+      coverage,
+    );
+    expect(e.surface).toBe('GET /api/media/:id');
   });
 
   it('メソッドと最長の前方一致で操作を引き、決まらなければ unknown', () => {
@@ -216,6 +238,22 @@ describe('集計と Issue の計画', () => {
       ['article.read', 1],
       ['draft.media', 1],
     ]);
+  });
+
+  it('公式 MCP にある操作は、MCP 以外の経路に出ていなければ分類に挙げられない（#299）', () => {
+    const events = [
+      ev({ source: 'hook', session: 's1', op: 'article.read', via: 'http' }),
+      ev({ source: 'hook', session: 's1', op: 'unknown', via: 'http' }),
+      ev({ source: 'hook', session: 's2', op: 'draft.list', via: 'chrome' }),
+    ];
+    // MCP の list_my_drafts で一覧したのに draft.list を挙げた形
+    expect(unseenMcpOps('s1', ['draft.list', 'draft.media', 'inspect'], events, coverage)).toEqual([
+      'draft.list',
+    ]);
+    // 画面（/drafts）で一覧したなら hook が draft.list を拾っているので挙げてよい
+    expect(unseenMcpOps('s2', ['draft.list'], events, coverage)).toEqual([]);
+    // 公式 MCP にある読み取りでも、hook が拾っていれば挙げてよい
+    expect(unseenMcpOps('s1', ['article.read'], events, coverage)).toEqual([]);
   });
 
   it('human-only と inspect は Issue にしない', () => {

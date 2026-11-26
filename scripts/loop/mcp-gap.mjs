@@ -62,8 +62,11 @@ export function pathTemplate(pathname, coverage) {
   });
   if (hit) return hit;
   if (segs[0] === 'api') {
-    // API は 3 段目まで（/api/private/drafts）と、続きが ID なら :id
-    const head = segs.slice(0, 3).map((s) => (ID_SEGMENT.test(s) ? ':id' : s));
+    // API は 3 段目まで（/api/private/drafts）と、続きが ID なら :id。
+    // 英数字・-・_ 以外を含む段（"<uuid>;"・"$id" など、コマンドの文字が付いたもの）も ID として落とす
+    const head = segs
+      .slice(0, 3)
+      .map((s) => (ID_SEGMENT.test(s) || !/^[A-Za-z0-9_-]+$/.test(s) ? ':id' : s));
     return '/' + head.join('/') + (segs.length > 3 ? '/:id' : '');
   }
   if (!segs.length) return '/';
@@ -279,6 +282,18 @@ export function tally(events) {
     add(e.op || 'unknown', e.via || 'ui', e.source || 'report', day, Number(e.count) || 1);
   }
   return [...rows.values()].map((r) => ({ ...r, days: [...r.days].sort() }));
+}
+
+/**
+ * 分類に挙げた操作のうち、公式 MCP にある（class: mcp）のに、このセッションで hook が拾った
+ * MCP 以外の経路のどれにも当たらないもの。MCP のツールで行った操作を「何をしたか」として
+ * 挙げてしまうと、穴でないものが mcp-gap の Issue になる（#299）。
+ */
+export function unseenMcpOps(session, ops, events, coverage) {
+  const seen = new Set(
+    events.filter((e) => e.source === 'hook' && e.session === session).map((e) => e.op),
+  );
+  return ops.filter((o) => coverage.ops.find((c) => c.id === o)?.class === 'mcp' && !seen.has(o));
 }
 
 /** hook が拾ったが分類されていないセッションの出来事。 */
@@ -591,7 +606,7 @@ async function hook() {
           decision: 'block',
           reason:
             `[mcp-gap] このセッションは公式 MCP 以外の経路で本番 hub に触れました（${surfaces.join('、')}）。` +
-            `何をしたかを操作 ID で 1 回だけ記録してください：\`node scripts/loop/mcp-gap.mjs classify --session ${session} <op> [<op>...]\`` +
+            `その経路で何をしたかを操作 ID で 1 回だけ記録してください（公式 MCP のツールで行った操作は含めない）：\`node scripts/loop/mcp-gap.mjs classify --session ${session} <op> [<op>...]\`` +
             `（候補 ${guesses.length ? guesses.join(' ') : 'なし'}。一覧は \`node scripts/loop/mcp-gap.mjs ops\`。画面の確認が目的なら inspect）。` +
             'MCP にない操作は MCP 育成の流れの Issue になります（docs/loop/LOOPS.md）。',
         }),
@@ -639,6 +654,12 @@ async function main() {
     if (!/^[\w-]{4,12}$/.test(session)) fail('--session <セッションの先頭12文字> が要ります');
     if (!rest.length || rest.some((o) => !ops.has(o)))
       fail(`操作 ID が対応表にありません: ${rest.join(' ')}`);
+    const unseen = unseenMcpOps(session, rest, readEvents(), coverage);
+    if (unseen.length)
+      fail(
+        `${unseen.join(' ')} は公式 MCP にある操作で、このセッションの MCP 以外の経路には出ていません。` +
+          'MCP のツールで行ったなら外してください。MCP 以外の経路で行ったなら `record <op> --via <経路>` で記録します',
+      );
     appendEvents([{ at, type: 'classify', session, ops: [...new Set(rest)] }]);
     console.log(`[mcp-gap] 分類しました: ${rest.join(' ')}`);
     return;
