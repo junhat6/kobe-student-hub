@@ -17,6 +17,7 @@ import { AgentProjectNotice, JournalIcon, projectName } from './AgentDraftProjec
 import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 import { hasMetadata, type AgentArticle, type AgentArticleMetadata } from '../agent/article-format';
 import { embedLineFromPaste } from '../shared/embed';
+import { findAiMemos, removeAiMemos } from './ai-memo';
 import LoadingSkeleton from '../shared/LoadingSkeleton';
 import { hasVisibleCharacter } from '../project-input';
 import {
@@ -684,6 +685,18 @@ export default function DraftEditor({
     pendingFormat.current = result;
     setText((t) => ({ ...t, body: result.body }));
   }
+  const aiMemoCount = useMemo(() => findAiMemos(text.body).length, [text.body]);
+  function removeMemos() {
+    if (editingLocked || compositionRef.current) return;
+    cancelAutosave();
+    pendingFormat.current = null;
+    setText((t) => ({ ...t, body: removeAiMemos(t.body) }));
+    setStatus(
+      ordinary
+        ? 'AIメモを消しました。自動で保存します。'
+        : 'AIメモを消しました。保存すると反映されます。',
+    );
+  }
   /** Official embed HTML (Google マップ・Instagram・YouTube) becomes one URL line; raw HTML is not shown. */
   function pasteEmbed(event: React.ClipboardEvent<HTMLTextAreaElement>) {
     const line = embedLineFromPaste(event.clipboardData.getData('text/plain'));
@@ -1043,6 +1056,20 @@ export default function DraftEditor({
                     プレビュー
                   </Button>
                 </div>
+                {/* #302: the agent's 「（AIメモ：…）」 is a note to the author; without this the
+                    owner deleted it by hand before every publication. Removing goes through the
+                    usual edit → autosave path, so nothing is saved that the author cannot see. */}
+                {aiMemoCount > 0 && (
+                  <div className="editor-ai-memo" role="note">
+                    <p>
+                      本文に AI のメモ「（AIメモ：…）」が{aiMemoCount}
+                      件あります。読者向けの文ではないので、公開前に消してください。
+                    </p>
+                    <Button disabled={editingLocked || composing} onClick={removeMemos}>
+                      AIメモを消す
+                    </Button>
+                  </div>
+                )}
                 {preview ? (
                   <div className="editor-preview" aria-label="Markdownプレビュー">
                     <h3>{text.title || '無題の下書き'}</h3>

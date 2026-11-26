@@ -18,6 +18,7 @@ import MediaPublicationPreview from './MediaPublicationPreview';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { AgentArticleMetadata } from '../agent/article-format';
 import { describeFindings, scanDraft } from '../shared/secret-scan';
+import { findAiMemos } from './ai-memo';
 import Celebration from '../shared/Celebration';
 import TagInput from './TagInput';
 import { createPublicDiscoveryClient } from './public-discovery-client';
@@ -377,6 +378,8 @@ export default function PublicationComposer({
     () => scanDraft(draft.title, draft.body),
     [draft.title, draft.body],
   );
+  // #302: like the secret notice, a reminder that never blocks publishing.
+  const savedAiMemos = useMemo(() => findAiMemos(draft.body).length, [draft.body]);
   const [suggestionUsed, setSuggestionUsed] = useState<AgentArticleMetadata | null>(null);
   const suggestionOffered = Boolean(
     suggested &&
@@ -561,6 +564,14 @@ export default function PublicationComposer({
                         <li key={line}>{line}</li>
                       ))}
                   </ul>
+                </div>
+              )}
+              {savedAiMemos > 0 && (
+                <div className="publication-secret-notice publication-ai-memo-notice" role="note">
+                  <p>
+                    保存済みの版に AI のメモ「（AIメモ：…）」が{savedAiMemos}
+                    件残っています。このまま公開すると読者に見えます。書く画面の「AIメモを消す」で消せます。
+                  </p>
                 </div>
               )}
               <form

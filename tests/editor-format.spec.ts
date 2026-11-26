@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 async function open(page: Page, source: string) {
   await page.goto('/');
   await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
@@ -239,4 +240,22 @@ test('preview links only the URL of a bare link written inside Japanese brackets
   await expect(preview).toContainText('）にこの下書きが表示されるか');
   await preview.screenshot({ path: info.outputPath('autolink-preview.png') });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+test('the AI memo note removes 「（AIメモ：…）」 and the saved version warns until it is gone (#302)', async ({
+  page,
+}) => {
+  const source = '（AIメモ：候補（3つ）から授業の話を選んだ）\n\n## はじめに\n本文です。';
+  const body = await open(page, source);
+  const note = page.locator('.editor-ai-memo');
+  await expect(note).toContainText('1件');
+  const axe = await new AxeBuilder({ page }).include('.editor-ai-memo').analyze();
+  expect(axe.violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.publication-ai-memo-notice')).toContainText('1件');
+  await note.getByRole('button', { name: 'AIメモを消す', exact: true }).click();
+  await expect(body).toHaveValue('## はじめに\n本文です。');
+  await expect(note).toHaveCount(0);
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.publication-ai-memo-notice')).toHaveCount(0);
 });
