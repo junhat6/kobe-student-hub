@@ -73,6 +73,7 @@
 - 記事の本文欄は CodeMirror 6（contenteditable）。spec では `toHaveValue`・`inputValue` が使えないので `tests/helpers/body-editor.ts` の `expectBody`・`bodyValue`・`selectBody` を使う。`@codemirror/view` は 6.43.15 に固定（6.44.x は複数行を選んで打ち替えると末尾に改行が残る。#306）
 - R2 は Issue に検証依頼を書き、別 context の verifier に頼む（docs/loop/SESSIONS.md）。verifier の合格前に Issue を閉じない
 - 検証依頼を書いたら、同じ周回で Agent tool の別 context verifier を起動して結果まで見届ける（書くだけで終えると誰も検証せず Issue が止まる。#269）。指摘を直したら毎回新しい verifier で再確認する
+- 公開パネル（`.publication-composer`）の中に置く部品の label・input は、`.publication-composer label`（block・margin）と `.draft-editor input`（幅いっぱい）に上書きされる。部品の CSS は親 class を重ねて詳細度を上げ、要素単位の screenshot で確かめる（#319 はラジオが1行を占めていた）
 
 ## 4. 閉じる
 - commit 本文に `Loop: finish`・`Risk: R0|R1|R2`・`Closes #N`（R2 の実装 commit は `Refs #N` にして push し、verifier 合格後の commit か手で閉じる。`Closes` だと push と同時に閉じる）。main へ push（rebase してから。force push しない）
