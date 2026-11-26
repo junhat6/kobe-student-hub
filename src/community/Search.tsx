@@ -175,6 +175,7 @@ export default function Search() {
           {hasCondition ? (
             <>
               <h2>一致する記事・作品はありません</h2>
+              {/* One button per condition only: a "clear all" would repeat them (#297). */}
               <div className="search-empty-actions">
                 {query && (
                   <Button onClick={() => update('q', '')}>キーワード「{query}」を外す</Button>
@@ -182,9 +183,6 @@ export default function Search() {
                 {tag && <Button onClick={() => update('tag', '')}>タグ「# {tag}」を外す</Button>}
                 {type !== 'all' && (
                   <Button onClick={() => update('type', '')}>種類を「すべて」にする</Button>
-                )}
-                {[query, tag, type !== 'all'].filter(Boolean).length > 1 && (
-                  <Button onClick={() => setParams({}, { flushSync: true })}>検索条件を解除</Button>
                 )}
               </div>
               {suggestions.length > 0 && (

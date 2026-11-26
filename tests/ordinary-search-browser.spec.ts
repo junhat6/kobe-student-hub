@@ -297,6 +297,9 @@ test('ordinary search finds article-only and project-only authors and preserves 
       page.getByRole('heading', { name: '一致する記事・作品はありません', exact: true }),
     ).toBeVisible();
     const emptyUrl = page.url();
+    // #297: 条件ごとの「外す」だけを出し、それらを両方押すのと同じ「検索条件を解除」は重ねない。
+    await expect(page.locator('.search-empty-actions button')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: '検索条件を解除', exact: true })).toHaveCount(0);
     // polish: 0件の件数は空状態の見出しと同じことなので、読み上げだけに残す（原則1）。
     await expect(page.locator('.search-result-count')).toHaveClass(/sr-only/);
     await expect(page.locator('.search-result-count')).toHaveText('作品 0件');
@@ -317,8 +320,6 @@ test('ordinary search finds article-only and project-only authors and preserves 
       .click();
     await expect(page).toHaveURL(ORIGIN + '/search?type=project');
     await expect(page.getByRole('searchbox')).toHaveValue('');
-    // polish: 条件が1つだけなら「検索条件を解除」は「種類を「すべて」にする」と同じなので出さない（原則4）。
-    await expect(page.getByRole('button', { name: '検索条件を解除', exact: true })).toHaveCount(0);
     await expect(page.getByText('条件を1つ外すか', { exact: false })).toHaveCount(0);
     await page.goBack();
     await expect(page).toHaveURL(emptyUrl);
@@ -328,8 +329,10 @@ test('ordinary search finds article-only and project-only authors and preserves 
     await expect(page.locator('.search-result-count')).not.toHaveText('記事 0件');
     await page.goBack();
     await expect(page).toHaveURL(emptyUrl);
-    await page.getByRole('button', { name: '検索条件を解除', exact: true }).click();
-    await expect(page).toHaveURL(ORIGIN + '/search');
+    await page.getByRole('button', { name: '種類を「すべて」にする', exact: true }).click();
+    await expect(page).toHaveURL(
+      ORIGIN + '/search?' + new URLSearchParams({ q: `架空の該当なし-${key}` }),
+    );
     expect(privateRequests).toEqual([]);
   } finally {
     for (const context of contexts) await context.close();
