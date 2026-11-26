@@ -7,7 +7,7 @@
 // Contract stage (#12, after 0045 and a full audit match in production): with a bucket, new bytes go
 // to R2 only and the D1 row keeps the size, sha256 and object_stored_at_ms with payload NULL. Without
 // a bucket (local preview, older config) bytes stay in D1. Reads prefer R2 and fall back to the D1
-// payload, which older rows still hold until a later step purges it. A rollback to the previous
+// payload, which older rows hold until the cron has verified their object and erased it. A rollback to the previous
 // Worker keeps working because it also reads R2 first. object_stored_at_ms records a past copy, not
 // that the object still exists; the audit (head/get and sha256 against the row) watches that.
 import { MEDIA_MAX_BYTES } from '../src/shared/media';
@@ -93,11 +93,14 @@ export async function deleteMediaObjects(
 const ORPHAN_GRACE_MS = 60 * 60 * 1000;
 const SWEEP_LIMIT = 100;
 const BACKFILL_LIMIT = 8;
+const ERASE_LIMIT = 8;
 
 /**
  * Scheduled maintenance, bounded per run:
  *  1. copy D1-only rows (written by the previous Worker or before the bucket existed) to R2;
- *  2. delete objects whose D1 row (id + sha256) is gone, after a grace period that covers the
+ *  2. drop the D1 payload of copied rows (#12 contract, migration 0050) once the R2 object was read
+ *     back and equals that payload byte for byte and the row's size and sha256;
+ *  3. delete objects whose D1 row (id + sha256) is gone, after a grace period that covers the
  *     put-then-insert window of an upload in flight.
  * Both start at a random id so every row and object is eventually visited without stored state.
  */
@@ -106,8 +109,8 @@ export async function maintainMediaObjects(
   bucket: R2Bucket | undefined,
   clock: () => number = Date.now,
   start: string = crypto.randomUUID(),
-): Promise<{ copied: number; swept: number }> {
-  const result = { copied: 0, swept: 0 };
+): Promise<{ copied: number; erased: number; swept: number }> {
+  const result = { copied: 0, erased: 0, swept: 0 };
   if (!bucket) return result;
   const from = ID.test(start) ? start : '';
   try {
@@ -149,6 +152,11 @@ export async function maintainMediaObjects(
         .run();
       if (updated.meta.changes === 1) result.copied++;
     }
+  } catch {
+    // Retried on the next run.
+  }
+  try {
+    result.erased = await eraseCopiedPayloads(db, bucket, from);
   } catch {
     // Retried on the next run.
   }
@@ -197,6 +205,64 @@ export async function maintainMediaObjects(
     // Retried on the next run.
   }
   return result;
+}
+
+/**
+ * Contract step of #12: a row keeps its payload until the R2 object is proven to hold the same
+ * bytes. Each row is read back from R2 (size and sha256 against the row, see getMediaObject) and
+ * compared with its payload byte for byte; only then one guarded UPDATE drops the payload. The
+ * WHERE repeats every condition of media_assets_content_immutable (0050), so a row that changed in
+ * between is skipped (0 changes) instead of failing the statement. An R2 miss or mismatch keeps
+ * the payload, which the reads still fall back to; the audit reports such rows. Returns the count.
+ */
+async function eraseCopiedPayloads(
+  db: D1Database,
+  bucket: R2Bucket,
+  from: string,
+): Promise<number> {
+  const candidates = (where: string, limit: number) =>
+    db
+      .prepare(
+        `SELECT id,sha256,bytes FROM media_assets WHERE payload IS NOT NULL AND object_stored_at_ms IS NOT NULL AND bytes IS length(payload) AND ${where} ORDER BY id LIMIT ?`,
+      )
+      .bind(from, limit)
+      .all<MediaObjectRef>();
+  const rows = (await candidates('id>?', ERASE_LIMIT)).results;
+  if (rows.length < ERASE_LIMIT && from)
+    rows.push(...(await candidates('id<=?', ERASE_LIMIT - rows.length)).results);
+  let erased = 0;
+  for (const row of rows) {
+    // One row that fails (D1 hiccup, a trigger refusing it) does not stop the others.
+    try {
+      if (await eraseOne(db, bucket, row)) erased++;
+    } catch {
+      // Kept; retried on a later run.
+    }
+  }
+  return erased;
+}
+
+async function eraseOne(db: D1Database, bucket: R2Bucket, row: MediaObjectRef): Promise<boolean> {
+  const stored = await getMediaObject(bucket, row);
+  if (!stored) return false;
+  const held = await db
+    .prepare('SELECT payload FROM media_assets WHERE id=? AND sha256=? AND payload IS NOT NULL')
+    .bind(row.id, row.sha256)
+    .first<{ payload: number[] }>();
+  const payload = held?.payload;
+  if (
+    !Array.isArray(payload) ||
+    payload.length !== stored.length ||
+    payload.some((n, i) => n !== stored[i])
+  )
+    return false;
+  const updated = await db
+    .prepare(
+      'UPDATE media_assets SET payload=NULL WHERE id=? AND sha256=? AND bytes=? AND payload IS NOT NULL AND object_stored_at_ms IS NOT NULL AND bytes IS length(payload)',
+    )
+    .bind(row.id, row.sha256, row.bytes)
+    .run();
+  return updated.meta.changes === 1;
 }
 
 type MediaObjectAudit = {

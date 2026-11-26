@@ -1949,7 +1949,7 @@ describe('migration 0045 on a database that already has published images', () =>
           },
         })
         .then((r) => r.json()),
-    ).toEqual({ copied: 2, swept: 0 });
+    ).toEqual({ copied: 2, erased: 0, swept: 0 });
     expect(
       (
         await call<{ projectId: string } | null>('project-publish', {
@@ -2110,7 +2110,7 @@ describe('migration 0050 lets only a payload recorded in R2 be erased', () => {
           },
         })
         .then((r) => r.json()),
-    ).toEqual({ copied: 1, swept: 0 });
+    ).toEqual({ copied: 1, erased: 0, swept: 0 });
     // A row R2 does not hold yet, and one whose size column disagrees with its payload.
     await db
       .prepare(
@@ -2191,6 +2191,138 @@ describe('migration 0050 lets only a payload recorded in R2 be erased', () => {
     await expect(update('payload=NULL')).rejects.toThrow('immutable media');
     // Unrelated columns stay writable as before (the draft link is cleared when a draft goes).
     await expect(update('article_draft_id=NULL')).resolves.toBeTruthy();
+  });
+});
+describe('the cron erases a D1 payload only after R2 holds the same bytes (#12)', () => {
+  beforeAll(() => boot(true));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  const row = async (image: string) =>
+    (await (
+      await mf.getD1Database('DB')
+    )
+      .prepare('SELECT payload,bytes,sha256,object_stored_at_ms FROM media_assets WHERE id=?')
+      .bind(image)
+      .first<{
+        payload: number[] | null;
+        bytes: number;
+        sha256: string;
+        object_stored_at_ms: number | null;
+      }>())!;
+  const maintain = async () =>
+    (await (
+      await mf.dispatchFetch(O + '/fixture/maintain', {
+        headers: {
+          'X-Test-Now': String(NOW),
+          'X-Test-Start': '00000000-0000-0000-0000-000000000000',
+        },
+      })
+    ).json()) as { copied: number; erased: number; swept: number };
+
+  it('erases at most a bounded batch per run, starting at the random id and wrapping around', async () => {
+    const db = await mf.getD1Database('DB'),
+      d = await draft(),
+      source = id();
+    expect((await upload(d, source, png, 0, { 'X-Test-Previous-Worker': '1' })).status).toBe(201);
+    // Ten copied rows on both sides of the start, and the source row the backfill copies.
+    const ids = Array.from(
+      { length: 10 },
+      (_, i) => `${(i + 1).toString(16).padStart(2, '0')}000000-0000-4000-8000-00000000000e`,
+    );
+    const bucket = await mf.getR2Bucket('MEDIA_BUCKET');
+    for (const image of ids) {
+      await legacyCopy(db, source, { id: image, at: NOW, draft: d.id });
+      await bucket.put(`media/${image}/${(await row(image)).sha256}`, png);
+    }
+    // Copied by an earlier run: only the erase is left for them (the source row still needs a copy).
+    await db
+      .prepare(
+        `UPDATE media_assets SET object_stored_at_ms=? WHERE id IN (${ids.map(() => '?').join(',')})`,
+      )
+      .bind(NOW, ...ids)
+      .run();
+    const run = async (start: string) =>
+      (await (
+        await mf.dispatchFetch(O + '/fixture/maintain', {
+          headers: { 'X-Test-Now': String(NOW), 'X-Test-Start': start },
+        })
+      ).json()) as { copied: number; erased: number };
+    const left = async () =>
+      (await db
+        .prepare(
+          `SELECT COUNT(*) n FROM media_assets WHERE id IN (${[...ids, source].map(() => '?').join(',')}) AND payload IS NOT NULL`,
+        )
+        .bind(...ids, source)
+        .first<{ n: number }>())!.n;
+    // Eleven rows wait; one run erases a batch of 8, the next the rest, then nothing.
+    expect(await run(ids[4])).toMatchObject({ copied: 1, erased: 8 });
+    expect(await left()).toBe(3);
+    expect(await run(ids[4])).toMatchObject({ copied: 0, erased: 3 });
+    expect(await left()).toBe(0);
+    expect(await run(ids[4])).toMatchObject({ copied: 0, erased: 0 });
+  });
+  it('erases verified rows, keeps rows whose object is missing or differs, and still serves every image', async () => {
+    const db = await mf.getD1Database('DB'),
+      bucket = await mf.getR2Bucket('MEDIA_BUCKET'),
+      [good, missing, tampered, resized, broken, divergent] = [id(), id(), id(), id(), id(), id()],
+      d = await draft(`![a](/api/media/${good})`),
+      previous = { 'X-Test-Previous-Worker': '1' };
+    // The previous Worker kept every image in D1 only.
+    for (const image of [good, missing, tampered, resized])
+      expect((await upload(d, image, png, 0, previous)).status).toBe(201);
+    expect(await publication(d, [good])).not.toBeNull();
+    // A row whose payload never matched its sha256: the backfill never copies it.
+    await legacyCopy(db, good, { id: broken, at: NOW, draft: d.id, sha256: 'b'.repeat(64) });
+    // Recorded as copied, but R2 lost the object, holds other bytes of the same size, or another size.
+    const flipped = Uint8Array.from(png);
+    flipped[flipped.length - 1] ^= 1;
+    const key = async (image: string) => `media/${image}/${(await row(image)).sha256}`;
+    await bucket.put(await key(tampered), flipped);
+    // R2 holds bytes matching the row's size and sha256, but the D1 payload differs from them.
+    const flippedSha = Array.from(
+      new Uint8Array(await crypto.subtle.digest('SHA-256', flipped)),
+      (v) => v.toString(16).padStart(2, '0'),
+    ).join('');
+    await legacyCopy(db, good, { id: divergent, at: NOW, draft: d.id, sha256: flippedSha });
+    await bucket.put(await key(divergent), flipped);
+    await bucket.put(await key(resized), Uint8Array.from([...png, 0]));
+    await db
+      .prepare(
+        'UPDATE media_assets SET object_stored_at_ms=? WHERE id IN (?,?,?,?) AND object_stored_at_ms IS NULL',
+      )
+      .bind(NOW, missing, tampered, resized, divergent)
+      .run();
+
+    // The good row is copied and, read back from R2, erased in the same run; nothing else is.
+    expect(await maintain()).toEqual({ copied: 1, erased: 1, swept: 0 });
+    const erased = await row(good);
+    expect(erased.payload).toBeNull();
+    expect(erased.bytes).toBe(png.length);
+    expect(erased.object_stored_at_ms).toBe(NOW);
+    for (const image of [missing, tampered, resized, divergent])
+      expect(new Uint8Array((await row(image)).payload!)).toEqual(png);
+    expect((await row(broken)).payload).not.toBeNull();
+    expect((await row(broken)).object_stored_at_ms).toBeNull();
+
+    // Readers get the same bytes: the erased row from R2, the kept rows from their payload.
+    for (const r of [await publicRead(good), await ownRead(good)]) {
+      expect(r.status).toBe(200);
+      expect(new Uint8Array(await r.arrayBuffer())).toEqual(png);
+    }
+    for (const image of [missing, tampered, resized]) {
+      const r = await ownRead(image);
+      expect(r.status).toBe(200);
+      expect(new Uint8Array(await r.arrayBuffer())).toEqual(png);
+    }
+
+    // A later run finds nothing more to erase and does not fail on the erased row.
+    expect(await maintain()).toEqual({ copied: 0, erased: 0, swept: 0 });
+    // Once R2 holds the right bytes again, the kept row is erased on the next run.
+    await bucket.put(await key(missing), png);
+    expect(await maintain()).toEqual({ copied: 0, erased: 1, swept: 0 });
+    expect((await row(missing)).payload).toBeNull();
+    expect((await row(tampered)).payload).not.toBeNull();
   });
 });
 describe('protected publication tables refuse INSERT OR REPLACE (#265)', () => {
