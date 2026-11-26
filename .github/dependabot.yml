@@ -25,6 +25,11 @@ updates:
         update-types: [minor]
     open-pull-requests-limit: 5
     labels: [dependencies]
+    ignore:
+      # 6.44.x は複数行を選んで打ち替えると末尾に改行を残す（#306。tests/editor-codemirror.spec.ts）。
+      # 自動マージの軽い確認では editor の spec が回らないので、6.45 以降を人／garden が確かめて上げる。
+      - dependency-name: '@codemirror/view'
+        versions: ['6.44.x']
 
   - package-ecosystem: github-actions
     directory: /

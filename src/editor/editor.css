@@ -350,21 +350,56 @@
 }
 .draft-editor .editor-format button {
   font-size: 12px;
-  min-width: 60px;
-  padding: 6px 12px;
+  min-width: 44px;
+  padding: 6px 10px;
 }
 .editor-format > span {
   font-size: 11px;
   color: #596e7d;
   margin-left: auto;
 }
-.draft-editor #draft-body {
+/* The body field is CodeMirror 6 (#306); it keeps the old textarea's box and type. */
+.editor-body--loading {
   min-height: 380px;
-  border-color: #d6e3ed;
+  border: 1px solid #d6e3ed;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.editor-body .cm-editor {
+  min-height: 380px;
+  max-width: 100%;
+  background: white;
+  border: 1px solid #d6e3ed;
+  border-radius: 8px;
+  color: #253544;
+}
+.editor-body .cm-editor.cm-focused {
+  outline: 3px solid #0676bb;
+  outline-offset: 3px;
+}
+.editor-body .cm-scroller {
+  min-height: 378px;
   font-family: SFMono-Regular, Consolas, Menlo, monospace;
   font-size: 15px;
   line-height: 1.9;
+}
+.editor-body .cm-content {
   padding: 16px;
+}
+.editor-body .cm-line {
+  padding: 0;
+}
+.editor-body .cm-placeholder {
+  color: #596e7d;
+}
+.editor-body .cm-editor[aria-disabled='true'],
+.editor-body .cm-content[contenteditable='false'] {
+  background: #f8fafc;
+}
+.draft-editor .editor-format button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .editor-body-label {
   margin-top: 3px;
@@ -704,9 +739,14 @@
   .draft-editor .editor-title {
     font-size: 21px;
   }
-  .draft-editor #draft-body {
-    font-size: 16px;
+  .editor-body .cm-editor {
     min-height: 360px;
+  }
+  .editor-body .cm-scroller {
+    min-height: 358px;
+    font-size: 16px;
+  }
+  .editor-body .cm-content {
     padding: 12px;
   }
   .editor-format > span {

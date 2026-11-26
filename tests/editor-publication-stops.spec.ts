@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, type Page } from '@playwright/test';
 const origin = 'https://127.0.0.1:8788';
 async function setup(page: Page) {
@@ -125,7 +126,7 @@ test('owner stops the captured article and project publication without copying o
     await expect(
       own(page).getByRole('listitem').filter({ hasText: title }).getByRole('link'),
     ).toHaveCount(0);
-    await expect(body).toHaveValue('公開停止の間も手元に残す未保存の文章');
+    await expectBody(body, '公開停止の間も手元に残す未保存の文章');
     const result = await page.evaluate(
       async ({ kind, id }) =>
         (
@@ -217,7 +218,7 @@ test('a lost committed stop response remains selected across list failure and re
     await second.close();
   }
   await expect(privateBody).toBeVisible();
-  await expect(privateBody).toHaveValue('別の確認画面を開いても保持する私的入力');
+  await expectBody(privateBody, '別の確認画面を開いても保持する私的入力');
   await expect(stopPanel(page).getByRole('status')).toContainText('公開停止の結果は未確定');
   await stopPanel(page)
     .getByRole('button', { name: '選択した公開の停止記録を確認', exact: true })

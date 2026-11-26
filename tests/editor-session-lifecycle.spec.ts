@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, chromium, type Page, type Route, type Request } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -117,7 +118,7 @@ for (const status of [200, 401, 503])
         await q.release(0, status);
         await expect(recheck(page)).toBeDisabled();
         await hidden(page);
-        await expect(page.locator('#draft-body')).toHaveValue(buffer);
+        await expectBody(page.locator('#draft-body'), buffer);
         await visibility(page, 'hidden');
         await q.release(1, status);
         await hidden(page);
@@ -128,7 +129,7 @@ for (const status of [200, 401, 503])
         await q.release(2);
         await expect(page.locator('#draft-body')).toBeVisible();
         await expect(recheck(page)).toBeEnabled();
-        await expect(page.locator('#draft-body')).toHaveValue(buffer);
+        await expectBody(page.locator('#draft-body'), buffer);
         expect(
           await page
             .locator('#draft-body')
@@ -220,7 +221,7 @@ test('repeated synthetic pagehide/pageshow preserves input but never reveals bef
       await hidden(page);
       await q.release(n);
       await expect(page.locator('#draft-body')).toBeVisible();
-      await expect(page.locator('#draft-body')).toHaveValue(buffer);
+      await expectBody(page.locator('#draft-body'), buffer);
     }
   } finally {
     await q.close();
@@ -351,7 +352,7 @@ test('actual background tab cannot reveal after delayed proof; fresh foreground 
       await expect(recheck(page)).toBeDisabled();
       await q.release(1);
       await expect(page.locator('#draft-body')).toBeVisible();
-      await expect(page.locator('#draft-body')).toHaveValue(buffer);
+      await expectBody(page.locator('#draft-body'), buffer);
     } finally {
       await q.close();
     }

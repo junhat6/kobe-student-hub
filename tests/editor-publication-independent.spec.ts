@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, type Page } from '@playwright/test';
 const confirmName =
   '保存済みの版と公開情報を確認し、ログインしていない読者にも見える記事としてローカルで公開します';
@@ -129,7 +130,8 @@ test('independent manual receipt read retains typing and unavailable lookup neve
   await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeDisabled();
   release();
   await expect(region.getByText(/未公開とは判断せず/)).toBeVisible();
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(
+  await expectBody(
+    page.getByLabel('Markdown本文', { exact: true }),
     '手動確認の待機中に書いた非公開の追記',
   );
   await expect(publish(page)).toBeDisabled();
@@ -144,7 +146,8 @@ test('independent manual receipt read retains typing and unavailable lookup neve
   await expect(
     region.getByText(/公開を確認しました。手元の追加編集は公開していません/),
   ).toBeVisible();
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(
+  await expectBody(
+    page.getByLabel('Markdown本文', { exact: true }),
     '手動確認の待機中に書いた非公開の追記',
   );
   expect(posts).toBe(1);

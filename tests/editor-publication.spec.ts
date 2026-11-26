@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, type Page } from '@playwright/test';
 const confirmName =
   '保存済みの版と公開情報を確認し、ログインしていない読者にも見える記事としてローカルで公開します';
@@ -279,9 +280,7 @@ test('typing during a pending publication stays private while navigation and sav
   await page.getByLabel('Markdown本文', { exact: true }).fill('公開していない追加の文章');
   release();
   await expect(readerLink(page)).toBeVisible();
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(
-    '公開していない追加の文章',
-  );
+  await expectBody(page.getByLabel('Markdown本文', { exact: true }), '公開していない追加の文章');
   await expect(composer(page).getByText(/手元の追加編集は公開していません/)).toBeVisible();
   await save(page);
   await expect(
@@ -414,7 +413,8 @@ test('a different existing publication is read-only and never overwrites the hel
     composer(page).getByLabel('記事の概要（300文字以内）', { exact: true }),
   ).not.toBeEditable();
   await expect(publish(page)).toBeDisabled();
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(
+  await expectBody(
+    page.getByLabel('Markdown本文', { exact: true }),
     '# 保存した本文\n\nローカルの架空の経験です。',
   );
 });

@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, type Page } from '@playwright/test';
 const unique = (s: string) => s + '-' + crypto.randomUUID().slice(0, 8);
 const newDraft = (page: Page) => page.getByRole('button', { name: /^(＋ )?新しい下書き$/ });
@@ -42,7 +43,7 @@ test('independent discard cancellation and slow navigation cannot lose new typin
   await body.fill('手元だけの未保存文章');
   page.once('dialog', (dialog) => dialog.dismiss());
   await saved(page, first).click();
-  await expect(body).toHaveValue('手元だけの未保存文章');
+  await expectBody(body, '手元だけの未保存文章');
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(second);
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => {
@@ -62,7 +63,7 @@ test('independent discard cancellation and slow navigation cannot lose new typin
   await expect(page.getByLabel('タイトル', { exact: true })).not.toBeEditable();
   release();
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(first);
-  await expect(body).toHaveValue('first saved');
+  await expectBody(body, 'first saved');
   await expect(body).toBeEditable();
   await page.unroute('**/api/private/drafts/*');
   await page.screenshot({
@@ -84,12 +85,12 @@ test('independent failed latest-read preserves buffer and explicit recovery keep
   await body.focus();
   await body.press('ControlOrMeta+A');
   await page.getByRole('button', { name: '太字', exact: true }).click();
-  await expect(body).toHaveValue('**手元の文章**');
+  await expectBody(body, '**手元の文章**');
   await expect(body).toBeFocused();
   await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
   await expect(page.locator('.editor-preview strong')).toHaveText('手元の文章');
   await page.getByRole('button', { name: '編集', exact: true }).click();
-  await expect(body).toHaveValue('**手元の文章**');
+  await expectBody(body, '**手元の文章**');
   await page.route('**/api/private/drafts/*', (route) =>
     route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"synthetic"}' }),
   );
@@ -103,7 +104,7 @@ test('independent failed latest-read preserves buffer and explicit recovery keep
   await page.getByRole('button', { name: '保存済みの版を確認', exact: true }).click();
   expect((await failedRead).status()).toBe(503);
   await expect(page.getByRole('status')).toContainText('保存済みの版を確認できませんでした');
-  await expect(body).toHaveValue('**手元の文章**');
+  await expectBody(body, '**手元の文章**');
   await expect(
     page.getByRole('button', { name: '確認した版を基準にする', exact: true }),
   ).toHaveCount(0);
@@ -118,7 +119,7 @@ test('independent failed latest-read preserves buffer and explicit recovery keep
   await expect(remote).toHaveValue('saved original');
   await expect(remote).toHaveAttribute('readonly', '');
   await page.getByRole('button', { name: '確認した版を基準にする', exact: true }).click();
-  await expect(body).toHaveValue('**手元の文章**');
+  await expectBody(body, '**手元の文章**');
   await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeEnabled();
   await page.screenshot({
     path: info.outputPath('04-explicit-recovery.png'),
@@ -155,13 +156,13 @@ test('independent lost save success is confirmed without a second mutation', asy
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   expect((await failed).status()).toBe(503);
   await expect(page.getByRole('status')).toContainText('保存結果を確認できませんでした');
-  await expect(body).toHaveValue('server committed but response was lost');
+  await expectBody(body, 'server committed but response was lost');
   await page.getByRole('button', { name: '保存済みの版を確認', exact: true }).click();
   await expect(page.getByLabel('保存済み本文', { exact: true })).toHaveValue(
     'server committed but response was lost',
   );
   await page.getByRole('button', { name: '確認した版を基準にする', exact: true }).click();
-  await expect(body).toHaveValue('server committed but response was lost');
+  await expectBody(body, 'server committed but response was lost');
   await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeDisabled();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
   expect(mutations).toBe(1);

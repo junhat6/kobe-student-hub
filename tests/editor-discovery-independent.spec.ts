@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect } from '@playwright/test';
 import { identityHeadersOf, recordSentHeaders } from './helpers/sent-headers';
 const origin = 'https://127.0.0.1:8788';
@@ -86,7 +87,8 @@ test('independent explicit publication receipt opens anonymous recent feed witho
   const href = (await target.getAttribute('href'))!,
     contentId = href.split('/').pop()!;
   expect(feed.sent.length).toBeGreaterThan(0);
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(
+  await expectBody(
+    page.getByLabel('Markdown本文', { exact: true }),
     '一覧タブを開いても保持する非公開の追記',
   );
   await popup

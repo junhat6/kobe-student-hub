@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, type Page, type Browser } from '@playwright/test';
 const ORIGIN = 'https://127.0.0.1:8788';
 async function seed(page: Page, account: 'a' | 'b' = 'a') {
@@ -103,7 +104,7 @@ test('same-session focus and an unverified network interruption hide then retain
       exact: true,
     }),
   ).toBeVisible();
-  await expect(body).toHaveValue('メモリ内の未保存の文章');
+  await expectBody(body, 'メモリ内の未保存の文章');
   expect(
     await body.evaluate((element) =>
       Boolean((element as HTMLTextAreaElement & { __sameInstance?: boolean }).__sameInstance),
@@ -126,7 +127,7 @@ test('same-session focus and an unverified network interruption hide then retain
   await page.unroute('**/api/private/session');
   await page.getByRole('button', { name: 'セッションを再確認', exact: true }).click();
   await expect(body).toBeVisible();
-  await expect(body).toHaveValue('メモリ内の未保存の文章');
+  await expectBody(body, 'メモリ内の未保存の文章');
   expect(
     await body.evaluate((element) =>
       Boolean((element as HTMLTextAreaElement & { __sameInstance?: boolean }).__sameInstance),
@@ -315,9 +316,7 @@ test('unknown logout never reopens private UI without a manual check and explici
   await page.getByRole('button', { name: '確認したセッションで編集を開く', exact: true }).click();
   await expect(page.getByRole('button', { name: title, exact: true })).toBeVisible();
   await page.getByRole('button', { name: title, exact: true }).click();
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(
-    '保存済みの架空の文章',
-  );
+  await expectBody(page.getByLabel('Markdown本文', { exact: true }), '保存済みの架空の文章');
   commit = true;
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'このブラウザをログアウト', exact: true }).click();

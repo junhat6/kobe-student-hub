@@ -1,4 +1,4 @@
-export type MarkdownTool = 'heading' | 'bold' | 'code';
+export type MarkdownTool = 'heading' | 'bold' | 'code' | 'link' | 'list';
 export interface MarkdownFormat {
   body: string;
   start: number;
@@ -93,6 +93,17 @@ export function formatMarkdown(
       end: domOffset(body, first + 2 + selected.length),
     };
   }
+  if (tool === 'link') {
+    // Selected words become the link text and the URL placeholder is selected to be typed over.
+    const selected = value.slice(first, last);
+    if (/[\r\n]/.test(selected)) return null;
+    const label = selected || 'リンクの文字';
+    const url = 'https://';
+    const body = value.slice(0, first) + '[' + label + '](' + url + ')' + value.slice(last);
+    const at = selected ? first + 1 + label.length + 2 : first + 1;
+    const length = selected ? url.length : label.length;
+    return { body, start: domOffset(body, at), end: domOffset(body, at + length) };
+  }
   const all = lines(value);
   const from = all.findIndex((line) => first >= line.start && first <= line.end);
   let to = all.findIndex((line) => last >= line.start && last <= line.end);
@@ -103,6 +114,19 @@ export function formatMarkdown(
   const blockStart = covered[0].start,
     blockEnd = covered[covered.length - 1].end;
   const blank = covered.length === 1 && !value.slice(blockStart, blockEnd).trim();
+  if (tool === 'list') {
+    if (blank) {
+      const body = value.slice(0, first) + '- ' + value.slice(first);
+      return { body, start: domOffset(body, first + 2), end: domOffset(body, first + 2) };
+    }
+    const edits: Edit[] = [];
+    for (const line of covered) {
+      const content = value.slice(line.start, line.end);
+      if (!content.trim() || /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/.test(content)) continue;
+      edits.push({ start: line.start, end: line.start, text: '- ' });
+    }
+    return editSource(value, edits, first, last);
+  }
   if (tool === 'heading') {
     if (blank) {
       const placeholder = '見出し',

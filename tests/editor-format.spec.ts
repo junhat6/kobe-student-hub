@@ -1,3 +1,4 @@
+import { bodySelection, bodyValue, expectBody, selectBody } from './helpers/body-editor';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 async function open(page: Page, source: string) {
@@ -10,26 +11,9 @@ async function open(page: Page, source: string) {
   await body.fill(source);
   return body;
 }
-async function select(page: Page, start: number, end: number) {
-  await page.getByLabel('Markdown本文', { exact: true }).evaluate(
-    (element, range) => {
-      const area = element as HTMLTextAreaElement;
-      area.focus();
-      area.setSelectionRange(range.start, range.end);
-    },
-    { start, end },
-  );
-}
-async function selected(page: Page) {
-  return page.getByLabel('Markdown本文', { exact: true }).evaluate((element) => {
-    const area = element as HTMLTextAreaElement;
-    return {
-      text: area.value.slice(area.selectionStart, area.selectionEnd),
-      start: area.selectionStart,
-      end: area.selectionEnd,
-    };
-  });
-}
+const select = (page: Page, start: number, end: number) =>
+  selectBody(page.getByLabel('Markdown本文', { exact: true }), start, end);
+const selected = (page: Page) => bodySelection(page.getByLabel('Markdown本文', { exact: true }));
 test('keyboard heading formatting creates an actual heading at logical line boundaries and restores selection', async ({
   page,
 }) => {
@@ -40,7 +24,7 @@ test('keyboard heading formatting creates an actual heading at logical line boun
   const heading = page.getByRole('button', { name: '見出し', exact: true });
   await heading.focus();
   await heading.press('Enter');
-  await expect(body).toHaveValue('前の段落\n## alpha chosen omega\n後の段落');
+  await expectBody(body, '前の段落\n## alpha chosen omega\n後の段落');
   await expect(body).toBeFocused();
   expect(await selected(page)).toEqual({ text: 'chosen', start: start + 3, end: start + 9 });
   await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
@@ -60,7 +44,7 @@ test('code formatting retains nested backticks inside one block and restores the
   const code = page.getByRole('button', { name: 'コード', exact: true });
   if (test.info().project.use.hasTouch) await code.tap();
   else await code.click();
-  await expect(body).toHaveValue('before\n````\nalpha\n```\nbeta\n````\nafter');
+  await expectBody(body, 'before\n````\nalpha\n```\nbeta\n````\nafter');
   await expect(body).toBeFocused();
   expect((await selected(page)).text).toBe('alpha\n```\nbeta');
   await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
@@ -100,7 +84,7 @@ test('formatting remains an edit during a pending save and synthetic composition
   await body.fill('one chosen two');
   await select(page, 4, 10);
   await page.getByRole('button', { name: '太字', exact: true }).click();
-  await expect(body).toHaveValue('one **chosen** two');
+  await expectBody(body, 'one **chosen** two');
   release();
   await expect(page.getByRole('status')).toHaveText(
     '送信した版を保存しました。新しい変更はまだ未保存です。',
@@ -121,14 +105,14 @@ test('formatting remains an edit during a pending save and synthetic composition
   for (const name of ['見出し', '太字', 'コード', 'プレビュー'])
     await expect(page.getByRole('button', { name, exact: true })).toBeDisabled();
   await expect(body).toBeVisible();
-  await expect(body).toHaveValue('one **chosen** two');
+  await expectBody(body, 'one **chosen** two');
   await body.dispatchEvent('compositionend', { data: '確定' });
   for (const name of ['見出し', '太字', 'コード', 'プレビュー'])
     await expect(page.getByRole('button', { name, exact: true })).toBeEnabled();
   await body.fill('確定した入力');
   await select(page, 2, 2);
   await page.getByRole('button', { name: '見出し', exact: true }).click();
-  await expect(body).toHaveValue('## 確定した入力');
+  await expectBody(body, '## 確定した入力');
   await expect(body).toBeFocused();
   expect(saves).toBe(1);
 });
@@ -147,26 +131,18 @@ test('helper edits preserve all text when crossing the UTF8 save limit and never
   });
   await select(page, 0, source.length);
   await page.getByRole('button', { name: '太字', exact: true }).click();
-  expect(
-    await body.evaluate(
-      (element) => new TextEncoder().encode((element as HTMLTextAreaElement).value).byteLength,
-    ),
-  ).toBe(262144);
+  expect(new TextEncoder().encode(await bodyValue(body)).byteLength).toBe(262144);
   await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeEnabled();
-  const length = await body.evaluate((element) => (element as HTMLTextAreaElement).value.length);
+  const length = (await bodyValue(body)).length;
   await select(page, 0, length);
   await page.getByRole('button', { name: '太字', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('本文の容量が上限の256 KiBを超えています。');
   await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeDisabled();
-  expect(
-    await body.evaluate((element) => {
-      const value = (element as HTMLTextAreaElement).value;
-      return {
-        bytes: new TextEncoder().encode(value).byteLength,
-        characters: value.split('あ').length - 1,
-      };
-    }),
-  ).toEqual({ bytes: 262148, characters: 87380 });
+  const value = await bodyValue(body);
+  expect({
+    bytes: new TextEncoder().encode(value).byteLength,
+    characters: value.split('あ').length - 1,
+  }).toEqual({ bytes: 262148, characters: 87380 });
   expect(saves).toBe(0);
 });
 test('the title counter sits beside the title and the body footer only shows the body size', async ({
@@ -254,7 +230,7 @@ test('the AI memo note removes 「（AIメモ：…）」 and the saved version 
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.publication-ai-memo-notice')).toContainText('1件');
   await note.getByRole('button', { name: 'AIメモを消す', exact: true }).click();
-  await expect(body).toHaveValue('## はじめに\n本文です。');
+  await expectBody(body, '## はじめに\n本文です。');
   await expect(note).toHaveCount(0);
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.publication-ai-memo-notice')).toHaveCount(0);

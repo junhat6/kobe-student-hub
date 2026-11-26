@@ -101,3 +101,29 @@ describe('the three Markdown editing helpers', () => {
     expect(second.body).toContain(value);
   });
 });
+describe('link and list helpers (#306)', () => {
+  it('turns the selected words into a link and selects the URL placeholder', () => {
+    const value = 'see docs here';
+    const result = formatMarkdown(value, 'link', 4, 8)!;
+    expect(result.body).toBe('see [docs](https://) here');
+    expect(result.body.slice(result.start, result.end)).toBe('https://');
+    expect(html(result.body)).toContain('<a href="https://">docs</a>');
+  });
+  it('inserts a placeholder link at a caret and refuses a selection across lines', () => {
+    const result = formatMarkdown('ab', 'link', 1, 1)!;
+    expect(result.body).toBe('a[リンクの文字](https://)b');
+    expect(result.body.slice(result.start, result.end)).toBe('リンクの文字');
+    expect(formatMarkdown('a\nb', 'link', 0, 3)).toBeNull();
+    expect(formatMarkdown('a\r\nb', 'link', 0, 3)).toBeNull();
+  });
+  it('prefixes touched non-blank lines once, keeps existing items and CRLF endings', () => {
+    const value = 'one\r\n\r\n- two\r\n3. three\r\nfour';
+    const result = formatMarkdown(value, 'list', 0, textareaText(value).length)!;
+    expect(result.body).toBe('- one\r\n\r\n- two\r\n3. three\r\n- four');
+    expect(formatMarkdown(result.body, 'list', 0, textareaText(result.body).length)?.body).toBe(
+      result.body,
+    );
+    const blank = formatMarkdown('', 'list', 0, 0)!;
+    expect(blank).toEqual({ body: '- ', start: 2, end: 2 });
+  });
+});

@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import AxeBuilder from '@axe-core/playwright';
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
@@ -218,9 +219,7 @@ test('ordinary signup asks for a profile first, then drafts save and reopen', as
   await expect(guide.getByText('店員や他の客を特定しない', { exact: true })).toBeVisible();
   await expect(guide.locator('code', { hasText: '北野川線沿い' })).toBeVisible();
   await guide.getByRole('button', { name: '本文の末尾に型を入れる', exact: true }).click();
-  await expect(body(page)).toHaveValue(
-    /100万行[\s\S]*## 学生向けのポイント\n- 昼休みに間に合うか：/,
-  );
+  await expectBody(body(page), /100万行[\s\S]*## 学生向けのポイント\n- 昼休みに間に合うか：/);
   const { violations } = await new AxeBuilder({ page }).include('.shop-review-guide').analyze();
   expect(
     violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => v.id),
@@ -233,7 +232,7 @@ test('ordinary signup asks for a profile first, then drafts save and reopen', as
   await expect(newDraft(page)).toBeEnabled();
   await page.getByRole('button', { name: 'AIと技術を選んだ理由', exact: true }).click();
   await assertPrivateBuffer(page, 'AIと技術を選んだ理由');
-  await expect(body(page)).toHaveValue(/100万行/);
+  await expectBody(body(page), /100万行/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -444,7 +443,7 @@ test('lost save acknowledgement keeps text and recovers through readback without
   await save(page).click();
   await expect(page.getByRole('alert', { name: '保存結果の確認' })).toBeVisible();
   await assertPrivateBuffer(page, '結果を確かめてから次へ');
-  await expect(body(page)).toHaveValue('手元の本文を消さない。');
+  await expectBody(body(page), '手元の本文を消さない。');
   expect(saves).toBe(1);
   await page.getByRole('button', { name: '保存済みの版を確認', exact: true }).click();
   await expect(page.getByLabel('保存済みタイトル', { exact: true })).toHaveValue(
@@ -551,14 +550,14 @@ test('an expired session keeps unsaved text and restores it to the same draft af
   await replaceSession(context, actor);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
-  await expect(body(page)).toHaveValue('一段落目\n\n期限切れ後に書いた二段落目');
+  await expectBody(body(page), '一段落目\n\n期限切れ後に書いた二段落目');
   await expect(rescueBox(page)).toHaveCount(0);
   await expect(
     page.getByRole('status').getByText('下書きを保存しました。', { exact: true }),
   ).toBeAttached();
   await page.reload();
   await page.getByRole('button', { name: '期限切れの記事', exact: true }).click();
-  await expect(body(page)).toHaveValue('一段落目\n\n期限切れ後に書いた二段落目');
+  await expectBody(body(page), '一段落目\n\n期限切れ後に書いた二段落目');
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
 });
 
@@ -661,7 +660,7 @@ test('記事の管理 and the writing screen are separate, and leaving asks befo
   await expect(page.getByText('Markdownで書けます', { exact: true })).toHaveCount(0);
   // Like the title, the body keeps its name for assistive technology only (原則1、型: Zenn).
   await expect(body(page)).toBeVisible();
-  await expect(page.locator('label[for="draft-body"]')).toHaveClass(/sr-only/);
+  await expect(page.locator('#draft-body-label')).toHaveClass(/sr-only/);
   // A short title keeps its count for assistive technology only, so the focused field's
   // outline has nothing to cover (#279).
   await title(page).focus();

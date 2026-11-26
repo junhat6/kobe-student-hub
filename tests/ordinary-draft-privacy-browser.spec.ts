@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import {
   test,
@@ -87,7 +88,7 @@ test('a draft resumes in a separate browser and later edits come back to the fir
     await signIn(second, actor, 'login');
     await second.getByRole('link', { name: '記事の管理', exact: true }).click();
     await second.getByRole('button', { name: heading, exact: true }).click();
-    await expect(body(second)).toHaveValue(/一台目で書いた/);
+    await expectBody(body(second), /一台目で書いた/);
     await body(second).fill(
       '## 続きの条件\n\n一台目で書いた架空の本文。\n\n二台目で続きを書いた。',
     );
@@ -107,7 +108,7 @@ test('a draft resumes in a separate browser and later edits come back to the fir
 
   await page.reload();
   await page.getByRole('button', { name: heading, exact: true }).click();
-  await expect(body(page)).toHaveValue(/二台目で続きを書いた。/);
+  await expectBody(body(page), /二台目で続きを書いた。/);
   await noBrowserCopy(page);
 });
 
@@ -175,7 +176,7 @@ test('a draft is invisible to another account, a guest and every public page', a
   // The owner still has the untouched draft after the attempts.
   await page.reload();
   await page.getByRole('button', { name: heading, exact: true }).click();
-  await expect(body(page)).toHaveValue(new RegExp('本人だけが読める架空の本文-' + key));
+  await expectBody(body(page), new RegExp('本人だけが読める架空の本文-' + key));
   await expect(title(page)).toHaveValue(heading);
 });
 
@@ -213,7 +214,7 @@ test('a server-side save failure keeps the text on screen, says so, and saves af
   ).toBeVisible({ timeout: 7000 });
   await expect(page.getByRole('alert', { name: '保存結果の確認' })).toBeVisible();
   await expect(saveState(page)).toHaveText('未保存の変更あり');
-  await expect(body(page)).toHaveValue(/保存に失敗している間に書いた文。/);
+  await expectBody(body(page), /保存に失敗している間に書いた文。/);
   await noBrowserCopy(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
@@ -234,7 +235,7 @@ test('a server-side save failure keeps the text on screen, says so, and saves af
   await page.getByRole('button', { name: '確認した版を基準にする', exact: true }).click();
   // Rebasing never overwrites silently; the writer saves deliberately once.
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
-  await expect(body(page)).toHaveValue(/保存に失敗している間に書いた文。/);
+  await expectBody(body(page), /保存に失敗している間に書いた文。/);
   await expect(saveState(page)).toHaveText('保存済み', { timeout: 7000 });
   expect(await storedBody(page)).toContain('保存に失敗している間に書いた文。');
 });
@@ -269,7 +270,7 @@ test('a dropped connection hides the editor without losing the text and resumes 
 
   await page.unroute('**/api/private/drafts/*');
   await check.getByRole('button', { name: 'ログイン状態を確認', exact: true }).click();
-  await expect(body(page)).toHaveValue(/通信が切れている間に書いた文。/);
+  await expectBody(body(page), /通信が切れている間に書いた文。/);
   await expect(saveState(page)).toHaveText('未保存の変更あり');
   await page.getByRole('button', { name: '保存済みの版を確認', exact: true }).click();
   await page.getByRole('button', { name: '確認した版を基準にする', exact: true }).click();

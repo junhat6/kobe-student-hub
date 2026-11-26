@@ -1,3 +1,4 @@
+import { bodyValue, expectBody } from './helpers/body-editor';
 import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { createProfileOnAccount, ensureProfileByApi } from './helpers/profile';
@@ -108,10 +109,10 @@ test('idle article edits save once and reopen from the server without browser pe
   try {
     await second.goto('/drafts');
     await second.getByRole('button', { name: '架空の自動保存ノート', exact: true }).click();
-    await expect(body(second)).toHaveValue(/端末をまたいで/);
+    await expectBody(body(second), /端末をまたいで/);
     await second.reload();
     await second.getByRole('button', { name: '架空の自動保存ノート', exact: true }).click();
-    await expect(body(second)).toHaveValue(/端末をまたいで/);
+    await expectBody(body(second), /端末をまたいで/);
     await privateBuffer(second);
     expect(publications).toBe(0);
     expect((await page.request.get('/api/private/profile')).status()).toBe(200);
@@ -151,7 +152,7 @@ test('one dropped session proof while typing neither hides the editor nor stops 
   await expect(page.getByText('セッションを確認できませんでした', { exact: false })).toHaveCount(0);
   await expect(page.getByText('自動保存を停止しています', { exact: false })).toHaveCount(0);
   await body(page).pressSequentially('。続きも入る', { delay: 20 });
-  await expect(body(page)).toHaveValue('入力は止まらない。続きも入る');
+  await expectBody(body(page), '入力は止まらない。続きも入る');
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 10000 });
   await image(page, info, 'article-proof-dropped-once');
   await privateBuffer(page);
@@ -286,6 +287,60 @@ test('IME, invalid text and the deletion confirmation each suspend pending artic
   await page.getByRole('button', { name: 'キャンセル', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 7000 });
   expect(patches).toBe(2);
+});
+
+test('reopening an untouched article sends nothing and a body conversion holds autosave (#306)', async ({
+  page,
+}, info) => {
+  await register(page, info);
+  await article(page);
+  const source =
+    '## 手順\n\n（写真：完成した画面）\n\nhttps://www.youtube.com/watch?v=AbCdEf12345\n\n（AIメモ：本人の言葉で）\n- 項目';
+  await title(page).fill('架空のCodeMirror開閉');
+  await body(page).fill(source);
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 7000 });
+  const before = (await (await page.request.get('/api/private/drafts')).json())[0];
+  // Compared with what was saved: on the phone emulation Playwright's multi-line fill may add a
+  // trailing line break, which is input, not the open/close round trip under test.
+  const saved = (await (await page.request.get('/api/private/drafts/' + before.id)).json()).body;
+  expect(saved).toContain(source);
+  await page.reload();
+  let patches = 0;
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PATCH' &&
+      new URL(request.url()).pathname.startsWith('/api/private/drafts/')
+    )
+      patches++;
+  });
+  await page.getByRole('button', { name: '架空のCodeMirror開閉', exact: true }).click();
+  await expectBody(body(page), saved);
+  await body(page).click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
+  await page.getByRole('button', { name: '編集', exact: true }).click();
+  await page.waitForTimeout(2400);
+  expect(patches).toBe(0);
+  const after = (await (await page.request.get('/api/private/drafts')).json())[0];
+  expect(after.version).toBe(before.version);
+  const stored = await (await page.request.get('/api/private/drafts/' + after.id)).json();
+  expect(stored.body).toBe(saved);
+
+  await body(page).click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await body(page).dispatchEvent('compositionstart');
+  await page.keyboard.insertText('変換中');
+  await page.waitForTimeout(2400);
+  expect(patches).toBe(0);
+  await body(page).dispatchEvent('compositionend');
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 7000 });
+  expect(patches).toBe(1);
+  // What autosave stored after the conversion is exactly what the field shows.
+  const shown = await bodyValue(body(page));
+  expect(shown).toContain('変換中');
+  expect((await (await page.request.get('/api/private/drafts/' + after.id)).json()).body).toBe(
+    shown,
+  );
 });
 
 test('a real server version conflict keeps both texts and stops autosave until explicit reconciliation', async ({

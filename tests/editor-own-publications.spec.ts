@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, type Page } from '@playwright/test';
 const origin = 'https://127.0.0.1:8788';
 async function setup(page: Page) {
@@ -78,7 +79,7 @@ test('own mixed publication records show actual article hiding while published r
     expect(await page.locator('.session-private').evaluate((e) => (e as HTMLElement).inert)).toBe(
       false,
     );
-    await expect(body).toHaveValue('公開記録の確認中も残す私的な文章');
+    await expectBody(body, '公開記録の確認中も残す私的な文章');
     expect(
       await body.evaluate((e) => Boolean((e as HTMLTextAreaElement & { __same?: boolean }).__same)),
     ).toBe(true);
@@ -115,7 +116,7 @@ test('own mixed publication records show actual article hiding while published r
   await expect(reader.getByRole('heading', { name: data.projectTitle, exact: true })).toBeVisible();
   await reader.close();
   await expect(body).toBeVisible();
-  await expect(body).toHaveValue('公開記録の確認中も残す私的な文章');
+  await expectBody(body, '公開記録の確認中も残す私的な文章');
   expect(
     await body.evaluate((e) => Boolean((e as HTMLTextAreaElement & { __same?: boolean }).__same)),
   ).toBe(true);

@@ -1,3 +1,4 @@
+import { bodyValue, expectBody, selectBody } from './helpers/body-editor';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
@@ -109,7 +110,7 @@ test('real static CSP permits guarded private Blob images and explicit nocookie 
     .toBe(true);
   const body = page.getByLabel('Markdown本文', { exact: true });
   await body.fill(
-    (await body.inputValue()) + '\n\n[架空の動画](https://youtu.be/AbCdEf12345?tracking=discarded)',
+    (await bodyValue(body)) + '\n\n[架空の動画](https://youtu.be/AbCdEf12345?tracking=discarded)',
   );
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
@@ -167,21 +168,21 @@ test('pasted Google マップ embed HTML and an Instagram URL become consent-gat
     });
   });
   const body = page.getByLabel('Markdown本文', { exact: true });
-  await body.focus();
-  await body.evaluate((area: HTMLTextAreaElement) =>
-    area.setSelectionRange(area.value.length, area.value.length),
-  );
+  {
+    const end = (await bodyValue(body)).length;
+    await selectBody(body, end, end);
+  }
   // What Google マップ「共有 → 地図を埋め込む」 copies. Raw HTML would be dropped, so it becomes one URL line.
-  await body.evaluate((area: HTMLTextAreaElement, html: string) => {
+  await body.evaluate((area: HTMLElement, html: string) => {
     const data = new DataTransfer();
     data.setData('text/plain', html);
     area.dispatchEvent(
       new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
     );
   }, `<iframe src="${map}" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy"></iframe>`);
-  await expect(body).toHaveValue('## 実験の画面\n\n保存した画面を説明します。\n\n' + map);
+  await expectBody(body, '## 実験の画面\n\n保存した画面を説明します。\n\n' + map);
   await body.fill(
-    (await body.inputValue()) + '\n\nhttps://www.instagram.com/p/AbC_12-x/?igsh=tracking',
+    (await bodyValue(body)) + '\n\nhttps://www.instagram.com/p/AbC_12-x/?igsh=tracking',
   );
   await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
@@ -533,7 +534,8 @@ test('an image replaces the chosen 「（写真：…）」 marker, the next mar
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await panel.screenshot({ path: info.outputPath('image-panel-marker-target.png') });
   const first = await attach(page, 'image/png', screen);
-  await expect(body).toHaveValue(
+  await expectBody(
+    body,
     `## 店内\n\n![カウンター席](/api/media/${first.id})\n\n本文。\n\n（図：待ち時間の比較）`,
   );
   await expect(panel.locator('p[aria-live="polite"]')).toHaveText(
@@ -544,7 +546,8 @@ test('an image replaces the chosen 「（写真：…）」 marker, the next mar
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
   await expect(page.locator('.publication-photo-marker-notice')).toContainText('1か所');
   await panel.getByRole('button', { name: '本文へ参照を入れる', exact: true }).click();
-  await expect(body).toHaveValue(
+  await expectBody(
+    body,
     `## 店内\n\n![カウンター席](/api/media/${first.id})\n\n本文。\n\n![待ち時間の比較](/api/media/${first.id})`,
   );
   await expect(where).toHaveCount(0);

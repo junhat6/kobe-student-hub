@@ -34,6 +34,14 @@ PRDの「記事・作品から学生の知識・経験・活動に出会う」�
 - 未実装機能を動くように見せない。架空サンプルと開発中であることを常に伝える。
 - 色だけで状態を伝えず、選択状態はaria-pressed等にも反映。motion削減設定に従う。
 
+## 本文エディターの依存とライセンス
+
+記事の本文欄は CodeMirror 6（#306、C25）。Markdown の文字列をそのまま編集し、開いただけで本文を書き換えない。書く画面を開いたときだけ読み込む別 chunk に置く。
+
+- `@codemirror/state`・`view`・`commands`・`language`・`lang-markdown`（と、その依存の `lang-html`・`lang-css`・`lang-javascript`・`autocomplete`・`lint`）：MIT、Copyright (C) 2018-2021 by Marijn Haverbeke and others
+- `@lezer/common`・`lr`・`highlight`・`markdown`・`html`・`css`・`javascript`、`style-mod`、`w3c-keyname`、`crelt`、`@marijn/find-cluster-break`：MIT、Copyright (C) Marijn Haverbeke and others
+- MIT の本文は下の reference material の節と同じ（著作権者の行だけが異なる）。配布物の各パッケージの `LICENSE` も保持される。
+
 ## License for reference material
 
 MIT License

@@ -1,3 +1,4 @@
+import { expectBody } from './helpers/body-editor';
 import { test, expect, type Page } from '@playwright/test';
 const unique = (label: string) => label + '-' + crypto.randomUUID().slice(0, 8);
 async function open(page: Page) {
@@ -37,7 +38,7 @@ test('create, preview, save and resume without browser persistence', async ({ pa
   await save(page);
   await page.reload();
   await page.getByRole('button', { name: title, exact: true }).click();
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue(body);
+  await expectBody(page.getByLabel('Markdown本文', { exact: true }), body);
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(title);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(page.url()).not.toContain(title);
@@ -69,7 +70,7 @@ test('typing while save is pending and a failed save preserve the buffer', async
   await page.getByLabel('Markdown本文', { exact: true }).fill('typed while pending');
   release();
   await response;
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue('typed while pending');
+  await expectBody(page.getByLabel('Markdown本文', { exact: true }), 'typed while pending');
   await expect(page.getByRole('button', { name: '下書きを保存', exact: true })).toBeEnabled();
   await page.unroute('**/api/private/drafts/*');
   await page.route('**/api/private/drafts/*', (route) =>
@@ -89,7 +90,7 @@ test('typing while save is pending and a failed save preserve the buffer', async
   await expect(page.getByRole('status')).toHaveText(
     '保存結果を確認できませんでした。手元の編集はこの画面に残っています。',
   );
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue('typed while pending');
+  await expectBody(page.getByLabel('Markdown本文', { exact: true }), 'typed while pending');
 });
 test('conflicts keep local text until latest version is explicitly adopted as base', async ({
   page,
@@ -116,11 +117,11 @@ test('conflicts keep local text until latest version is explicitly adopted as ba
     );
     await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
     expect((await failure).status()).toBe(404);
-    await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue('local unsaved');
+    await expectBody(page.getByLabel('Markdown本文', { exact: true }), 'local unsaved');
     await page.getByRole('button', { name: '保存済みの版を確認', exact: true }).click();
     await expect(page.getByLabel('保存済み本文', { exact: true })).toHaveValue('saved elsewhere');
     await page.getByRole('button', { name: '確認した版を基準にする', exact: true }).click();
-    await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue('local unsaved');
+    await expectBody(page.getByLabel('Markdown本文', { exact: true }), 'local unsaved');
     await save(page);
   } finally {
     await context.close();

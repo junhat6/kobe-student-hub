@@ -1,3 +1,4 @@
+import { bodyValue } from './helpers/body-editor';
 import { test, expect, type Page, type Browser } from '@playwright/test';
 const ORIGIN = 'https://127.0.0.1:8788';
 async function seed(page: Page, account: 'a' | 'b' = 'a') {
@@ -81,7 +82,7 @@ test('independent unknown proof preserves a hidden buffer but confirmed invalid 
   expect(await page.locator('.session-private').evaluate((e) => (e as HTMLElement).inert)).toBe(
     true,
   );
-  expect(await page.locator('#draft-body').inputValue()).toBe(
+  expect(await bodyValue(page.locator('#draft-body'))).toBe(
     '503では保持し401では破棄する架空の未保存入力',
   );
   expect(

@@ -1,3 +1,4 @@
+import { expectBody, bodyValue } from './helpers/body-editor';
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { createProfileOnAccount } from './helpers/profile';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
@@ -96,7 +97,7 @@ test('a student hands the draft to their own agent, imports its file, and publis
   await expect(page.getByLabel('タイトル', { exact: true })).toHaveValue(
     '自分で書き始めたタイトル',
   );
-  await expect(page.getByLabel('Markdown本文', { exact: true })).toHaveValue('MY_OWN_START');
+  await expectBody(page.getByLabel('Markdown本文', { exact: true }), 'MY_OWN_START');
 
   // 4. Apply again and keep it with the ordinary save.
   await page.getByLabel('AIの出力', { exact: true }).fill(AGENT_FILE);
@@ -151,7 +152,7 @@ test('a student hands the draft to their own agent, imports its file, and publis
   // A later unpublished edit stays in the private draft and never reaches the reader's copy.
   await page.getByRole('button', { name: '編集', exact: true }).click();
   const body = page.getByLabel('Markdown本文', { exact: true });
-  await body.fill((await body.inputValue()) + '\n\nDRAFT_ONLY_AFTER_PUBLISH');
+  await body.fill((await bodyValue(body)) + '\n\nDRAFT_ONLY_AFTER_PUBLISH');
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 15000 });
 
   // 6. A reader can hand the published article to their own agent as Markdown with its source.

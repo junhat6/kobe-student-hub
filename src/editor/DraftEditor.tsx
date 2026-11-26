@@ -28,6 +28,14 @@ import {
   type MarkdownFormat,
   type MarkdownTool,
 } from './markdown-format';
+import type { BodyEditorHandle } from './BodyEditor';
+import { FORMAT_TOOLS } from './format-tools';
+/**
+ * CodeMirror (#306) is its own chunk: fetched when the writing screen mounts, never part of the
+ * top or article pages' initial JS. Only code is fetched; nothing private is requested.
+ */
+const loadBodyEditor = () => import('./BodyEditor');
+const BodyEditor = React.lazy(loadBodyEditor);
 class PreviewBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() {
@@ -152,6 +160,10 @@ export default function DraftEditor({
   const deletionOpen = ordinary && deletion !== 'idle',
     editingLocked =
       opening || !writable || (ordinary && (deletion === 'confirm' || deletion === 'pending'));
+  // The body field's chunk starts loading with the writing screen, before a draft is opened.
+  useEffect(() => {
+    loadBodyEditor().catch(() => undefined);
+  }, []);
   useEffect(() => {
     if (deletion === 'confirm') deleteCancel.current?.focus();
   }, [deletion]);
@@ -205,7 +217,7 @@ export default function DraftEditor({
   const compositionRef = useRef(false);
   const pendingFormat = useRef<MarkdownFormat | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<BodyEditorHandle>(null);
   const currentText = useRef(text);
   currentText.current = text;
   const dirty = Boolean(draft && !same(text, draft));
@@ -676,8 +688,9 @@ export default function DraftEditor({
     const area = bodyRef.current;
     if (!area || editingLocked || preview || compositionRef.current) return;
     const source = currentText.current.body;
-    if (area.value !== textareaText(source)) return;
-    const result = formatMarkdown(source, tool, area.selectionStart, area.selectionEnd);
+    const selection = area.selection();
+    if (!selection || area.text() !== textareaText(source)) return;
+    const result = formatMarkdown(source, tool, selection.start, selection.end);
     if (!result) {
       setStatus('文字の選択位置を確認して、もう一度操作してください。');
       return;
@@ -700,15 +713,18 @@ export default function DraftEditor({
     );
   }
   /** Official embed HTML (Google マップ・Instagram・YouTube) becomes one URL line; raw HTML is not shown. */
-  function pasteEmbed(event: React.ClipboardEvent<HTMLTextAreaElement>) {
-    const line = embedLineFromPaste(event.clipboardData.getData('text/plain'));
-    const area = event.currentTarget;
-    if (!line || editingLocked || compositionRef.current) return;
-    event.preventDefault();
-    const result = insertOwnLine(area.value, area.selectionStart, area.selectionEnd, line);
+  function pasteEmbed(text: string) {
+    const line = embedLineFromPaste(text);
+    const area = bodyRef.current;
+    if (!line || !area || editingLocked || compositionRef.current) return false;
+    const selection = area.selection();
+    const value = area.text();
+    if (!selection || value === null) return false;
+    const result = insertOwnLine(value, selection.start, selection.end, line);
     cancelAutosave();
     pendingFormat.current = result;
     setText((t) => ({ ...t, body: result.body }));
+    return true;
   }
   // The title wraps and grows with its lines, like Zenn・note, so a long title can be reread
   // whole on a phone instead of being cut at the right edge (#281).
@@ -737,11 +753,10 @@ export default function DraftEditor({
       preview ||
       compositionRef.current ||
       text.body !== selection.body ||
-      area.value !== textareaText(selection.body)
+      area.text() !== textareaText(selection.body)
     )
       return;
-    area.focus({ preventScroll: true });
-    area.setSelectionRange(selection.start, selection.end);
+    area.select(selection.start, selection.end);
   });
   return (
     <div className={'draft-editor' + (ordinary ? ' draft-editor--ordinary' : '')}>
@@ -1111,33 +1126,22 @@ export default function DraftEditor({
                 ) : (
                   <>
                     <div className="editor-format" aria-label="Markdown補助">
-                      <Button
-                        disabled={editingLocked || composing}
-                        onPointerDown={(event) => {
-                          if (compositionRef.current) event.preventDefault();
-                        }}
-                        onClick={() => format('heading')}
-                      >
-                        見出し
-                      </Button>
-                      <Button
-                        disabled={editingLocked || composing}
-                        onPointerDown={(event) => {
-                          if (compositionRef.current) event.preventDefault();
-                        }}
-                        onClick={() => format('bold')}
-                      >
-                        太字
-                      </Button>
-                      <Button
-                        disabled={editingLocked || composing}
-                        onPointerDown={(event) => {
-                          if (compositionRef.current) event.preventDefault();
-                        }}
-                        onClick={() => format('code')}
-                      >
-                        コード
-                      </Button>
+                      {FORMAT_TOOLS.map(({ tool, label, icon }) => (
+                        <Button
+                          key={tool}
+                          aria-label={label}
+                          title={label}
+                          disabled={editingLocked || composing}
+                          onPointerDown={(event) => {
+                            // Keeps the body's selection; during a conversion it also keeps the
+                            // focus so the button never commits the composition (C25 acceptance 3).
+                            event.preventDefault();
+                          }}
+                          onClick={() => format(tool)}
+                        >
+                          {icon}
+                        </Button>
+                      ))}
                       {/* The ordinary page names the body 「Markdown本文」 already, so the hint
                           appears only while a conversion blocks the buttons (原則1). */}
                       {(composing || !ordinary) && (
@@ -1150,30 +1154,38 @@ export default function DraftEditor({
                     </div>
                     {/* Like the title, the body is named for screen readers only; the placeholder
                         and toolbar already show where to write (原則1、型: Zenn・note). */}
-                    <label
+                    <span
+                      id="draft-body-label"
                       className={'editor-body-label' + (ordinary ? ' sr-only' : '')}
-                      htmlFor="draft-body"
                     >
                       Markdown本文
-                    </label>
-                    <textarea
-                      id="draft-body"
-                      disabled={editingLocked}
-                      ref={bodyRef}
-                      value={text.body}
-                      maxLength={262144}
-                      placeholder={
-                        '試したこと、うまくいかなかったこと、次にやってみたいこと。\n\nあなたの経験を、自分の言葉で。'
+                    </span>
+                    <React.Suspense
+                      fallback={
+                        <div className="editor-body editor-body--loading" aria-hidden="true" />
                       }
-                      onCompositionStart={startComposition}
-                      onCompositionEnd={endComposition}
-                      onPaste={pasteEmbed}
-                      onChange={(event) => {
-                        cancelAutosave();
-                        pendingFormat.current = null;
-                        setText((t) => ({ ...t, body: event.target.value }));
-                      }}
-                    />
+                    >
+                      <BodyEditor
+                        key={draft.id}
+                        ref={bodyRef}
+                        id="draft-body"
+                        labelledBy="draft-body-label"
+                        disabled={editingLocked}
+                        value={text.body}
+                        placeholder={
+                          '試したこと、うまくいかなかったこと、次にやってみたいこと。\n\nあなたの経験を、自分の言葉で。'
+                        }
+                        onCompositionStart={startComposition}
+                        onCompositionEnd={endComposition}
+                        onPaste={pasteEmbed}
+                        onBold={() => format('bold')}
+                        onChange={(body) => {
+                          cancelAutosave();
+                          pendingFormat.current = null;
+                          setText((t) => ({ ...t, body }));
+                        }}
+                      />
+                    </React.Suspense>
                   </>
                 )}
                 {/* The size matters only near the limit, so the ordinary page shows it from

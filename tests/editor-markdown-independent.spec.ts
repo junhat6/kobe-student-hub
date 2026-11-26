@@ -1,3 +1,4 @@
+import { bodySelection, bodyValue, expectBody, selectBody } from './helpers/body-editor';
 import { test, expect } from '@playwright/test';
 test('independent server-loaded CRLF selection keeps untouched source endings through heading and save', async ({
   page,
@@ -28,22 +29,16 @@ test('independent server-loaded CRLF selection keeps untouched source endings th
   await page.getByRole('button', { name: '一覧を更新', exact: true }).click();
   await page.getByRole('button', { name: title, exact: true }).click();
   const body = page.getByLabel('Markdown本文', { exact: true });
-  await expect(body).toHaveValue(raw.replace(/\r\n/g, '\n'));
-  await body.evaluate((element) => {
-    const area = element as HTMLTextAreaElement;
-    area.focus();
-    area.setSelectionRange(area.value.indexOf('middle'), area.value.indexOf('後の行'));
-  });
+  await expectBody(body, raw.replace(/\r\n/g, '\n'));
+  {
+    const value = await bodyValue(body);
+    await selectBody(body, value.indexOf('middle'), value.indexOf('後の行'));
+  }
   const heading = page.getByRole('button', { name: '見出し', exact: true });
   await heading.focus();
   await heading.press('Enter');
-  await expect(body).toHaveValue('前の行\n## middle chosen tail\n後の行');
-  expect(
-    await body.evaluate((element) => {
-      const area = element as HTMLTextAreaElement;
-      return area.value.slice(area.selectionStart, area.selectionEnd);
-    }),
-  ).toBe('middle chosen tail\n');
+  await expectBody(body, '前の行\n## middle chosen tail\n後の行');
+  expect((await bodySelection(body)).text).toBe('middle chosen tail\n');
   await page
     .getByRole('region', { name: '下書きの編集' })
     .screenshot({ path: info.outputPath('01-crlf-heading-selection.png'), scale: 'css' });
@@ -62,11 +57,7 @@ test('independent server-loaded CRLF selection keeps untouched source endings th
     .screenshot({ path: info.outputPath('02-crlf-heading-preview.png'), scale: 'css' });
   await page.getByRole('button', { name: '編集', exact: true }).click();
   await body.fill('alpha\n```\nbeta');
-  await body.evaluate((element) => {
-    const area = element as HTMLTextAreaElement;
-    area.focus();
-    area.select();
-  });
+  await selectBody(body, 0, (await bodyValue(body)).length);
   await page.getByRole('button', { name: 'コード', exact: true }).click();
   await page.getByRole('button', { name: 'プレビュー', exact: true }).click();
   await expect(page.locator('.editor-preview pre code')).toHaveCount(1);
