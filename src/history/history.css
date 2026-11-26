@@ -86,8 +86,11 @@
   font-size: 14px;
 }
 .history-day h2 {
+  /* 原則5: 日付は本文より太い区切りとして読む（YouTube の履歴の見出し）。 */
   margin: 24px 0 4px;
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink-soft, #46525f);
 }
 .history-list {
   margin: 0;
@@ -135,9 +138,13 @@
 .reading-history button.history-remove:not(:disabled):hover {
   background: var(--tint, #f0f3f7);
 }
-.history-empty {
-  margin-top: 24px;
-  color: var(--ink-muted, #636d79);
+.reading-history .history-empty {
+  padding: 32px 0 8px;
+}
+.history-kind {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 6px;
 }
 .history-pages {
   display: flex;

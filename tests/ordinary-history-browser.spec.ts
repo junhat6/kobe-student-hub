@@ -52,7 +52,9 @@ test('logged-in read → private history → single/all delete → collection di
   await expect(
     panel.getByRole('link', { name: '「動いた」で終わらせない、制作ノートの残し方', exact: true }),
   ).toBeVisible();
-  await expect(panel.getByText('記事 · 架空サンプル', { exact: true })).toBeVisible();
+  // polish 原則2: 種類はアイコン（読み上げは「記事」）＋「架空サンプル · 時刻」。
+  await expect(panel.locator('.history-meta').first()).toHaveText(/^記事架空サンプル · \d\d:\d\d$/);
+  await expect(panel.getByTitle('記事', { exact: true }).locator('svg')).toBeVisible();
   // #229: YouTube・Chrome の型 — 日付の見出し、短い「自分だけに表示」、再読み込みは置かない。
   await expect(panel.getByRole('heading', { level: 2, name: '今日', exact: true })).toBeVisible();
   await expect(panel.getByText('自分だけに表示', { exact: true })).toBeVisible();
@@ -77,13 +79,18 @@ test('logged-in read → private history → single/all delete → collection di
     })
     .click();
   await expect(panel.getByText('閲覧履歴はまだありません。', { exact: true })).toBeVisible();
+  // polish 観点11: 空のときは芽と、次の一手の「記事・作品を探す」。
+  await expect(panel.getByRole('link', { name: '記事・作品を探す', exact: true })).toHaveAttribute(
+    'href',
+    '/search',
+  );
   await expect(panel.getByRole('button', { name: '次の20件', exact: true })).toHaveCount(0);
   saved = recorded(page);
   await page.goto('/projects/tiny-notes');
   expect(await (await saved).json()).toEqual({ recorded: true });
   await accountMenu(page, '閲覧履歴');
   await expect(panel.getByRole('link', { name: 'ひとこと制作ノート', exact: true })).toBeVisible();
-  await expect(panel.getByText('作品 · 架空サンプル', { exact: true })).toBeVisible();
+  await expect(panel.locator('.history-meta').first()).toHaveText(/^作品架空サンプル · \d\d:\d\d$/);
   await panel.getByRole('switch', { name: '履歴を残す', exact: true }).uncheck();
   await expect(panel.getByRole('status')).toContainText('これからの履歴の記録を停止しました');
   // 原則6: 成功は読み上げだけ。見える文字は失敗のときだけ。
@@ -200,7 +207,7 @@ test('history next/previous controls retain the requested page with bounded synt
   await expect(page.getByText('ログインしています。', { exact: true })).toHaveCount(1);
   await expect(page.locator('main')).not.toContainText('年度');
   await expect(panel.getByRole('button', { name: '前の20件', exact: true })).toBeDisabled();
-  await expect(panel.getByText('記事 · 架空サンプル', { exact: true })).toHaveCount(0);
+  await expect(panel.locator('.history-meta', { hasText: '架空サンプル' })).toHaveCount(0);
   await panel.getByRole('button', { name: '次の20件', exact: true }).click();
   await expect(panel.getByRole('link', { name: '架空の履歴 20', exact: true })).toBeVisible();
   await expect(panel.getByRole('link', { name: '架空の履歴 0', exact: true })).toHaveCount(0);

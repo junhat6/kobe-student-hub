@@ -9,6 +9,7 @@ import '../account/account.css';
 import './history.css';
 import Breadcrumbs, { MY_PAGE_TRAIL } from '../shell/Breadcrumbs';
 import LoadingSkeleton from '../shared/LoadingSkeleton';
+import EmptySprout from '../shared/EmptySprout';
 
 const PAGE = 20;
 /** Show the cap only once the owner's total is this close to it (YouTube・Chrome never mention one). */
@@ -185,12 +186,18 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
                         )}
                       </h3>
                       {/* 型: YouTube の履歴 — タイトルの下に種類と時刻を1行で。 */}
+                      {/* 原則2: 種類はマイページと同じアイコン（記事＝doc、作品＝cube）、読み上げは文字で。 */}
                       <p className="history-meta">
-                        <span>
-                          {entry.kind === 'article' ? '記事' : '作品'}
-                          {entry.isSample === true && ' · 架空サンプル'}
+                        <span
+                          className="history-kind"
+                          title={entry.kind === 'article' ? '記事' : '作品'}
+                        >
+                          <Icon name={entry.kind === 'article' ? 'doc' : 'cube'} size={14} />
+                          <span className="sr-only">
+                            {entry.kind === 'article' ? '記事' : '作品'}
+                          </span>
                         </span>
-                        {' · '}
+                        {entry.isSample === true && '架空サンプル · '}
                         <time dateTime={new Date(entry.lastViewedAt).toISOString()}>
                           {new Date(entry.lastViewedAt).toLocaleTimeString('ja-JP', {
                             hour: '2-digit',
@@ -213,7 +220,14 @@ function OwnHistory({ csrfToken, fetcher }: { csrfToken: string; fetcher: typeof
             </section>
           ))
         ) : (
-          <p className="history-empty">閲覧履歴はまだありません。</p>
+          // 観点11・原則5: 空のときは芽と、履歴が育つ次の一手（探す）だけを出す。
+          <div className="empty history-empty">
+            <EmptySprout />
+            <p>閲覧履歴はまだありません。</p>
+            <Link className="primary" to="/search">
+              記事・作品を探す
+            </Link>
+          </div>
         )
       ) : (
         !failed && <LoadingSkeleton shape="rows" label="履歴を読み込んでいます…" />
