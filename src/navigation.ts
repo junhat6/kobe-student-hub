@@ -14,11 +14,9 @@ function canonicalList(value: unknown, profiles: boolean): string | null {
     const allowed =
       url.pathname === '/' || url.pathname === '/search'
         ? ['q', 'tag', 'kind']
-        : url.pathname === '/study/cards'
-          ? ['variant']
-          : profiles && /^\/students\/[a-zA-Z0-9_-]+$/.test(url.pathname)
-            ? ['from']
-            : null;
+        : profiles && /^\/students\/[a-zA-Z0-9_-]+$/.test(url.pathname)
+          ? ['from']
+          : null;
     if (!allowed) return null;
     const params = new URLSearchParams();
     for (const key of allowed) {

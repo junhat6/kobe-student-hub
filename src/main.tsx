@@ -225,8 +225,6 @@ function App() {
           <div role="status" className="shell empty">
             記事・作品を読み込んでいます…
           </div>
-        ) : location.pathname === '/study/cards' ? (
-          <CardStudy catalog={catalog} />
         ) : location.pathname.startsWith('/articles/') ||
           location.pathname.startsWith('/projects/') ? (
           <Detail catalog={catalog} />
@@ -307,15 +305,7 @@ function Author({ profile, entryId }: { profile: Profile | undefined; entryId?: 
     </Link>
   ) : null;
 }
-function Card({
-  entry: e,
-  profiles,
-  readerContext = false,
-}: {
-  entry: Entry;
-  profiles: Profile[];
-  readerContext?: boolean;
-}) {
+function Card({ entry: e, profiles }: { entry: Entry; profiles: Profile[] }) {
   const location = useLocation();
   const listing = safeListPath(location.pathname + location.search);
   const from = listing ?? safeListPath(new URLSearchParams(location.search).get('from'));
@@ -362,14 +352,6 @@ function Card({
           />
         </h3>
         <p>{e.summary}</p>
-        {readerContext && (
-          <dl className="card-reader-context">
-            <dt>読む前に知っておくこと</dt>
-            <dd>{e.prerequisite}</dd>
-            <dt>読んだあとにわかること</dt>
-            <dd>{e.outcome}</dd>
-          </dl>
-        )}
         <div className="tags">
           {e.tags.map((t) => (
             <Link key={t} to={`/search?tag=${encodeURIComponent(t)}`}>
@@ -817,11 +799,6 @@ function About() {
       <p>
         学校Google認証のサーバー側検証、本人と運営の権限、非公開データの保護、通報対応、問い合わせ先などを整備し、少人数の学生による試用を行います。AIの動作確認だけで、学生にとって役立つと判断しません。
       </p>
-      <h2>比較の準備</h2>
-      <p>
-        <Link to="/study/cards">記事カードの比較プロトタイプを見る →</Link>
-        。同じサンプルで情報の見せ方を比べるための準備用です。学生による価値検証はまだ行っていません。
-      </p>
       <h2>開発状況を確認する</h2>
       <p>
         <a href="https://github.com/junhat6/kobe-student-hub" rel="noopener noreferrer">
@@ -833,47 +810,6 @@ function About() {
         <Link to="/">記事・作品を見てみる →</Link>
       </p>
     </article>
-  );
-}
-
-function CardStudy({ catalog }: { catalog: Catalog }) {
-  const [params, setParams] = useSearchParams();
-  const variant = params.get('variant') === 'b' ? 'b' : 'a';
-  const entries = searchCatalog(catalog, '', 'article');
-  return (
-    <section className="shell study-page">
-      <Link className="back" to="/about">
-        ← プレビューについて
-      </Link>
-      <p className="kicker">DISCOVERY STUDY / PREPARATION ONLY</p>
-      <h1>自分に合いそうな記事を、選ぶ。</h1>
-      <p className="study-intro">
-        同じ記事を、2種類のカードで表示する比較用プロトタイプです。どちらが選びやすいかは未検証です。実際の学生による試用はまだ行っていません。
-      </p>
-      <div className="study-controls" aria-label="比較するカード">
-        <Button aria-pressed={variant === 'a'} onClick={() => setParams({ variant: 'a' })}>
-          カードA
-        </Button>
-        <Button aria-pressed={variant === 'b'} onClick={() => setParams({ variant: 'b' })}>
-          カードB
-        </Button>
-      </div>
-      <p role="status" className="study-status">
-        現在：カード{variant.toUpperCase()} · {entries.length}件 · 同じ内容・同じ順番
-      </p>
-      <p className="study-prompt">
-        いまの自分が読んでみたい記事を1つ選び、選んだ理由を考えてみてください。記事を読んだら、ブラウザの「戻る」でここへ戻れます。
-      </p>
-      <h2 className="sr-only">記事の候補</h2>
-      <div className="cards">
-        {entries.map((e) => (
-          <Card key={e.id} entry={e} profiles={catalog.profiles} readerContext={variant === 'b'} />
-        ))}
-      </div>
-      <p className="study-privacy">
-        この比較のための回答収集や選択イベント送信、閲覧履歴保存は実装していません。通常のページ読み込みに必要な通信は行います。記事本文はすべて架空のサンプルです。比較の進め方はリポジトリの検証計画に記録しています。
-      </p>
-    </section>
   );
 }
 

@@ -80,7 +80,7 @@ test('new tab and reload carry filters through the URL, direct links safely defa
   await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
   await expect(page.getByRole('article')).toHaveCount(4);
 });
-test('project and comparison list keep their existing list state', async ({ page }) => {
+test('project list keeps its existing list state', async ({ page }) => {
   await page.goto('/?kind=project');
   await page
     .getByRole('heading', { name: 'ひとこと制作ノート', exact: true })
@@ -92,14 +92,6 @@ test('project and comparison list keep their existing list state', async ({ page
     'aria-pressed',
     'true',
   );
-  await page.goto('/study/cards?variant=b');
-  await page.getByRole('heading', { name: title }).getByRole('link').click();
-  await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'カードB' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await expect(page.locator('.card-reader-context')).toHaveCount(3);
 });
 test('related content inherits only a real list snapshot, never article scroll', async ({
   page,

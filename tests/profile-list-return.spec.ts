@@ -2,10 +2,8 @@ import { test, expect } from '@playwright/test';
 const title = 'commitの次に知りたい、ブランチの考え方';
 const list = '/search?q=Git&tag=Git&kind=article';
 const author = (page: import('@playwright/test').Page) => page.locator('.detail-author .author');
-test('root, search and comparison lists retain their context through article and profile', async ({
-  page,
-}) => {
-  for (const start of ['/?tag=Git&kind=article', list, '/study/cards?variant=b']) {
+test('root and search lists retain their context through article and profile', async ({ page }) => {
+  for (const start of ['/?tag=Git&kind=article', list]) {
     await page.goto(start);
     await page.getByRole('heading', { name: title, exact: true }).getByRole('link').click();
     await author(page).click();
@@ -16,12 +14,7 @@ test('root, search and comparison lists retain their context through article and
     );
     await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
     await expect(page).toHaveURL(new RegExp(start.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
-    if (start.startsWith('/study'))
-      await expect(page.getByRole('button', { name: 'カードB', exact: true })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      );
-    else await expect(page.getByRole('article')).toHaveCount(1);
+    await expect(page.getByRole('article')).toHaveCount(1);
   }
   await page.goto(list);
   await page.locator('.card .author').click();

@@ -10,8 +10,8 @@ describe('public list return targets', () => {
     expect(safeListPath(target)).toBe(target);
     expect(safeListPath('/search?q=' + 'あ'.repeat(1000))).toBeNull();
   });
-  it('supports study variant and public profile lists', () => {
-    expect(safeListPath('/study/cards?variant=b&extra=x')).toBe('/study/cards?variant=b');
+  it('supports public profile lists and no longer accepts the retired card study', () => {
+    expect(safeListPath('/study/cards?variant=b')).toBeNull();
     expect(safeListPath('/students/sample-a')).toBe('/students/sample-a');
   });
   it('rejects external, ambiguous and non-list targets', () => {

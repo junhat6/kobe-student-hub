@@ -11,8 +11,8 @@ async function localShot(locator: Locator, project: string, name: string) {
 }
 const title = 'commitの次に知りたい、ブランチの考え方',
   otherTitle = '「動いた」で終わらせない、制作ノートの残し方',
-  list = '/study/cards?variant=a';
-test('independent study A author card keeps separate profile and original list origins without inventing direct-link positions', async ({
+  list = '/search?kind=article';
+test('independent article list author card keeps separate profile and original list origins without inventing direct-link positions', async ({
   page,
 }, info) => {
   await page.goto(list);
@@ -27,7 +27,7 @@ test('independent study A author card keeps separate profile and original list o
   );
   const other = page.getByRole('heading', { name: otherTitle, exact: true }).getByRole('link');
   await other.scrollIntoViewIfNeeded();
-  await localShot(page.locator('.profile-page'), info.project.name, '01-study-origin-profile.png');
+  await localShot(page.locator('.profile-page'), info.project.name, '01-list-origin-profile.png');
   await other.scrollIntoViewIfNeeded();
   const profileY = await page.evaluate(() => scrollY);
   await other.click();
@@ -40,13 +40,13 @@ test('independent study A author card keeps separate profile and original list o
     list,
   );
   await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'カードA', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: '記事', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
   await expect(source).toBeFocused();
   expect(Math.abs((await page.evaluate(() => scrollY)) - outerY)).toBeLessThan(4);
-  await localShot(sourceCard, info.project.name, '02-original-study-card-restored.png');
+  await localShot(sourceCard, info.project.name, '02-original-list-card-restored.png');
   const wrapped = '/students/sample-a?from=' + encodeURIComponent(list);
   await page.goto('/articles/git-branches?from=' + encodeURIComponent(wrapped));
   await page.locator('.detail-author .author').click();
@@ -57,7 +57,7 @@ test('independent study A author card keeps separate profile and original list o
   await page.getByRole('link', { name: '← 一覧へ', exact: true }).click();
   await expect(page.locator('#main')).toBeFocused();
   expect(await page.evaluate(() => scrollY)).toBe(0);
-  await expect(page.getByRole('button', { name: 'カードA', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('button', { name: '記事', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
