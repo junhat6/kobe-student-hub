@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 export type CardArtInput = { kind: 'article' | 'project'; id: string; tag?: string };
 
 /** FNV-1a over the id: a stable seed for the pattern and its offsets. */
-export function cardArtSeed(id: string) {
+function cardArtSeed(id: string) {
   let hash = 0x811c9dc5;
   for (const char of id) {
     hash ^= char.codePointAt(0)!;

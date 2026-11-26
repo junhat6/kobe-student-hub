@@ -112,7 +112,7 @@ export type BoundedImageBody =
 /** Transport work bound of an image upload, including zero-byte chunks. */
 export const IMAGE_BODY_MAX_CHUNKS = 4096;
 /** Whole-read deadline of an image upload; a slow body answers 408. */
-export const IMAGE_BODY_TIMEOUT_MS = 5000;
+const IMAGE_BODY_TIMEOUT_MS = 5000;
 
 /**
  * Reads an image upload body (the one copy for /api/private/media and the profile icon, #295).

@@ -7,7 +7,7 @@ import type { PublicAuthorCard } from '../src/public-student-types';
  * One more than the card shows, so the page can drop the article or project being read and still
  * list three of the author's other works without a second request.
  */
-export const AUTHOR_CARD_RECENT = 4;
+const AUTHOR_CARD_RECENT = 4;
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 
 /**
