@@ -16,6 +16,7 @@ import {
 } from '../src/shared/media';
 import {
   MEDIA_AUDIT_SQL,
+  formatMediaAudit,
   parseMediaAudit,
   // @ts-expect-error plain ESM script without type declarations
 } from '../scripts/loop/media-audit.mjs';
@@ -1394,7 +1395,8 @@ describe('media object audit', () => {
         owner_account_id: string;
         article_draft_id: string;
       }>())!;
-  const ok = { pending: 0, missing: 0, mismatched: 0, complete: true };
+  // With a bucket every upload keeps no payload in D1, so no row retains its bytes there (#305).
+  const ok = { pending: 0, missing: 0, mismatched: 0, complete: true, retained: 0 };
   const images: string[] = [];
   let d: PrivateDraft;
 
@@ -1460,7 +1462,16 @@ describe('media object audit', () => {
       legacy = id();
     await legacyCopy(db, images[2], { id: legacy, at: NOW });
     const { text, value } = await audit();
-    expect(value).toEqual({ total: 4, checked: 3, ...ok, pending: 1, missing: 1, mismatched: 1 });
+    // The legacy row keeps its bytes only in D1: pending and retained (#305).
+    expect(value).toEqual({
+      total: 4,
+      checked: 3,
+      ...ok,
+      pending: 1,
+      missing: 1,
+      mismatched: 1,
+      retained: 1,
+    });
     const canaries = [legacy, ...images];
     for (const image of [legacy, ...images]) {
       const r = await row(image);
@@ -1480,6 +1491,7 @@ describe('media object audit', () => {
       'mismatched',
       'missing',
       'pending',
+      'retained',
       'total',
     ]);
   });
@@ -1775,6 +1787,7 @@ describe('media size column', () => {
       missing: 0,
       mismatched: 0,
       complete: true,
+      retained: 0,
     });
   });
   it('counts the owner quota from the size column in the Worker check and the trigger', async () => {
@@ -2260,22 +2273,27 @@ describe('the cron erases a D1 payload only after R2 holds the same bytes (#12)'
         )
         .bind(...ids, source)
         .first<{ n: number }>())!.n;
-    // The release train reads the erase progress with the audit SQL (#12): rows still holding a
-    // payload, counted when the SELECT runs, over the whole table.
-    expect(
-      await mf.dispatchFetch(O + '/fixture/audit-if-due', {
-        headers: { 'X-Test-Now': String(NOW) },
-      }),
-    ).toHaveProperty('status', 200);
+    // The release train reads the erase progress from the audit row (#12, #305): the cron counts the
+    // rows still holding a payload, over the whole table, at the time of the audit.
+    let at = NOW;
     const retained = async () => {
+      at += 60 * 60 * 1000;
+      expect(
+        await (
+          await mf.dispatchFetch(O + '/fixture/audit-if-due', {
+            headers: { 'X-Test-Now': String(at) },
+          })
+        ).json(),
+      ).toBe(true);
       const audit = parseMediaAudit([await db.prepare(MEDIA_AUDIT_SQL).all()]);
       const all = (await db
         .prepare('SELECT COUNT(*) n FROM media_assets WHERE payload IS NOT NULL')
         .first<{ n: number }>())!.n;
-      expect(audit.retained).toBe(all);
+      expect(audit).toMatchObject({ measuredAt: new Date(at).toISOString(), retained: all });
       return all;
     };
     const before = await retained();
+    expect(before).toBeGreaterThanOrEqual(11);
     // Eleven rows wait; one run erases a batch of 8, the next the rest, then nothing.
     expect(await run(ids[4])).toMatchObject({ copied: 1, erased: 8 });
     expect(await left()).toBe(3);
@@ -2577,5 +2595,57 @@ describe('protected publication tables refuse INSERT OR REPLACE (#265)', () => {
     );
     expect((await publicRead(a1.image)).status).toBe(200);
     expect((await publicRead(p1.image)).status).toBe(200);
+  });
+});
+
+describe('the audit before migration 0054 (no retained column, #305)', () => {
+  beforeAll(() => boot(true, '0054'));
+  afterAll(async () => {
+    await mf?.dispose();
+  });
+  it('still records the counts, and a row without the count reads as unmeasured after 0054', async () => {
+    const db = await mf.getD1Database('DB'),
+      d = await draft();
+    expect((await upload(d, id(), png, 0, { 'X-Test-Previous-Worker': '1' })).status).toBe(201);
+    const due = async (at: number) =>
+      (await (
+        await mf.dispatchFetch(O + '/fixture/audit-if-due', {
+          headers: { 'X-Test-Now': String(at) },
+        })
+      ).json()) as boolean;
+    expect(await due(NOW)).toBe(true);
+    expect(
+      await db.prepare('SELECT total,pending,checked,complete FROM media_object_audits').all(),
+    ).toMatchObject({ results: [{ total: 1, pending: 1, checked: 0, complete: 1 }] });
+    // 0054 keeps the earlier row as it is (NULL), and the release train reads it as unmeasured.
+    for (const sql of readFileSync('migrations/0054_media_audit_retained.sql', 'utf8')
+      .replace(/^--.*$/gm, '')
+      .split(/;\s*(?:\n|$)/)
+      .map((part) => part.trim())
+      .filter(Boolean))
+      await db.prepare(sql).run();
+    const old = parseMediaAudit([await db.prepare(MEDIA_AUDIT_SQL).all()]);
+    expect(old).toMatchObject({ total: 1, retained: null });
+    expect(formatMediaAudit(old)).toContain('D1 に本体が残る行 未計測');
+    // The next audit counts the payload still in D1, and the column refuses a count above total.
+    expect(await due(NOW + 60 * 60 * 1000)).toBe(true);
+    expect(parseMediaAudit([await db.prepare(MEDIA_AUDIT_SQL).all()])).toMatchObject({
+      total: 1,
+      retained: 1,
+    });
+    await expect(
+      db
+        .prepare(
+          'INSERT INTO media_object_audits(measured_at_ms,total,pending,checked,missing,mismatched,complete,retained) VALUES(1,1,0,0,0,0,1,2)',
+        )
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO media_object_audits(measured_at_ms,total,pending,checked,missing,mismatched,complete,retained) VALUES(2,1,0,0,0,0,1,'x')",
+        )
+        .run(),
+    ).rejects.toThrow();
   });
 });

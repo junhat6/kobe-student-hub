@@ -279,6 +279,8 @@ type MediaObjectAudit = {
   mismatched: number;
   /** True when every copied row was checked (the run was not cut at AUDIT_LIMIT). */
   complete: boolean;
+  /** Rows whose bytes are still kept in D1 (payload IS NOT NULL), the erase progress of #12. */
+  retained: number;
 };
 
 const AUDIT_LIMIT = 500;
@@ -298,13 +300,16 @@ export async function auditMediaObjects(
   bucket: R2Bucket,
   limit = AUDIT_LIMIT,
 ): Promise<MediaObjectAudit> {
+  // One statement, so retained never exceeds total. typeof() reads only the type of the value, never
+  // the BLOB's overflow pages (#305).
   const counts = await db
     .prepare(
-      'SELECT COUNT(*) total, COALESCE(SUM(object_stored_at_ms IS NULL),0) pending FROM media_assets',
+      "SELECT COUNT(*) total, COALESCE(SUM(object_stored_at_ms IS NULL),0) pending, COALESCE(SUM(typeof(payload)<>'null'),0) retained FROM media_assets",
     )
-    .first<{ total: number; pending: number }>();
+    .first<{ total: number; pending: number; retained: number }>();
   const total = counts?.total ?? 0,
-    pending = counts?.pending ?? 0;
+    pending = counts?.pending ?? 0,
+    retained = counts?.retained ?? 0;
   const rows = (
     await db
       .prepare(
@@ -345,35 +350,53 @@ export async function auditMediaObjects(
     missing,
     mismatched,
     complete: rows.length === total - pending,
+    retained,
   };
 }
 
-/** Stores the counts of one audit and keeps only the latest AUDITS_KEPT rows. */
+/**
+ * Stores the counts of one audit and keeps only the latest AUDITS_KEPT rows. A database before
+ * migration 0054 has no retained column: the counts are then stored without it (the previous shape).
+ */
 async function recordMediaAudit(
   db: D1Database,
   audit: MediaObjectAudit,
   now: number,
 ): Promise<void> {
-  await db.batch([
-    db
-      .prepare(
-        'INSERT OR REPLACE INTO media_object_audits(measured_at_ms,total,pending,checked,missing,mismatched,complete) VALUES(?,?,?,?,?,?,?)',
-      )
-      .bind(
-        now,
-        audit.total,
-        audit.pending,
-        audit.checked,
-        audit.missing,
-        audit.mismatched,
-        audit.complete ? 1 : 0,
-      ),
-    db
-      .prepare(
-        'DELETE FROM media_object_audits WHERE measured_at_ms NOT IN (SELECT measured_at_ms FROM media_object_audits ORDER BY measured_at_ms DESC LIMIT ?)',
-      )
-      .bind(AUDITS_KEPT),
-  ]);
+  const counts = [
+    now,
+    audit.total,
+    audit.pending,
+    audit.checked,
+    audit.missing,
+    audit.mismatched,
+    audit.complete ? 1 : 0,
+  ];
+  const prune = db
+    .prepare(
+      'DELETE FROM media_object_audits WHERE measured_at_ms NOT IN (SELECT measured_at_ms FROM media_object_audits ORDER BY measured_at_ms DESC LIMIT ?)',
+    )
+    .bind(AUDITS_KEPT);
+  try {
+    await db.batch([
+      db
+        .prepare(
+          'INSERT OR REPLACE INTO media_object_audits(measured_at_ms,total,pending,checked,missing,mismatched,complete,retained) VALUES(?,?,?,?,?,?,?,?)',
+        )
+        .bind(...counts, audit.retained),
+      prune,
+    ]);
+  } catch (error) {
+    if (!/no column named retained|no such column: retained/.test(String(error))) throw error;
+    await db.batch([
+      db
+        .prepare(
+          'INSERT OR REPLACE INTO media_object_audits(measured_at_ms,total,pending,checked,missing,mismatched,complete) VALUES(?,?,?,?,?,?,?)',
+        )
+        .bind(...counts),
+      prune,
+    ]);
+  }
 }
 
 /** Scheduled entry: audits at most once per AUDIT_INTERVAL_MS. Failures are retried next run. */

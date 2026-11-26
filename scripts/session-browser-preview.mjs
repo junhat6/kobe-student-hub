@@ -266,6 +266,7 @@ for (const f of [
   '0051_agent_project_draft_origins.sql',
   '0052_profile_links.sql',
   '0053_card_images.sql',
+  '0054_media_audit_retained.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')
