@@ -394,9 +394,9 @@
       ],
       "journey": "J2",
       "risk": "R1",
-      "status": "unverified",
+      "status": "pass",
       "production": "closed",
-      "evidence": "2026-11-27 オーナーの UX フィードバック（DECISIONS 2026-11-27）で replan が足した。 Issue #306。"
+      "evidence": "2026-11-27 オーナーの UX フィードバック（DECISIONS 2026-11-27）で replan が足した。 Issue #306。 9902d5f（finish run-286、Closes #306）で main に実装：条件1 tests/editor-codemirror.spec.ts（保存済み下書きの開閉で本文・版が不変、（写真：…）（AIメモ：…）埋め込み行・CRLF を含む）と ordinary-autosave-browser の #306 spec（開くだけでは PATCH 0）、条件2 同 spec（箇条書き・番号・引用の継続と空項目、取り消し・やり直し、Ctrl/Cmd+B、アイコンのツールバー5つと aria-label）、条件3 同 spec と #306 autosave spec（composition 中はツールバー・ショートカット・自動保存が止まる）、条件4 既存の editor 235 passed・test:auth-browser（自動保存と別ブラウザ再開・保存失敗・埋め込み貼り付け・画像と写真マーカー・AIメモ・プレビュー切替・容量警告）・axe・390 横スクロールなし、条件5 build で BodyEditor-*.js が別 chunk（index.html の初期 JS に含まれない）、DESIGN.md に依存ライセンス。実機の日本語入力は合否外で、本番後にオーナーが #306 に書く。本番は次の release 便から。"
     },
     {
       "id": "C26",
