@@ -575,6 +575,11 @@ test('the public card shows the first body image, the owner picks another, and t
   await expect(composer.getByRole('link', { name: 'ログインなしの読者画面を開く' })).toBeVisible();
   const chooser = page.getByRole('group', { name: 'カードに出す画像', exact: true });
   await expect(chooser.getByRole('radio', { name: /既定/ })).toBeChecked();
+  // #319: the default shows the picture the card gets (the first image), with no explanation.
+  await expect(
+    chooser.locator('.card-image-option', { hasText: '既定' }).locator('img.content-image'),
+  ).toBeVisible();
+  await expect(chooser).not.toContainText('選べます');
   const guest = await browser.newContext({
     baseURL: O,
     ignoreHTTPSErrors: true,
@@ -608,11 +613,15 @@ test('the public card shows the first body image, the owner picks another, and t
     expect((await saved).status()).toBe(200);
     await expect(chooser.getByRole('radio', { name: '2枚目の画像' })).toBeChecked();
     await expect(chooser.getByRole('status')).toHaveText('カードに出す画像を保存しました。');
+    // The success is a check mark; its words are only for screen readers (#319).
+    await expect(chooser.getByRole('status').locator('svg')).toBeVisible();
+    await expect(chooser.getByRole('status').locator('span')).toHaveClass('sr-only');
     expect(await new AxeBuilder({ page }).include('.card-image-chooser').analyze()).toHaveProperty(
       'violations',
       [],
     );
     await page.screenshot({ path: info.outputPath('card-image-chooser.png'), fullPage: true });
+    await chooser.screenshot({ path: info.outputPath('card-image-chooser-detail.png') });
     await reader.reload();
     await expect(cardImage).toHaveAttribute('src', '/api/media/' + second.id);
     await cardImage.scrollIntoViewIfNeeded();

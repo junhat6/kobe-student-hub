@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import { createCardImageClient } from './card-image-client';
+import Icon from '../shared/Icon';
 import PrivateImage from './PrivateImage';
 import './media.css';
 
@@ -9,6 +10,9 @@ import './media.css';
  * it to the default (the first image in the body). Only images this saved version refers to are
  * offered; the card shows the choice once it is in the public version, and falls back to the
  * default when the image leaves it. Each change is saved at once; nothing here uploads.
+ * #319: every option shows the picture the card would get (the default shows the first image), so
+ * no explanation is needed; a saved choice is a check mark with its words for screen readers, and
+ * only a failure stays as visible words.
  */
 export default function CardImageChooser({
   kind,
@@ -27,7 +31,7 @@ export default function CardImageChooser({
   const ids = referencedMediaIds(body).slice(0, MEDIA_PER_DRAFT);
   const [choice, setChoice] = useState<string | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -43,18 +47,20 @@ export default function CardImageChooser({
     return () => controller.abort();
   }, [client, kind, draftId, attempt]);
   if (!ids.length) return null;
-  const name = kind === 'articles' ? '記事' : '作品';
   const where = kind === 'articles' ? '本文' : '説明';
   const pick = async (next: string | null) => {
     if (busy || next === choice) return;
     setBusy(true);
-    setMessage('');
+    setMessage(null);
     try {
       const saved = await client.choose(kind, draftId, next);
       setChoice(saved.mediaId);
-      setMessage(saved.mediaId ? 'カードに出す画像を保存しました。' : '既定に戻しました。');
+      setMessage({
+        text: saved.mediaId ? 'カードに出す画像を保存しました。' : '既定に戻しました。',
+        ok: true,
+      });
     } catch {
-      setMessage('保存できませんでした。時間をおいてもう一度選んでください。');
+      setMessage({ text: '保存できませんでした。時間をおいてもう一度選んでください。', ok: false });
     } finally {
       setBusy(false);
     }
@@ -65,11 +71,6 @@ export default function CardImageChooser({
   return (
     <fieldset className="card-image-chooser" disabled={busy || (choice === undefined && !failed)}>
       <legend>カードに出す画像</legend>
-      <p>
-        トップや検索の{name}カードに出す画像を、{where}
-        に入れた画像から1枚選べます。選ばないときは{where}の最初の画像が出ます。公開中の{where}
-        にある画像だけがカードに出ます。
-      </p>
       {failed ? (
         <p role="alert">
           いまの選択を確認できませんでした。
@@ -86,7 +87,10 @@ export default function CardImageChooser({
               checked={checked(null)}
               onChange={() => void pick(null)}
             />
-            <span>既定（{where}の最初の画像）</span>
+            <span>
+              既定<span className="sr-only">（{where}の最初の画像）</span>
+            </span>
+            <PrivateImage id={ids[0]} alt="" fetcher={fetcher} scopeKey={csrfToken} />
           </label>
           {ids.map((id, index) => (
             <label className="card-image-option" key={id}>
@@ -108,8 +112,15 @@ export default function CardImageChooser({
         </div>
       )}
       {missing && <p>選んでいた画像はいまの{where}に無いため、カードには既定の画像が出ます。</p>}
-      <p role="status" aria-live="polite">
-        {message}
+      <p
+        className={
+          'card-image-status' + (message && !message.ok ? ' card-image-status--error' : '')
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {message?.ok && <Icon name="check" size={18} />}
+        <span className={message?.ok ? 'sr-only' : undefined}>{message?.text}</span>
       </p>
     </fieldset>
   );
