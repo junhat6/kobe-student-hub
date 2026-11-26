@@ -105,7 +105,9 @@ test('undo and redo, Ctrl/Cmd+B and the icon toolbar act on the body', async ({ 
   await page.keyboard.type('と続き');
   await page.keyboard.press('ControlOrMeta+z');
   await expectBody(body(page), '最初の文');
-  await page.keyboard.press('ControlOrMeta+Shift+z');
+  // KeyZ, not "z": with Shift held a real keyboard sends key "Z". "Shift+z" sends key "z", which
+  // CodeMirror reads as Ctrl-z (undo) on Linux, so the redo check failed only in CI (rc/5a8d172).
+  await page.keyboard.press('ControlOrMeta+Shift+KeyZ');
   await expectBody(body(page), '最初の文と続き');
 
   await selectBody(body(page), 0, 4);
