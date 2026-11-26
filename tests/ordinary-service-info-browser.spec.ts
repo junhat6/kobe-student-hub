@@ -126,6 +126,25 @@ test('ordinary guide keeps registration input and publishes only an explicit saf
   await expect(
     guide.getByText('解答の丸写しは掲載しないでください。', { exact: false }),
   ).toBeVisible();
+  // #300: the key points come first; procedural details stay on the page, folded, not removed.
+  const summary = guide.getByRole('region', { name: '要点', exact: true });
+  await expect(summary.getByRole('listitem')).toHaveCount(4);
+  await expect(summary).toContainText('一般に公開しないもの：');
+  await expect(summary).toContainText('閲覧履歴');
+  await expect(summary).toContainText('運営は安全の確保などのために確認することがあります。');
+  await expect(summary.getByRole('link', { name: '問い合わせ', exact: true })).toHaveAttribute(
+    'href',
+    '#contact',
+  );
+  const loginRecords = guide.locator('details', { hasText: 'ログイン記録の詳しい扱い' });
+  const tempRecord = loginRecords.getByText('期限から24時間の猶予後に少量ずつ整理します', {
+    exact: false,
+  });
+  await expect(tempRecord).toBeHidden();
+  await loginRecords.getByText('ログイン記録の詳しい扱い', { exact: true }).click();
+  await expect(tempRecord).toBeVisible();
+  const identity = guide.locator('details', { hasText: '本人確認の詳しい扱い' });
+  await expect(identity).toContainText('メールアドレスや公開URLだけでは本人と判断しません。');
   expect(external).toEqual([]);
   expect(await guide.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   expect(await guide.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

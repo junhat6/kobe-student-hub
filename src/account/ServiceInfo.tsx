@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
 import { createServiceInfoClient } from './service-info-client';
 import { usePublicRead } from '../community/public-read';
+import Icon from '../shared/Icon';
 import './service-info.css';
 
 export default function ServiceInfo() {
@@ -21,6 +22,42 @@ export default function ServiceInfo() {
     <article className="shell about prose service-info">
       <h1>利用ルールと情報の扱い</h1>
       <p>学校の学びや制作を、記事・作品で共有する場所です。学校公式のサービスではありません。</p>
+      <section className="service-info-summary" aria-labelledby="summary">
+        <h2 id="summary">要点</h2>
+        <ul>
+          <li>
+            <Icon name="globe" size={18} />
+            <span>
+              <strong>公開されるもの：</strong>
+              自分で確認したプロフィール、公開した記事・作品と画像、記事へのいいね一覧。
+            </span>
+          </li>
+          <li>
+            <Icon name="lock" size={18} />
+            <span>
+              <strong>一般に公開しないもの：</strong>
+              学校メール、入学・卒業予定年度、下書き、未公開の画像
+              {authoringUiEnabled ? '、閲覧履歴' : ''}
+              。運営は安全の確保などのために確認することがあります。
+            </span>
+          </li>
+          <li>
+            <Icon name="pencil" size={18} />
+            <span>
+              <strong>投稿するとき：</strong>
+              自分の学び・制作を自分で確かめて書く。他の人の個人情報や無断の文章・画像は載せない。
+            </span>
+          </li>
+          <li>
+            <Icon name="alert" size={18} />
+            <span>
+              <strong>困ったとき：</strong>
+              削除・個人情報・運営の判断への相談は<a href="#contact">問い合わせ</a>へ。
+            </span>
+          </li>
+        </ul>
+        <p>以下が正式な内容です。</p>
+      </section>
       <nav className="service-info-links" aria-label="この案内の内容">
         <a href="#rules">利用ルール</a>
         <a href="#privacy">情報の扱い</a>
@@ -49,9 +86,12 @@ export default function ServiceInfo() {
         <p>
           卒業後も公開済みの内容は自動で削除しません。ログインできる間は、本人による年度訂正・下書きの整理・公開停止を続けられます。学校Googleを使えなくなった場合は窓口へ相談してください。本人確認なしに権限を復旧したり、非公開情報を開示したりすることはありません。
         </p>
-        <p>
-          本人の依頼として非公開情報を変更する場合は、有効なログイン中の本人操作か、同じ学校Googleでの再ログインを確認します。確認できない場合は処理を保留し、メールアドレスや公開URLだけでは本人と判断しません。公開済み個人情報の問題は別に内容を確認し、運営が必要な非公開を判断します。
-        </p>
+        <details className="service-info-more">
+          <summary>本人確認の詳しい扱い</summary>
+          <p>
+            本人の依頼として非公開情報を変更する場合は、有効なログイン中の本人操作か、同じ学校Googleでの再ログインを確認します。確認できない場合は処理を保留し、メールアドレスや公開URLだけでは本人と判断しません。公開済み個人情報の問題は別に内容を確認し、運営が必要な非公開を判断します。
+          </p>
+        </details>
       </section>
       <section>
         <h2 id="privacy" tabIndex={-1}>
@@ -74,9 +114,6 @@ export default function ServiceInfo() {
           運営は、サービスの提供・改善と安全の確保（通報や不正への対応を含む）のために、非公開の情報を含む利用者のデータを確認・分析することがあります。外部のAIサービスを使って処理する場合を含みます。非公開の情報を、本人の同意なく公開することはありません。
         </p>
         <p>
-          ログイン用の一時記録は有効期限で利用を拒否し、期限から24時間の猶予後に少量ずつ整理しますが、バックアップを含む消去時刻を保証するものではありません。
-        </p>
-        <p>
           {authoringUiEnabled ? (
             <>
               ログイン中に読んだ記事・作品は、本人だけが見られる<Link to="/history">閲覧履歴</Link>
@@ -90,6 +127,12 @@ export default function ServiceInfo() {
         <p>
           公開停止すると新しい閲覧から外れます。停止はデータ全体の消去や、すでに読者に届いた内容の回収ではありません。
         </p>
+        <details className="service-info-more">
+          <summary>ログイン記録の詳しい扱い</summary>
+          <p>
+            ログイン用の一時記録は有効期限で利用を拒否し、期限から24時間の猶予後に少量ずつ整理しますが、バックアップを含む消去時刻を保証するものではありません。
+          </p>
+        </details>
       </section>
       <section aria-labelledby="disclaimer">
         <h2 id="disclaimer" tabIndex={-1}>
