@@ -124,6 +124,7 @@ describe('public author discovery derived only from eligible published snapshots
         prerequisite: 'prerequisite',
         outcome: 'outcome',
         updatedAt: new Date(NOW).toISOString().slice(0, 10),
+        publishedAt: new Date(NOW).toISOString(),
         minutes: 3,
       },
     ]);
@@ -135,6 +136,7 @@ describe('public author discovery derived only from eligible published snapshots
         'minutes',
         'outcome',
         'prerequisite',
+        'publishedAt',
         'summary',
         'tags',
         'title',

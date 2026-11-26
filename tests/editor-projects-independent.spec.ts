@@ -101,6 +101,7 @@ test('independent project-only author public DTO and delayed private project EOF
       'description',
       'githubUrl',
       'id',
+      'publishedAt',
       'publishedOn',
       'stage',
       'technologies',

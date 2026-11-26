@@ -1,10 +1,11 @@
 import SurfaceLink from '../shared/SurfaceLink';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import type { PublishedArticleSummary, PublicArticleAuthor } from '../types';
-import { formatDate, tagHue } from '../shared/display';
+import { tagHue } from '../shared/display';
 import '../shared/cards.css';
 import { AuthorAvatar } from '../shared/public-avatars';
 import Icon from '../shared/Icon';
+import { PublicTime } from '../shared/PublicTime';
 
 /**
  * Article card. The title stays the only link name for assistive technology;
@@ -60,7 +61,7 @@ export default function PublicArticleCard({
             </span>
           )}
           <span>{entry.minutes}分で読める</span>
-          {compactDate && <time dateTime={entry.updatedAt}>{formatDate(entry.updatedAt)}</time>}
+          {compactDate && <PublicTime day={entry.updatedAt} at={entry.publishedAt} />}
         </div>
         <h3>
           <SurfaceLink surface={surface} className="content-card-link" to={paths.article(entry.id)}>
@@ -127,7 +128,7 @@ export default function PublicArticleCard({
             ) : (
               <span />
             )}
-            <time dateTime={entry.updatedAt}>{formatDate(entry.updatedAt)}</time>
+            <PublicTime day={entry.updatedAt} at={entry.publishedAt} />
           </div>
         )}
       </div>

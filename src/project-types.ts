@@ -25,6 +25,8 @@ export type ProjectDraftSummary = Pick<ProjectDraft, 'id' | 'title' | 'version' 
 export interface PublicProject extends ProjectFields {
   id: string;
   publishedOn: string;
+  /** UTC ISO publish time behind `publishedOn` (#308); an older Worker sends only the day. */
+  publishedAt?: string;
   stage: ProjectStage;
 }
 export interface PublicProjectSummary {
@@ -34,6 +36,8 @@ export interface PublicProjectSummary {
   githubUrl: string;
   demoUrl: string;
   publishedOn: string;
+  /** UTC ISO publish time behind `publishedOn` (#308); an older Worker sends only the day. */
+  publishedAt?: string;
   stage: ProjectStage;
 }
 export interface PublicProjectReader {
@@ -50,6 +54,8 @@ export interface PublicProjectJournalEntry {
   id: string;
   title: string;
   publishedOn: string;
+  /** UTC ISO publish time behind `publishedOn` (#308); an older Worker sends only the day. */
+  publishedAt?: string;
 }
 /** Most journal links one project keeps (also enforced by the 0046 insert trigger). */
 export const PROJECT_JOURNAL_LIMIT = 20;
@@ -76,7 +82,7 @@ export interface ProjectReceipt {
 // Recent cross-author discovery intentionally omits full descriptions, biography and external URLs.
 export type ProjectDiscoverySummary = Pick<
   PublicProjectSummary,
-  'id' | 'title' | 'descriptionPreview' | 'publishedOn'
+  'id' | 'title' | 'descriptionPreview' | 'publishedOn' | 'publishedAt'
 >;
 /** Cross-author card used by home and related reading; it carries no stage. */
 export interface ProjectDiscoveryCard {

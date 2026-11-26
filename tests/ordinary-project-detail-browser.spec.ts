@@ -1,6 +1,6 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
-import { japanDaysSince } from './helpers/japan-day';
+import { japanDayOfIso, japanDaysSince, japanTitle, recentLabel } from './helpers/japan-day';
 
 const testStartedAt = Date.now();
 
@@ -76,10 +76,13 @@ test('project detail shows summary, technologies, author and a consent-gated You
     });
     await reader.goto(projectPath);
     await expect(reader.getByRole('heading', { name: title, exact: true })).toBeVisible();
-    // #142: the public date is the Japan calendar day, printed like the cards (YYYY.MM.DD).
+    // #308: a fresh publication reads relative; #142: its exact time is in the Japan day of the run.
     const publicDate = reader.locator('.detail-author time');
-    await expect(publicDate).toHaveText(/^\d{4}\.\d{2}\.\d{2}$/);
-    expect(japanDaysSince(testStartedAt)).toContain(await publicDate.textContent());
+    await expect(publicDate).toHaveText(recentLabel);
+    await expect(publicDate).toHaveAttribute('title', japanTitle);
+    expect(japanDaysSince(testStartedAt)).toContain(
+      japanDayOfIso(await publicDate.getAttribute('datetime')),
+    );
     await expect(reader.locator('.project-description')).toContainText(
       '授業の課題で作った架空の作品です。',
     );

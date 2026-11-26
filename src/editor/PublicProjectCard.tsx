@@ -2,10 +2,11 @@ import type { ProjectDiscoverySummary, PublicProjectSummary } from '../project-t
 import type { PublicArticleAuthor } from '../types';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import SurfaceLink from '../shared/SurfaceLink';
-import { formatDate, tagHue } from '../shared/display';
+import { tagHue } from '../shared/display';
 import '../shared/cards.css';
 import { AuthorAvatar } from '../shared/public-avatars';
 import ProjectStageMark from '../shared/ProjectStageMark';
+import { PublicTime } from '../shared/PublicTime';
 
 export default function PublicProjectCard({
   project,
@@ -24,7 +25,9 @@ export default function PublicProjectCard({
   // In a profile tab there is no author, so the date moves to the meta line and the footer goes.
   const compactDate = inTypedList && !author;
   const published = (
-    <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)} 公開</time>
+    <span className="public-time">
+      <PublicTime day={project.publishedOn} at={project.publishedAt} /> 公開
+    </span>
   );
   const showMeta =
     !inTypedList ||

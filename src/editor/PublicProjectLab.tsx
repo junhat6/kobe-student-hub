@@ -1,4 +1,3 @@
-import { formatDate } from '../shared/display';
 import ProjectReport from './ProjectReport';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@base-ui/react/button';
@@ -6,6 +5,7 @@ import type { PublicProjectReader } from '../project-types';
 import { createPublicProjectClient } from './public-project-client';
 import { ProjectText } from './ProjectRegistration';
 import './project.css';
+import { PublicTime } from '../shared/PublicTime';
 export default function PublicProjectLab({ projectId }: { projectId: string }) {
   const client = useMemo(() => createPublicProjectClient(), []);
   const [state, setState] = useState<{
@@ -51,10 +51,7 @@ export default function PublicProjectLab({ projectId }: { projectId: string }) {
         ) : (
           <>
             <p>
-              作品 ·{' '}
-              <time dateTime={value.project.publishedOn}>
-                {formatDate(value.project.publishedOn)}
-              </time>{' '}
+              作品 · <PublicTime day={value.project.publishedOn} at={value.project.publishedAt} />{' '}
               公開
             </p>
             <h1>{value.project.title}</h1>

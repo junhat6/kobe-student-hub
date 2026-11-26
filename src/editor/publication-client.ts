@@ -4,6 +4,7 @@ import { validMediaIds } from '../shared/media';
 import type { Entry, Profile, PublishedArticleDetail } from '../types';
 import type { EditorDraft } from './draft-client';
 import type { PublicProfile } from './profile-client';
+import { publicMomentKeys } from '../shared/display';
 export interface PublicationMetadata {
   summary: string;
   tags: string[];
@@ -87,7 +88,7 @@ export function checkedMetadata(v: unknown): PublicationMetadata | null {
 }
 function publicationDates(v: unknown, updatedAt: unknown): boolean {
   return (
-    keys(v, ['publishedOn', 'revised']) &&
+    publicMomentKeys(v, ['publishedOn', 'revised'], 'publishedOn') &&
     typeof v.publishedOn === 'string' &&
     /^\d{4}-\d{2}-\d{2}$/.test(v.publishedOn) &&
     typeof updatedAt === 'string' &&
@@ -104,21 +105,25 @@ function article(v: unknown): v is PublishedArticleDetail {
         v.entry !== null &&
         publicationDates(v.publication, (v.entry as Record<string, unknown>).updatedAt))
     ) ||
-    !keys(v.entry, [
-      'id',
-      'kind',
-      'title',
-      'summary',
-      'body',
-      'tags',
-      'authorId',
-      'audience',
-      'prerequisite',
-      'outcome',
+    !publicMomentKeys(
+      v.entry,
+      [
+        'id',
+        'kind',
+        'title',
+        'summary',
+        'body',
+        'tags',
+        'authorId',
+        'audience',
+        'prerequisite',
+        'outcome',
+        'updatedAt',
+        'minutes',
+        'relatedIds',
+      ],
       'updatedAt',
-      'minutes',
-      'relatedIds',
-    ]) ||
+    ) ||
     !keys(v.author, ['id', 'name', 'department', 'year', 'bio', 'initials'])
   )
     return false;

@@ -141,6 +141,7 @@ test('independent hidden article leaves public likes but accepted own like remai
         'minutes',
         'outcome',
         'prerequisite',
+        'publishedAt',
         'summary',
         'tags',
         'title',

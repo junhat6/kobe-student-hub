@@ -1,0 +1,4 @@
+/* Relative times (たった今・3時間前) are Japanese text and could break mid-word, unlike a date (#308). */
+.public-time {
+  white-space: nowrap;
+}

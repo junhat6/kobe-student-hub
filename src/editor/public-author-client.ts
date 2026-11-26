@@ -2,6 +2,7 @@ import { publicPaths, type PublicSurface } from '../shared/public-paths';
 import { readAnonymousJson } from './anonymous-public-read';
 import type { PublicAuthorArticles } from '../types';
 import { canonicalTags } from './publication-client';
+import { publicMomentKeys } from '../shared/display';
 export class PublicAuthorClientError extends Error {
   constructor() {
     super('投稿者の公開情報を確認できませんでした。');
@@ -29,17 +30,21 @@ export function validPublicSummary(
   entry: unknown,
 ): entry is import('../types').PublishedArticleSummary {
   if (
-    !publicKeys(entry, [
-      'id',
-      'title',
-      'summary',
-      'tags',
-      'audience',
-      'prerequisite',
-      'outcome',
+    !publicMomentKeys(
+      entry,
+      [
+        'id',
+        'title',
+        'summary',
+        'tags',
+        'audience',
+        'prerequisite',
+        'outcome',
+        'updatedAt',
+        'minutes',
+      ],
       'updatedAt',
-      'minutes',
-    ])
+    )
   )
     return false;
   const tags = canonicalTags(entry.tags);

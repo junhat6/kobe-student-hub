@@ -1,4 +1,3 @@
-import { formatDate } from '../shared/display';
 import { RecordReadingHistory } from '../history/RecordReadingHistory';
 import { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -16,6 +15,7 @@ import ProjectStageMark from '../shared/ProjectStageMark';
 import LoadingSkeleton from '../shared/LoadingSkeleton';
 import Icon from '../shared/Icon';
 import { useViewer } from '../shell/viewer';
+import { PublicTime } from '../shared/PublicTime';
 
 function Works() {
   const client = useMemo(() => createPublicWorksClient(fetch, 'ordinary'), []);
@@ -118,7 +118,7 @@ function Project({ id }: { id: string }) {
             </Link>
             <div className="detail-author-end">
               <span>
-                <time dateTime={project.publishedOn}>{formatDate(project.publishedOn)}</time> 公開
+                <PublicTime day={project.publishedOn} at={project.publishedAt} /> 公開
               </span>
               {!own && (
                 <OrdinaryProjectReport
@@ -153,7 +153,7 @@ function Project({ id }: { id: string }) {
             <ol>
               {journal.map((entry) => (
                 <li key={entry.id}>
-                  <time dateTime={entry.publishedOn}>{formatDate(entry.publishedOn)}</time>
+                  <PublicTime day={entry.publishedOn} at={entry.publishedAt} />
                   <Link to={'/articles/' + entry.id}>{entry.title}</Link>
                 </li>
               ))}

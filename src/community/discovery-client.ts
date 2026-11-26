@@ -7,6 +7,7 @@ import {
 } from '../editor/public-author-client';
 import type { PublicDiscoveryCard } from '../types';
 import type { OrdinaryDiscovery, RelatedDiscovery } from './discovery-types';
+import { publicMomentKeys } from '../shared/display';
 const uuid = (v: unknown): v is string =>
   typeof v === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v);
@@ -96,7 +97,11 @@ export function validRelatedDiscovery(value: unknown, id: string): value is Rela
 }
 function projectCard(row: Record<string, unknown>): boolean {
   return (
-    publicKeys(row.project, ['id', 'title', 'descriptionPreview', 'publishedOn']) &&
+    publicMomentKeys(
+      row.project,
+      ['id', 'title', 'descriptionPreview', 'publishedOn'],
+      'publishedOn',
+    ) &&
     uuid(row.project.id) &&
     publicText(row.project.title, 200) &&
     !!row.project.title.trim() &&

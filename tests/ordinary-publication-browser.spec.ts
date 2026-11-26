@@ -2,7 +2,7 @@ import { completeGoogleFormPost, fulfillGoogleFormPost } from './helpers/google-
 import { test, expect, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { ensureProfileByApi } from './helpers/profile';
 import { accountMenu } from './helpers/header';
-import { japanDaysSince } from './helpers/japan-day';
+import { japanDayOfIso, japanDaysSince, japanTitle, recentLabel } from './helpers/japan-day';
 import { chooseReport, reportDialog } from './helpers/report-menu';
 
 /** Each date / reading-time label of the article header stays on a single line. */
@@ -196,14 +196,15 @@ test('ordinary saved article → anonymous reader/author/feed → owner publicat
       reader.getByRole('heading', { name: '架空のAI技術選定ノート', exact: true }),
     ).toBeVisible();
     await expect(reader.locator('.prose')).toContainText('この文章は公開する保存版です。');
-    // #142: the public date is the Japan calendar day, printed like the cards (YYYY.MM.DD).
+    // #308: a fresh publication reads relative; #142: its exact time is in the Japan day of the run.
     const publicDate = reader.locator('.detail-author time');
-    await expect(publicDate).toHaveText(/^\d{4}\.\d{2}\.\d{2}$/);
-    expect(japanDaysSince(testStartedAt)).toContain(await publicDate.textContent());
-    // #184: a first publication reads 「公開」, not 「更新」, and no label breaks mid-phrase.
-    await expect(reader.locator('.detail-dates')).toHaveText(
-      /^\d{4}\.\d{2}\.\d{2} 公開 · 約\d+分$/,
+    await expect(publicDate).toHaveText(recentLabel);
+    await expect(publicDate).toHaveAttribute('title', japanTitle);
+    expect(japanDaysSince(testStartedAt)).toContain(
+      japanDayOfIso(await publicDate.getAttribute('datetime')),
     );
+    // #184: a first publication reads 「公開」, not 「更新」, and no label breaks mid-phrase.
+    await expect(reader.locator('.detail-dates')).toHaveText(/^(たった今|\d+分前) 公開 · 約\d+分$/);
     await expectUnbrokenDates(reader);
     const readerContext = reader.getByRole('region', { name: '読む前の目安' });
     for (const text of ['AIで制作している学生', '特別な前提知識は不要', '自分の判断を説明する'])
@@ -686,7 +687,7 @@ test('ordinary author corrects an article at the same URL after saving and expli
     await expect(reader.locator('main')).not.toContainText('この文章は公開する保存版です。');
     // #184: after an explicit revision the reader sees both the first publication and the update.
     await expect(reader.locator('.detail-dates')).toHaveText(
-      /^\d{4}\.\d{2}\.\d{2} 公開 · \d{4}\.\d{2}\.\d{2} 更新 · 約\d+分$/,
+      /^(たった今|\d+分前) 公開 · (たった今|\d+分前) 更新 · 約\d+分$/,
     );
     await expectUnbrokenDates(reader);
     expect(

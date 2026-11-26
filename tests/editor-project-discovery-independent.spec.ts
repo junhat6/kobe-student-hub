@@ -171,6 +171,7 @@ test('independent actual owner stop removes only the target from fresh anonymous
         expect(Object.keys(card.project).sort()).toEqual([
           'descriptionPreview',
           'id',
+          'publishedAt',
           'publishedOn',
           'stage',
           'title',

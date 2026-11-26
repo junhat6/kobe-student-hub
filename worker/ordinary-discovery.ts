@@ -86,6 +86,7 @@ const card = ({
       prerequisite: entry.prerequisite,
       outcome: entry.outcome,
       updatedAt: entry.updatedAt,
+      ...(entry.publishedAt && { publishedAt: entry.publishedAt }),
       minutes: entry.minutes,
     },
     author: {
@@ -106,6 +107,7 @@ const projectCard = ({
     title: project.title,
     descriptionPreview: projectDescriptionPreview(project.description),
     publishedOn: project.publishedOn,
+    publishedAt: project.publishedAt,
   },
   author: {
     id: author.id,

@@ -19,6 +19,8 @@ export interface Entry {
   prerequisite: string;
   outcome: string;
   updatedAt: string;
+  /** UTC ISO time behind `updatedAt` for published articles (#308); absent in the sample catalog. */
+  publishedAt?: string;
   minutes: number;
   relatedIds: string[];
 }
@@ -33,7 +35,7 @@ export interface PublishedArticleDetail {
   entry: Entry;
   author: Profile;
   /** Japan day of the first public revision; `revised` is true once a later revision was published. */
-  publication?: { publishedOn: string; revised: boolean };
+  publication?: { publishedOn: string; publishedAt?: string; revised: boolean };
 }
 
 export type PublishedArticleSummary = Pick<
@@ -46,6 +48,7 @@ export type PublishedArticleSummary = Pick<
   | 'prerequisite'
   | 'outcome'
   | 'updatedAt'
+  | 'publishedAt'
   | 'minutes'
 >;
 export interface PublicAuthorArticles {

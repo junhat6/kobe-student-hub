@@ -6,6 +6,7 @@ import type { OwnModerationNotice } from '../notification-types';
 import { noticeLabel } from '../shared/notice-label';
 import Icon from '../shared/Icon';
 import { hasUnseen, markSeen, onSeenChange, readSeenAt } from './notice-seen';
+import { NoticeTime } from '../shared/PublicTime';
 
 const shown = 5;
 
@@ -91,9 +92,7 @@ export default function NotificationBell({ session }: { session: string }) {
                       {noticeLabel(item)}
                     </b>
                     <span className="bell-item-title">{item.title}</span>
-                    <time dateTime={new Date(item.createdAt).toISOString()}>
-                      {new Date(item.createdAt).toLocaleDateString('ja-JP')}
-                    </time>
+                    <NoticeTime at={item.createdAt} />
                   </li>
                 ))}
               </ul>

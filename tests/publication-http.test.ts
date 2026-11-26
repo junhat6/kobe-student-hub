@@ -139,6 +139,7 @@ describe('unconnected private publication HTTP receipts', () => {
         prerequisite: '',
         outcome: '',
         updatedAt: new Date(NOW).toISOString().slice(0, 10),
+        publishedAt: new Date(NOW).toISOString(),
         minutes: 3,
         relatedIds: [],
       },

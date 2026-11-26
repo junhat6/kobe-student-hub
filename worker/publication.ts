@@ -8,7 +8,7 @@ import {
   liveSessionBindings as liveSessionBindings,
 } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
-import { MAX_JAPAN_DATE_MS } from './japan-date';
+import { MAX_JAPAN_DATE_MS, publicMoment } from './japan-date';
 import { PROJECT_JOURNAL_LIMIT } from '../src/project-types';
 import { hasVisibleCharacter } from '../src/project-input';
 import type {
@@ -124,6 +124,8 @@ type PublicRow = {
   outcome: string;
   updated_at: string;
   public_date: string;
+  /** UTC ms of the latest public revision; its Japan day is public_date when present (#308). */
+  public_at_ms: number | null;
   minutes: number;
   related_ids_json: string;
   display_name: string;
@@ -144,12 +146,12 @@ const calendarDay = (value: unknown) => {
  * discovery snapshot checks and detail pages all read this one expression.
  */
 export const publicArticleDateSql = `COALESCE((SELECT strftime('%Y-%m-%d',MAX(japan_day.published_at_ms)/1000,'unixepoch','+9 hours') FROM article_publication_revisions japan_day WHERE japan_day.content_id=c.id AND japan_day.published_at_ms<=${MAX_JAPAN_DATE_MS}),c.updated_at)`;
-const publicColumns = `c.id,c.title,c.summary,c.body,c.tags_json,c.author_id,c.audience,c.prerequisite,c.outcome,c.updated_at,${publicArticleDateSql} public_date,c.minutes,c.related_ids_json,p.display_name,p.department,p.year_label,p.bio,p.initials`;
+const publicColumns = `c.id,c.title,c.summary,c.body,c.tags_json,c.author_id,c.audience,c.prerequisite,c.outcome,c.updated_at,${publicArticleDateSql} public_date,(SELECT MAX(japan_moment.published_at_ms) FROM article_publication_revisions japan_moment WHERE japan_moment.content_id=c.id AND japan_moment.published_at_ms<=${MAX_JAPAN_DATE_MS}) public_at_ms,c.minutes,c.related_ids_json,p.display_name,p.department,p.year_label,p.bio,p.initials`;
 /**
  * Detail-page only: the Japan day of the first public revision and whether a later revision exists,
  * so readers can tell a new article from a rewritten one. Lists keep the single latest date.
  */
-const publicationDatesSql = `(SELECT strftime('%Y-%m-%d',first.published_at_ms/1000,'unixepoch','+9 hours') FROM article_publication_revisions first WHERE first.content_id=c.id AND first.revision=1 AND first.published_at_ms<=${MAX_JAPAN_DATE_MS}) first_public_date,EXISTS(SELECT 1 FROM article_publication_revisions later WHERE later.content_id=c.id AND later.revision>1) revised`;
+const publicationDatesSql = `(SELECT strftime('%Y-%m-%d',first.published_at_ms/1000,'unixepoch','+9 hours') FROM article_publication_revisions first WHERE first.content_id=c.id AND first.revision=1 AND first.published_at_ms<=${MAX_JAPAN_DATE_MS}) first_public_date,(SELECT first_moment.published_at_ms FROM article_publication_revisions first_moment WHERE first_moment.content_id=c.id AND first_moment.revision=1) first_public_at_ms,EXISTS(SELECT 1 FROM article_publication_revisions later WHERE later.content_id=c.id AND later.revision>1) revised`;
 const publicBounds = `c.kind='article' AND c.status='published' AND c.is_sample=0 AND ${profileBounds} AND NOT EXISTS(SELECT 1 FROM private_accounts private_id WHERE private_id.id=p.id OR private_id.google_subject=p.id) AND length(trim(c.title,char(9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279)))>0 AND length(c.title)<=200 AND length(CAST(c.title AS BLOB))<=800 AND instr(c.body,char(0))=0 AND length(CAST(c.body AS BLOB))<=262144 AND length(c.summary)<=300 AND length(CAST(c.summary AS BLOB))<=1200 AND length(c.tags_json)<=1024 AND length(CAST(c.tags_json AS BLOB))<=1024 AND length(c.related_ids_json)<=4096 AND length(CAST(c.related_ids_json AS BLOB))<=4096 AND length(c.audience)<=200 AND length(CAST(c.audience AS BLOB))<=800 AND length(c.prerequisite)<=200 AND length(CAST(c.prerequisite AS BLOB))<=800 AND length(c.outcome)<=200 AND length(CAST(c.outcome AS BLOB))<=800 AND c.minutes BETWEEN 1 AND 240 AND length(c.updated_at)=10`;
 /** Static SQL fragments for server repositories only; aliases p (profile), c (content). Provenance JOIN remains mandatory. */
 export const publicProfileSqlBounds = profileBounds;
@@ -180,6 +182,11 @@ export function decodePublicProfile(
     initials: r.initials,
   };
 }
+/** `{ publishedAt }` only when the time is behind the public day (#308); otherwise nothing. */
+const momentField = (ms: unknown, day: string): { publishedAt?: string } => {
+  const publishedAt = publicMoment(ms, day);
+  return publishedAt ? { publishedAt } : {};
+};
 function publicDto(r: PublicRow): { entry: Entry; author: Profile } | null {
   const author = decodePublicProfile(r);
   if (!author) return null;
@@ -222,6 +229,7 @@ function publicDto(r: PublicRow): { entry: Entry; author: Profile } | null {
       prerequisite: r.prerequisite,
       outcome: r.outcome,
       updatedAt: r.public_date,
+      ...momentField(r.public_at_ms, r.public_date),
       minutes: r.minutes,
       relatedIds: related,
     },
@@ -238,6 +246,7 @@ function articleSummary(entry: Entry): PublishedArticleSummary {
     prerequisite: entry.prerequisite,
     outcome: entry.outcome,
     updatedAt: entry.updatedAt,
+    ...(entry.publishedAt && { publishedAt: entry.publishedAt }),
     minutes: entry.minutes,
   };
 }
@@ -421,7 +430,13 @@ export class ArticlePublicationStore {
           `SELECT ${publicColumns},${publicationDatesSql} FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id WHERE c.id=? AND ${publicBounds}`,
         )
         .bind(id)
-        .first<PublicRow & { first_public_date: string | null; revised: number }>();
+        .first<
+          PublicRow & {
+            first_public_date: string | null;
+            first_public_at_ms: number | null;
+            revised: number;
+          }
+        >();
       const value = row ? publicDto(row) : null;
       if (!row || !value) return null;
       // A missing or corrupted first revision only drops the extra dates; the article stays readable.
@@ -430,7 +445,11 @@ export class ArticlePublicationStore {
         (row.revised === 0 || row.revised === 1)
         ? {
             ...value,
-            publication: { publishedOn: row.first_public_date!, revised: row.revised === 1 },
+            publication: {
+              publishedOn: row.first_public_date!,
+              ...momentField(row.first_public_at_ms, row.first_public_date!),
+              revised: row.revised === 1,
+            },
           }
         : value;
     } catch {

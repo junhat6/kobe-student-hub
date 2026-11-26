@@ -198,6 +198,7 @@ describe('explicit local public article likes with real session ownership', () =
       'minutes',
       'outcome',
       'prerequisite',
+      'publishedAt',
       'summary',
       'tags',
       'title',

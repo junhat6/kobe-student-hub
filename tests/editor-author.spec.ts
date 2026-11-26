@@ -175,6 +175,7 @@ test('anonymous author HTTP contract fails closed for invalid routes and methods
       'minutes',
       'outcome',
       'prerequisite',
+      'publishedAt',
       'summary',
       'tags',
       'title',

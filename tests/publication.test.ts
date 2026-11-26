@@ -116,6 +116,7 @@ describe('unconnected publication snapshot boundary with real local sessions and
         prerequisite: '',
         outcome: '',
         updatedAt: new Date(NOW).toISOString().slice(0, 10),
+        publishedAt: new Date(NOW).toISOString(),
         minutes: 3,
         relatedIds: [],
       },
@@ -129,6 +130,7 @@ describe('unconnected publication snapshot boundary with real local sessions and
       },
       publication: {
         publishedOn: new Date(NOW + 9 * 3600 * 1000).toISOString().slice(0, 10),
+        publishedAt: new Date(NOW).toISOString(),
         revised: false,
       },
     });

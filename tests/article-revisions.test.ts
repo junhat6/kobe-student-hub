@@ -117,6 +117,7 @@ describe('explicit article correction with immutable evidence', () => {
     // Readers see 「公開」 for a first publication and 「更新」 only after an explicit revision.
     expect((await read(first.contentId))?.publication).toEqual({
       publishedOn: day,
+      publishedAt: new Date(NOW).toISOString(),
       revised: false,
     });
     const saved = await update(d);
@@ -124,7 +125,12 @@ describe('explicit article correction with immutable evidence', () => {
     expect(await publish(d.id, { ...meta, expectedVersion: saved.version })).toBeNull();
     expect(await revise(saved)).toEqual(first);
     expect((await read(first.contentId))?.entry.body).toBe('Corrected body');
-    expect((await read(first.contentId))?.publication).toEqual({ publishedOn: day, revised: true });
+    // The first publication keeps its own time; the later revision only adds 「更新」.
+    expect((await read(first.contentId))?.publication).toEqual({
+      publishedOn: day,
+      publishedAt: new Date(NOW).toISOString(),
+      revised: true,
+    });
     expect(
       (
         await call<{ publication: { sourceVersion: number } }>({

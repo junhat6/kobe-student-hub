@@ -7,6 +7,7 @@ import './notifications.css';
 import Icon from '../shared/Icon';
 import { noticeLabel } from '../shared/notice-label';
 import { markSeen } from '../shell/notice-seen';
+import { NoticeTime } from '../shared/PublicTime';
 /** Loads by itself and stays out of the way when there is nothing to tell. */
 export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch }) {
   const client = useMemo(() => createModerationClient(fetcher), [fetcher]);
@@ -55,9 +56,7 @@ export default function OwnNotifications({ fetcher }: { fetcher: typeof fetch })
               <li key={item.id}>
                 <h3>{noticeLabel(item)}</h3>
                 <p>{item.title}</p>
-                <time dateTime={new Date(item.createdAt).toISOString()}>
-                  {new Date(item.createdAt).toLocaleDateString('ja-JP')}
-                </time>
+                <NoticeTime at={item.createdAt} />
                 <p className="notification-reason">{item.reason}</p>
                 {item.kind !== 'avatar_removed' && (
                   <a href="#publications">自分の公開記録を確認する</a>

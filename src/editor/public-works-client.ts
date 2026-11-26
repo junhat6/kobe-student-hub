@@ -4,6 +4,7 @@ import { publicKeys, publicText, publicSlug } from './public-author-client';
 import { projectUUID } from './project-client';
 import { isProjectStage } from '../project-types';
 import { publicPaths, type PublicSurface } from '../shared/public-paths';
+import { publicMomentKeys } from '../shared/display';
 export class PublicWorksClientError extends Error {
   constructor() {
     super('公開作品を確認できませんでした。');
@@ -25,7 +26,11 @@ function valid(value: unknown): value is PublicProjectDiscovery {
   return value.cards.every((card) => {
     if (
       !publicKeys(card, ['project', 'author']) ||
-      !publicKeys(card.project, ['id', 'title', 'descriptionPreview', 'publishedOn', 'stage']) ||
+      !publicMomentKeys(
+        card.project,
+        ['id', 'title', 'descriptionPreview', 'publishedOn', 'stage'],
+        'publishedOn',
+      ) ||
       !isProjectStage(card.project.stage) ||
       !publicKeys(card.author, ['id', 'name', 'department', 'year', 'initials'])
     )

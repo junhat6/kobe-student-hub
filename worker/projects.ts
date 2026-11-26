@@ -148,6 +148,7 @@ export function decodeProjectSnapshot(r: ProjectSnapshotRow): PublicProjectReade
           ...f,
           id: r.id,
           publishedOn,
+          publishedAt: new Date(r.published_at_ms).toISOString(),
           stage,
         },
         author,
@@ -582,7 +583,12 @@ export class ProjectStore {
         const publishedOn = japanDate(r.published_at_ms);
         if (!uuid(r.id) || typeof r.title !== 'string' || !r.title.trim() || !publishedOn)
           return null;
-        journal.push({ id: r.id, title: r.title, publishedOn });
+        journal.push({
+          id: r.id,
+          title: r.title,
+          publishedOn,
+          publishedAt: new Date(r.published_at_ms).toISOString(),
+        });
       }
     } catch {
       // Before migration 0046 reaches a database the page simply has no journal yet.
@@ -624,6 +630,7 @@ export class ProjectStore {
             githubUrl: p.githubUrl,
             demoUrl: p.demoUrl,
             publishedOn: p.publishedOn,
+            publishedAt: p.publishedAt,
             stage: p.stage,
           };
         }),
@@ -670,6 +677,7 @@ export class ProjectStore {
               title: p.title,
               descriptionPreview: projectDescriptionPreview(p.description),
               publishedOn: p.publishedOn,
+              publishedAt: p.publishedAt,
               stage: p.stage,
             },
             author: {

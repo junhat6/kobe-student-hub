@@ -165,9 +165,10 @@ describe('project journal links (#273)', () => {
       id: first,
       title: '日誌 1 日目',
       publishedOn: '2027-01-15',
+      publishedAt: expect.stringMatching(/^2027-01-15T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
     });
     for (const entry of value.journal)
-      expect(Object.keys(entry).sort()).toEqual(['id', 'publishedOn', 'title']);
+      expect(Object.keys(entry).sort()).toEqual(['id', 'publishedAt', 'publishedOn', 'title']);
     const wire = JSON.stringify(value);
     for (const denied of [
       'owner_account_id',

@@ -197,6 +197,7 @@ export class ArticleLikeStore {
           prerequisite: e.prerequisite,
           outcome: e.outcome,
           updatedAt: e.updatedAt,
+          ...(e.publishedAt && { publishedAt: e.publishedAt }),
           minutes: e.minutes,
         };
       });

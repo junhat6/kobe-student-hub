@@ -13,6 +13,7 @@ import type {
 } from '../project-types';
 import { normalizeProjectFields } from '../project-input';
 import { publicKeys, publicText, publicSlug } from './public-author-client';
+import { publicMomentKeys } from '../shared/display';
 export class ProjectClientError extends Error {
   /** Absent or not public (404 / impossible id), as opposed to a failed read. */
   readonly missing: boolean;
@@ -79,7 +80,7 @@ export function validProjectReader(v: unknown, id: string): v is PublicProjectRe
   return (
     publicKeys(v, ['project', 'author']) &&
     author(v.author) &&
-    publicKeys(v.project, ['id', ...fields, 'publishedOn', 'stage']) &&
+    publicMomentKeys(v.project, ['id', ...fields, 'publishedOn', 'stage'], 'publishedOn') &&
     isProjectStage(v.project.stage) &&
     v.project.id === id &&
     projectUUID(v.project.id) &&
@@ -120,7 +121,7 @@ export function validProjectPage(
         journal.length <= PROJECT_JOURNAL_LIMIT &&
         journal.every(
           (a) =>
-            publicKeys(a, ['id', 'title', 'publishedOn']) &&
+            publicMomentKeys(a, ['id', 'title', 'publishedOn'], 'publishedOn') &&
             projectUUID(a.id) &&
             publicText(a.title, 200) &&
             Boolean(a.title.trim()) &&
@@ -163,15 +164,11 @@ export function validProjectAuthor(v: unknown, id: string): v is PublicAuthorPro
     new Set(v.projects.map((p) => p?.id)).size === v.projects.length &&
     v.projects.every(
       (p) =>
-        publicKeys(p, [
-          'id',
-          'title',
-          'descriptionPreview',
-          'githubUrl',
-          'demoUrl',
+        publicMomentKeys(
+          p,
+          ['id', 'title', 'descriptionPreview', 'githubUrl', 'demoUrl', 'publishedOn', 'stage'],
           'publishedOn',
-          'stage',
-        ]) &&
+        ) &&
         isProjectStage(p.stage) &&
         projectUUID(p.id) &&
         date(p.publishedOn) &&

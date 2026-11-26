@@ -1,4 +1,3 @@
-import { formatDate } from '../shared/display';
 import { usePublicRead, ReadFailure, ReadMissing } from './public-read';
 import Projects from './Projects';
 import Search from './Search';
@@ -25,6 +24,7 @@ import '../editor/public-author.css';
 import './article.css';
 import { AuthorAvatar } from '../shared/public-avatars';
 import LoadingSkeleton from '../shared/LoadingSkeleton';
+import { PublicTime } from '../shared/PublicTime';
 
 /**
  * A first publication reads 「公開」; only a later revision adds 「更新」, so readers can tell a new
@@ -32,29 +32,31 @@ import LoadingSkeleton from '../shared/LoadingSkeleton';
  */
 function ArticleDates({
   updatedAt,
+  publishedAt,
   publication,
   minutes,
 }: {
   updatedAt: string;
+  publishedAt?: string;
   publication?: PublishedArticleDetail['publication'];
   minutes: number;
 }) {
   const parts = publication
     ? [
         <>
-          <time dateTime={publication.publishedOn}>{formatDate(publication.publishedOn)}</time> 公開
+          <PublicTime day={publication.publishedOn} at={publication.publishedAt} /> 公開
         </>,
         ...(publication.revised
           ? [
               <>
-                <time dateTime={updatedAt}>{formatDate(updatedAt)}</time> 更新
+                <PublicTime day={updatedAt} at={publishedAt} /> 更新
               </>,
             ]
           : []),
       ]
     : [
         <>
-          <time dateTime={updatedAt}>{formatDate(updatedAt)}</time> 更新
+          <PublicTime day={updatedAt} at={publishedAt} /> 更新
         </>,
       ];
   return (
@@ -115,6 +117,7 @@ function StudentArticle({ id }: { id: string }) {
             </Link>
             <ArticleDates
               updatedAt={entry.updatedAt}
+              publishedAt={entry.publishedAt}
               publication={value.publication}
               minutes={entry.minutes}
             />

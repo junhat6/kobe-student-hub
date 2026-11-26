@@ -585,6 +585,7 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
     expect(Object.keys(card.project).sort()).toEqual([
       'descriptionPreview',
       'id',
+      'publishedAt',
       'publishedOn',
       'stage',
       'title',
@@ -744,6 +745,7 @@ it('publishes 制作中／完成 on the snapshot and lets only the owner switch 
     'description',
     'githubUrl',
     'id',
+    'publishedAt',
     'publishedOn',
     'stage',
     'technologies',
