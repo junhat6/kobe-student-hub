@@ -545,7 +545,11 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
         {
           ...f,
           title: 'Discovered ' + n,
-          description: 'Description ' + n + '😀'.repeat(320),
+          description:
+            '## Description ' +
+            n +
+            '\n- [ソース](https://example.invalid/source) ' +
+            '😀'.repeat(320),
           githubUrl: 'https://example.invalid/source',
           demoUrl: 'https://example.invalid/demo',
         },
@@ -572,6 +576,12 @@ it('discovers newest20 immutable cross-author snapshots with short DTOs and fres
     const source = expected.find((e) => e.id === card.project.id)!;
     expect(card.author.name).toBe('Project author ' + source.owner);
     expect(Array.from(card.project.descriptionPreview).length).toBe(300);
+    // #301: the card preview is plain text, not the Markdown source.
+    expect(
+      card.project.descriptionPreview.startsWith(
+        `Description ${card.project.title.slice(11)}\nソース 😀`,
+      ),
+    ).toBe(true);
     expect(Object.keys(card.project).sort()).toEqual([
       'descriptionPreview',
       'id',

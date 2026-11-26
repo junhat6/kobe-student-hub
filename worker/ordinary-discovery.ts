@@ -5,6 +5,7 @@ import {
   publicProfileSqlBounds,
 } from './publication';
 import { ProjectStore, publicProjectSqlBounds } from './projects';
+import { projectDescriptionPreview } from './project-preview';
 import type { PublicDiscoveryCard } from '../src/types';
 import type { OrdinaryDiscovery, RelatedDiscovery } from '../src/community/discovery-types';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -103,7 +104,7 @@ const projectCard = ({
   project: {
     id: project.id,
     title: project.title,
-    descriptionPreview: Array.from(project.description).slice(0, 300).join(''),
+    descriptionPreview: projectDescriptionPreview(project.description),
     publishedOn: project.publishedOn,
   },
   author: {

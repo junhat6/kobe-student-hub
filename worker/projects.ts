@@ -6,6 +6,7 @@ import {
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
 import { japanDate } from './japan-date';
+import { projectDescriptionPreview } from './project-preview';
 import type { Profile } from '../src/types';
 import { hasVisibleCharacter, normalizeProjectFields } from '../src/project-input';
 import { decodePublicProfile, publicArticleSqlBounds, publicProfileSqlBounds } from './publication';
@@ -619,7 +620,7 @@ export class ProjectStore {
           return {
             id: p.id,
             title: p.title,
-            descriptionPreview: Array.from(p.description).slice(0, 300).join(''),
+            descriptionPreview: projectDescriptionPreview(p.description),
             githubUrl: p.githubUrl,
             demoUrl: p.demoUrl,
             publishedOn: p.publishedOn,
@@ -667,7 +668,7 @@ export class ProjectStore {
             project: {
               id: p.id,
               title: p.title,
-              descriptionPreview: Array.from(p.description).slice(0, 300).join(''),
+              descriptionPreview: projectDescriptionPreview(p.description),
               publishedOn: p.publishedOn,
               stage: p.stage,
             },

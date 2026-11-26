@@ -92,7 +92,10 @@ test('anonymous readers discover a fresh work then its project and author withou
       .filter({ has: reader.locator('a[href="/lab/projects/' + data.id + '"]') });
     await test.step('Read the fresh work without private or active content', async () => {
       await reader.goto('/lab/works');
-      await expect(card.getByText(data.description, { exact: true })).toBeVisible();
+      // #301: the card shows the readable text only, not raw HTML or Markdown image syntax.
+      await expect(card.getByText('制作で試したこと', { exact: true })).toBeVisible();
+      await expect(card).not.toContainText('worksInjected');
+      await expect(card).not.toContainText('![image]');
       await expect(card).not.toContainText('feedには出さない紹介');
       await expect(card).not.toContainText('https://example.invalid/');
       await expect(reader.locator('img,iframe')).toHaveCount(0);
