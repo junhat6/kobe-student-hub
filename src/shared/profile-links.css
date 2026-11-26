@@ -1,0 +1,28 @@
+/* Profile link icons (#313): round 44px targets in one row, wrapping on narrow columns. */
+.profile-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.profile-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--line, #e2e7ee);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: var(--ink-soft, #46525f);
+}
+.profile-links a:hover {
+  color: var(--accent-strong, #1659c7);
+  border-color: var(--accent-strong, #1659c7);
+}
+.profile-links a:focus-visible {
+  outline: 2px solid var(--focus, #1d6fd8);
+  outline-offset: 2px;
+}

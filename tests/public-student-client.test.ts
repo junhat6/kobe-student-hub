@@ -35,11 +35,15 @@ function client(value: unknown) {
 describe('ordinary combined public student transport', () => {
   it('accepts genuine one-sided emptiness and both activities with anonymous bounded transport', async () => {
     for (const v of [
-      { author, avatar: null, entries: [entry], projects: [] },
-      { author, avatar: null, entries: [], projects: [project] },
+      { author, avatar: null, links: [], entries: [entry], projects: [] },
+      { author, avatar: null, links: [], entries: [], projects: [project] },
       {
         author,
         avatar: `/api/profile-avatars/${author.id}/0123456789abcdef`,
+        links: [
+          { service: 'github', url: 'https://github.com/kobe' },
+          { service: 'website', url: 'https://example.com/' },
+        ],
         entries: [entry],
         projects: [project],
       },
@@ -68,6 +72,32 @@ describe('ordinary combined public student transport', () => {
       { author, entries: [entry], projects: [{ ...project, githubUrl: 'javascript:bad' }] },
       { author, entries: [entry, entry], projects: [] },
       { author, entries: [entry], projects: Array.from({ length: 21 }, () => project) },
+      // #313: links must be present, in order, and in the accepted shapes only.
+      { author, avatar: null, entries: [entry], projects: [] },
+      {
+        author,
+        avatar: null,
+        links: [{ service: 'website', url: 'javascript:alert(1)' }],
+        entries: [entry],
+        projects: [],
+      },
+      {
+        author,
+        avatar: null,
+        links: [{ service: 'x', url: 'https://twitter.com/kobe' }],
+        entries: [entry],
+        projects: [],
+      },
+      {
+        author,
+        avatar: null,
+        links: [
+          { service: 'website', url: 'https://example.com/' },
+          { service: 'x', url: 'https://x.com/kobe' },
+        ],
+        entries: [entry],
+        projects: [],
+      },
     ]) {
       await expect(client(value).client.read(author.id)).rejects.toThrow(
         '投稿者の公開情報を確認できませんでした。',

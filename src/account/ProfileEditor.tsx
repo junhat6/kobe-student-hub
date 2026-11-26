@@ -10,6 +10,15 @@ import {
   type PublicProfile,
 } from '../editor/profile-client';
 import Icon from '../shared/Icon';
+import ProfileLinks from '../shared/ProfileLinks';
+import {
+  PROFILE_LINK_LABELS,
+  PROFILE_LINK_SERVICES,
+  normalizeProfileLink,
+  type ProfileLink,
+  type ProfileLinkService,
+} from '../shared/profile-links';
+import { createProfileLinksClient, type ProfileLinkInput } from '../editor/profile-links-client';
 import { ownAvatarPath } from '../shared/avatar';
 import ProfileAvatarTools from './ProfileAvatarTools';
 import { forgetPublicAvatar } from '../shared/public-avatars';
@@ -25,6 +34,31 @@ const editable = (p: PublicProfile): ProfileInput => ({
   bio: p.bio,
 });
 const length = (v: string) => Array.from(v).length;
+type LinkText = Record<ProfileLinkService, string>;
+const noLinks: LinkText = { x: '', github: '', linkedin: '', website: '' };
+const linkText = (links: ProfileLink[]): LinkText => {
+  const text = { ...noLinks };
+  for (const link of links) text[link.service] = link.url;
+  return text;
+};
+const linkHints: Record<ProfileLinkService, string> = {
+  x: 'https://x.com/ユーザー名',
+  github: 'https://github.com/ユーザー名',
+  linkedin: 'https://www.linkedin.com/in/ID',
+  website: 'https://で始まるURL',
+};
+/** Services whose typed value is not an accepted shape (empty means "no link"). */
+const badLinks = (text: LinkText) =>
+  PROFILE_LINK_SERVICES.filter(
+    (service) => text[service].trim() && normalizeProfileLink(service, text[service]) === null,
+  );
+/** The set the text would store, compared with what is stored now. */
+const linksChanged = (text: LinkText, stored: ProfileLink[]) =>
+  PROFILE_LINK_SERVICES.some((service) => {
+    const typed = text[service].trim();
+    const now = stored.find((link) => link.service === service)?.url ?? '';
+    return (typed ? normalizeProfileLink(service, typed) : '') !== now;
+  });
 function problem(v: ProfileInput) {
   if (!v.displayName.trim()) return '表示名を入れてください';
   if ((Object.keys(limits) as (keyof ProfileInput)[]).some((k) => length(v[k]) > limits[k]))
@@ -48,12 +82,14 @@ function Card({
   avatar,
   tools,
   actions,
+  links = [],
 }: {
   value: ProfileInput;
   initials?: string;
   avatar?: string | null;
   tools?: ReactNode;
   actions?: ReactNode;
+  links?: ProfileLink[];
 }) {
   const mark = initials ?? (Array.from(value.displayName.trim())[0] || '');
   return (
@@ -66,6 +102,7 @@ function Card({
         <strong>{value.displayName || ' '}</strong>
         {value.bio && <p className="profile-editor-bio">{value.bio}</p>}
         <Details value={value} />
+        <ProfileLinks links={links} name={value.displayName} />
       </div>
       {actions}
     </div>
@@ -132,6 +169,14 @@ export default function ProfileEditor({
   onRiskChange?: (risk: boolean) => void;
 }) {
   const client = useMemo(() => createProfileClient(csrfToken, fetcher), [csrfToken, fetcher]);
+  const linksClient = useMemo(
+    () => createProfileLinksClient(csrfToken, fetcher),
+    [csrfToken, fetcher],
+  );
+  // null: not read (yet, or the read failed). The link fields appear only once read, so a
+  // failed read never shows as "no links" and a save never removes links it did not see.
+  const [links, setLinks] = useState<ProfileLink[] | null>(null);
+  const [linkInput, setLinkInput] = useState<LinkText>(noLinks);
   const id = useId();
   const mounted = useRef(true),
     lock = useRef(false);
@@ -147,8 +192,16 @@ export default function ProfileEditor({
   const wantsEditing = useRef(startEditing);
   const creating = state === 'none';
   const open = creating || editing;
-  const dirty = open && !sameProfileInput(text, profile ? editable(profile) : empty);
-  const invalid = problem(text);
+  const profileDirty = open && !sameProfileInput(text, profile ? editable(profile) : empty);
+  const linksEditable = editing && links !== null;
+  const linksDirty = linksEditable && linksChanged(linkInput, links);
+  const dirty = profileDirty || linksDirty;
+  const wrongLinks = linksEditable ? badLinks(linkInput) : [];
+  const invalid =
+    problem(text) ||
+    (wrongLinks.length
+      ? `${wrongLinks.map((s) => PROFILE_LINK_LABELS[s]).join('・')}のリンクの形が違います`
+      : '');
   const notify = useRef(onStateChange);
   notify.current = onStateChange;
   useEffect(() => notify.current?.(state), [state]);
@@ -167,8 +220,9 @@ export default function ProfileEditor({
   }
   async function load() {
     await run(async () => {
+      let current: PublicProfile | null;
       try {
-        const current = await client.read();
+        current = await client.read();
         if (!mounted.current) return;
         setProfile(current);
         setText(current ? editable(current) : empty);
@@ -178,8 +232,22 @@ export default function ProfileEditor({
         wantsEditing.current = false;
       } catch {
         if (mounted.current) setState('unknown');
+        return;
       }
+      // Links belong to an existing profile; a new one adds them from 「プロフィールを編集」.
+      if (current) await loadLinks();
     });
+  }
+  async function loadLinks() {
+    try {
+      const current = await linksClient.read();
+      if (!mounted.current) return;
+      setLinks(current);
+      setLinkInput(linkText(current));
+    } catch {
+      // No profile yet, or the read failed: the fields stay hidden instead of looking empty.
+      if (mounted.current) setLinks(null);
+    }
   }
   useEffect(() => {
     mounted.current = true;
@@ -189,6 +257,9 @@ export default function ProfileEditor({
     };
   }, [client]);
   function saved(next: PublicProfile, note: string) {
+    if (links) setLinkInput(linkText(links));
+    // A profile just created has no links yet; read them so 「プロフィールを編集」 can add some.
+    else void loadLinks();
     setProfile(next);
     setText(editable(next));
     setState('exists');
@@ -199,6 +270,31 @@ export default function ProfileEditor({
   }
   async function submit() {
     if (busy || invalid || (!creating && !dirty)) return;
+    if (linksDirty) {
+      const typed: ProfileLinkInput = { ...linkInput };
+      let ok = false;
+      await run(async () => {
+        setError('');
+        try {
+          const stored = await linksClient.save(typed);
+          if (!mounted.current) return;
+          setLinks(stored);
+          setLinkInput(linkText(stored));
+          ok = true;
+        } catch {
+          if (!mounted.current) return;
+          setError('リンクを保存できませんでした。もう一度押してください。');
+          // Show what is actually stored now, so the next press starts from the truth.
+          await loadLinks();
+        }
+      });
+      if (!ok || !mounted.current) return;
+      if (!profileDirty) {
+        setEditing(false);
+        setMessage('プロフィールを保存しました。');
+        return;
+      }
+    }
     const snapshot = { ...text };
     const expected = profile;
     let unclear = false;
@@ -326,6 +422,7 @@ export default function ProfileEditor({
           value={editable(profile)}
           initials={profile.initials}
           avatar={avatar}
+          links={links ?? []}
           tools={avatarTools}
           actions={
             <div className="profile-editor-tools">
@@ -333,6 +430,7 @@ export default function ProfileEditor({
                 className="profile-editor-edit"
                 onClick={() => {
                   setText(editable(profile));
+                  if (links) setLinkInput(linkText(links));
                   setEditing(true);
                   setMessage('');
                 }}
@@ -369,6 +467,37 @@ export default function ProfileEditor({
                 {field('department', '学科', '例：ゲーム開発')}
                 {field('yearLabel', '学年', '例：2年')}
               </div>
+              {linksEditable && (
+                <fieldset className="profile-editor-links">
+                  <legend>リンク</legend>
+                  <p className="profile-editor-hint">
+                    制作や学習の発信先を、使っているものだけ。空のままでも大丈夫です。
+                  </p>
+                  {PROFILE_LINK_SERVICES.map((service) => (
+                    <div className="profile-editor-field" key={service}>
+                      <div className="profile-editor-label">
+                        <label htmlFor={id + 'link-' + service}>
+                          {PROFILE_LINK_LABELS[service]}
+                        </label>
+                      </div>
+                      <input
+                        id={id + 'link-' + service}
+                        type="text"
+                        inputMode="url"
+                        value={linkInput[service]}
+                        maxLength={200}
+                        placeholder={linkHints[service]}
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-invalid={wrongLinks.includes(service) || undefined}
+                        onChange={(event) =>
+                          setLinkInput((t) => ({ ...t, [service]: event.target.value }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </fieldset>
+              )}
             </fieldset>
             <div className="profile-editor-picture">
               <Avatar
@@ -406,6 +535,7 @@ export default function ProfileEditor({
                   setEditing(false);
                   setError('');
                   if (profile) setText(editable(profile));
+                  if (links) setLinkInput(linkText(links));
                 }}
               >
                 キャンセル

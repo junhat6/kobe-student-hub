@@ -183,6 +183,16 @@ const inventory: Record<string, Inventory> = {
     },
     public: { readPublic: 1, readPublicPath: 1, readPublicPaths: 1 },
   },
+  'profile-links': {
+    className: 'ProfileLinkStore',
+    private: {
+      readOwn: ['base'],
+      replace: ['student', 'student', 'student'],
+      // Removing every link needs a live session only, like removing the icon.
+      clear: ['base', 'base'],
+    },
+    public: { readPublic: 1 },
+  },
   'auth/enrollment': {
     className: 'EnrollmentStore',
     private: {
@@ -524,16 +534,16 @@ describe('independent private SQL guard inventory', () => {
     );
     expect(privileged).toEqual({ decide: 1, purge: 5 });
   });
-  it('inventory is exactly 111 private SQL sites (79 base, 31 student, one explicit choice) and 19 public sites', () => {
+  it('inventory is exactly 117 private SQL sites (82 base, 34 student, one explicit choice) and 20 public sites', () => {
     const guards = Object.values(inventory).flatMap((item) => Object.values(item.private).flat());
-    expect(guards).toHaveLength(111);
-    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(79);
-    expect(guards.filter((guard) => guard === 'student')).toHaveLength(31);
+    expect(guards).toHaveLength(117);
+    expect(guards.filter((guard) => guard.startsWith('base'))).toHaveLength(82);
+    expect(guards.filter((guard) => guard === 'student')).toHaveLength(34);
     expect(guards.filter((guard) => guard === 'profile-choice')).toHaveLength(1);
     expect(
       Object.values(inventory)
         .flatMap((item) => Object.values(item.public ?? {}))
         .reduce((a, b) => a + b, 0),
-    ).toBe(19);
+    ).toBe(20);
   });
 });

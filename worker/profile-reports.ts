@@ -5,6 +5,8 @@ import {
 import { liveSessionSql as live, liveSessionBindings as binds } from './auth/session-guard';
 import { SessionStore } from './auth/sessions';
 import { decodePublicProfile, publicProfileSqlBounds } from './publication';
+import { profileLinksJsonSql } from './profile-links';
+import { PROFILE_LINK_SERVICES, type ProfileLink } from '../src/shared/profile-links';
 import { AVATAR_MAX_BYTES, avatarVersion, moderationAvatarPath } from '../src/shared/avatar';
 import type {
   ProfileReportCase,
@@ -19,6 +21,37 @@ const text = (v: unknown, n: number): v is string =>
   !v.includes('\0') &&
   Array.from(v).length <= n &&
   new TextDecoder().decode(new TextEncoder().encode(v)) === v;
+/**
+ * Links as the operator sees them: kept as recorded evidence even if they would no longer pass
+ * the public shape check, but still bounded (service, https, printable ASCII, 200 characters).
+ * Null when the snapshot was not recorded (reports from before #313) or is not readable.
+ */
+function recordedLinks(raw: unknown): ProfileLink[] | null {
+  if (typeof raw !== 'string' || raw.length > 2048) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(value) || value.length > PROFILE_LINK_SERVICES.length) return null;
+  const links: ProfileLink[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Object.keys(item).length !== 2) return null;
+    const { service, url } = item as Record<string, unknown>;
+    if (
+      typeof service !== 'string' ||
+      !(PROFILE_LINK_SERVICES as readonly string[]).includes(service) ||
+      links.some((link) => link.service === service) ||
+      typeof url !== 'string' ||
+      url.length > 200 ||
+      !/^https:\/\/[\x21-\x7e]+$/.test(url)
+    )
+      return null;
+    links.push({ service: service as ProfileLink['service'], url });
+  }
+  return links;
+}
 function input(v: unknown): v is { reason: string; detail?: string } {
   if (!v || typeof v !== 'object' || Object.getPrototypeOf(v) !== Object.prototype) return false;
   const x = v as Record<string, unknown>,
@@ -50,6 +83,8 @@ type CaseRow = {
   reported_department: string;
   reported_year: string;
   reported_bio: string;
+  reported_links: string | null;
+  current_links: string;
   created_at_ms: number;
   report_count: number;
   avatar_version: string | null;
@@ -78,7 +113,7 @@ export class ProfileReportStore {
       // The snapshot columns copy the public text the reporter is reporting, never identity data.
       const row = await this.db
         .prepare(
-          `INSERT INTO profile_reports(id,public_profile_id,reporter_account_id,reason,detail,display_name,department,year_label,bio,created_at_ms) SELECT ?,p.id,?,?,?,p.display_name,p.department,p.year_label,p.bio,? FROM public_profiles p WHERE p.id=? AND ${profile} AND ${visible} AND NOT EXISTS(SELECT 1 FROM account_public_profiles own WHERE own.owner_account_id=? AND own.public_profile_id=p.id) AND ${writerLive} AND NOT EXISTS(SELECT 1 FROM profile_reports future WHERE future.public_profile_id=p.id AND future.created_at_ms>?) ON CONFLICT(public_profile_id,reporter_account_id) DO UPDATE SET id=profile_reports.id RETURNING id`,
+          `INSERT INTO profile_reports(id,public_profile_id,reporter_account_id,reason,detail,display_name,department,year_label,bio,links_json,created_at_ms) SELECT ?,p.id,?,?,?,p.display_name,p.department,p.year_label,p.bio,${profileLinksJsonSql},? FROM public_profiles p WHERE p.id=? AND ${profile} AND ${visible} AND NOT EXISTS(SELECT 1 FROM account_public_profiles own WHERE own.owner_account_id=? AND own.public_profile_id=p.id) AND ${writerLive} AND NOT EXISTS(SELECT 1 FROM profile_reports future WHERE future.public_profile_id=p.id AND future.created_at_ms>?) ON CONFLICT(public_profile_id,reporter_account_id) DO UPDATE SET id=profile_reports.id RETURNING id`,
         )
         .bind(
           crypto.randomUUID(),
@@ -169,7 +204,7 @@ export class ProfileReportStore {
       if (!p) return null;
       const rs = await this.db
         .prepare(
-          `SELECT ${cols},CASE WHEN length(CAST(q.reason AS BLOB))<=800 THEN q.reason ELSE NULL END reason,CASE WHEN length(CAST(q.detail AS BLOB))<=8000 THEN q.detail ELSE NULL END detail,q.display_name reported_name,q.department reported_department,q.year_label reported_year,q.bio reported_bio,q.created_at_ms,(SELECT COUNT(*) FROM profile_reports total WHERE total.public_profile_id=p.id) report_count,(SELECT substr(a.sha256,1,16) FROM profile_avatars a WHERE a.public_profile_id=p.id) avatar_version FROM public_profiles p JOIN profile_reports q ON q.public_profile_id=p.id WHERE p.id=? AND ${profile} AND ${live} ORDER BY q.created_at_ms DESC,q.id ASC LIMIT 20`,
+          `SELECT ${cols},CASE WHEN length(CAST(q.reason AS BLOB))<=800 THEN q.reason ELSE NULL END reason,CASE WHEN length(CAST(q.detail AS BLOB))<=8000 THEN q.detail ELSE NULL END detail,q.display_name reported_name,q.department reported_department,q.year_label reported_year,q.bio reported_bio,q.links_json reported_links,${profileLinksJsonSql} current_links,q.created_at_ms,(SELECT COUNT(*) FROM profile_reports total WHERE total.public_profile_id=p.id) report_count,(SELECT substr(a.sha256,1,16) FROM profile_avatars a WHERE a.public_profile_id=p.id) avatar_version FROM public_profiles p JOIN profile_reports q ON q.public_profile_id=p.id WHERE p.id=? AND ${profile} AND ${live} ORDER BY q.created_at_ms DESC,q.id ASC LIMIT 20`,
         )
         .bind(id, ...binds(p))
         .all<CaseRow>();
@@ -186,6 +221,7 @@ export class ProfileReportStore {
             !text(r.reported_department, 80) ||
             !text(r.reported_year, 32) ||
             !text(r.reported_bio, 800) ||
+            (r.reported_links !== null && recordedLinks(r.reported_links) === null) ||
             !Number.isSafeInteger(r.created_at_ms) ||
             r.created_at_ms < 0 ||
             r.created_at_ms > p.nowMs ||
@@ -196,9 +232,12 @@ export class ProfileReportStore {
         return null;
       const version = rs.results[0].avatar_version;
       if (version !== null && !avatarVersion(version)) return null;
+      const links = recordedLinks(rs.results[0].current_links);
+      if (!links) return null;
       const result: ProfileReportCase = {
         profile: author,
         avatar: version === null ? null : moderationAvatarPath(author.id, version),
+        links,
         reports: rs.results.map((r) => ({
           reason: r.reason!,
           detail: r.detail!,
@@ -208,6 +247,7 @@ export class ProfileReportStore {
             department: r.reported_department,
             year: r.reported_year,
             bio: r.reported_bio,
+            links: r.reported_links === null ? null : recordedLinks(r.reported_links),
           },
         })),
         reportsTruncated: rs.results[0].report_count > rs.results.length,

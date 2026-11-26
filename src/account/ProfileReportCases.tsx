@@ -1,3 +1,4 @@
+import { PROFILE_LINK_LABELS, type ProfileLink } from '../shared/profile-links';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@base-ui/react/button';
@@ -14,6 +15,23 @@ const stamp = (n: number) =>
   }).format(n);
 
 /** Operator list of reported profiles. The only decision is taking down the icon image. */
+/**
+ * Profile links as plain text (#313): the operator reads exactly what is stored and decides
+ * whether to open it, instead of following a reported link with one click.
+ */
+function LinkText({ links }: { links: ProfileLink[] }) {
+  if (!links.length) return <p className="moderation-plain-text">リンクはありません</p>;
+  return (
+    <ul className="moderation-plain-text">
+      {links.map((link) => (
+        <li key={link.service}>
+          {PROFILE_LINK_LABELS[link.service]}: {link.url}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function ProfileReportCases({
   fetcher,
   initialCaseId,
@@ -154,6 +172,7 @@ export default function ProfileReportCases({
                 </p>
               )}
               {detail.profile.bio && <p className="moderation-plain-text">{detail.profile.bio}</p>}
+              <LinkText links={detail.links} />
               <div className="moderation-notification">
                 プロフィールは通報の件数で自動的に非公開になりません。通報時の表示名・紹介文も記録しています。
               </div>
@@ -202,6 +221,11 @@ export default function ProfileReportCases({
                     </p>
                     {report.reported.bio && (
                       <p className="moderation-plain-text">{report.reported.bio}</p>
+                    )}
+                    {report.reported.links === null ? (
+                      <p className="moderation-plain-text">リンクは記録していません</p>
+                    ) : (
+                      <LinkText links={report.reported.links} />
                     )}
                   </li>
                 ))}

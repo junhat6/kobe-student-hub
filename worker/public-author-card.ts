@@ -20,7 +20,7 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 export async function readPublicAuthorCard(
   db: D1Database,
   authorId: string,
-): Promise<PublicAuthorCard | null | 'missing'> {
+): Promise<Omit<PublicAuthorCard, 'links'> | null | 'missing'> {
   if (!ID.test(authorId)) return 'missing';
   if (!(await publicStudentVisible(db, authorId))) return 'missing';
   const articleFrom = `FROM content c JOIN article_publications publication ON publication.content_id=c.id AND publication.public_profile_id=c.author_id JOIN public_profiles p ON p.id=c.author_id WHERE c.author_id=? AND ${publicArticleSqlBounds}`;

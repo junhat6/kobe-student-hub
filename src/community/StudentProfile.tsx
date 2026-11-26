@@ -11,6 +11,8 @@ import { createPublicLikesClient } from '../editor/public-likes-client';
 import type { PublicLikedArticles } from '../types';
 import Icon from '../shared/Icon';
 import ActivityGrass from './ActivityGrass';
+import ProfileLinks from '../shared/ProfileLinks';
+import type { ProfileLink } from '../shared/profile-links';
 
 export type StudentProfileView = 'articles' | 'projects' | 'likes';
 
@@ -32,6 +34,7 @@ function ProfileLayout({
   view,
   person,
   avatar,
+  links = [],
   counts,
   children,
 }: {
@@ -39,6 +42,8 @@ function ProfileLayout({
   view: StudentProfileView;
   person: Person;
   avatar: string | null;
+  /** The student's own X・GitHub・LinkedIn・website links (#313). */
+  links?: ProfileLink[];
   /** null: the person has no public articles or works, so only the likes tab exists. */
   counts: { articles: number; projects: number } | null;
   children: ReactNode;
@@ -101,6 +106,7 @@ function ProfileLayout({
             )}
           </ul>
         )}
+        <ProfileLinks links={links} name={person.name} />
         {/* Last in the person column: below the details on PC, beside the name on phones (#293). */}
         {!own && (
           <div className="profile-report-slot">
@@ -232,13 +238,14 @@ export default function StudentProfile({
         投稿者を読み込んでいます…
       </p>
     );
-  const { author, avatar, entries, projects } = value;
+  const { author, avatar, links, entries, projects } = value;
   return (
     <ProfileLayout
       id={id}
       view={view}
       person={author}
       avatar={avatar}
+      links={links}
       counts={{ articles: entries.length, projects: projects.length }}
     >
       {view === 'likes' ? (

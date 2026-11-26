@@ -132,6 +132,27 @@ const paths = {
       <path d="M7 11.5V16c0 1.5 2.2 3 5 3s5-1.5 5-3v-4.5M21 9v5" />
     </>
   ),
+  // Profile link marks (#313), drawn here as simple strokes rather than copied brand artwork.
+  // Each link carries its service name in aria-label and title, so the mark only has to be
+  // recognizable at a glance.
+  brandX: (
+    <>
+      <path d="M5 4h3.5L19 20h-3.5z" />
+      <path d="M18.5 4L13 10.3M11 13.7L5.5 20" />
+    </>
+  ),
+  brandGithub: (
+    <>
+      <path d="M9 19c-3.5 1-3.5-1.5-5-2" />
+      <path d="M15 21v-3.2c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 3.1 5.4 3.4 5.4 3.4a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.8c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21" />
+    </>
+  ),
+  brandLinkedin: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <path d="M8 10.5V17M8 7.5v.01M12 17v-6.5M12 13.5c0-2 1.2-3 2.5-3s2.5.8 2.5 3V17" />
+    </>
+  ),
 } as const;
 export type IconName = keyof typeof paths;
 export default function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

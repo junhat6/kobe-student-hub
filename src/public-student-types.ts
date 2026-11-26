@@ -1,10 +1,13 @@
 import type { Profile, PublishedArticleSummary } from './types';
 import type { PublicProjectSummary } from './project-types';
+import type { ProfileLink } from './shared/profile-links';
 
 export interface PublicStudent {
   author: Profile;
   /** Versioned same-origin icon path, or null to show the initial. */
   avatar: string | null;
+  /** X・GitHub・LinkedIn・website links the student added (#313), in that order. */
+  links: ProfileLink[];
   entries: PublishedArticleSummary[];
   projects: PublicProjectSummary[];
 }
@@ -32,4 +35,6 @@ export interface PublicAuthorCard {
   projects: number;
   /** Newest first, at most 4 so the page can drop the item being read and still show 3. */
   recent: { kind: 'article' | 'project'; id: string; title: string }[];
+  /** The author's own links (#313); empty when none are registered. */
+  links: ProfileLink[];
 }

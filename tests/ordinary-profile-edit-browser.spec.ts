@@ -163,3 +163,107 @@ test('an unclear save is re-read instead of resent, and a stale edit keeps the i
     await other.close();
   }
 });
+test('profile links (#313): the owner adds them, readers see icons on the profile and the author card', async ({
+  page,
+  browser,
+}, info) => {
+  const id = await createProfile(page, info);
+  await openEdit(page);
+  const region = editor(page);
+  const links = region.getByRole('group', { name: 'リンク' });
+  await links.getByLabel('X', { exact: true }).fill('https://twitter.com/kobe_student');
+  await links.getByLabel('GitHub', { exact: true }).fill('github.com/kobe-student');
+  await links.getByLabel('LinkedIn', { exact: true }).fill('https://www.linkedin.com/in/ab');
+  await links.getByLabel('Webサイト', { exact: true }).fill('http://example.com');
+  // Shapes that do not fit are named before anything is sent.
+  await expect(region.getByRole('alert')).toHaveText('LinkedIn・Webサイトのリンクの形が違います');
+  await expect(region.getByRole('button', { name: '保存', exact: true })).toBeDisabled();
+  await links.getByLabel('LinkedIn', { exact: true }).fill('');
+  await links.getByLabel('Webサイト', { exact: true }).fill('https://example.com/works');
+  const put = page.waitForResponse(
+    (r) => r.url().endsWith('/api/private/profile/links') && r.request().method() === 'PUT',
+  );
+  await save(page);
+  expect((await put).status()).toBe(200);
+  await expect(region.getByRole('status')).toHaveText('プロフィールを保存しました。');
+  const ownLinks = region.getByRole('list', { name: /さんのリンク$/ });
+  await expect(ownLinks.getByRole('link')).toHaveCount(3);
+  // Reopening shows the stored (normalized) values.
+  await openEdit(page);
+  await expect(links.getByLabel('X', { exact: true })).toHaveValue('https://x.com/kobe_student');
+  await editor(page).getByRole('button', { name: 'キャンセル', exact: true }).click();
+  // Publish one article so the profile and the card are public.
+  await page.getByRole('link', { name: '記事の管理', exact: true }).click();
+  await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
+  await page.getByLabel('タイトル', { exact: true }).fill('リンクを載せた架空の制作ノート');
+  await page.getByLabel('Markdown本文', { exact: true }).fill('自分で確認した架空の制作本文です。');
+  await page.getByRole('button', { name: '下書きを保存', exact: true }).click();
+  await expect(page.locator('.editor-save-state')).toHaveText('保存済み');
+  await page
+    .locator('.editor-main-heading')
+    .getByRole('button', { name: '公開する', exact: true })
+    .click();
+  const composer = page.getByRole('region', { name: '保存済み版の公開', exact: true });
+  await composer.getByLabel('記事の概要（300文字以内）').fill('プロフィールのリンクの検証');
+  await composer.getByRole('checkbox').check();
+  await composer.getByRole('button', { name: '確認した保存済み版を公開', exact: true }).click();
+  const publicLink = composer.getByRole('link', { name: 'ログインなしの読者画面を開く' });
+  await expect(publicLink).toBeVisible();
+  const articlePath = (await publicLink.getAttribute('href'))!;
+  const guest = await browser.newContext({
+    baseURL: ORIGIN,
+    ignoreHTTPSErrors: true,
+    viewport: page.viewportSize() ?? undefined,
+  });
+  try {
+    const reader = await guest.newPage();
+    const expected = [
+      ['X（新しいタブで開きます）', 'https://x.com/kobe_student'],
+      ['GitHub（新しいタブで開きます）', 'https://github.com/kobe-student'],
+      ['Webサイト（新しいタブで開きます）', 'https://example.com/works'],
+    ];
+    const check = async (scope: ReturnType<typeof reader.locator>) => {
+      const list = scope.getByRole('list', { name: /さんのリンク$/ });
+      const anchors = list.getByRole('link');
+      await expect(anchors).toHaveCount(3);
+      for (const [i, [label, href]] of expected.entries()) {
+        const a = anchors.nth(i);
+        await expect(a).toHaveAccessibleName(label);
+        await expect(a).toHaveAttribute('href', href);
+        await expect(a).toHaveAttribute('target', '_blank');
+        await expect(a).toHaveAttribute('rel', 'noopener noreferrer nofollow ugc');
+        await expect(a).toHaveAttribute('title', new RegExp(href.replace(/[.]/g, '\\.')));
+        const box = (await a.boundingBox())!;
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+      }
+      await expect(list.getByRole('link', { name: /LinkedIn/ })).toHaveCount(0);
+    };
+    await reader.goto('/students/' + id);
+    await check(reader.locator('.profile-side'));
+    expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await reader.screenshot({ path: info.outputPath('profile-links-public.png'), fullPage: true });
+    await reader.goto(articlePath);
+    const card = reader.getByRole('region', { name: '書いた学生' });
+    await check(card);
+    expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await card.screenshot({ path: info.outputPath('profile-links-author-card.png') });
+  } finally {
+    await guest.close();
+  }
+  // Clearing every field removes all links.
+  await page.goto('/account');
+  await openEdit(page);
+  for (const label of ['X', 'GitHub', 'Webサイト'])
+    await editor(page)
+      .getByRole('group', { name: 'リンク' })
+      .getByLabel(label, { exact: true })
+      .fill('');
+  await save(page);
+  await expect(editor(page).getByRole('status')).toHaveText('プロフィールを保存しました。');
+  await expect(editor(page).getByRole('list', { name: /さんのリンク$/ })).toHaveCount(0);
+});

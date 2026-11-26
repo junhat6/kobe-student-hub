@@ -4,6 +4,7 @@ import { ProfileAvatarStore } from './profile-avatars';
 import { readPublicActivity } from './public-activity';
 import { readPublicReceivedLikes } from './public-received-likes';
 import { readPublicAuthorCard } from './public-author-card';
+import { ProfileLinkStore } from './profile-links';
 import type { PublicStudent } from '../src/public-student-types';
 
 const path =
@@ -27,6 +28,7 @@ export function createPublicStudentHandler(
   const articles = new ArticlePublicationStore(db, origin, clock);
   const projects = new ProjectStore(db, origin, clock);
   const avatars = new ProfileAvatarStore(db, origin, clock);
+  const links = new ProfileLinkStore(db, origin, clock);
   return async (request: Request): Promise<Response | null> => {
     const url = new URL(request.url);
     if (url.pathname !== '/api/students' && !url.pathname.startsWith('/api/students/')) return null;
@@ -54,7 +56,10 @@ export function createPublicStudentHandler(
               : await readPublicReceivedLikes(db, matched[1]);
         if (value === 'missing') return error(404);
         if (value === null) return error(503);
-        return new Response(JSON.stringify(value), { headers });
+        // The card shows the author's links beside the counts (#313).
+        const body =
+          matched[2] === '/card' ? { ...value, links: await links.readPublic(matched[1]) } : value;
+        return new Response(JSON.stringify(body), { headers });
       } catch {
         return error(503);
       }
@@ -65,6 +70,7 @@ export function createPublicStudentHandler(
       const student: PublicStudent = {
         ...value,
         avatar: await avatars.readPublicPath(value.author.id),
+        links: await links.readPublic(value.author.id),
       };
       const body = JSON.stringify(student);
       if (new TextEncoder().encode(body).byteLength > 262144) return error(503);
@@ -84,7 +90,7 @@ export async function readPublicStudent(
   articles: ArticlePublicationStore,
   projects: ProjectStore,
   id: string,
-): Promise<Omit<PublicStudent, 'avatar'> | 'missing' | null> {
+): Promise<Omit<PublicStudent, 'avatar' | 'links'> | 'missing' | null> {
   const [a, p] = await Promise.all([
     articles.readPublishedAuthorSelection(id),
     projects.readAuthorSelection(id),

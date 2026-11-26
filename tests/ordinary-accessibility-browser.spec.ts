@@ -66,6 +66,12 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
       expectedVersion: workDraft.version,
       confirmPublic: true,
     });
+    // #313: profile links, so the icons on the profile page and the author card are checked.
+    const linked = await owner.context.request.put('/api/private/profile/links', {
+      headers: { Origin: 'https://127.0.0.1:8790', Authorization: 'Bearer csrf.' + owner.csrf },
+      data: { links: { x: 'x.com/kobe_axe', github: 'github.com/kobe-axe' } },
+    });
+    expect(linked.status()).toBe(200);
 
     // Anonymous reader.
     await check(page, '/', () =>
@@ -80,8 +86,14 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     await check(page, '/works', () =>
       expect(page.getByRole('link', { name: '読みやすさの作品-' + key })).toBeVisible(),
     );
-    await check(page, '/students/' + owner.profileId, () =>
-      expect(page.getByRole('heading', { name: '架空の読みやすさ投稿者-' + key })).toBeVisible(),
+    await check(page, '/students/' + owner.profileId, async () => {
+      await expect(
+        page.getByRole('heading', { name: '架空の読みやすさ投稿者-' + key }),
+      ).toBeVisible();
+      await expect(page.locator('.profile-side .profile-links a')).toHaveCount(2);
+    });
+    await check(page, '/articles/' + article.contentId, () =>
+      expect(page.locator('.author-card .profile-links a')).toHaveCount(2),
     );
     await check(page, '/agents', () =>
       expect(page.getByRole('note', { name: '履歴を使う前に' })).toBeVisible(),
@@ -132,6 +144,15 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
       // #223: the milestones (one article and one work are public) are part of what axe sees.
       await expect(ownerPage.locator('.milestone.is-next')).toBeVisible();
     });
+    // #313: the profile form with the link fields open, including one value of the wrong shape.
+    await ownerPage.getByRole('button', { name: 'プロフィールを編集', exact: true }).click();
+    const linkFields = ownerPage.getByRole('group', { name: 'リンク' });
+    await linkFields.getByLabel('Webサイト', { exact: true }).fill('http://example.com');
+    await expect(ownerPage.getByRole('alert')).toContainText('Webサイトのリンクの形が違います');
+    await settled(ownerPage);
+    expect.soft(await seriousViolations(ownerPage)).toEqual([]);
+    await ownerPage.screenshot({ path: info.outputPath('profile-links-form.png'), fullPage: true });
+    await ownerPage.getByRole('button', { name: 'キャンセル', exact: true }).click();
     // #232: the header bell's panel (empty for this owner) is part of every signed-in page.
     await ownerPage.getByRole('button', { name: /^お知らせ/ }).click();
     const bellPanel = ownerPage.getByRole('dialog', { name: 'お知らせ' });

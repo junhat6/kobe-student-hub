@@ -269,3 +269,23 @@
   margin: 0;
   font-size: 13px;
 }
+/* Profile links (#313): a quiet group under the details, one labeled field per service. */
+.profile-editor-form fieldset.profile-editor-links {
+  gap: 10px;
+  margin-top: 6px;
+}
+.profile-editor-links legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink, #141a22);
+}
+.profile-editor-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-muted, #636d79);
+}
+.profile-editor-field input[aria-invalid='true'] {
+  border-color: #b3412c;
+}

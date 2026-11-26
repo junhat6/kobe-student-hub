@@ -85,8 +85,9 @@ async function student(index: number) {
     expect(response.headers.get(key)).toBe(value);
   expect(response.headers.has('Set-Cookie')).toBe(false);
   const value = (await response.json()) as PublicStudent;
-  expect(Object.keys(value).sort()).toEqual(['author', 'avatar', 'entries', 'projects']);
+  expect(Object.keys(value).sort()).toEqual(['author', 'avatar', 'entries', 'links', 'projects']);
   expect(value.avatar).toBeNull();
+  expect(value.links).toEqual([]);
   expect(Object.keys(value.author).sort()).toEqual([
     'bio',
     'department',
@@ -337,14 +338,16 @@ describe('ordinary shared public student with actual Workers/D1', () => {
       articles: 1,
       projects: 0,
       recent: [{ kind: 'article', id: articles[0], title: 'Public article' }],
+      links: [],
     });
     expect(await card(1)).toEqual({
       articles: 0,
       projects: 1,
       recent: [{ kind: 'project', id: projects[1], title: 'Public project' }],
+      links: [],
     });
     const both = await card(2);
-    expect(Object.keys(both).sort()).toEqual(['articles', 'projects', 'recent']);
+    expect(Object.keys(both).sort()).toEqual(['articles', 'links', 'projects', 'recent']);
     expect([both.articles, both.projects]).toEqual([1, 1]);
     expect(both.recent.map((v) => v.kind + ':' + v.id).sort()).toEqual(
       ['article:' + articles[2], 'project:' + projects[2]].sort(),
@@ -357,6 +360,7 @@ describe('ordinary shared public student with actual Workers/D1', () => {
         articles: 0,
         projects: 1,
         recent: [{ kind: 'project', id: projects[2], title: 'Public project' }],
+        links: [],
       });
     } finally {
       await db.prepare("UPDATE content SET status='published' WHERE id=?").bind(articles[2]).run();

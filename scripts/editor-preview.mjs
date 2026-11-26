@@ -36,6 +36,7 @@ for (const file of [
   'migrations/0043_project_stage.sql',
   'migrations/0045_media_payload_optional.sql',
   'migrations/0046_project_journal_links.sql',
+  'migrations/0052_profile_links.sql',
 ]) {
   // Column-only migrations are detected by their added column instead of a table.
   const column = file.includes('0024')
@@ -52,43 +53,45 @@ for (const file of [
   const columnTable =
     file.includes('0031') || file.includes('0039') ? 'media_assets' : 'project_publications';
   // Initialization is idempotent: check the specific local table before applying its schema.
-  const table = file.includes('0046')
-    ? 'project_journal_links'
-    : file.includes('0028')
-      ? 'profile_avatars'
-      : file.includes('0027')
-        ? 'profile_reports'
-        : file.includes('0026')
-          ? 'project_report_outbox'
-          : file.includes('0022')
-            ? 'article_publication_revisions'
-            : file.includes('0021')
-              ? 'project_moderation_state'
-              : file.includes('0019')
-                ? 'moderation_email_deliveries'
-                : file.includes('0020')
-                  ? 'media_assets'
-                  : file.includes('0018')
-                    ? 'article_moderation_state'
-                    : file.includes('0011')
-                      ? 'article_publication_stops'
-                      : file.includes('0016')
-                        ? 'private_enrollment_periods'
-                        : file.includes('0001')
-                          ? 'public_profiles'
-                          : file.includes('0004')
-                            ? 'private_accounts'
-                            : file.includes('0005')
-                              ? 'private_article_drafts'
-                              : file.includes('0006')
-                                ? 'article_reports'
-                                : file.includes('0010')
-                                  ? 'project_reports'
-                                  : file.includes('0009')
-                                    ? 'project_drafts'
-                                    : file.includes('0008')
-                                      ? 'article_likes'
-                                      : 'account_public_profiles';
+  const table = file.includes('0052')
+    ? 'public_profile_links'
+    : file.includes('0046')
+      ? 'project_journal_links'
+      : file.includes('0028')
+        ? 'profile_avatars'
+        : file.includes('0027')
+          ? 'profile_reports'
+          : file.includes('0026')
+            ? 'project_report_outbox'
+            : file.includes('0022')
+              ? 'article_publication_revisions'
+              : file.includes('0021')
+                ? 'project_moderation_state'
+                : file.includes('0019')
+                  ? 'moderation_email_deliveries'
+                  : file.includes('0020')
+                    ? 'media_assets'
+                    : file.includes('0018')
+                      ? 'article_moderation_state'
+                      : file.includes('0011')
+                        ? 'article_publication_stops'
+                        : file.includes('0016')
+                          ? 'private_enrollment_periods'
+                          : file.includes('0001')
+                            ? 'public_profiles'
+                            : file.includes('0004')
+                              ? 'private_accounts'
+                              : file.includes('0005')
+                                ? 'private_article_drafts'
+                                : file.includes('0006')
+                                  ? 'article_reports'
+                                  : file.includes('0010')
+                                    ? 'project_reports'
+                                    : file.includes('0009')
+                                      ? 'project_drafts'
+                                      : file.includes('0008')
+                                        ? 'article_likes'
+                                        : 'account_public_profiles';
   // 0032 only swaps CHECKs and a trigger, so it is detected by the raised trigger value; 0036–0038 and 0040 only add triggers.
   const trigger = file.includes('0036')
     ? 'project_publications_no_delete'

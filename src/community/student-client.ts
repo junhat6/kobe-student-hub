@@ -7,6 +7,7 @@ import {
 } from '../editor/public-author-client';
 import { validProjectAuthor } from '../editor/project-client';
 import { validPublicAvatar } from '../shared/avatar';
+import { validProfileLinks } from '../shared/profile-links';
 import type {
   PublicAuthorCard,
   PublicReceivedLikes,
@@ -25,9 +26,10 @@ class PublicStudentClientError extends Error {
 }
 function valid(value: unknown, id: string): value is PublicStudent {
   if (
-    !publicKeys(value, ['author', 'avatar', 'entries', 'projects']) ||
+    !publicKeys(value, ['author', 'avatar', 'links', 'entries', 'projects']) ||
     !validPublicProfile(value.author, id) ||
     !validPublicAvatar(value.avatar, id) ||
+    !validProfileLinks(value.links) ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.projects) ||
     value.entries.length > 20 ||
@@ -81,7 +83,11 @@ export function validReceivedLikes(value: unknown): value is PublicReceivedLikes
 }
 const PROJECT_ID = ARTICLE_ID;
 export function validAuthorCard(value: unknown): value is PublicAuthorCard {
-  if (!publicKeys(value, ['articles', 'projects', 'recent']) || !Array.isArray(value.recent))
+  if (
+    !publicKeys(value, ['articles', 'projects', 'recent', 'links']) ||
+    !Array.isArray(value.recent) ||
+    !validProfileLinks(value.links)
+  )
     return false;
   const { articles, projects, recent } = value;
   for (const n of [articles, projects])

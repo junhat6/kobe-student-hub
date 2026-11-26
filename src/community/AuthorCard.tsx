@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPublicStudentClient } from './student-client';
 import { AuthorAvatar } from '../shared/public-avatars';
+import ProfileLinks from '../shared/ProfileLinks';
 import type { Profile } from '../types';
 import type { PublicAuthorCard } from '../public-student-types';
 
@@ -54,7 +55,7 @@ export default function AuthorCard({
         </span>
       </Link>
       {author.bio && <p className="author-card-bio">{author.bio}</p>}
-      {/* #313 adds the X・GitHub・LinkedIn・Web icons here, between the bio and the counts. */}
+      {card && <ProfileLinks links={card.links} name={author.name} />}
       {card && (
         <p className="author-card-counts">
           公開中の記事 <strong>{card.articles}</strong>
