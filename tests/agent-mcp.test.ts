@@ -166,7 +166,7 @@ beforeAll(async () => {
       .filter(Boolean);
     await db.batch(statements.map((sql) => db.prepare(sql)));
   }
-  for (const who of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k'])
+  for (const who of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm'])
     await db
       .prepare(
         "INSERT INTO private_accounts(id,google_subject,email,status,created_at_ms) VALUES(?,?,?,'active',?)",
@@ -194,7 +194,7 @@ beforeAll(async () => {
     )
     .run();
   // "i" and "j" are two students with public profiles for the project journal (#276).
-  for (const who of ['i', 'j']) {
+  for (const who of ['i', 'j', 'l']) {
     await db
       .prepare(
         "INSERT INTO public_profiles(id,display_name,department,year_label,bio,initials,is_sample) VALUES(?,?,'分野','学年','自己紹介','J',0)",
@@ -209,7 +209,7 @@ beforeAll(async () => {
       .run();
   }
   users = {};
-  for (const who of ['a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'j', 'k'])
+  for (const who of ['a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm'])
     users[who] = await call<Session>({ action: 'session', who });
   // "e" has a live session but no enrollment period (graduated / not yet declared).
   users.e = await call<Session>({ action: 'session', who: 'e', enrollment: false });
@@ -568,8 +568,10 @@ describe('MCP tools as the connected student', () => {
     const list = await rpc(c.access_token, 'tools/list');
     expect(list.json.result.tools.map((t: { name: string }) => t.name).sort()).toEqual([
       'create_draft',
+      'create_project_draft',
       'get_article',
       'get_my_draft',
+      'get_my_project_draft',
       'get_my_taste',
       'get_my_taste_materials',
       'get_project',
@@ -581,6 +583,7 @@ describe('MCP tools as the connected student', () => {
       'list_recent_projects',
       'replace_my_taste',
       'update_draft',
+      'update_project_draft',
       'update_published_article',
     ]);
     const meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' };
@@ -1481,6 +1484,378 @@ describe('project journal drafts (#276): own projects only, linked when the stud
     const ids = listed.draftProjects.map((p) => p.draftId);
     expect(ids).not.toContain(a.id);
     expect(ids).not.toContain(b.id);
+  });
+});
+
+describe('project drafts through MCP (#298): own unpublished drafts only, publishing stays in the app', () => {
+  const db = () => mf.getD1Database('DB');
+  const fields = {
+    title: '架空の天気アプリ',
+    description: '## つくったもの\n架空の説明',
+    github_url: 'https://github.com/example/weather',
+    demo_url: '',
+    technologies: 'React, Cloudflare Workers',
+  };
+  const appRead = (who: string, id: string) =>
+    call<Record<string, unknown> | null>({
+      action: 'projectRead',
+      url: ORIGIN + '/private/x',
+      headers: browser(users[who]),
+      draft: id,
+    });
+  const toolAt = async (
+    token: string,
+    name: string,
+    args: Record<string, unknown>,
+    now: number,
+  ) => {
+    const r = await http('/api/mcp', {
+      method: 'POST',
+      now,
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json',
+        'MCP-Protocol-Version': '2025-06-18',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: ++rpcId,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    });
+    return r!.status;
+  };
+
+  it("creates, reads and updates the student's own private project draft, shown as the agent's", async () => {
+    const c = await connect('l');
+    const made = await tool(c.access_token, 'create_project_draft', fields);
+    expect(made.isError).toBeUndefined();
+    const { id, version } = made.structuredContent!.draft;
+    expect(version).toBe(1);
+    expect(made.structuredContent!.editUrl).toBe(ORIGIN + '/works/new');
+    // The app reads exactly what MCP stored, as an ordinary private draft (no publication).
+    expect(await appRead('l', id)).toMatchObject({
+      id,
+      title: fields.title,
+      description: fields.description,
+      githubUrl: fields.github_url,
+      demoUrl: '',
+      technologies: fields.technologies,
+      version: 1,
+    });
+    const listed = await call<{ id: string; publicationId: string | null }[]>({
+      action: 'projectList',
+      url: ORIGIN + '/private/x',
+      headers: browser(users.l),
+    });
+    expect(listed.find((d) => d.id === id)).toMatchObject({ publicationId: null });
+    expect(
+      (await (
+        await db()
+      )
+        .prepare('SELECT count(*) n FROM project_publications WHERE draft_id=?')
+        .bind(id)
+        .first<{ n: number }>())!.n,
+    ).toBe(0);
+    const mine = JSON.parse(
+      (await http('/api/private/agent-connections', { headers: browser(users.l) }))!.body,
+    );
+    expect(mine.agentProjectDraftIds).toContain(id);
+    expect(mine.agentDraftIds).not.toContain(id);
+
+    const read = await tool(c.access_token, 'get_my_project_draft', { id });
+    expect(read.structuredContent!.draft).toEqual({
+      id,
+      title: fields.title,
+      description: fields.description,
+      githubUrl: fields.github_url,
+      demoUrl: '',
+      technologies: fields.technologies,
+      version: 1,
+      updatedAt: NOW,
+    });
+    const updated = await tool(c.access_token, 'update_project_draft', {
+      id,
+      ...fields,
+      title: '直した作品名',
+      demo_url: 'https://example.com/demo',
+      expected_version: 1,
+    });
+    expect(updated.structuredContent!.draft.version).toBe(2);
+    expect(await appRead('l', id)).toMatchObject({
+      title: '直した作品名',
+      demoUrl: 'https://example.com/demo',
+      version: 2,
+    });
+    const stale = await tool(c.access_token, 'update_project_draft', {
+      id,
+      ...fields,
+      expected_version: 1,
+    });
+    expect(stale.isError).toBe(true);
+    expect(stale.content[0].text).toContain('先に更新');
+
+    // Another student's connection can neither read nor change it.
+    const other = await connect('i');
+    const theirs = await tool(other.access_token, 'get_my_project_draft', { id });
+    expect([theirs.isError, theirs.content[0].text]).toEqual([
+      true,
+      expect.stringContaining('見つかりません'),
+    ]);
+    const write = await tool(other.access_token, 'update_project_draft', {
+      id,
+      ...fields,
+      expected_version: 2,
+    });
+    expect(write.isError).toBe(true);
+    expect(await appRead('l', id)).toMatchObject({ title: '直した作品名', version: 2 });
+  });
+
+  it('updates a draft the student saved in the app, but never a published project', async () => {
+    const c = await connect('l');
+    const own = await call<{ id: string; version: number }>({
+      action: 'projectDraft',
+      url: ORIGIN + '/private/x',
+      method: 'POST',
+      headers: browser(users.l, true),
+      input: { title: 'アプリで保存', description: '説明', githubUrl: '', demoUrl: '' },
+    });
+    const edited = await tool(c.access_token, 'update_project_draft', {
+      id: own.id,
+      ...fields,
+      expected_version: own.version,
+    });
+    expect(edited.structuredContent!.draft.version).toBe(2);
+    // The app's own draft is not marked as the agent's.
+    const mine = JSON.parse(
+      (await http('/api/private/agent-connections', { headers: browser(users.l) }))!.body,
+    );
+    expect(mine.agentProjectDraftIds).not.toContain(own.id);
+
+    const made = await tool(c.access_token, 'create_project_draft', fields);
+    const id = made.structuredContent!.draft.id;
+    const published = await call<{ projectId: string } | null>({
+      action: 'projectPublish',
+      url: ORIGIN + '/private/x',
+      method: 'POST',
+      headers: browser(users.l, true),
+      draft: id,
+      input: { expectedVersion: 1, confirmPublic: true },
+    });
+    expect(published?.projectId).toMatch(/^[0-9a-f-]{36}$/);
+    const read = await tool(c.access_token, 'get_my_project_draft', { id });
+    expect([read.isError, read.content[0].text]).toEqual([
+      true,
+      expect.stringContaining('すでに公開'),
+    ]);
+    const write = await tool(c.access_token, 'update_project_draft', {
+      id,
+      ...fields,
+      title: '公開後に変える',
+      expected_version: 1,
+    });
+    expect([write.isError, write.content[0].text]).toEqual([
+      true,
+      expect.stringContaining('すでに公開'),
+    ]);
+    expect(await appRead('l', id)).toMatchObject({ title: fields.title, version: 1 });
+    // A stopped (hidden) publication still counts as published here.
+    await (
+      await db()
+    )
+      .prepare("UPDATE project_publications SET status='hidden' WHERE id=?")
+      .bind(published!.projectId)
+      .run();
+    expect(
+      (
+        await tool(c.access_token, 'update_project_draft', {
+          id,
+          ...fields,
+          expected_version: 1,
+        })
+      ).content[0].text,
+    ).toContain('すでに公開');
+  });
+
+  it('accepts only the typed, bounded project fields (HTTP 400 otherwise) and stores nothing', async () => {
+    const c = await connect('l');
+    const before = await (
+      await db()
+    )
+      .prepare("SELECT count(*) n FROM project_drafts WHERE owner_account_id='account-l'")
+      .first<{ n: number }>();
+    const send = (name: string, args: Record<string, unknown>) =>
+      rpc(c.access_token, 'tools/call', { name, arguments: args });
+    for (const args of [
+      { ...fields, stage: 'complete' },
+      { ...fields, media_ids: ['x'] },
+      { ...fields, confirm_public: true },
+      { title: 'x' },
+      { ...fields, title: '' },
+      { ...fields, title: 'x'.repeat(201) },
+      { ...fields, title: '二行\n作品名' },
+      { ...fields, title: '⠀​' },
+      { ...fields, title: 'a‮bc' },
+      { ...fields, description: 'd'.repeat(4001) },
+      { ...fields, description: { file: 'a.md' } },
+      { ...fields, github_url: 'http://github.com/example' },
+      { ...fields, github_url: 'javascript:alert(1)' },
+      { ...fields, demo_url: 'https://user:pass@example.com/' },
+      { ...fields, demo_url: 'https://example.com/' + 'a'.repeat(2048) },
+      { ...fields, technologies: 'React\nVue' },
+      { ...fields, technologies: 't'.repeat(101) },
+      { ...fields, technologies: 3 },
+    ]) {
+      const r = await send('create_project_draft', args);
+      expect([r.status, r.json.error.code], JSON.stringify(args).slice(0, 80)).toEqual([
+        400, -32602,
+      ]);
+    }
+    // Exactly at the limits it is stored (4000 characters of the description, 100 of technologies).
+    const fits = await send('create_project_draft', {
+      ...fields,
+      description: 'あ'.repeat(4000),
+      technologies: 't'.repeat(100),
+    });
+    expect(fits.json.result.isError).toBeUndefined();
+    // Update replaces every field, so each one must be sent (nothing is silently cleared).
+    const id = fits.json.result.structuredContent.draft.id;
+    const { technologies: _t, ...withoutTechnologies } = fields;
+    for (const args of [
+      { id, ...withoutTechnologies, expected_version: 1 },
+      { id, ...fields, expected_version: 0 },
+      { id, ...fields, expected_version: 1.5 },
+      { id: 'not-a-uuid', ...fields, expected_version: 1 },
+      { id, ...fields, expected_version: 1, stage: 'complete' },
+    ]) {
+      const r = await send('update_project_draft', args);
+      expect([r.status, r.json.error.code]).toEqual([400, -32602]);
+    }
+    const after = await (
+      await db()
+    )
+      .prepare("SELECT count(*) n FROM project_drafts WHERE owner_account_id='account-l'")
+      .first<{ n: number }>();
+    expect(after!.n).toBe(before!.n + 1);
+    expect(await appRead('l', id)).toMatchObject({ version: 1 });
+  });
+
+  it('warns about secret-looking text in the description without echoing it', async () => {
+    const c = await connect('l');
+    const secret = 'ghp_' + 'B'.repeat(36);
+    const r = await tool(c.access_token, 'create_project_draft', {
+      ...fields,
+      description: `一行目\nトークン ${secret}`,
+    });
+    expect(r.isError).toBeUndefined();
+    expect(r.content[0].text).toContain('本文 2 行目：アクセストークン');
+    expect(JSON.stringify(r)).not.toContain(secret);
+  });
+
+  it('limits agent-created project drafts to 10 per account per day', async () => {
+    const first = await connect('m');
+    const second = await connect('m');
+    for (let n = 0; n < 10; n++)
+      expect(
+        (
+          await tool(n % 2 ? first.access_token : second.access_token, 'create_project_draft', {
+            ...fields,
+            title: 't' + n,
+          })
+        ).isError,
+      ).toBeUndefined();
+    const over = await tool(second.access_token, 'create_project_draft', fields);
+    expect(over.content[0].text).toContain('1日10件');
+    // Article drafts keep their own limit.
+    expect(
+      (await tool(second.access_token, 'create_draft', { title: 't', body: 'b' })).isError,
+    ).toBeUndefined();
+    const n = await (
+      await db()
+    )
+      .prepare("SELECT count(*) n FROM project_drafts WHERE owner_account_id='account-m'")
+      .first<{ n: number }>();
+    expect(n!.n).toBe(10);
+  });
+
+  it('refuses outside the enrollment period, and answers 401 once the connection is no longer live', async () => {
+    const e = await connect('e');
+    const r = await tool(e.access_token, 'create_project_draft', fields);
+    expect(r.content[0].text).toContain('在籍期間');
+    const c = await connect('l');
+    const made = await tool(c.access_token, 'create_project_draft', fields);
+    const id = made.structuredContent!.draft.id;
+    // Expired access token.
+    expect(await toolAt(c.access_token, 'create_project_draft', fields, NOW + 3_600_001)).toBe(401);
+    expect(
+      await toolAt(
+        c.access_token,
+        'update_project_draft',
+        { id, ...fields, expected_version: 1 },
+        NOW + 3_600_001,
+      ),
+    ).toBe(401);
+    // session_epoch change (sign-out everywhere) ends every connection.
+    const d = await connect('l');
+    await (
+      await db()
+    )
+      .prepare("UPDATE private_accounts SET session_epoch=session_epoch+1 WHERE id='account-l'")
+      .run();
+    for (const [name, args] of [
+      ['create_project_draft', fields],
+      ['get_my_project_draft', { id }],
+      ['update_project_draft', { id, ...fields, expected_version: 1 }],
+    ] as const)
+      expect(await toolAt(d.access_token, name, args, NOW)).toBe(401);
+    expect(
+      (await (
+        await db()
+      )
+        .prepare('SELECT version FROM project_drafts WHERE id=?')
+        .bind(id)
+        .first<{ version: number }>())!.version,
+    ).toBe(1);
+  });
+
+  it('the origin table (0051) accepts only a mark for the owner’s own unpublished draft, once, never changed', async () => {
+    const d = await db();
+    const row = await d
+      .prepare(
+        "SELECT o.draft_id FROM agent_project_draft_origins o JOIN project_drafts p ON p.id=o.draft_id WHERE o.account_id='account-m' LIMIT 1",
+      )
+      .first<{ draft_id: string }>();
+    const grant = '00000000-0000-4000-8000-000000000000';
+    const appDraft = await d
+      .prepare(
+        "SELECT id FROM project_drafts WHERE owner_account_id='account-l' AND id NOT IN (SELECT draft_id FROM agent_project_draft_origins) AND id NOT IN (SELECT draft_id FROM project_publications WHERE draft_id IS NOT NULL) LIMIT 1",
+      )
+      .first<{ id: string }>();
+    const publishedDraft = await d
+      .prepare(
+        // Published in the app (#276 fixtures), so it carries no mark: only the publication refuses it.
+        "SELECT draft_id FROM project_publications WHERE owner_account_id='account-i' AND draft_id IS NOT NULL AND draft_id NOT IN (SELECT draft_id FROM agent_project_draft_origins) LIMIT 1",
+      )
+      .first<{ draft_id: string }>();
+    const insert = (draft: string, account: string, or = '') =>
+      d
+        .prepare(
+          `INSERT ${or} INTO agent_project_draft_origins(draft_id,account_id,grant_id,created_at_ms) VALUES(?,?,?,?)`,
+        )
+        .bind(draft, account, grant, 0)
+        .run();
+    await expect(insert(appDraft!.id, 'account-m')).rejects.toThrow(/unavailable/);
+    await expect(insert(publishedDraft!.draft_id, 'account-i')).rejects.toThrow(/unavailable/);
+    await expect(insert(row!.draft_id, 'account-m', 'OR REPLACE')).rejects.toThrow(/unavailable/);
+    await expect(
+      d
+        .prepare('UPDATE agent_project_draft_origins SET created_at_ms=0 WHERE draft_id=?')
+        .bind(row!.draft_id)
+        .run(),
+    ).rejects.toThrow(/immutable/);
+    // The owner's own unpublished app draft can be marked (the Worker never does this).
+    await insert(appDraft!.id, 'account-l');
   });
 });
 

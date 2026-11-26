@@ -10,6 +10,7 @@ const id = '11111111-1111-4111-8111-111111111111';
 const state = {
   connections: [{ id, clientName: 'Codex', createdAt: 1, lastUsedAt: 2, expiresAt: 3 }],
   agentDraftIds: [],
+  agentProjectDraftIds: [],
   hints: [],
   draftProjects: [],
 };
@@ -85,10 +86,21 @@ describe('agent connections client — on the bounded transport', () => {
     // An older Worker without the list still parses; a refused removal is reported as false.
     const old = vi.fn(async () => json({ connections: [], agentDraftIds: [], hints: [] }));
     expect((await listAgentConnections(old as typeof fetch))?.draftProjects).toEqual([]);
+    expect((await listAgentConnections(old as typeof fetch))?.agentProjectDraftIds).toEqual([]);
     const refused = vi.fn(async () => json({ error: 'unavailable' }, 404));
     expect(
       await createAgentConnectionsClient(csrf, refused as typeof fetch).unlinkDraftProject(draftId),
     ).toBe(false);
+  });
+
+  it('reads the project drafts an agent made (#298) and drops malformed ids', async () => {
+    const draftId = '44444444-4444-4444-8444-444444444444';
+    const f = vi.fn(async () =>
+      json({ ...state, agentProjectDraftIds: [draftId, 'x', 3, '../' + draftId] }),
+    );
+    expect((await listAgentConnections(f as typeof fetch))?.agentProjectDraftIds).toEqual([
+      draftId,
+    ]);
   });
 
   it('reads a consent request with the session cookie only, never the CSRF proof or a body', async () => {

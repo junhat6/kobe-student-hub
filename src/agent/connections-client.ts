@@ -27,6 +27,8 @@ export interface AgentDraftProject {
 export interface AgentConnectionsState {
   connections: AgentConnection[];
   agentDraftIds: string[];
+  /** Project drafts an agent made through MCP (#298). Older Workers do not send it. */
+  agentProjectDraftIds: string[];
   hints: AgentDraftHints[];
   draftProjects: AgentDraftProject[];
 }
@@ -60,6 +62,9 @@ function parseState(value: unknown): AgentConnectionsState | null {
   const agentDraftIds = v.agentDraftIds.filter(
     (id): id is string => typeof id === 'string' && uuid.test(id),
   );
+  const agentProjectDraftIds = (
+    Array.isArray(v.agentProjectDraftIds) ? v.agentProjectDraftIds : []
+  ).filter((id): id is string => typeof id === 'string' && uuid.test(id));
   const hints = v.hints.filter(
     (h): h is AgentDraftHints =>
       h &&
@@ -85,13 +90,14 @@ function parseState(value: unknown): AgentConnectionsState | null {
   return {
     connections: connections.slice(0, 20),
     agentDraftIds: agentDraftIds.slice(0, 100),
+    agentProjectDraftIds: agentProjectDraftIds.slice(0, 100),
     hints: hints.slice(0, 100),
     draftProjects: draftProjects.slice(0, 100),
   };
 }
 
 const BASE = '/api/private/agent-connections';
-/** Every answer here is a small private DTO; the list is capped at 20 + 100 + 100 + 100 rows. */
+/** Every answer here is a small private DTO; the list is capped at 20 + 100 + 100 + 100 + 100 rows. */
 const MAX_BYTES = 262144;
 const requestId = /^[A-Za-z0-9_-]{43}$/;
 

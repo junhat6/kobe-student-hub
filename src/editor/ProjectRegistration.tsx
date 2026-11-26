@@ -26,6 +26,8 @@ import Celebration from '../shared/Celebration';
 import { PROJECT_STAGES, type ProjectStage } from '../project-types';
 import ProjectStageMark, { PROJECT_STAGE_LABELS } from '../shared/ProjectStageMark';
 import ProjectJournalLinks from './ProjectJournalLinks';
+import { useAgentDrafts } from '../agent/connections-client';
+import { AGENT_MCP_RELEASE_ENABLED } from '../shared/agent-release';
 const empty: ProjectFields = {
   title: '',
   description: '',
@@ -128,6 +130,10 @@ export default function ProjectRegistration({
     [workBusy, setBusy] = useState(false),
     [message, setMessage] = useState('');
   const [mediaBusy, setMediaBusy] = useState(false);
+  // #298: project drafts an AI agent made through MCP (ordinary surface only). Re-read only when
+  // the set of listed drafts changes, not on every autosave of the open one.
+  const listedIds = list.map((row) => row.id).join(',');
+  const [agentDrafts] = useAgentDrafts(ordinary && AGENT_MCP_RELEASE_ENABLED, fetcher, listedIds);
   const [mediaUncertain, setMediaUncertain] = useState(false);
   const [composing, setComposing] = useState(false);
   const composition = useRef(false);
@@ -799,6 +805,7 @@ export default function ProjectRegistration({
             )}
             <small>
               {ordinary && saved?.id === row.id ? '編集中 · ' : ''}版 {row.version}
+              {agentDrafts?.agentProjectDraftIds.includes(row.id) ? ' · AIエージェントが作成' : ''}
             </small>
           </li>
         ))}

@@ -6,6 +6,7 @@ import {
   SCOPE,
   type AgentAccess,
   type DraftWriteResult,
+  type ProjectDraftWriteResult,
   type PublishedEditResult,
 } from './connections';
 import {
@@ -24,7 +25,12 @@ import {
 import { serverInstructions, writingGuide } from './guide';
 import { japanDate } from '../japan-date';
 import { canonicalOrigin } from '../http-boundary';
-import { hasVisibleCharacter } from '../../src/project-input';
+import {
+  hasVisibleCharacter,
+  normalizeProjectFields,
+  oneLineRejectedCodePoint,
+} from '../../src/project-input';
+import type { ProjectDraft } from '../../src/project-types';
 import { ProjectStore } from '../projects';
 import { readPublicStudent } from '../public-students-http';
 
@@ -352,6 +358,99 @@ const TOOLS = [
   },
 ];
 
+/** #298: the student's own unpublished project drafts. Publishing stays in the app (human-only). */
+const projectFieldProperties = {
+  title: {
+    type: 'string',
+    minLength: 1,
+    maxLength: 200,
+    description: '作品名（1行。見える文字を1つ以上）',
+  },
+  description: {
+    type: 'string',
+    maxLength: 4000,
+    description: '作品の説明の Markdown（4000文字・16KB まで。見出しは ## から）',
+  },
+  github_url: {
+    type: 'string',
+    maxLength: 2048,
+    description: 'GitHub などのリポジトリの https URL（無ければ空文字）',
+  },
+  demo_url: {
+    type: 'string',
+    maxLength: 2048,
+    description: '動くものが見られる https URL（無ければ空文字）',
+  },
+  technologies: {
+    type: 'string',
+    maxLength: 100,
+    description: '使った技術を読点かカンマで区切った1行（100文字まで。無ければ空文字）',
+  },
+};
+const PROJECT_TOOLS = [
+  {
+    name: 'create_project_draft',
+    title: '作品の下書きを作る',
+    description:
+      '本人の非公開の作品の下書きを1件作る（公開はしない）。受け取るのは作品名・説明 Markdown・任意の GitHub URL・デモ URL・使った技術だけ（画像・ファイルは受け取らない）。公開・制作中か完成かの選択・画像の追加は、本人がアプリの作品の画面で行う。秘密らしき形があれば種類と行番号を注意として返す（検査は完全ではない）。1アカウント1日10件まで。',
+    inputSchema: {
+      type: 'object',
+      properties: projectFieldProperties,
+      required: ['title', 'description'],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'get_my_project_draft',
+    title: '自分の作品の下書きを読む',
+    description:
+      '本人のまだ公開していない作品の下書き1件の全項目と版を返す。id は create_project_draft が返した ID。公開済みの作品は読めない・直せない（本人がアプリで直す）。',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string', pattern: uuidPattern } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'update_project_draft',
+    title: '作品の下書きを直す',
+    description:
+      '本人のまだ公開していない作品の下書きの全項目を置き換える（公開はしない。送らなかった項目は残らないので、残す値も送る）。expected_version には get_my_project_draft で読んだ版を渡す。版が違えば本人が先に直しているので、読み直してから送る。公開済みの作品は直せない。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', pattern: uuidPattern },
+        ...projectFieldProperties,
+        expected_version: { type: 'integer', minimum: 1 },
+      },
+      required: [
+        'id',
+        'title',
+        'description',
+        'github_url',
+        'demo_url',
+        'technologies',
+        'expected_version',
+      ],
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+  },
+];
+
 /** C23: the student's own taste ledger and its materials. Listed only while the flag is open. */
 const tasteLineSchema = {
   type: 'object',
@@ -423,7 +522,7 @@ const TASTE_TOOLS = [
 ];
 
 /** Every tool name the server can list. docs/loop/mcp-coverage.json must name each once (tests/mcp-coverage.test.ts). */
-export const MCP_TOOL_NAMES = [...TOOLS, ...TASTE_TOOLS].map((tool) => tool.name);
+export const MCP_TOOL_NAMES = [...TOOLS, ...PROJECT_TOOLS, ...TASTE_TOOLS].map((tool) => tool.name);
 
 type ToolResult = {
   content: { type: 'text'; text: string }[];
@@ -542,6 +641,103 @@ function writeInput(
   };
 }
 
+/**
+ * create_project_draft / update_project_draft input (#298): the five project fields, typed and
+ * bounded, then the same normalizeProjectFields check as POST/PUT /api/private/project-drafts.
+ * No images, files, stage or publication fields.
+ */
+const PROJECT_FIELDS = ['title', 'description', 'github_url', 'demo_url', 'technologies'] as const;
+function projectInput(name: 'create_project_draft' | 'update_project_draft', args: unknown) {
+  if (!args || typeof args !== 'object' || Array.isArray(args))
+    throw new InvalidParams('arguments はオブジェクトで渡してください。');
+  const a = args as Record<string, unknown>;
+  const update = name === 'update_project_draft';
+  const allowed: string[] = update
+    ? ['id', ...PROJECT_FIELDS, 'expected_version']
+    : [...PROJECT_FIELDS];
+  const unknown = Object.keys(a).filter((k) => !allowed.includes(k));
+  if (unknown.length) throw new InvalidParams('受け付けない項目があります：' + unknown.join(', '));
+  if (update) {
+    const missing = PROJECT_FIELDS.filter((k) => !Object.hasOwn(a, k));
+    if (missing.length)
+      throw new InvalidParams(
+        '全項目を置き換えるので、残す値も送ってください。足りない項目：' + missing.join(', '),
+      );
+  }
+  const { title, description } = a;
+  const github = a.github_url ?? '',
+    demo = a.demo_url ?? '',
+    technologies = a.technologies ?? '';
+  if (
+    typeof title !== 'string' ||
+    !hasVisibleCharacter(title) ||
+    chars(title) > LIMITS.title ||
+    oneLineRejectedCodePoint(title) !== null
+  )
+    throw new InvalidParams(
+      'title は見える文字を1つ以上含む、1〜200文字の1行の文字列にしてください（見えない文字・制御文字は使えません）。',
+    );
+  if (
+    typeof description !== 'string' ||
+    chars(description) > 4000 ||
+    new TextEncoder().encode(description).byteLength > 16384
+  )
+    throw new InvalidParams('description は4000文字・16KB以内の文字列にしてください。');
+  if (typeof technologies !== 'string' || chars(technologies) > 100 || !singleLine(technologies))
+    throw new InvalidParams('technologies は100文字以内の1行の文字列にしてください。');
+  for (const [key, value] of [
+    ['github_url', github],
+    ['demo_url', demo],
+  ] as const)
+    if (typeof value !== 'string' || value.length > 2048)
+      throw new InvalidParams(key + ' は https の URL か空文字にしてください。');
+  const fields = normalizeProjectFields({
+    title,
+    description,
+    githubUrl: github,
+    demoUrl: demo,
+    technologies,
+  });
+  if (!fields)
+    throw new InvalidParams(
+      'github_url・demo_url は https の URL（ユーザー名・パスワードなし）か空文字、technologies は見えない文字を含まない1行にしてください。',
+    );
+  let expectedVersion = 0;
+  if (update) {
+    const v = a.expected_version;
+    if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < 1 || v >= Number.MAX_SAFE_INTEGER)
+      throw new InvalidParams(
+        'expected_version に get_my_project_draft で読んだ版（1以上の整数）を渡してください。',
+      );
+    if (typeof a.id !== 'string' || !new RegExp(uuidPattern).test(a.id))
+      throw new InvalidParams('id に作品の下書きの ID を渡してください。');
+    expectedVersion = v;
+  }
+  return { id: a.id, fields, expectedVersion };
+}
+
+const projectFailureText: Record<Exclude<ProjectDraftWriteResult, { ok: true }>['reason'], string> =
+  {
+    unauthorized: writeFailureText.unauthorized,
+    not_found: 'その作品の下書きは見つかりません（本人の下書きだけを扱えます）。',
+    published:
+      'その作品はすでに公開されています。公開済みの作品は MCP では読めず直せません。本人にアプリの作品の画面で直してもらってください。',
+    version_conflict:
+      '作品の下書きが先に更新されています。get_my_project_draft で読み直し、本人の変更を残したうえで送り直してください。',
+    daily_limit: '今日作れる作品の下書きの数（1日10件）に達しました。明日以降にしてください。',
+    not_enrolled: writeFailureText.not_enrolled,
+  };
+const projectDraftView = (d: ProjectDraft) => ({
+  id: d.id,
+  title: d.title,
+  description: d.description,
+  githubUrl: d.githubUrl,
+  demoUrl: d.demoUrl,
+  technologies: d.technologies,
+  version: d.version,
+  updatedAt: d.updatedAt,
+});
+
 /** replace_my_taste input: the whole ledger, typed and bounded. */
 function tasteInput(args: unknown): { lines: TasteLine[]; expectedVersion: number } {
   if (!args || typeof args !== 'object' || Array.isArray(args))
@@ -601,7 +797,9 @@ export function createAgentHandler(
   const store = new AgentConnectionStore(db, clock);
   const tasteEnabled = options.tasteEnabled === true;
   const taste = new AgentTasteStore(db, clock);
-  const tools = tasteEnabled ? [...TOOLS, ...TASTE_TOOLS] : TOOLS;
+  const tools = tasteEnabled
+    ? [...TOOLS, ...PROJECT_TOOLS, ...TASTE_TOOLS]
+    : [...TOOLS, ...PROJECT_TOOLS];
   const sessions = new SessionStore(db, origin, clock);
   const articles = new ArticlePublicationStore(db, origin, clock);
   const projects = new ProjectStore(db, origin, clock);
@@ -610,6 +808,7 @@ export function createAgentHandler(
   const unknownResource = (p: URLSearchParams) =>
     p.getAll('resource').some((r) => !knownResources.has(r));
   const draftsUrl = origin + '/drafts';
+  const projectsUrl = origin + '/works/new';
 
   async function callTool(
     access: AgentAccess,
@@ -938,6 +1137,60 @@ export function createAgentHandler(
             },
             articleUrl: url,
           },
+        );
+      }
+      case 'create_project_draft':
+      case 'update_project_draft': {
+        const input = projectInput(name, args);
+        const f = input.fields;
+        // Same check as create_draft: title and the Markdown description (line numbers match).
+        const findings = scanDraft(f.title, f.description);
+        const result =
+          name === 'create_project_draft'
+            ? await store.createProjectDraft(access, f)
+            : await store.updateProjectDraft(access, input.id, f, input.expectedVersion);
+        if (!result) return fail('保存できませんでした。時間をおいて試してください。');
+        if (!result.ok)
+          return result.reason === 'unauthorized' ? null : fail(projectFailureText[result.reason]);
+        const { draft } = result;
+        const notice = findings.length
+          ? '\n\n注意：決まった形の検査で、公開してはいけない情報に見える箇所がありました（中身はここに出しません。検査は完全ではありません）。値を <API_KEY> のような置き換えにするか消して、update_project_draft で直してください。\n' +
+            describeFindings(findings)
+          : '';
+        return ok(
+          `作品の下書きを${name === 'create_project_draft' ? '作りました' : '更新しました'}（非公開）。id: ${draft.id}　版: ${draft.version}\n本人に「${projectsUrl} の「保存した作品」から開いて、画像の追加・内容の確認をしてから公開してください」と伝えてください。` +
+            notice,
+          {
+            draft: {
+              id: draft.id,
+              title: draft.title,
+              version: draft.version,
+              updatedAt: draft.updatedAt,
+            },
+            editUrl: projectsUrl,
+            warnings: findings,
+          },
+        );
+      }
+      case 'get_my_project_draft': {
+        const draft = await store.readProjectDraft(access, a.id);
+        if (draft === null) return null;
+        if (draft === 'not_found' || draft === 'published') return fail(projectFailureText[draft]);
+        return ok(
+          [
+            `# ${draft.title || '（無題）'}`,
+            '',
+            `- id: ${draft.id}`,
+            `- 版: ${draft.version}`,
+            `- GitHub: ${draft.githubUrl || '（なし）'}`,
+            `- デモ: ${draft.demoUrl || '（なし）'}`,
+            `- 使った技術: ${draft.technologies || '（なし）'}`,
+            '',
+            '---',
+            '',
+            draft.description,
+          ].join('\n'),
+          { draft: projectDraftView(draft) },
         );
       }
       case 'get_my_taste_materials':

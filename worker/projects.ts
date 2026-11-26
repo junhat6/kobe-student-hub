@@ -95,7 +95,9 @@ const fields = (
     // Rows saved before the one-line rule stay readable; new input is checked strictly on save.
     'stored',
   );
-const draft = (r: Row): ProjectDraft | null => {
+/** Decodes a saved project draft row; null when a column is out of its bounds. Shared with the MCP store (#298). */
+export const decodeProjectDraftRow = (r: Row): ProjectDraft | null => draft(r);
+function draft(r: Row): ProjectDraft | null {
   const f = fields(r);
   return f &&
     uuid(r.id) &&
@@ -104,7 +106,7 @@ const draft = (r: Row): ProjectDraft | null => {
     r.updated_at_ms >= 0
     ? { ...f, id: r.id, version: r.version, updatedAt: r.updated_at_ms }
     : null;
-};
+}
 export type ProjectSnapshotRow = Pick<
   Row,
   | 'id'

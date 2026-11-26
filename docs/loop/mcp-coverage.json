@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-25",
+  "updated": "2026-11-26",
   "purpose": "hub の操作ごとに、公式 MCP（/api/mcp）でできるか・足してよいか・人だけかを決めた対応表（MCP 対応表）。公式 MCP 以外の経路（ブラウザ操作・画面の手作業・直接の API・リモート D1）で hub を操作した出来事は、ここの操作 ID で記録され（scripts/loop/mcp-gap.mjs）、class に従って改善の待ち行列に乗る。仕組みは LOOPS.md §7「MCP 育成の流れ」。",
   "classes": {
     "mcp": "MCP にある（tool に名前。1つの操作を複数のツールで担うときは名前の配列）。別経路で行われたら『MCP にあるのに使われなかった』＝接続・説明・ツールの使い勝手の問題として loop:garden に積む",
@@ -107,7 +107,8 @@
     {
       "id": "project.write",
       "label": "自分の作品を作る・直す",
-      "class": "gap",
+      "class": "mcp",
+      "tool": ["create_project_draft", "get_my_project_draft", "update_project_draft"],
       "basis": "本人の非公開の下書きとして作るなら C21 と同じ形（作成・更新は本人・在籍期間内・初めての公開は人）で置ける。公開は human-only のまま",
       "api": [
         "POST /api/private/project-",

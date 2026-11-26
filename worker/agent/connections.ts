@@ -6,6 +6,8 @@ import {
 } from '../auth/session-guard';
 import { periodSql } from '../auth/student-participation';
 import { pkceChallenge } from '../auth/pkce';
+import { decodeProjectDraftRow } from '../projects';
+import type { ProjectDraft, ProjectFields } from '../../src/project-types';
 
 /**
  * Server repository for AI agent connections (MCP over OAuth 2.1).
@@ -109,6 +111,20 @@ export type PublishedEditResult =
         | 'version_conflict'
         | 'unpublished_changes'
         | 'unavailable'
+        | 'not_enrolled';
+    };
+
+/** Writing the student's own unpublished project draft (#298). Never a publication. */
+export type ProjectDraftWriteResult =
+  | { ok: true; draft: ProjectDraft }
+  | {
+      ok: false;
+      reason:
+        | 'unauthorized'
+        | 'not_found'
+        | 'published'
+        | 'version_conflict'
+        | 'daily_limit'
         | 'not_enrolled';
     };
 
@@ -784,6 +800,135 @@ export class AgentConnectionStore {
     }
   }
 
+  // ---- The student's own project drafts, through a connection (#298) ----
+  // Only unpublished drafts: a draft that has ever been published (any status) is never read or
+  // written here, so the agent cannot change what a public page came from, and there is no path to
+  // publishing, stopping or deleting a project.
+
+  async readProjectDraft(
+    a: AgentAccess,
+    id: unknown,
+  ): Promise<ProjectDraft | 'not_found' | 'published' | null> {
+    if (!uuid(id)) return 'not_found';
+    try {
+      const now = this.now();
+      const rows = await this.db
+        .prepare(
+          `SELECT d.*,d.id AS draft_exists,EXISTS(SELECT 1 FROM project_publications r WHERE r.draft_id=d.id) AS published FROM (SELECT 1 WHERE ${liveAccess}) authorized LEFT JOIN project_drafts d ON d.id=? AND d.owner_account_id=?`,
+        )
+        .bind(...accessBindings(a, now), id, a.accountId)
+        .all<Record<string, unknown>>();
+      if (!rows.results.length) return null;
+      const row = rows.results[0];
+      if (row.draft_exists === null) return 'not_found';
+      if (row.published) return 'published';
+      return decodeProjectDraftRow(row as Parameters<typeof decodeProjectDraftRow>[0]);
+    } catch {
+      return null;
+    }
+  }
+
+  private async projectWriteFailure(a: AgentAccess, now: number): Promise<ProjectDraftWriteResult> {
+    const state = await this.db
+      .prepare(
+        `SELECT (SELECT 1 WHERE ${liveAccess}) AS live,(SELECT 1 WHERE ${periodSql}) AS enrolled`,
+      )
+      .bind(...accessBindings(a, now), ...periodBindings(a, now))
+      .first<{ live: number | null; enrolled: number | null }>();
+    if (!state?.live) return { ok: false, reason: 'unauthorized' };
+    if (!state.enrolled) return { ok: false, reason: 'not_enrolled' };
+    return { ok: false, reason: 'daily_limit' };
+  }
+
+  /** A new private project draft, marked as the agent's, within the daily limit. */
+  async createProjectDraft(
+    a: AgentAccess,
+    f: ProjectFields,
+  ): Promise<ProjectDraftWriteResult | null> {
+    try {
+      const now = this.now();
+      const id = crypto.randomUUID();
+      const results = await this.db.batch([
+        this.db
+          .prepare(
+            `INSERT INTO project_drafts(id,owner_account_id,title,description,github_url,demo_url,version,updated_at_ms,technologies) SELECT ?,?,?,?,?,?,1,?,? WHERE ${liveAccess} AND ${periodSql} AND (SELECT count(*) FROM agent_project_draft_origins WHERE account_id=? AND created_at_ms>?)<? RETURNING *`,
+          )
+          .bind(
+            id,
+            a.accountId,
+            f.title,
+            f.description,
+            f.githubUrl,
+            f.demoUrl,
+            now,
+            f.technologies,
+            ...accessBindings(a, now),
+            ...periodBindings(a, now),
+            a.accountId,
+            now - DAY_MS,
+            DAILY_AGENT_DRAFTS,
+          ),
+        this.db
+          .prepare(
+            'INSERT INTO agent_project_draft_origins(draft_id,account_id,grant_id,created_at_ms) SELECT id,owner_account_id,?,? FROM project_drafts WHERE id=? AND owner_account_id=?',
+          )
+          .bind(a.grantId, now, id, a.accountId),
+      ]);
+      const row = results[0].results[0] as Parameters<typeof decodeProjectDraftRow>[0] | undefined;
+      if (!row) return await this.projectWriteFailure(a, now);
+      const draft = decodeProjectDraftRow(row);
+      return draft ? { ok: true, draft } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Replaces every field of the student's own unpublished project draft at the version read. */
+  async updateProjectDraft(
+    a: AgentAccess,
+    id: unknown,
+    f: ProjectFields,
+    expectedVersion: number,
+  ): Promise<ProjectDraftWriteResult | null> {
+    if (!uuid(id)) return { ok: false, reason: 'not_found' };
+    try {
+      const now = this.now();
+      const row = await this.db
+        .prepare(
+          `UPDATE project_drafts SET title=?,description=?,github_url=?,demo_url=?,technologies=?,version=version+1,updated_at_ms=? WHERE id=? AND owner_account_id=? AND version=? AND updated_at_ms<=? AND NOT EXISTS(SELECT 1 FROM project_publications r WHERE r.draft_id=project_drafts.id) AND ${liveAccess} AND ${periodSql} RETURNING *`,
+        )
+        .bind(
+          f.title,
+          f.description,
+          f.githubUrl,
+          f.demoUrl,
+          f.technologies,
+          now,
+          id,
+          a.accountId,
+          expectedVersion,
+          now,
+          ...accessBindings(a, now),
+          ...periodBindings(a, now),
+        )
+        .first<Parameters<typeof decodeProjectDraftRow>[0]>();
+      if (row) {
+        const draft = decodeProjectDraftRow(row);
+        return draft ? { ok: true, draft } : null;
+      }
+      const current = await this.readProjectDraft(a, id);
+      if (current === null) return { ok: false, reason: 'unauthorized' };
+      if (current === 'not_found' || current === 'published') return { ok: false, reason: current };
+      if (current.version !== expectedVersion) return { ok: false, reason: 'version_conflict' };
+      const failure = await this.projectWriteFailure(a, now);
+      return failure.ok === false && failure.reason === 'daily_limit'
+        ? { ok: false, reason: 'version_conflict' }
+        : failure;
+    } catch {
+      return null;
+    }
+  }
+
   /** Upserts hints only for the student's own existing draft. */
   private hintsStatement(a: AgentAccess, draftId: string, hints: DraftHints, now: number) {
     return this.db
@@ -798,6 +943,7 @@ export class AgentConnectionStore {
   async listConnections(proof: SessionStorageProof): Promise<{
     connections: AgentConnectionView[];
     agentDraftIds: string[];
+    agentProjectDraftIds: string[];
     hints: AgentDraftHintsView[];
     draftProjects: AgentDraftProjectView[];
   } | null> {
@@ -822,6 +968,14 @@ export class AgentConnectionStore {
         )
         .bind(proof.accountId)
         .all<{ draft_id: string }>();
+      // #298: project drafts an agent made. A database without 0051 keeps the rest readable.
+      const projectDrafts = await this.db
+        .prepare(
+          'SELECT draft_id FROM agent_project_draft_origins WHERE account_id=? ORDER BY created_at_ms DESC LIMIT 100',
+        )
+        .bind(proof.accountId)
+        .all<{ draft_id: string }>()
+        .catch(() => ({ results: [] as { draft_id: string }[] }));
       const hints = await this.db
         .prepare(
           'SELECT draft_id,summary,tags_json FROM agent_draft_hints WHERE account_id=? ORDER BY updated_at_ms DESC LIMIT 100',
@@ -851,6 +1005,7 @@ export class AgentConnectionStore {
             expiresAt: r.expires_at_ms,
           })),
         agentDraftIds: drafts.results.map((r) => r.draft_id),
+        agentProjectDraftIds: projectDrafts.results.map((r) => r.draft_id),
         hints: hints.results.flatMap((r) => {
           try {
             const tags = JSON.parse(r.tags_json);

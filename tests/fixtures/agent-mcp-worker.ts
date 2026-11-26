@@ -73,6 +73,19 @@ export default {
         ),
       );
     }
+    // #298: the app's own reads and publication of a project draft, to check what MCP wrote.
+    if (i.action === 'projectDraft')
+      return Response.json(
+        await new ProjectStore(env.DB, origin, clock).createDraft(target, i.input),
+      );
+    if (i.action === 'projectRead')
+      return Response.json(await new ProjectStore(env.DB, origin, clock).getDraft(target, i.draft));
+    if (i.action === 'projectList')
+      return Response.json(await new ProjectStore(env.DB, origin, clock).listDrafts(target));
+    if (i.action === 'projectPublish')
+      return Response.json(
+        await new ProjectStore(env.DB, origin, clock).publish(target, i.draft, i.input),
+      );
     if (i.action === 'journal') {
       const store = new ProjectStore(env.DB, origin, clock);
       return Response.json(await store.readPublishedPage(i.draft));

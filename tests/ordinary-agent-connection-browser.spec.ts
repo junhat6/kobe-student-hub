@@ -97,8 +97,9 @@ test('a student allows their own agent, sees its draft marked, uses its suggesti
   await expect(consent).toContainText(clientName);
   await expect(consent).toContainText('この端末のアプリ');
   await expect(consent).toContainText(
-    '初めての公開・削除、プロフィール・いいね・通報、ほかの人の下書き',
+    '初めての公開・削除、公開済みの作品を直す、プロフィール・いいね・通報、ほかの人の下書き',
   );
+  await expect(consent).toContainText('まだ公開していない作品の下書きを作る・読む・直す');
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.screenshot({ path: info.outputPath('connect-consent.png'), fullPage: true });
   await page.getByRole('button', { name: '接続を許可する', exact: true }).click();
@@ -365,6 +366,62 @@ test("an agent's journal drafts for the student's project appear on it only afte
     });
   } finally {
     await guest.close();
+    await agent.dispose();
+  }
+});
+
+test("an agent's project draft stays private and shows as the agent's in the student's saved projects (#298)", async ({
+  page,
+  playwright,
+}, info) => {
+  const agent = await playwright.request.newContext({ baseURL: ORIGIN, ignoreHTTPSErrors: true });
+  try {
+    await register(page, info);
+    const token = await connectAgent(page, agent, '架空の作品エージェント ' + info.project.name);
+    const title = `架空のMCP作品-${info.project.name}`;
+    const made = await mcp(agent, token, 'create_project_draft', {
+      title,
+      description: '## つくったもの\n\nMCP_PROJECT_BODY',
+      github_url: 'https://github.com/example/fictional-mcp-project',
+      technologies: 'React, Cloudflare Workers',
+    });
+    expect(made.status()).toBe(200);
+    const result = (await made.json()).result;
+    expect(result.isError).toBeUndefined();
+    const { id } = result.structuredContent.draft;
+    // Nothing reaches the public list from an agent alone.
+    expect(await (await page.request.get('/api/projects')).text()).not.toContain(
+      'MCP_PROJECT_BODY',
+    );
+
+    await page.goto('/works/new');
+    const item = page.locator('.project-draft-list li', { hasText: title });
+    await expect(item).toContainText('AIエージェントが作成');
+    // A draft the student saves in the app is not marked.
+    await page.getByLabel('作品タイトル', { exact: true }).fill('アプリで保存した架空の作品');
+    await page.getByLabel('作品の説明', { exact: true }).fill('架空の説明');
+    await page.getByRole('button', { name: '作品を保存', exact: true }).click();
+    await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
+    const own = page.locator('.project-draft-list li', { hasText: 'アプリで保存した架空の作品' });
+    await expect(own).toBeVisible();
+    await expect(own).not.toContainText('AIエージェントが作成');
+    await expect(item).toContainText('AIエージェントが作成');
+    expect(await noHorizontalScroll(page)).toBe(true);
+    await page.screenshot({ path: info.outputPath('works-agent-project.png'), fullPage: true });
+
+    // The student opens it and sees exactly what the agent wrote, ready to add images and publish.
+    await item.getByRole('button', { name: '続きを編集：' + title, exact: true }).click();
+    await expect(page.getByLabel('作品タイトル', { exact: true })).toHaveValue(title);
+    await expect(page.getByLabel('作品の説明', { exact: true })).toHaveValue(
+      '## つくったもの\n\nMCP_PROJECT_BODY',
+    );
+    await expect(page.getByLabel('GitHub URL（任意）', { exact: true })).toHaveValue(
+      'https://github.com/example/fictional-mcp-project',
+    );
+    // The agent can still read it while it is unpublished.
+    const read = await mcp(agent, token, 'get_my_project_draft', { id });
+    expect((await read.json()).result.structuredContent.draft.title).toBe(title);
+  } finally {
     await agent.dispose();
   }
 });

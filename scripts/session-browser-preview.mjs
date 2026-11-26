@@ -263,6 +263,7 @@ for (const f of [
   '0048_agent_draft_projects.sql',
   '0049_protected_tables_no_replace.sql',
   '0050_media_payload_erasable.sql',
+  '0051_agent_project_draft_origins.sql',
 ]) {
   const sql = readFileSync('migrations/' + f, 'utf8');
   const parts = sql.includes('-- @statement')
