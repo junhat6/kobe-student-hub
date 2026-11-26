@@ -2,6 +2,12 @@
 
 Recorded 2026-11-03. These records supplement the PRD. From 2026-11-21 agents may also change PRD policy here; a dated entry below takes precedence over the PRD original (which stays unedited).
 
+## 2026-11-26 — 作品の作成・更新（project.write）を MCP に置く（replan、#298）
+
+- 操作：本人の作品の下書きを MCP で作る・直す（`project.write`、対応表では C24 設計時から `gap`）。2026-11-26 に http 経路での実施が1件記録され、#298 として finish の待ち行列に入った。
+- 根拠：記事の下書き（C21 の create_draft／update_draft）と同じ形で置ける。作品は学生の活動を知る入口（目的）で、制作日誌の流れ（#273・#276）も利用者側のエージェントが下書きを作る前提。
+- 境界：本人の接続・在籍期間内・所有者の確認、受け取るのは決めた型と上限のフィールドだけ（ファイル・画像・任意 JSON なし）、返すのは本人の DTO。作品の初めての公開・公開停止・削除・公開中の作品の直接書き換えの手段は置かない（公開は human-only、恒久条件と 2026-11-23 のオーナー決定）。公開中の作品を直す口は、別経路での実施が再び記録されたら別 Issue で判断する。R2 として別 context の独立検証を経てから release に乗せる。
+
 ## 2026-11-25 — 公式 MCP 以外の経路での操作を MCP の改善の起点にする（オーナーの方針を受けた設計、C24 を足す）
 
 オーナー（服部）の考え：MacBook Air の Claude in Chrome などで hub を操作することがあるが、本来は MCP からできるようにしたい。「公式 MCP 以外から操作したら、それを MCP でできるようにする」を仕組みにし、その出来事を起点に MCP の改善を回したい。これを受けて次のように決める。仕組みの正本は [LOOPS.md §7](loop/LOOPS.md#7-mcp-育成の流れ-mcp-gap既存のループに乗る)。
