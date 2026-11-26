@@ -41,6 +41,52 @@ const readOnlyBucket = (bucket: R2Bucket): R2Bucket =>
       throw Error('write refused: multipart');
     },
   }) as unknown as R2Bucket;
+// Fault injection for the erase UPDATE of #12, run just before it: another run erased the row
+// first, the payload was swapped for other bytes (triggers set aside, as no app path can), or the
+// first erase throws. The others pass through.
+const ERASE = 'UPDATE media_assets SET payload=NULL';
+const eraseFaultDb = (db: D1Database, fault: string): D1Database => {
+  let calls = 0;
+  return new Proxy(db, {
+    get(target, prop) {
+      if (prop !== 'prepare') return Reflect.get(target, prop);
+      return (sql: string) => {
+        const statement = target.prepare(sql);
+        if (!sql.startsWith(ERASE)) return statement;
+        return {
+          bind: (...args: unknown[]) => ({
+            async run() {
+              const image = args[0] as string;
+              if (fault === 'throw-first' && calls++ === 0) throw Error('injected erase failure');
+              if (fault === 'erased')
+                await target
+                  .prepare(ERASE + ' WHERE id=?')
+                  .bind(image)
+                  .run();
+              if (fault === 'swap') {
+                const trigger = (await target
+                  .prepare(
+                    "SELECT sql FROM sqlite_master WHERE type='trigger' AND name='media_assets_content_immutable'",
+                  )
+                  .first<{ sql: string }>())!.sql;
+                await target.batch([
+                  target.prepare('DROP TRIGGER media_assets_content_immutable'),
+                  target
+                    .prepare(
+                      'UPDATE media_assets SET payload=CAST(zeroblob(length(payload)) AS BLOB) WHERE id=?',
+                    )
+                    .bind(image),
+                  target.prepare(trigger),
+                ]);
+              }
+              return statement.bind(...args).run();
+            },
+          }),
+        };
+      };
+    },
+  }) as D1Database;
+};
 type Env = { DB: D1Database; MEDIA_BUCKET?: R2Bucket };
 const fixture = {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -65,7 +111,9 @@ const fixture = {
     if (url.pathname === '/fixture/maintain')
       return Response.json(
         await maintainMediaObjects(
-          env.DB,
+          request.headers.has('X-Test-Erase-Fault')
+            ? eraseFaultDb(env.DB, request.headers.get('X-Test-Erase-Fault')!)
+            : env.DB,
           env.MEDIA_BUCKET,
           () => now,
           request.headers.get('X-Test-Start') ?? undefined,

@@ -2324,6 +2324,49 @@ describe('the cron erases a D1 payload only after R2 holds the same bytes (#12)'
     expect((await row(missing)).payload).toBeNull();
     expect((await row(tampered)).payload).not.toBeNull();
   });
+  const faulty = async (fault: string) =>
+    (await (
+      await mf.dispatchFetch(O + '/fixture/maintain', {
+        headers: {
+          'X-Test-Now': String(NOW),
+          'X-Test-Start': '00000000-0000-0000-0000-000000000000',
+          'X-Test-Erase-Fault': fault,
+        },
+      })
+    ).json()) as { copied: number; erased: number; swept: number };
+  const legacyUploads = async (n: number) => {
+    const d = await draft(),
+      images = Array.from({ length: n }, () => id());
+    for (const image of images)
+      expect((await upload(d, image, png, 0, { 'X-Test-Previous-Worker': '1' })).status).toBe(201);
+    return images;
+  };
+  it('counts only its own erase: a row another run erased first is not counted', async () => {
+    const [image] = await legacyUploads(1);
+    expect(await faulty('erased')).toMatchObject({ copied: 1, erased: 0 });
+    expect((await row(image)).payload).toBeNull();
+    expect(await maintain()).toMatchObject({ copied: 0, erased: 0 });
+  });
+  it('keeps a payload that changed after the comparison, since R2 does not hold those bytes', async () => {
+    const [image] = await legacyUploads(1);
+    expect(await faulty('swap')).toMatchObject({ copied: 1, erased: 0 });
+    const kept = (await row(image)).payload!;
+    expect(kept).toHaveLength(png.length);
+    expect(kept.every((b) => b === 0)).toBe(true);
+    // Later runs compare again and keep it while it differs from R2.
+    expect(await maintain()).toMatchObject({ copied: 0, erased: 0 });
+    expect((await row(image)).payload).not.toBeNull();
+  });
+  it('one row whose erase fails does not stop the others in the run', async () => {
+    const images = await legacyUploads(3);
+    expect(await faulty('throw-first')).toMatchObject({ copied: 3, erased: 2 });
+    const left = [];
+    for (const image of images) if ((await row(image)).payload) left.push(image);
+    expect(left).toHaveLength(1);
+    // The failed row is retried on the next run.
+    expect(await maintain()).toMatchObject({ copied: 0, erased: 1 });
+    expect((await row(left[0])).payload).toBeNull();
+  });
 });
 describe('protected publication tables refuse INSERT OR REPLACE (#265)', () => {
   beforeAll(() => boot(true));

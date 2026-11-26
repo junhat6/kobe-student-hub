@@ -211,8 +211,9 @@ export async function maintainMediaObjects(
  * Contract step of #12: a row keeps its payload until the R2 object is proven to hold the same
  * bytes. Each row is read back from R2 (size and sha256 against the row, see getMediaObject) and
  * compared with its payload byte for byte; only then one guarded UPDATE drops the payload. The
- * WHERE repeats every condition of media_assets_content_immutable (0050), so a row that changed in
- * between is skipped (0 changes) instead of failing the statement. An R2 miss or mismatch keeps
+ * WHERE repeats every condition of media_assets_content_immutable (0050) and names the very bytes
+ * R2 returned, so a row whose payload changed in between is skipped (0 changes) instead of failing
+ * the statement or dropping bytes R2 does not hold. An R2 miss or mismatch keeps
  * the payload, which the reads still fall back to; the audit reports such rows. Returns the count.
  */
 async function eraseCopiedPayloads(
@@ -258,9 +259,9 @@ async function eraseOne(db: D1Database, bucket: R2Bucket, row: MediaObjectRef): 
     return false;
   const updated = await db
     .prepare(
-      'UPDATE media_assets SET payload=NULL WHERE id=? AND sha256=? AND bytes=? AND payload IS NOT NULL AND object_stored_at_ms IS NOT NULL AND bytes IS length(payload)',
+      'UPDATE media_assets SET payload=NULL WHERE id=? AND sha256=? AND bytes=? AND payload=? AND object_stored_at_ms IS NOT NULL AND bytes IS length(payload)',
     )
-    .bind(row.id, row.sha256, row.bytes)
+    .bind(row.id, row.sha256, row.bytes, stored)
     .run();
   return updated.meta.changes === 1;
 }
