@@ -614,6 +614,9 @@ h1 {
 .empty p {
   color: #61727e;
   font-size: 13px;
+  /* Break between phrases and balance the lines (no lone 「す。」 at 390px). */
+  word-break: auto-phrase;
+  text-wrap: balance;
 }
 .empty > .primary {
   margin-top: 16px;

@@ -4,8 +4,13 @@
 .service-info-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 24px;
+  gap: 0 24px;
   margin: 24px 0 32px;
+}
+@media (max-width: 480px) {
+  .service-info-links {
+    gap: 0 12px; /* the five entries fit one row at 390px */
+  }
 }
 .service-info-links a,
 .service-contact {

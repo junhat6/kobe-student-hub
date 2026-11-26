@@ -303,3 +303,27 @@ test('service explanation, rules and privacy stay readable while every API is do
   await page.getByRole('button', { name: '問い合わせ先を再読み込み', exact: true }).click();
   await expect(page.getByText('問い合わせ窓口は現在未設定です。', { exact: false })).toBeVisible();
 });
+
+test('guide keeps contact loading quiet and the contents on one row on mobile', async ({
+  page,
+}) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/api/service-info', async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.goto('/guide');
+  const loading = page.getByRole('status').filter({ hasText: '問い合わせ先を確認しています…' });
+  await expect(loading).toHaveClass(/sr-only/);
+  release();
+  await expect(loading).toHaveCount(0);
+
+  const tops = await page
+    .getByRole('navigation', { name: 'この案内の内容' })
+    .getByRole('link')
+    .evaluateAll((links) => links.map((link) => Math.round(link.getBoundingClientRect().top)));
+  expect(tops).toHaveLength(5);
+  if ((page.viewportSize()?.width ?? 0) <= 430) expect(new Set(tops).size).toBe(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

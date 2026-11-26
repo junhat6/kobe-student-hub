@@ -163,7 +163,9 @@ export default function ServiceInfo() {
             </Button>
           </div>
         ) : !value ? (
-          <p role="status">問い合わせ先を確認しています…</p>
+          <p role="status" className="sr-only">
+            問い合わせ先を確認しています…
+          </p>
         ) : value.contactUrl ? (
           <>
             <p>
