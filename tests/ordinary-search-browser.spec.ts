@@ -146,6 +146,9 @@ test('ordinary search finds article-only and project-only authors and preserves 
     ).toBeVisible();
     await expect(page.getByRole('link', { name: 'DuckDB作品-' + key, exact: true })).toBeVisible();
     await expect(page.locator('.search-result-count')).toHaveText('記事 1件 · 作品 1件');
+    await expect(page.getByRole('heading', { name: '記事', exact: true })).not.toHaveClass(
+      /sr-only/,
+    );
     await expect(page.locator('main')).not.toContainText('公開停止記事-' + key);
     await expect(page.locator('main')).not.toContainText('公開停止作品-' + key);
     await expect(page.locator('main')).not.toContainText('一時非公開記事-' + key);
@@ -281,6 +284,12 @@ test('ordinary search finds article-only and project-only authors and preserves 
       0,
     );
     await expect(page.locator('.search-result-count')).toHaveText('作品 1件');
+    // polish: 種類を1つに絞ったら、見出し「作品」は件数行と重なるので読み上げだけに残す（原則1）。
+    await expect(page.getByRole('heading', { name: '作品', exact: true })).toHaveClass(/sr-only/);
+    await expect(page.locator('.search-result-count')).not.toHaveClass(/sr-only/);
+    // polish: 種類のボタンとタグのチップは 44px 以上（観点6）。
+    for (const button of await page.locator('.search-types button').all())
+      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(page.getByRole('link', { name: 'DuckDB作品-' + key, exact: true })).toBeVisible();
     await page.getByRole('searchbox').fill('架空の該当なし-' + key);
     await page.getByRole('button', { name: '検索', exact: true }).click();
@@ -288,6 +297,9 @@ test('ordinary search finds article-only and project-only authors and preserves 
       page.getByRole('heading', { name: '一致する記事・作品はありません', exact: true }),
     ).toBeVisible();
     const emptyUrl = page.url();
+    // polish: 0件の件数は空状態の見出しと同じことなので、読み上げだけに残す（原則1）。
+    await expect(page.locator('.search-result-count')).toHaveClass(/sr-only/);
+    await expect(page.locator('.search-result-count')).toHaveText('作品 0件');
     await expect(
       page.getByRole('button', { name: '種類を「すべて」にする', exact: true }),
     ).toBeVisible();

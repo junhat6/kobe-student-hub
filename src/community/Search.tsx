@@ -161,7 +161,12 @@ export default function Search() {
           ))}
         </div>
       )}
-      <p className="search-result-count" role="status" aria-live="polite">
+      {/* With no match the empty heading says the same, so the count is only read aloud. */}
+      <p
+        className={'search-result-count' + (empty ? ' sr-only' : '')}
+        role="status"
+        aria-live="polite"
+      >
         {status.join(' · ') ||
           (showArticles || showProjects ? '' : 'タグを解除すると作品を検索できます。')}
       </p>
@@ -218,7 +223,7 @@ export default function Search() {
               <FailedResults subject="記事" retry={articleRead.retry} />
             ) : articleRead.value && articleCards.length > 0 ? (
               <section aria-label="記事の検索結果">
-                <h2>記事</h2>
+                <h2 className={type === 'all' ? undefined : 'sr-only'}>記事</h2>
                 <div className="author-lab-cards">
                   {articleCards.map(({ entry, author }) => (
                     <PublicArticleCard
@@ -236,7 +241,7 @@ export default function Search() {
               <FailedResults subject="作品" retry={projectRead.retry} />
             ) : projectRead.value && projectCards.length > 0 ? (
               <section aria-label="作品の検索結果" className="search-project-results">
-                <h2>作品</h2>
+                <h2 className={type === 'all' ? undefined : 'sr-only'}>作品</h2>
                 <div className="author-lab-cards">
                   {projectCards.map(({ project, author }) => (
                     <PublicProjectCard
