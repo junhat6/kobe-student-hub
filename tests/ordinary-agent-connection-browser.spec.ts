@@ -349,8 +349,13 @@ test("an agent's journal drafts for the student's project appear on it only afte
     // Drafts are private: nothing is on the project page before the student publishes.
     await expect(reader.getByRole('link', { name: day1 })).toHaveCount(0);
     await expect(reader.getByRole('link', { name: day2 })).toHaveCount(0);
-    // The entry the student removed stays off the project page even though it is published.
-    await expect(reader.getByRole('link', { name: day3 })).toHaveCount(0);
+    // The entry the student removed stays out of the journal even though it is published.
+    // It is still the author's public article, so the author card may link it (#312, #315).
+    const journal = reader.getByRole('region', { name: '制作日誌' });
+    await expect(journal.getByRole('link', { name: day3 })).toHaveCount(0);
+    await expect(
+      reader.getByRole('region', { name: 'つくった学生' }).getByRole('link', { name: day3 }),
+    ).toHaveCount(1);
 
     // The student publishes day 1, then day 2, in the app; the page lists them in that order.
     await publishDraftInApp(page, day1);
