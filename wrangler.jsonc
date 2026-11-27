@@ -28,5 +28,6 @@
       "migrations_dir": "migrations"
     }
   ],
+  "analytics_engine_datasets": [{ "binding": "USAGE", "dataset": "ksh_usage_preview" }],
   "observability": { "enabled": true, "head_sampling_rate": 0.1, "redact_query_string": true }
 }

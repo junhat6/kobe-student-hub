@@ -18,6 +18,7 @@ export const DATABASE_NAME = 'kobe-student-hub-production';
 // 画像の保存先（#12）。private bucket（r2.dev・独自ドメインなし）。読み出しの可否は毎回 D1 で判定する。
 export const MEDIA_BUCKET_NAME = 'kobe-student-hub-media';
 export const ORIGIN = 'https://hub.junhat6.com';
+export const USAGE_DATASET = 'ksh_usage';
 export const DEFAULT_INPUT_PATH = join(homedir(), '.config/kobe-student-hub/production.json');
 
 // 環境変数名 ↔ 非公開ファイルのキー
@@ -100,6 +101,8 @@ export function productionConfig(inputs, root = process.cwd()) {
     ],
     // R2 の権限が無い deploy 用 token でも binding 付きで deploy できることを確かめてある（2026-11-22）。
     r2_buckets: [{ binding: 'MEDIA_BUCKET', bucket_name: MEDIA_BUCKET_NAME }],
+    // 使われ方の計測（docs/loop/GROWTH.md「計測」）。dataset は最初の書き込みで作られる。
+    analytics_engine_datasets: [{ binding: 'USAGE', dataset: USAGE_DATASET }],
     vars: {
       AUTH_ORIGIN: ORIGIN,
       GOOGLE_CLIENT_ID: inputs.googleClientId,

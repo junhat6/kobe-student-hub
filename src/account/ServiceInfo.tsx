@@ -111,6 +111,13 @@ export default function ServiceInfo() {
           Googleはログイン、Cloudflareは配信・保存に利用します。下書きの保存だけで本文や画像は公開されません。
         </p>
         <p>
+          どの画面がどこから来た人にどれだけ読まれているかを知るため、閲覧した画面の種類（記事・作品はそのID）、来たサイトの名前とURLの
+          utm_
+          の値、記事をどこまで・何秒読んだか、スマホかPCか、ページを開くたびに作るランダムな識別子（ブラウザに保存しません）を、Cloudflare
+          に送って集計します。アカウント・メール・IPアドレス・検索語とは結びつけません。ブラウザの「トラッキングしない」（Do
+          Not Track・Global Privacy Control）が有効なら送りません。
+        </p>
+        <p>
           運営は、サービスの提供・改善と安全の確保（通報や不正への対応を含む）のために、非公開の情報を含む利用者のデータを確認・分析することがあります。外部のAIサービスを使って処理する場合を含みます。非公開の情報を、本人の同意なく公開することはありません。
         </p>
         <p>
@@ -171,7 +178,7 @@ export default function ServiceInfo() {
         <p>
           この免責事項と利用ルールは、必要に応じて変更することがあります。変更後の内容は、このページに掲載した時点から適用します。
         </p>
-        <p className="service-info-updated">最終更新：2026年11月23日</p>
+        <p className="service-info-updated">最終更新：2026年11月28日</p>
       </section>
       <section aria-labelledby="operator">
         <h2 id="operator" tabIndex={-1}>

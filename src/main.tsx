@@ -17,6 +17,7 @@ import { announceServerReachable } from './editor/anonymous-public-read';
 import { safeListPath, readListOrigin, listContextPath } from './navigation';
 import { usePagePosition } from './usePagePosition';
 import { RecordReadingHistory } from './history/RecordReadingHistory';
+import { UsageBeacon } from './shared/usage';
 import './style.css';
 import './theme.css';
 import './shared/touch-targets.css';
@@ -137,6 +138,7 @@ function App() {
   );
   return (
     <>
+      <UsageBeacon />
       <a className="skip" href="#main">
         本文へ移動
       </a>

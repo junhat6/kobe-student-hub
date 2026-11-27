@@ -15,6 +15,7 @@ import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
 import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
+import { handleUsage, type UsageBindings } from './usage-http';
 import { cleanupAgentConnections, createAgentHandler } from './agent/http';
 import {
   AGENT_MCP_RELEASE_ENABLED,
@@ -82,6 +83,12 @@ app.use('*', async (c, next) => {
       'X-Robots-Tag': 'noindex, nofollow',
       'X-Content-Type-Options': 'nosniff',
     });
+  await next();
+});
+// Usage measurement (docs/loop/GROWTH.md): no cookies, sessions or D1; one row to Analytics Engine.
+app.use('/api/usage', async (c, next) => {
+  const response = await handleUsage(c.req.raw, (c.env as Env & UsageBindings).USAGE);
+  if (response) return response;
   await next();
 });
 // Agent metadata lives under /.well-known, so this runs before the /api/* composition.

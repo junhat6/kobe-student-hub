@@ -36,6 +36,9 @@ function environment(
       get ASSETS(): Fetcher {
         throw new Error('Unexpected fixture asset access');
       },
+      get USAGE(): AnalyticsEngineDataset {
+        throw new Error('Unexpected fixture usage access');
+      },
     },
     prepare,
   };
