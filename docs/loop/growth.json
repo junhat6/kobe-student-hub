@@ -12,10 +12,22 @@
     "公開 Issue・この台帳に実利用者の個人が分かる数字（5件未満の切り方）・本文・名前を書かない。"
   ],
   "objectives": [
-    { "id": "O1", "name": "使われ方が見える" },
-    { "id": "O2", "name": "検索・SNS から人が来る" },
-    { "id": "O3", "name": "記事が増え、読まれる" },
-    { "id": "O4", "name": "本番が安定して回る" }
+    {
+      "id": "O1",
+      "name": "使われ方が見える"
+    },
+    {
+      "id": "O2",
+      "name": "検索・SNS から人が来る"
+    },
+    {
+      "id": "O3",
+      "name": "記事が増え、読まれる"
+    },
+    {
+      "id": "O4",
+      "name": "本番が安定して回る"
+    }
   ],
   "items": [
     {
@@ -88,8 +100,8 @@
         "2. robots.txt に Sitemap の行があり、/api/ だけを止めている",
         "3. 公開停止した記事は次の取得から sitemap に出ない"
       ],
-      "status": "fail",
-      "evidence": "",
+      "status": "pass",
+      "evidence": "caea726（#328）：worker/site-files.ts が /sitemap.xml（/・/works・公開記事・公開作品を lastmod つき・新しい順・上限 1000、公開 API と同じ SQL 境界を毎回読む、no-cache）と robots.txt（/api/ だけ止め、正規 origin のときだけ Sitemap 行）を返す。検査：tests/site-files.test.ts、publication-stops.test.ts（実 D1 で停止・非表示が次の取得から消える、mutation 確認）、site-basics.spec.ts。本番反映は次の定時便。",
       "production": "closed"
     },
     {
@@ -188,7 +200,11 @@
       "objective": "O1",
       "name": "週のセッション数（流入元別：検索・X・その他SNS・直接、utm_source 別）"
     },
-    { "id": "M2", "objective": "O2", "name": "検索からのセッションの割合と、着地した記事" },
+    {
+      "id": "M2",
+      "objective": "O2",
+      "name": "検索からのセッションの割合と、着地した記事"
+    },
     {
       "id": "M3",
       "objective": "O3",
@@ -199,7 +215,11 @@
       "objective": "O1",
       "name": "継続：直接来訪のセッションの割合と数（読者の再訪の目安）、週の活動アカウント数と前週からの継続数（書き手。D1 の集計）"
     },
-    { "id": "M5", "objective": "O3", "name": "週に公開された実記事・実作品の数と、書いた人の数（D1）" },
+    {
+      "id": "M5",
+      "objective": "O3",
+      "name": "週に公開された実記事・実作品の数と、書いた人の数（D1）"
+    },
     {
       "id": "M6",
       "objective": "O2",
