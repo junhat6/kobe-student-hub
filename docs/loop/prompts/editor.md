@@ -18,6 +18,8 @@
 | 学んだ好み（抽象的な決まりだけ） | `src/agent/editorial-taste.ts` の `EDITORIAL_TASTE` と SKILL.md の同じ節 | 公開 |
 | アプリへの気づき（抽象的な決まりだけ） | 同じファイルの `EDITORIAL_PRODUCT_NOTES`（執筆経路には入らない） | 公開 |
 
+**集客・運用フェーズ（2026-11-28〜、[GROWTH.md](../GROWTH.md)）**：目的は完成ではなく「記事が増え、読まれる」（O3）。手順は同じで、2b（読まれ方）を足す。
+
 ## 1周の手順
 
 1. **レビューを読む。** Cloudflare MCP（アカウント `Junhat6@gmail.com's Account`、DB `kobe-student-hub-production`）で読み取りだけ：
@@ -30,6 +32,7 @@
    `SELECT m.draft_id,m.note,m.created_at_ms FROM editorial_draft_marks m WHERE m.created_at_ms > <前回の editor log の時刻> ORDER BY m.created_at_ms`
    1件の箇所コメントを1件の材料として、コメントの向き（例：数字が無い・言い切りが強い）だけを数える。根拠の数は `（レビュー n件 YYYY-MM-DD）` に足してよいが、同じ下書きの箇所コメントは何件あっても1件と数える。コメントの文・箇所の文は台帳・editor log・Issue に書かない（log には件数だけ）。
 2. **差分から読む。** `originals/` の原本のうち、公開された記事（同じタイトル・近い本文）があれば、原本と公開版の差を見る。公開記事は公式 MCP の読み取り専用ツールで探す：`list_recent_articles`（新着20件。公開 API `/api/articles` と同じ読み取り）で一覧し、本文は `get_article` で読む。curl で公開 API を叩かない（MCP にある操作を別の経路で行うと mcp-gap の Issue になる。#296）。MCP がつながっていない回だけ公開 API を使い、Stop hook の分類に `article.list` で答える。オーナーが消した文・足した文・直した言い回しは、レビューと同じ重さの材料。2週間たっても公開されない原本は「出さなかった」という材料として数える。`originals/superseded/`（店ごとに分け直す前のまとめ下書きなど）は数えない。
+2b. **読まれ方を読む（週1回。前回の editor log から 6 日以上たっていれば）。** growth-log の最新の週次コメントにある記事の読まれ方の表（view 数・75% 以上読んだ割合・深さの中央値）を材料にする。新しく Analytics Engine を叩かない（集計は measure の役。原則：作る人と数える人を分ける）。読了の割合が高い記事・低い記事の共通点（構成・長さ・写真の位置・題の付け方）を探し、3 本以上で同じ向きなら 3 と同じ決まりで台帳に入れ、根拠に `（読まれ方 n本 YYYY-MM-DD）` と書く。view が 20 未満の記事は数えない（少なすぎる数で決めない）。editor log に「読まれ方の材料 n本」を書く（growth.json G08）。
 3. **好みを更新する。** 1・2 から、3件以上で同じ向きのことが言えたら `EDITORIAL_TASTE` に1行足すか直す。各行は抽象的な決まりにし、末尾に根拠 `（レビュー n件 YYYY-MM-DD）` を付ける。
    - 書かない：レビュー・下書きレビューのひとことの引用、記事・下書きのタイトル・本文、書いた人の名前、店名（このファイルは公開される）。根拠の数は `（レビュー n件 YYYY-MM-DD）` に下書きレビューも足して数える。
    - 1〜2件しかない傾向は書かず、editor log に「様子見」として数だけ残す。

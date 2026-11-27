@@ -1,5 +1,7 @@
 # 自律開発ループ — 思想と全体像
 
+> **2026-11-28 から集客・運用フェーズ。** 完成台帳は 27/27 pass で凍結し、北極星を [growth.json](growth.json) に移した。目的・ループの組み替え・計測・報告の形は [GROWTH.md](GROWTH.md) が正本で、この README の原則（1周1仕事・状態はファイルと Issue・作る人と評価する人を分ける・リスク段階・恒久条件）はそのまま使う。「完成」「completion.json」とある所は、集客・運用フェーズでは GROWTH.md と growth.json に読み替える。
+
 2026-11-21 策定。kobe-student-hub を「完成」まで自律的に進めるための進め方の正本です。
 これまでの進め方（PR必須・全PRでgreen CI・機能ごとのQA文書）はここで置き換えます。
 アプリの恒久的なsecurity/privacy条件（[AGENTS.md](../../AGENTS.md)）は置き換えません。
@@ -10,7 +12,9 @@
 | [PATTERNS.md](PATTERNS.md) | 調査したループ型の進め方・OSS事例と、採用／不採用の理由 |
 | [LOOPS.md](LOOPS.md) | このプロジェクトで回す7つのループの仕様（起動・入力・出力・停止条件） |
 | [SESSIONS.md](SESSIONS.md) | セッションの分け方、並行作業の衝突回避、引き継ぎ |
-| [completion.json](completion.json) | 「完成」の定義（完成台帳）。完成ループの北極星 |
+| [GROWTH.md](GROWTH.md) | **集客・運用フェーズ（2026-11-28〜）の設計**：目的4つ、automation の棚卸しと組み替え、計測、報告の形、台帳の3層 |
+| [growth.json](growth.json) | 集客・運用フェーズの台帳（items・health・observe）。いまの北極星 |
+| [completion.json](completion.json) | 「完成」の定義（完成台帳）。2026-11-28 に 27/27 pass で凍結した記録 |
 | [mcp-coverage.json](mcp-coverage.json) | MCP 対応表：hub の操作ごとに、公式 MCP にあるか・足してよいか・人だけか。MCP 以外の経路での操作を MCP の改善に回す起点（[LOOPS.md §7](LOOPS.md#7-mcp-育成の流れ-mcp-gap既存のループに乗る)） |
 | [DESIGN-PRINCIPLES.md](DESIGN-PRINCIPLES.md) | 境界と受け入れ条件の設計原則（C21 の学び）。条件を書く・見直すときに読む |
 | [ux-rubric.md](ux-rubric.md) | UX巡回ループの採点基準と利用者の旅（journey） |
@@ -18,7 +22,7 @@
 | [LOOK.md](LOOK.md) | 画面・挙動の確かめ方：エージェントが自分で撮り（`npm run look`）、Antigravity に見せる（`npm run look:review`）。人が撮るのは実機と参考アプリだけ |
 | [ORCA.md](ORCA.md) | Orca の automation を残し bots に移らない判断、worktree の後片付け（`ksh tidy`） |
 | [ORCA-BOTS-PHILOSOPHY.md](ORCA-BOTS-PHILOSOPHY.md) | Orca bots と自作ループの思想の違い、bots から借りるもの |
-| [prompts/](prompts/) | 各ループが毎回読む指示書（ループ1周＝この1ファイルを読んで1仕事） |
+| [prompts/](prompts/) | 各ループが毎回読む指示書（ループ1周＝この1ファイルを読んで1仕事）。集客・運用フェーズで measure・ops・outreach を足した |
 | [../RELEASE.md](../RELEASE.md) | リリースの具体手順（loop-infra セッションが管理） |
 
 ## 1. なぜ進め方を変えるか

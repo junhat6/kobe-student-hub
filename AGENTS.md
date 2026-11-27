@@ -7,15 +7,15 @@
 神戸電子の学生が、記事・作品から知識・経験・活動に出会い、投稿者の活動を知り、次の行動の材料にする場所。
 友だち探しアプリや学校の情報ポータルにしない。学校公式ではない。PRD方針は agent が判断して更新してよい。PRD原文（非公開の Google Doc）は書き換えず、変えた方針・新しい仮説は [docs/DECISIONS.md](docs/DECISIONS.md) に日付と理由つきで記録し、そちらを優先する。用語は [CONTEXT.md](CONTEXT.md)。
 
-## 進め方（2026-11-21 から）
+## 進め方（2026-11-21 から。2026-11-28 から集客・運用フェーズ）
 
-- 進め方の正本は [docs/loop/](docs/loop/README.md)。まず README の「原則」と「リスク段階」を読む。
-- 自分の役の指示書を読んで1周1仕事：[finish](docs/loop/prompts/finish.md) / [patrol](docs/loop/prompts/patrol.md) / [polish](docs/loop/prompts/polish.md) / [garden](docs/loop/prompts/garden.md) / [replan](docs/loop/prompts/replan.md) / [editor](docs/loop/prompts/editor.md)。役の分け方は [SESSIONS.md](docs/loop/SESSIONS.md)。
-- 完成の定義は [completion.json](docs/loop/completion.json)。builder は status/evidence/production だけ変えてよい。acceptance の書き直し・弱体化・削除は replan が判断し、理由を DECISIONS に残す（恒久条件の手前まで）。受け入れ条件や境界を設計するときは [DESIGN-PRINCIPLES.md](docs/loop/DESIGN-PRINCIPLES.md)（伏せるより渡すものを決める・検証できる条件・繰り返し fail は条件を疑う）。
+- 進め方の正本は [docs/loop/](docs/loop/README.md)。まず README の「原則」と「リスク段階」を読む。**2026-11-28 から集客・運用フェーズ**：目的（計測・検索と SNS・記事・安定運用）とループの組み替えは [GROWTH.md](docs/loop/GROWTH.md)、台帳は [growth.json](docs/loop/growth.json)（completion.json は 27/27 pass で凍結）。
+- 自分の役の指示書を読んで1周1仕事：[measure](docs/loop/prompts/measure.md) / [ops](docs/loop/prompts/ops.md) / [outreach](docs/loop/prompts/outreach.md) / [finish](docs/loop/prompts/finish.md) / [patrol](docs/loop/prompts/patrol.md) / [garden](docs/loop/prompts/garden.md) / [replan](docs/loop/prompts/replan.md) / [editor](docs/loop/prompts/editor.md)（[polish](docs/loop/prompts/polish.md) は停止中）。役の分け方は [SESSIONS.md](docs/loop/SESSIONS.md)。
+- 台帳は [growth.json](docs/loop/growth.json)（完成フェーズの [completion.json](docs/loop/completion.json) と同じ決まり）。成果の数字（流入・読了）は合否にせず、週次でオーナーに渡す。builder は status/evidence/production だけ変えてよい。acceptance の書き直し・弱体化・削除は replan が判断し、理由を DECISIONS に残す（恒久条件の手前まで）。受け入れ条件や境界を設計するときは [DESIGN-PRINCIPLES.md](docs/loop/DESIGN-PRINCIPLES.md)（伏せるより渡すものを決める・検証できる条件・繰り返し fail は条件を疑う）。
 - オーナーの実機の不満はスクショなら Muse（ヨッチ）か Discord、動画なら Drive「hub動画ポスト」→ Muse → video-review で届く（[INBOX.md](docs/loop/INBOX.md)）。
 - 画面・挙動を確かめるときは人に頼まず自分で撮る（`npm run look`）。見た目と動きの判定は Antigravity に渡し（`npm run look:review`）、所見は確かめてから使う。手順は [LOOK.md](docs/loop/LOOK.md)。
 - 本番 hub を公式 MCP 以外（Claude in Chrome・ブラウザ CLI・curl・リモート D1・画面の手作業）で操作したら、MCP を育てる材料として記録する。hook が拾い、Stop で操作 ID の分類を1回頼んでくる（[LOOPS §7](docs/loop/LOOPS.md#7-mcp-育成の流れ-mcp-gap既存のループに乗る)、対応表 [mcp-coverage.json](docs/loop/mcp-coverage.json)）。
-- 待ち行列は GitHub Issues（`loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
+- 待ち行列は GitHub Issues（`loop:growth` `loop:finish` `loop:ux` `loop:garden`、`P0`〜`P2`、`claimed` `blocked` `needs-human`）。
 - 現在地は [docs/WORK.md](docs/WORK.md)（5行）。機能ごとの設計メモ・QA文書は作らない。証拠は commit 本文・Issue コメント・CI artifact へ。
 - 日常の実装判断で人に承認を求めない。迷ったら決めて進め、決めたことを残す。本番 D1 の migration・deploy・rollback と PRD方針も agent が判断する。資格情報の発行も条件つきで agent が行う（最小スコープ・期限つき・発行の記録・値を出さない。[DECISIONS](docs/DECISIONS.md) 2026-11-23）。実利用者に関わる運営（通報・アカウントへの措置・規約類の改定）も agent が行う（[LOOPS](docs/loop/LOOPS.md#実利用者に関わる運営)）。人の判断が要るもの（課金・契約）と権限が無くて進められない場所だけを `needs-human` に積んで他の仕事を続ける。
 

@@ -1,0 +1,209 @@
+{
+  "version": 1,
+  "phase": "growth",
+  "started": "2026-11-28",
+  "updated": "2026-11-28",
+  "design": "docs/loop/GROWTH.md",
+  "rules": [
+    "items は一度作れば済む仕組み。builder（finish）は status・evidence・production だけを変える。capability と acceptance の追加・分割・書き直し・弱体化は replan が行い、理由を DECISIONS に残す（completion.json と同じ）。",
+    "health は毎日満たし続ける条件。ops・measure が点検のたびに確かめ、ng なら Issue にする（P0/P1 は check ごとの severity）。台帳には結果を書かない（記録は ops-log・growth-log）。",
+    "observe は成果の数字。合否を付けない。measure が週次の表にしてオーナーに渡す。observe を items や health の acceptance に移さない（GROWTH.md §2）。",
+    "acceptance は有限の手順で合否が決まる形で書く（DESIGN-PRINCIPLES 原則3）。数字の目標（流入◯件など）を acceptance にしない。",
+    "公開 Issue・この台帳に実利用者の個人が分かる数字（5件未満の切り方）・本文・名前を書かない。"
+  ],
+  "objectives": [
+    { "id": "O1", "name": "使われ方が見える" },
+    { "id": "O2", "name": "検索・SNS から人が来る" },
+    { "id": "O3", "name": "記事が増え、読まれる" },
+    { "id": "O4", "name": "本番が安定して回る" }
+  ],
+  "items": [
+    {
+      "id": "G01",
+      "objective": "O1",
+      "capability": "使われ方の計測の受け口（/api/usage → Analytics Engine ksh_usage）",
+      "risk": "R2",
+      "acceptance": [
+        "1. POST /api/usage は usage-event.ts に列挙したキーだけを受け、余分なキー・範囲外の値・他サイトの Origin・cookie つきの要求を書かずに断る（tests/usage-event.test.ts）",
+        "2. 画面の種類と、記事・作品の公開 ID 以外の経路の情報（学生のハンドル・下書き ID・クエリ）を書かない（同 test の usageRoute）",
+        "3. Do Not Track・Global Privacy Control が有効なブラウザからは送らない。localStorage・sessionStorage・cookie に何も書かない（src/shared/usage.ts、既存のブラウザ検査の browser persistence）",
+        "4. 情報の扱い（/guide#privacy）に送る項目・送り先・止め方が書かれ、最終更新の日付が改定日になっている",
+        "5. 本番 release の後、Analytics Engine の ksh_usage に直近 24 時間の view 行が 1 行以上ある（measure の SQL で確かめる）"
+      ],
+      "status": "unverified",
+      "evidence": "main に実装（2026-11-28）。R2 の独立検証と本番 release 待ち。",
+      "production": "closed"
+    },
+    {
+      "id": "G02",
+      "objective": "O1",
+      "capability": "週次の報告（流入元・記事の読まれ方・継続の表と、判断してほしいこと）",
+      "risk": "R0",
+      "acceptance": [
+        "1. growth-log Issue に月曜ごとに週次コメントがあり、GROWTH.md §5 の表 1〜3 が揃っている",
+        "2. 同じコメントに「判断してほしいこと」節があり、0〜3 件の各項に選択肢と推奨が付いている（判断が要らなければ「なし」）",
+        "3. 表は集計だけで、5 件未満で個人が分かる切り方をしていない"
+      ],
+      "status": "unverified",
+      "evidence": "",
+      "production": "n/a"
+    },
+    {
+      "id": "G03",
+      "objective": "O2",
+      "capability": "検索エンジンへの掲載（index してよいページの列挙）",
+      "risk": "R2",
+      "acceptance": [
+        "1. index を返すのは /、/works、公開記事 /articles/:id、公開作品 /projects/:id だけ。それ以外の画面（学生・検索・アカウント・下書き・運営）と /api/* は従来どおり noindex（meta と X-Robots-Tag）",
+        "2. 公開停止・非表示・存在しない記事・作品の URL は noindex を返す",
+        "3. 情報の扱い（/guide#privacy）に「公開した記事・作品は検索エンジンに表示されることがある」と、止め方（公開停止）が書かれている",
+        "4. 上の 1・2 をブラウザ検査か worker のテストで確かめている"
+      ],
+      "status": "fail",
+      "evidence": "2026-11-28 時点：全ページ noindex（index.html・_headers・worker）。方針変更は DECISIONS 2026-11-28。",
+      "production": "closed"
+    },
+    {
+      "id": "G04",
+      "objective": "O2",
+      "capability": "記事・作品ページのメタ情報（題・概要・canonical・OGP・X カード）",
+      "risk": "R1",
+      "acceptance": [
+        "1. /articles/:id と /projects/:id の HTML（JS を実行しない取得）の head に、その記事・作品の title・meta description・link rel=canonical・og:title・og:description・og:url が入っている",
+        "2. カード画像がある記事・作品は og:image と twitter:card=summary_large_image、無ければ twitter:card=summary",
+        "3. 値は公開 DTO と同じ公開済みの版だけから作り、HTML として escape されている（題に < や \" を含む記事のテスト）",
+        "4. 公開停止・存在しない ID は既定のメタ情報（サイト全体の1種類）のまま"
+      ],
+      "status": "fail",
+      "evidence": "2026-11-28 時点：index.html の静的なメタ情報1種類だけ。",
+      "production": "closed"
+    },
+    {
+      "id": "G05",
+      "objective": "O2",
+      "capability": "sitemap.xml と robots.txt",
+      "risk": "R1",
+      "acceptance": [
+        "1. /sitemap.xml が公開中の実記事・実作品（サンプルを除く）と / ・/works の URL を lastmod つきで返す（上限 1000 件）",
+        "2. robots.txt に Sitemap の行があり、/api/ だけを止めている",
+        "3. 公開停止した記事は次の取得から sitemap に出ない"
+      ],
+      "status": "fail",
+      "evidence": "",
+      "production": "closed"
+    },
+    {
+      "id": "G06",
+      "objective": "O2",
+      "capability": "Search Console への登録と sitemap の送信",
+      "risk": "R3",
+      "acceptance": [
+        "1. hub.junhat6.com の所有権が確認され、sitemap が送信済み（オーナーの Google アカウントでの操作。needs-human）"
+      ],
+      "status": "fail",
+      "evidence": "G03〜G05 の本番反映後に needs-human Issue を立てる。",
+      "production": "closed"
+    },
+    {
+      "id": "G07",
+      "objective": "O2",
+      "capability": "X の投稿案（完成文）の下ごしらえ",
+      "risk": "R0",
+      "acceptance": [
+        "1. 2026-11-28 以降に公開された実記事それぞれについて、公開から 24 時間以内に outreach-log へ投稿案のコメントがある（prompts/outreach.md の形：本文・utm つきのリンク・ハッシュタグ候補・出す時間帯の案）",
+        "2. 投稿案は記事の公開 DTO だけから作り、記事に無い事実・実績・数字を足していない"
+      ],
+      "status": "unverified",
+      "evidence": "",
+      "production": "n/a"
+    },
+    {
+      "id": "G08",
+      "objective": "O3",
+      "capability": "読まれ方を執筆の材料に入れる",
+      "risk": "R0",
+      "acceptance": [
+        "1. editor が週1回、記事ごとの読まれ方（view 数・75% 以上読んだ割合の集計）を読み、editor log にその材料の件数を書く",
+        "2. 読まれ方から言える傾向は、レビューと同じ数え方（3 件以上・同じ向き）を満たしたときだけ EDITORIAL_TASTE に入れ、根拠に「読まれ方 n 本」と書く"
+      ],
+      "status": "unverified",
+      "evidence": "",
+      "production": "n/a"
+    },
+    {
+      "id": "G09",
+      "objective": "O4",
+      "capability": "本番の監視と一次対応（障害・費用・不正利用）",
+      "risk": "R2",
+      "acceptance": [
+        "1. ops が毎日 ops-log に点検の結果（health の各 check の ok/ng と数字）を残している（直近 26 時間以内のコメントがある）",
+        "2. ng の check には、対応した内容か Issue 番号が同じコメントにある",
+        "3. smoke の失敗で起きた ops は、release skill の手順で戻すか直し、その結果を release-log か ops-log に残している"
+      ],
+      "status": "unverified",
+      "evidence": "",
+      "production": "n/a"
+    }
+  ],
+  "health": [
+    {
+      "id": "H1",
+      "objective": "O4",
+      "check": "本番の / と /api/health が 200（ops の precheck が毎時）",
+      "severity": "P0",
+      "by": "ops"
+    },
+    {
+      "id": "H2",
+      "objective": "O4",
+      "check": "Worker の 5xx の割合が直近 24 時間で 1% 未満（Cloudflare GraphQL workersInvocationsAdaptive）",
+      "severity": "P0",
+      "by": "ops"
+    },
+    {
+      "id": "H3",
+      "objective": "O4",
+      "check": "Workers の要求数・D1 の読み取り行と書き込み行・R2 の容量の月の見込みが、契約の含み分の 50% 未満",
+      "severity": "P1",
+      "by": "ops"
+    },
+    {
+      "id": "H4",
+      "objective": "O4",
+      "check": "24 時間を過ぎた未対応の通報が 0 件。1 日の新規登録・MCP 接続・計測の1識別子からの送信が、前の 7 日の中央値の 10 倍未満",
+      "severity": "P1",
+      "by": "ops"
+    },
+    {
+      "id": "H5",
+      "objective": "O1",
+      "check": "G01 の本番反映後、Analytics Engine の ksh_usage に直近 24 時間の view 行がある",
+      "severity": "P1",
+      "by": "measure"
+    }
+  ],
+  "observe": [
+    {
+      "id": "M1",
+      "objective": "O1",
+      "name": "週のセッション数（流入元別：検索・X・その他SNS・直接、utm_source 別）"
+    },
+    { "id": "M2", "objective": "O2", "name": "検索からのセッションの割合と、着地した記事" },
+    {
+      "id": "M3",
+      "objective": "O3",
+      "name": "記事ごとの view 数・read の深さの中央値・75% 以上読んだ割合"
+    },
+    {
+      "id": "M4",
+      "objective": "O1",
+      "name": "継続：直接来訪のセッションの割合と数（読者の再訪の目安）、週の活動アカウント数と前週からの継続数（書き手。D1 の集計）"
+    },
+    { "id": "M5", "objective": "O3", "name": "週に公開された実記事・実作品の数と、書いた人の数（D1）" },
+    {
+      "id": "M6",
+      "objective": "O2",
+      "name": "オーナーの告知（utm_campaign=owner）から来たセッションと、その後に読まれた記事数"
+    }
+  ]
+}

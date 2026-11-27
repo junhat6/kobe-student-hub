@@ -248,14 +248,19 @@ AIには学生の価値を検証できません。このループは人が回し
 
 ## Orca automation への登録まとめ（loop-infra 向け）
 
+2026-11-28 から集客・運用フェーズ（[GROWTH.md](GROWTH.md) §3 に棚卸しと判断の理由）。
+
 | 名前 | cron (JST) | precheck の要点 | 指示書 |
 | --- | --- | --- | --- |
+| `ksh measure` | `30 7 * * *` | growth-log の最新から20時間以上 | prompts/measure.md（月曜は週次の報告） |
+| `ksh ops` | `10 * * * *` | 本番の `/`・`/api/health` が落ちた、または ops-log の最新から20時間以上 | prompts/ops.md |
+| `ksh outreach` | `30 18 * * *` | 前回の outreach-log の後に公開された記事がある、または7日以上たった | prompts/outreach.md |
 | `ksh mend` | 毎時 | main の最新 main-health が失敗 | （RELEASE.md） |
-| `ksh finish` | `*/30 * * * *` | 未claimの `P0`/`P1` の `loop:finish`/`loop:ux` があり、worktree が clean | prompts/finish.md |
-| `ksh patrol` | `0 */3 * * *`＋release後に本番1回 | `patrol-log` Issue 最新コメントの sha から origin/main までに src/worker/public の変更 | prompts/patrol.md |
-| `ksh polish` | `30 10-22/3 * * *` | main-health 非赤・open P0 なし・`polish-log` の最新コメントから2時間以上 | prompts/polish.md |
+| `ksh finish` | `0 * * * *` | 未claim・needs-human でない `P0`/`P1` の `loop:growth`/`loop:finish`/`loop:ux` があり、builder が上限未満 | prompts/finish.md |
+| `ksh patrol` | `0 */3 * * *` | 前回の patrol log の後に release が出た（本番に出たものだけを歩く） | prompts/patrol.md |
+| `ksh polish` | **停止**（2026-11-28） | （再開の条件は GROWTH.md §3） | prompts/polish.md |
 | `ksh garden` | `0 5 * * *` | `garden-log` Issue 最新コメントの sha 以降に main への commit | prompts/garden.md |
-| `ksh replan` | `0 */4 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か completion.json の変化 | prompts/replan.md |
+| `ksh replan` | `0 */6 * * *`＋finish 待ち行列が空＋blocked≥3 | 前回 replan（`Loop: replan` の commit）以降に Issue か growth.json の変化 | prompts/replan.md |
 | `ksh release` | `0 * * * *`（missed-run grace 100分） | 定時便の発車（窓の中で記録なし）か、出しきれていない便を 90 分だれも動かしていないとき（rc の CI・release.yml の実行中は除く）。止める条件は `npm run release` が判定して記録 | `.claude/skills/release/SKILL.md` |
 | `ksh editor` | `15 9,21 * * *` | 材料の inbox に未処理がある、または `editor-log` の最新から20時間以上 | prompts/editor.md（オーナーのレビュー → 好みの台帳 → 次の執筆。材料 → 下書き） |
 | （MCP 育成） | 新しい automation は無い | Stop hook が裏で `mcp-gap.mjs sync`（1時間に1回まで）、replan が毎周 sync | [§7](#7-mcp-育成の流れ-mcp-gap既存のループに乗る) |

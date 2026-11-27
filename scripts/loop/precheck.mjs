@@ -3,12 +3,16 @@
 // ループ名は docs/loop/LOOPS.md に揃える。
 //   release … 常に起こす（定時便は見送りも含めて必ず記録する。止める条件は scripts/release.mjs が判定する）
 //   mend    … main の最新 main-health が失敗している（アンドン：最優先で直す）
-//   patrol  … 前回巡回の SHA 以降に src / worker / public の変更がある、または前回巡回の後に release が出た
+//   patrol  … 前回巡回の後に release が出た（集客・運用フェーズ：本番に出たものだけを歩く。docs/loop/GROWTH.md）
 //   polish  … main-health が赤でなく、open な P0 が無く、polish-log の最新コメントから 2 時間以上たっている
+//             （2026-11-28 から automation は止めている。モードは手で回すときのために残す）
 //   garden  … garden-log の前回 SHA 以降に main への commit がある
-//   finish  … 未 claim の P0/P1（loop:finish / loop:ux）があり、claim 中の builder が上限未満
-//   replan  … 前回 replan 以降に Issue か completion.json が変わった、待ち行列が空、blocked が 3 件以上
+//   finish  … 未 claim・needs-human でない P0/P1（loop:growth / loop:finish / loop:ux）があり、claim 中の builder が上限未満
+//   replan  … 前回 replan 以降に Issue か growth.json が変わった、待ち行列が空、blocked が 3 件以上
 //   editor  … 材料の inbox に未処理のファイルがある、または editor-log の最新コメントから 20 時間以上たっている
+//   measure … growth-log の最新コメントから 20 時間以上たっている（日次の計測。月曜は週次の報告も）
+//   ops     … 本番の最小 smoke（/ と /api/health）が落ちた、または ops-log の最新コメントから 20 時間以上たっている
+//   outreach… 前回の outreach-log の後に公開された記事がある、または outreach-log から 7 日以上たっている
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -151,14 +155,9 @@ const compareCount = (sha, filter) =>
   gh('api', `repos/${REPO}/compare/${sha}...main`, '-q', filter);
 
 if (mode === 'patrol') {
-  // 前回巡回の SHA 以降に利用者に見える変更がある、または前回巡回の後に release が出た
+  // 集客・運用フェーズ（2026-11-28）：main の変更ごとには歩かず、本番に出たものだけを歩く
   const { sha, at } = lastLog('patrol-log');
   if (!sha) process.exit(0); // 記録がまだ無ければ巡回する
-  const changed = compareCount(
-    sha,
-    '[.files[]?.filename | select(test("^(src|worker|public)/"))] | length',
-  );
-  if (changed && changed !== '0') process.exit(0);
   const relAt = gh(
     'release',
     'list',
@@ -172,7 +171,7 @@ if (mode === 'patrol') {
     '.[0].createdAt',
   );
   if (relAt && at && relAt > at) process.exit(0); // release 後の本番巡回
-  skip('前回巡回以降、利用者に見える変更もリリースも無い');
+  skip('前回巡回の後に release が出ていない');
 }
 
 if (mode === 'polish') {
@@ -209,6 +208,8 @@ if (mode === 'garden') {
 }
 
 const MAX_BUILDERS = Number(process.env.KSH_MAX_BUILDERS || 3);
+// builder（finish）の待ち行列。loop:growth は集客・運用フェーズの台帳 docs/loop/growth.json から replan が作る
+const QUEUE_LABELS = ['loop:growth', 'loop:finish', 'loop:ux'];
 const openIssues = (q) =>
   JSON.parse(
     gh(
@@ -235,15 +236,18 @@ if (mode === 'finish') {
     (i) =>
       !i.labels.includes('claimed') &&
       !i.labels.includes('blocked') &&
+      // needs-human は人を待つもの。数えると agent を起こしても何もできず空回りする（2026-11-28 まで #247 で
+      // 直近 100 回中 98 回起きていた）
+      !i.labels.includes('needs-human') &&
       (i.labels.includes('P0') || i.labels.includes('P1')) &&
-      (i.labels.includes('loop:finish') || i.labels.includes('loop:ux')),
+      QUEUE_LABELS.some((l) => i.labels.includes(l)),
   );
-  if (!ready.length) skip('着手できる P0/P1 の Issue が無い');
+  if (!ready.length) skip('着手できる P0/P1 の Issue が無い（needs-human は数えない）');
   process.exit(0);
 }
 
 if (mode === 'replan') {
-  // 前回 replan（trailer "Loop: replan" の commit）以降に Issue か completion.json が変わった、
+  // 前回 replan（trailer "Loop: replan" の commit）以降に Issue か growth.json が変わった、
   // または finish の待ち行列が空、または blocked が 3 件以上
   const last = sh('git', [
     'log',
@@ -254,7 +258,7 @@ if (mode === 'replan') {
   ]).split(' ');
   if (!last[0]) process.exit(0);
   const [sha, at] = last;
-  if (sh('git', ['diff', '--name-only', `${sha}..origin/main`, '--', 'docs/loop/completion.json']))
+  if (sh('git', ['diff', '--name-only', `${sha}..origin/main`, '--', 'docs/loop/growth.json']))
     process.exit(0);
   const updated = gh(
     'issue',
@@ -276,16 +280,69 @@ if (mode === 'replan') {
   const all = openIssues([]);
   if (all.filter((i) => i.labels.includes('blocked')).length >= 3) process.exit(0);
   const queue = all.filter(
-    (i) =>
-      !i.labels.includes('claimed') &&
-      (i.labels.includes('loop:finish') || i.labels.includes('loop:ux')),
+    (i) => !i.labels.includes('claimed') && QUEUE_LABELS.some((l) => i.labels.includes(l)),
   );
   if (!queue.length) process.exit(0);
   skip('前回 replan 以降に変化が無い');
 }
 
+// ---- 集客・運用フェーズのループ（docs/loop/GROWTH.md）----
+const ORIGIN = process.env.KSH_ORIGIN || 'https://hub.junhat6.com';
+const hoursSince = (iso) => (iso ? (Date.now() - Date.parse(iso)) / 3_600_000 : Infinity);
+
+if (mode === 'measure') {
+  const { at } = lastLog('growth-log');
+  if (hoursSince(at) >= 20) process.exit(0);
+  skip('growth-log は 20 時間以内');
+}
+
+if (mode === 'ops') {
+  // 本番の最小 smoke。落ちていれば必ず起こす（一次対応）。動いていれば 1 日 1 回の点検だけ
+  const probe = async (path, ok) => {
+    try {
+      const r = await fetch(ORIGIN + path, {
+        signal: AbortSignal.timeout(15_000),
+        redirect: 'manual',
+      });
+      return await ok(r);
+    } catch {
+      return false;
+    }
+  };
+  const failed = [];
+  if (!(await probe('/', (r) => r.status === 200))) failed.push('/');
+  if (
+    !(await probe('/api/health', async (r) => r.status === 200 && (await r.json()).status === 'ok'))
+  )
+    failed.push('/api/health');
+  if (failed.length) {
+    console.log(`ops: 本番の smoke が落ちた（${failed.join(', ')}）`);
+    process.exit(0);
+  }
+  const { at } = lastLog('ops-log');
+  if (hoursSince(at) >= 20) process.exit(0);
+  skip('本番は応答している・ops-log は 20 時間以内');
+}
+
+if (mode === 'outreach') {
+  const { at } = lastLog('outreach-log');
+  if (hoursSince(at) >= 7 * 24) process.exit(0);
+  let latest = '';
+  try {
+    const r = await fetch(ORIGIN + '/api/articles', { signal: AbortSignal.timeout(15_000) });
+    const body = await r.json();
+    for (const c of body.cards ?? [])
+      if (typeof c?.entry?.publishedAt === 'string' && c.entry.publishedAt > latest)
+        latest = c.entry.publishedAt;
+  } catch {}
+  if (latest && at && latest > at) process.exit(0);
+  skip('前回の outreach の後に公開された記事が無い');
+}
+
 if (direct) {
-  console.error('usage: precheck.mjs release|mend|patrol|polish|garden|finish|replan|editor');
+  console.error(
+    'usage: precheck.mjs release|mend|patrol|polish|garden|finish|replan|editor|measure|ops|outreach',
+  );
   process.exit(2);
 }
 
