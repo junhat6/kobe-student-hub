@@ -53,6 +53,7 @@ function Works() {
                 project={project}
                 author={author}
                 surface="ordinary"
+                showKind={false}
               />
             ))}
           </div>

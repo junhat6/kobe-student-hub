@@ -148,3 +148,19 @@ test('the author card shows public counts and the newest other works on articles
     for (const context of contexts) await context.close();
   }
 });
+
+test('the author card leaves out a kind with nothing public', async ({ browser, page }, info) => {
+  const contexts: BrowserContext[] = [];
+  const key = info.project.name + '-' + Date.now().toString(36);
+  try {
+    const author = await actor(browser, contexts, '架空の作品だけの作者-' + key);
+    const work = await publishProject(author, '作品だけ-' + key);
+    await page.goto('/projects/' + work.projectId);
+    const counts = page.locator('.author-card .author-card-counts');
+    await counts.scrollIntoViewIfNeeded();
+    // No 「記事 0」: only the works the reader can open are counted.
+    await expect(counts).toHaveText('公開中の作品 1');
+  } finally {
+    for (const context of contexts) await context.close();
+  }
+});

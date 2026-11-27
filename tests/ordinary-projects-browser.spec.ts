@@ -227,6 +227,9 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     });
     await reader.goto('/works');
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
+    // Every card on /works is a work: the picture stays, the 「作品」 chip does not.
+    await expect(reader.locator('.content-card-band').first()).toBeVisible();
+    await expect(reader.locator('.content-card-kind')).toHaveCount(0);
     const searchTitle = async () => {
       await reader.goto('/search');
       await reader.getByRole('searchbox').fill(title);
@@ -235,6 +238,10 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     };
     await searchTitle();
     await expect(reader.getByRole('link', { name: title, exact: true })).toBeVisible();
+    // Search mixes articles and works, so the chip stays there.
+    await expect(
+      reader.locator('.content-card', { hasText: title }).locator('.content-card-kind'),
+    ).toHaveText('作品');
     await register(reader, info);
     await reader.goto(path!);
     // Another signed-in student sees 「…」 and no pencil.

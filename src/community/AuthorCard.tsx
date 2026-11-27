@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPublicStudentClient } from './student-client';
 import { AuthorAvatar } from '../shared/public-avatars';
@@ -58,10 +58,22 @@ export default function AuthorCard({
       {author.bio && <p className="author-card-bio">{author.bio}</p>}
       {card && <ProfileLinks links={card.links} name={author.name} />}
       {card && (
+        // A kind with nothing public is left out: 「記事 0」 says nothing a reader can act on.
         <p className="author-card-counts">
-          公開中の記事 <strong>{card.articles}</strong>
-          <span aria-hidden="true"> · </span>
-          作品 <strong>{card.projects}</strong>
+          公開中の
+          {(
+            [
+              ['記事', card.articles],
+              ['作品', card.projects],
+            ] as const
+          )
+            .filter(([, count]) => count > 0)
+            .map(([label, count], index) => (
+              <Fragment key={label}>
+                {index > 0 && <span aria-hidden="true"> · </span>}
+                {label} <strong>{count}</strong>
+              </Fragment>
+            ))}
         </p>
       )}
       {others.length > 0 && (

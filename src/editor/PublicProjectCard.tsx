@@ -20,6 +20,7 @@ export default function PublicProjectCard({
   author,
   surface = 'lab',
   inTypedList = false,
+  showKind = !inTypedList,
   headingLevel = 2,
 }: {
   project: ProjectDiscoverySummary & Partial<Pick<PublicProjectSummary, 'stage'>>;
@@ -27,6 +28,8 @@ export default function PublicProjectCard({
   surface?: PublicSurface;
   /** The surrounding tab already says these are works: no frame, no kind label (#236). */
   inTypedList?: boolean;
+  /** The works list keeps the picture but drops the 「作品」 chip: every card there is a work. */
+  showKind?: boolean;
   headingLevel?: 2 | 3;
 }) {
   const paths = publicPaths(surface);
@@ -35,7 +38,7 @@ export default function PublicProjectCard({
   const compactDate = inTypedList && !author;
   // Time only, like the article card: 「たった今 公開」 repeated what every public card already is.
   const published = <PublicTime day={project.publishedOn} at={project.publishedAt} />;
-  const showMeta = !inTypedList || compactDate || project.stage === 'in_progress';
+  const showMeta = showKind || compactDate || project.stage === 'in_progress';
   return (
     <article
       className="content-card content-card-project"
@@ -49,7 +52,7 @@ export default function PublicProjectCard({
       <div className="content-card-body">
         {showMeta && (
           <div className="content-card-meta">
-            {!inTypedList && <ContentKindMark kind="project" />}
+            {showKind && <ContentKindMark kind="project" />}
             <ProjectStageMark stage={project.stage} />
             {compactDate && published}
           </div>
