@@ -94,6 +94,9 @@ export function productionConfig(inputs, root = process.cwd()) {
         '/works',
         '/articles/*',
         '/projects/*',
+        // G05：robots.txt の Sitemap 行と sitemap.xml は正規の origin を書くので worker が返す（worker/site-files.ts）。
+        '/robots.txt',
+        '/sitemap.xml',
       ],
     },
     d1_databases: [

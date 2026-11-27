@@ -1,4 +1,0 @@
-# Kobe Student Hub — 検索エンジンに載せるのは /・/works・公開記事・公開作品だけ（ほかのページは noindex を返す）。
-# クロール自体は止めない：止めると noindex を読めず、URL だけが検索結果に残ることがあるため。
-User-agent: *
-Disallow: /api/

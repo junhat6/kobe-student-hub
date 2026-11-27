@@ -21,7 +21,9 @@
       "/",
       "/works",
       "/articles/*",
-      "/projects/*"
+      "/projects/*",
+      "/robots.txt",
+      "/sitemap.xml"
     ]
   },
   "d1_databases": [

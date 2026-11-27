@@ -329,3 +329,50 @@ it('lists only published article and project pages for search engines', async ()
   });
   expect(await robots('article', draft.id)).toBe('noindex, nofollow');
 });
+
+// G05: the sitemap lists published articles and projects and drops one from the next fetch once stopped.
+async function sitemap() {
+  const r = await mf.dispatchFetch(O + '/sitemap.xml');
+  expect(r.status).toBe(200);
+  expect(r.headers.get('Content-Type')).toBe('application/xml; charset=utf-8');
+  expect(r.headers.get('Cache-Control')).toBe('no-cache');
+  return r.text();
+}
+it('lists published pages in the sitemap with lastmod and drops them once stopped or hidden', async () => {
+  const db = await mf.getD1Database('DB');
+  const article = await publish('article', 'Sitemap stop');
+  const hidden = await publish('article', 'Sitemap hidden');
+  const project = await publish('project', 'Sitemap project');
+  const draft = await action<{ id: string }>('article-draft', {
+    title: 'Sitemap draft',
+    body: 'x',
+  });
+  let xml = await sitemap();
+  expect(xml).toMatch(
+    /^<\?xml version="1.0" encoding="UTF-8"\?>\n<urlset xmlns="http:\/\/www.sitemaps.org\/schemas\/sitemap\/0.9">/,
+  );
+  for (const path of [
+    '',
+    '/works',
+    '/articles/' + article,
+    '/articles/' + hidden,
+    '/projects/' + project,
+  ])
+    expect(xml, path).toMatch(
+      new RegExp(
+        `<url><loc>${O}${path || '/'}</loc><lastmod>\\d{4}-\\d{2}-\\d{2}T[\\d:.]+Z</lastmod></url>`,
+      ),
+    );
+  expect(xml).not.toContain(draft.id);
+  // Sample content never reaches the sitemap.
+  const samples = await db
+    .prepare('SELECT id FROM content WHERE is_sample=1 LIMIT 5')
+    .all<{ id: string }>();
+  for (const s of samples.results) expect(xml).not.toContain(s.id);
+  expect((await stop('article', article)).status).toBe(200);
+  await db.prepare("UPDATE content SET status='hidden' WHERE id=?").bind(hidden).run();
+  xml = await sitemap();
+  expect(xml).not.toContain(article);
+  expect(xml).not.toContain(hidden);
+  expect(xml).toContain('/projects/' + project);
+});

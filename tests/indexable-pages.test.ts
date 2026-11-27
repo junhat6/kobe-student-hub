@@ -1,9 +1,10 @@
 // G03（growth.json）：検索エンジンに載せてよいページの列挙。公開の有無を実 D1 で確かめる部分は
 // tests/publication-stops.test.ts（公開 → 公開停止 → 非表示）にある。
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import worker from '../worker';
 import { INDEXABLE_ROUTES, STATIC_PAGE_HEADERS } from '../worker/indexable-pages';
+import { SITE_FILE_ROUTES } from '../worker/site-files';
 
 const ORIGIN = 'https://hub.example.test';
 const ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -120,12 +121,10 @@ describe('the list itself', () => {
         !p.startsWith('/.well-known/') &&
         !/^\/(mcp|trial-assets)/.test(p),
     );
-    expect(pages).toEqual([...INDEXABLE_ROUTES]);
+    expect(pages).toEqual([...INDEXABLE_ROUTES, ...SITE_FILE_ROUTES]);
     // 本番の設定が同じ列を使うことは tests/production-wrangler.test.ts が確かめる。
   });
-  it('robots.txt still lets crawlers read the noindex pages and keeps /api/ out', () => {
-    const robots = readFileSync('public/robots.txt', 'utf8');
-    expect(robots).toMatch(/^Disallow: \/api\/$/m);
-    expect(robots.match(/^Disallow:/gm)).toHaveLength(1);
+  it('robots.txt is written by the worker, not a static file that would shadow it', () => {
+    expect(existsSync('public/robots.txt')).toBe(false);
   });
 });

@@ -17,6 +17,7 @@ import type { Catalog, Entry, Profile } from '../src/types';
 import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
 import { handleUsage, type UsageBindings } from './usage-http';
 import { indexablePage } from './indexable-pages';
+import { siteFile } from './site-files';
 import { cleanupAgentConnections, createAgentHandler } from './agent/http';
 import {
   AGENT_MCP_RELEASE_ENABLED,
@@ -225,6 +226,9 @@ export default {
       // G03: listed public pages bypass Hono so they keep the static pages' security headers.
       const page = await indexablePage(request, env as Env & OAuthBindings);
       if (page) return page;
+      // G05: robots.txt and sitemap.xml name the canonical origin, so the worker writes them.
+      const file = await siteFile(request, env as Env & OAuthBindings);
+      if (file) return file;
       return await app.fetch(request, env, ctx);
     } catch {
       return new Response(

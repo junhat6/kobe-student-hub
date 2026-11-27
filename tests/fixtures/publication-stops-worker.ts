@@ -8,6 +8,7 @@ import { ProjectStore } from '../../worker/projects';
 import { ProjectReportStore } from '../../worker/project-reports';
 import { createPrivatePublicationStopHandler } from '../../worker/publication-stops-http';
 import { indexablePage } from '../../worker/indexable-pages';
+import { siteFile } from '../../worker/site-files';
 const origin = 'https://app.example.invalid';
 export default {
   async fetch(request: Request, env: { DB: D1Database }) {
@@ -24,6 +25,13 @@ export default {
               headers: { 'Content-Type': 'text/html' },
             }),
         } as unknown as Fetcher,
+      }))!;
+    // G05: the sitemap reads the same public bounds on every request.
+    if (u.pathname === '/sitemap.xml')
+      return (await siteFile(request, {
+        DB: env.DB,
+        AUTH_ORIGIN: origin,
+        ASSETS: {} as Fetcher,
       }))!;
     if (u.pathname === '/fixture/session')
       return Response.json(

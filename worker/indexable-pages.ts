@@ -9,6 +9,10 @@ import { ProjectStore } from './projects';
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const articlePath = new RegExp('^/articles/(' + UUID + ')$');
 const projectPath = new RegExp('^/projects/(' + UUID + ')$');
+const idPattern = new RegExp('^' + UUID + '$');
+/** 記事・作品のページとして index しうる ID の形（sitemap も同じ形だけを載せる）。 */
+export const isIndexableId = (id: unknown): id is string =>
+  typeof id === 'string' && idPattern.test(id);
 const NOINDEX = 'noindex, nofollow';
 const ROBOTS_META = /<meta\s+name="robots"\s+content="noindex,nofollow"\s*\/?>\s*/;
 

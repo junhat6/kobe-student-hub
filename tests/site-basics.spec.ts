@@ -22,6 +22,10 @@ test('site icons, manifest and robots.txt are served as their own types', async 
   expect(body.name).toBe('Kobe Student Hub');
   expect(body.icons.map((icon: { src: string }) => icon.src)).toContain('/icon-512.png');
   expect(await (await request.get('/robots.txt')).text()).toContain('Disallow: /api/');
+  // G05: the worker answers /sitemap.xml (only on the canonical https origin), never the SPA fallback.
+  const sitemap = await request.get('/sitemap.xml');
+  expect(sitemap.headers()['content-type']).not.toMatch(/text\/html/);
+  expect(await sitemap.text()).not.toContain('<div id="root">');
 });
 
 test('every page names the operator and links to the disclaimer', async ({ page }) => {
