@@ -294,3 +294,38 @@ it('bounds stalled commands without a late stop', async () => {
   await new Promise((r) => setTimeout(r, 700));
   expect((await state('project', id)).stopped).toBe(false);
 }, 8000);
+
+// G03: a published article/project page is indexable; once stopped, hidden, or missing it is noindex.
+async function robots(kind: 'article' | 'project', id: string) {
+  const r = await mf.dispatchFetch(O + '/' + kind + 's/' + id);
+  const html = await r.text();
+  expect(r.status).toBe(200);
+  const header = r.headers.get('X-Robots-Tag');
+  expect(html.includes('noindex')).toBe(header !== null);
+  return header ?? 'index';
+}
+it('lists only published article and project pages for search engines', async () => {
+  const db = await mf.getD1Database('DB');
+  for (const kind of ['article', 'project'] as const) {
+    const stopped = await publish(kind, 'Indexable stop ' + kind);
+    const hidden = await publish(kind, 'Indexable hidden ' + kind);
+    expect(await robots(kind, stopped)).toBe('index');
+    expect(await robots(kind, hidden)).toBe('index');
+    expect((await stop(kind, stopped)).status).toBe(200);
+    expect(await robots(kind, stopped)).toBe('noindex, nofollow');
+    await db
+      .prepare(
+        `UPDATE ${kind === 'article' ? 'content' : 'project_publications'} SET status='hidden' WHERE id=?`,
+      )
+      .bind(hidden)
+      .run();
+    expect(await robots(kind, hidden)).toBe('noindex, nofollow');
+    expect(await robots(kind, '0f8fad5b-d9cb-469f-a165-70867728950e')).toBe('noindex, nofollow');
+  }
+  // A draft that was never published has no public page either.
+  const draft = await action<{ id: string }>('article-draft', {
+    title: 'Never published',
+    body: 'x',
+  });
+  expect(await robots('article', draft.id)).toBe('noindex, nofollow');
+});

@@ -16,6 +16,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { Catalog, Entry, Profile } from '../src/types';
 import { publicServiceInfo, type ServiceInfoBindings } from './service-info';
 import { handleUsage, type UsageBindings } from './usage-http';
+import { indexablePage } from './indexable-pages';
 import { cleanupAgentConnections, createAgentHandler } from './agent/http';
 import {
   AGENT_MCP_RELEASE_ENABLED,
@@ -221,6 +222,9 @@ export default {
   },
   async fetch(request: Request, env: Env, ctx?: ExecutionContext) {
     try {
+      // G03: listed public pages bypass Hono so they keep the static pages' security headers.
+      const page = await indexablePage(request, env as Env & OAuthBindings);
+      if (page) return page;
       return await app.fetch(request, env, ctx);
     } catch {
       return new Response(

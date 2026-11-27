@@ -7,11 +7,24 @@ import { ArticleModerationStore } from '../../worker/moderation';
 import { ProjectStore } from '../../worker/projects';
 import { ProjectReportStore } from '../../worker/project-reports';
 import { createPrivatePublicationStopHandler } from '../../worker/publication-stops-http';
+import { indexablePage } from '../../worker/indexable-pages';
 const origin = 'https://app.example.invalid';
 export default {
   async fetch(request: Request, env: { DB: D1Database }) {
     const u = new URL(request.url),
       now = Number(request.headers.get('X-Test-Now') ?? 1800000000000);
+    // G03: the listed article/project pages, with a stand-in for the static index.html.
+    if (u.pathname.startsWith('/articles/') || u.pathname.startsWith('/projects/'))
+      return (await indexablePage(request, {
+        DB: env.DB,
+        AUTH_ORIGIN: origin,
+        ASSETS: {
+          fetch: async () =>
+            new Response('<head><meta name="robots" content="noindex,nofollow" /></head>', {
+              headers: { 'Content-Type': 'text/html' },
+            }),
+        } as unknown as Fetcher,
+      }))!;
     if (u.pathname === '/fixture/session')
       return Response.json(
         await createFixtureSession(env.DB, origin, () => now, {

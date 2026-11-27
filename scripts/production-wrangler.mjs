@@ -89,6 +89,11 @@ export function productionConfig(inputs, root = process.cwd()) {
         '/.well-known/oauth-protected-resource',
         '/.well-known/oauth-protected-resource/*',
         '/.well-known/oauth-authorization-server',
+        // G03：検索エンジンに載せてよいページだけ worker が判定する（worker/indexable-pages.ts）。
+        '/',
+        '/works',
+        '/articles/*',
+        '/projects/*',
       ],
     },
     d1_databases: [
