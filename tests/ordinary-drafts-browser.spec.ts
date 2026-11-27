@@ -132,10 +132,10 @@ test('ordinary drafts offers signed-out login and is independent of catalog fail
   await page.goto('/drafts');
   await expect(page.getByRole('heading', { name: '下書き', exact: true })).toBeVisible();
   await expect(
-    page.getByText('現在ログインしていません。下書きを開くにはログインが必要です。', {
+    page.getByText('ログインしていません。', {
       exact: true,
     }),
-  ).toBeVisible();
+  ).toHaveClass(/sr-only/);
   await expect(page.getByRole('link', { name: 'ログインする', exact: true })).toBeVisible();
   await expect(
     page.getByRole('link', { name: '初めての方は学生として登録する', exact: true }),
@@ -153,7 +153,7 @@ test('ordinary drafts offers signed-out login and is independent of catalog fail
   await register(other, info, 'focus', false);
   await other.close();
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await page.getByRole('button', { name: '下書きを開き直す', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'まずプロフィールをつくろう' })).toBeVisible();
 });
 
@@ -404,7 +404,7 @@ test('pending save and later typing remain guarded through a same-session rechec
     // The confirmed session has no visible session panel; a window focus rechecks it.
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(
-      page.getByText('同じセッションを確認しました。手元の編集を保持して再開しています。', {
+      page.getByText('ログインを確認しました。入力はそのまま残っています。', {
         exact: true,
       }),
     ).toBeVisible();
@@ -466,11 +466,9 @@ test('a changed real session destroys the old buffer before explicit continuatio
   await title(page).fill('前のアカウントだけの未保存');
   const ownCount = await replaceSession(context);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(
-    page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: '下書きを開き直す', exact: true })).toBeEnabled();
   await expect(title(page)).toHaveCount(0);
-  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await page.getByRole('button', { name: '下書きを開き直す', exact: true }).click();
   await expect(newDraft(page)).toBeEnabled();
   await expect(page.locator('.editor-draft-list li')).toHaveCount(ownCount);
   await expect(
@@ -494,11 +492,9 @@ test('an autosave under a replaced session never strands the reader before conti
   // Let the 2s autosave run under the old session (the slow-runner path), then return.
   await page.waitForTimeout(2500);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(
-    page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: '下書きを開き直す', exact: true })).toBeEnabled();
   await expect(title(page)).toHaveCount(0);
-  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await page.getByRole('button', { name: '下書きを開き直す', exact: true }).click();
   await expect(newDraft(page)).toBeEnabled();
   await expect(page.locator('.editor-draft-list li')).toHaveCount(ownCount);
   await expect(
@@ -549,7 +545,7 @@ test('an expired session keeps unsaved text and restores it to the same draft af
   await image(page, info, 'expired-rescue');
   await replaceSession(context, actor);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await page.getByRole('button', { name: '下書きを開き直す', exact: true }).click();
   await expectBody(body(page), '一段落目\n\n期限切れ後に書いた二段落目');
   await expect(rescueBox(page)).toHaveCount(0);
   await expect(
@@ -570,7 +566,7 @@ test('kept text is never applied to another account and can be discarded', async
   await expireWhileTyping(page, context);
   await replaceSession(context);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }).click();
+  await page.getByRole('button', { name: '下書きを開き直す', exact: true }).click();
   await expect(page.getByText(/このアカウントの下書きとして開けませんでした/)).toBeVisible();
   await expect(title(page)).toHaveCount(0);
   await expect(page.getByRole('button', { name: '期限切れの記事', exact: true })).toHaveCount(0);

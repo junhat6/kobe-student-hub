@@ -11,8 +11,7 @@ const description = (page: Page) => page.getByLabel('作品の説明', { exact: 
 const technologies = (page: Page) => page.getByLabel('使った技術（任意）', { exact: true });
 const rescueBox = (page: Page) =>
   page.getByRole('textbox', { name: '保存できなかった作品の入力の内容', exact: true });
-const reopen = (page: Page) =>
-  page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true });
+const reopen = (page: Page) => page.getByRole('button', { name: '下書きを開き直す', exact: true });
 const inSync = (page: Page) => page.getByText('保存済みです。', { exact: false });
 
 async function register(page: Page, info: TestInfo, suffix = 'a') {

@@ -216,7 +216,7 @@ test('pending deletion locks editing, blocks route and Back, and survives same-s
     // The confirmed session has no visible session panel; a window focus rechecks it.
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(
-      page.getByText('同じセッションを確認しました。手元の編集を保持して再開しています。', {
+      page.getByText('ログインを確認しました。入力はそのまま残っています。', {
         exact: true,
       }),
     ).toBeVisible();
@@ -351,7 +351,7 @@ test('an uncommitted network failure recovers only after explicit readback and n
   await confirm(page).click();
   await expect(
     page.getByText(
-      'セッションを確認できませんでした。手元の編集を保持したまま隠しています。再確認できるまで操作できません。',
+      'ログイン状態を確認できませんでした。編集中の内容は残したまま隠しています。確認できるまで操作できません。',
       { exact: true },
     ),
   ).toBeVisible();
@@ -407,9 +407,7 @@ test('a late deletion acknowledgement cannot cross a changed signed session', as
     const count = await replaceSession(context);
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(title(page)).toHaveCount(0);
-    await page
-      .getByRole('button', { name: '確認したセッションで下書きを開く', exact: true })
-      .click();
+    await page.getByRole('button', { name: '下書きを開き直す', exact: true }).click();
     await expect(newDraft(page)).toBeEnabled();
     release.release();
     await finished.promise;

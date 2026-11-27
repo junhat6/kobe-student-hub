@@ -149,7 +149,9 @@ test('one dropped session proof while typing neither hides the editor nor stops 
   await expect(page.locator('.editor-save-state')).toHaveText('保存済み', { timeout: 10000 });
   expect(dropped).toBe(1);
   expect(patches).toBe(1);
-  await expect(page.getByText('セッションを確認できませんでした', { exact: false })).toHaveCount(0);
+  await expect(page.getByText('ログイン状態を確認できませんでした', { exact: false })).toHaveCount(
+    0,
+  );
   await expect(page.getByText('自動保存を停止しています', { exact: false })).toHaveCount(0);
   await body(page).pressSequentially('。続きも入る', { delay: 20 });
   await expectBody(body(page), '入力は止まらない。続きも入る');
@@ -396,9 +398,7 @@ test('session replacement cancels a queued save before another account can consu
   await title(page).fill('前の本人だけの未送信タイトル');
   await replaceSession(context);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(
-    page.getByRole('button', { name: '確認したセッションで下書きを開く', exact: true }),
-  ).toBeEnabled();
+  await expect(page.getByRole('button', { name: '下書きを開き直す', exact: true })).toBeEnabled();
   await expect(title(page)).toHaveCount(0);
   await page.waitForTimeout(2400);
   expect(attempts).toBe(0);

@@ -123,6 +123,11 @@ test('logged-in read → private history → single/all delete → collection di
     await expect(
       reader.getByRole('link', { name: 'ログインして履歴を見る', exact: true }),
     ).toBeVisible();
+    // The sign-in link already says what to do; the plain line stays for screen readers (#320).
+    await expect(reader.getByText('ログインしていません。', { exact: true })).toHaveClass(
+      /sr-only/,
+    );
+    await expect(reader.locator('main')).not.toContainText(/アカウント情報|セッション/);
     await expect(reader.getByRole('region', { name: '自分の閲覧履歴', exact: true })).toHaveCount(
       0,
     );

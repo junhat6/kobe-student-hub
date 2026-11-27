@@ -66,6 +66,8 @@ export interface AccountSessionBoundaryProps {
   title?: string;
   onRescueChange?: (value: boolean) => void;
 }
+/** Shown (to screen readers only) on ordinary pages when nobody is signed in. */
+const NOT_SIGNED_IN = 'ログインしていません。';
 const expiredWithRescue = (value: UnsavedRescue) =>
   value.kind === 'article'
     ? 'ログインの有効期限が切れたため、最後の変更を保存できませんでした。保存できなかった文章を下に残しています。'
@@ -124,7 +126,7 @@ export default function AccountSessionBoundary({
   const [checking, setChecking] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [message, setMessage] = useState(
-      copy('既存のセッションを確認しています…', 'セッションを確認しています…'),
+      copy('既存のセッションを確認しています…', 'ログイン状態を確認しています…'),
     ),
     [inspectionGeneration, setInspectionGeneration] = useState(0);
   const conceal = () => {
@@ -173,13 +175,12 @@ export default function AccountSessionBoundary({
       tokenRef.current
         ? copy(
             'セッションを確認できませんでした。手元の編集はこのページのメモリ内に保持したまま隠しています。再確認できるまで操作できません。',
-            'セッションを確認できませんでした。このページの入力をメモリ内に保持したまま隠しています。再確認できるまで年度やアカウントの操作はできません。',
-            'セッションを確認できませんでした。手元の編集を保持したまま隠しています。再確認できるまで操作できません。',
+            'ログイン状態を確認できませんでした。このページの入力は残したまま隠しています。確認できるまで操作できません。',
+            'ログイン状態を確認できませんでした。編集中の内容は残したまま隠しています。確認できるまで操作できません。',
           )
         : copy(
             'セッションを確認できませんでした。編集画面は開いていません。もう一度確認してください。',
-            'セッションを確認できませんでした。アカウント情報は開いていません。もう一度確認してください。',
-            'セッションを確認できませんでした。下書きは開いていません。もう一度確認してください。',
+            'ログイン状態を確認できませんでした。もう一度確認してください。',
           ),
     );
   }
@@ -202,13 +203,11 @@ export default function AccountSessionBoundary({
               ? expiredWithRescue(rescueRef.current)
               : copy(
                   '現在のセッションは無効です。前の編集画面は閉じています。',
-                  'ログインが切れたため、アカウント情報を閉じました。もう一度ログインしてください。',
-                  'ログインが切れたため、下書きを閉じました。もう一度ログインしてください。',
+                  'ログインが切れました。もう一度ログインしてください。',
                 )
             : copy(
                 '別のセッションを検出したため、前の編集画面を閉じました。セッションを再確認してから続行してください。',
-                '別のセッションを検出したため、前のアカウント情報を閉じました。セッションを再確認してから続行してください。',
-                '別のセッションを検出したため、前の下書きを閉じました。セッションを再確認してから続行してください。',
+                'ログインが変わったため、前の画面を閉じました。',
               ),
         );
         // Ordinary pages go straight to the explicit "open the confirmed session" step
@@ -260,8 +259,7 @@ export default function AccountSessionBoundary({
         setMessage(
           copy(
             '同じセッションを確認しました。手元の編集を保持して再開しています。',
-            '同じセッションを確認しました。手元の年度の入力を保持して再開しています。',
-            '同じセッションを確認しました。手元の編集を保持して再開しています。',
+            'ログインを確認しました。入力はそのまま残っています。',
           ),
         );
         reveal();
@@ -272,8 +270,8 @@ export default function AccountSessionBoundary({
         setMessage(
           copy(
             '別のセッションを確認したため、前の編集内容を閉じました。新しい編集画面を開くには、明示的に続行してください。',
-            '別のセッションを確認したため、前のアカウント情報と入力を閉じました。新しいアカウント情報を開くには、明示的に続行してください。',
-            '別のセッションを確認したため、前の下書きと入力を閉じました。新しい下書き一覧を開くには、明示的に続行してください。',
+            '別のアカウントでログインしたため、前の画面と入力を閉じました。「確認したアカウントを開く」で開き直せます。',
+            '別のアカウントでログインしたため、前の下書きと入力を閉じました。「下書きを開き直す」で開き直せます。',
           ),
         );
       } else if (allowInitialMount) {
@@ -295,14 +293,14 @@ export default function AccountSessionBoundary({
         setMessage(
           rescueRef.current
             ? rescueRef.current.kind === 'article'
-              ? 'ログインを確認しました。「確認したセッションで下書きを開く」を押すと、保存できなかった文章を同じ下書きに戻します。'
+              ? 'ログインを確認しました。「下書きを開き直す」を押すと、保存できなかった文章を同じ下書きに戻します。'
               : rescueRef.current.projectId
-                ? 'ログインを確認しました。「確認したセッションで下書きを開く」を押すと、保存できなかった入力を同じ作品に戻します。'
+                ? 'ログインを確認しました。「下書きを開き直す」を押すと、保存できなかった入力を同じ作品に戻します。'
                 : 'ログインを確認しました。保存前の新しい作品の入力は自動では戻しません。下に残した入力をコピーして使ってください。'
             : copy(
                 '有効なセッションを確認しました。編集画面はまだ開いていません。内容を新しく読み込むには続行してください。',
-                '有効なセッションを確認しました。アカウント情報はまだ開いていません。内容を新しく読み込むには続行してください。',
-                '有効なセッションを確認しました。下書きはまだ開いていません。内容を新しく読み込むには続行してください。',
+                'ログインを確認しました。「確認したアカウントを開く」で開きます。',
+                'ログインを確認しました。「下書きを開き直す」で開きます。',
               ),
         );
       }
@@ -321,8 +319,7 @@ export default function AccountSessionBoundary({
             ? expiredWithRescue(rescueRef.current)
             : copy(
                 '現在ログインしていません。このローカル画面では学校Googleログインやアカウント作成は利用できません。',
-                '現在ログインしていません。アカウント情報を開くにはログインが必要です。',
-                '現在ログインしていません。下書きを開くにはログインが必要です。',
+                NOT_SIGNED_IN,
               ),
         );
       } else unknown();
@@ -351,8 +348,8 @@ export default function AccountSessionBoundary({
         setMessage(
           copy(
             '確認後にセッションが変わりました。編集画面は開かず、改めて続行の確認を待っています。',
-            '確認後にセッションが変わりました。アカウント情報は開かず、改めて続行の確認を待っています。',
-            '確認後にセッションが変わりました。下書きは開かず、改めて続行の確認を待っています。',
+            'ログイン中のアカウントが変わりました。もう一度「確認したアカウントを開く」を押してください。',
+            'ログイン中のアカウントが変わりました。もう一度「下書きを開き直す」を押してください。',
           ),
         );
         return;
@@ -363,12 +360,12 @@ export default function AccountSessionBoundary({
       setMessage(
         rescueRef.current
           ? rescueRef.current.kind === 'article'
-            ? '確認したセッションで下書きを開きました。保存できなかった文章を同じ下書きに戻しています。'
-            : '確認したセッションで作品を開きました。'
+            ? '下書きを開きました。保存できなかった文章を同じ下書きに戻しています。'
+            : '作品を開きました。'
           : copy(
               '確認したセッションの編集画面を新しく開きました。前のセッションの入力は引き継いでいません。',
-              '確認したセッションのアカウント情報を新しく開きました。前のセッションの入力は引き継いでいません。',
-              '確認したセッションの下書き一覧を新しく開きました。前のセッションの入力は引き継いでいません。',
+              'アカウント情報を開きました。',
+              '下書きを開きました。',
             ),
       );
       reveal();
@@ -381,8 +378,7 @@ export default function AccountSessionBoundary({
         setMessage(
           copy(
             '現在のセッションは無効です。編集画面は開いていません。',
-            'ログインが切れています。アカウント情報を開くにはもう一度ログインしてください。',
-            'ログインが切れています。下書きを開くにはもう一度ログインしてください。',
+            'ログインが切れています。もう一度ログインしてください。',
           ),
         );
       } else unknown();
@@ -548,6 +544,11 @@ export default function AccountSessionBoundary({
   // A kept rescue still offers the manual re-check after signing in again in a new tab (#251).
   const signedOutQuiet =
     !lab && !candidate && !rescue && (phase === 'signed-out' || phase === 'checking');
+  // The page's own sign-in button already says what to do when nobody is signed in, so the plain
+  // "not signed in" line is kept for screen readers only. Why a page closed (expired, switched)
+  // stays visible (#320).
+  const hideMessage =
+    quiet || (signedOutQuiet && phase === 'signed-out' && message === NOT_SIGNED_IN);
   return (
     <div className={lab ? 'session-account-lab' : 'session-account'}>
       <section
@@ -568,7 +569,7 @@ export default function AccountSessionBoundary({
           </p>
         )}
         <p
-          className={'session-message' + (quiet ? ' sr-only' : '')}
+          className={'session-message' + (hideMessage ? ' sr-only' : '')}
           aria-live="polite"
           aria-atomic="true"
         >
@@ -583,7 +584,7 @@ export default function AccountSessionBoundary({
               {lab
                 ? '確認したセッションで編集を開く'
                 : authoring
-                  ? '確認したセッションで下書きを開く'
+                  ? '下書きを開き直す'
                   : '確認したアカウントを開く'}
             </Button>
           )}
@@ -595,9 +596,11 @@ export default function AccountSessionBoundary({
         </div>
         {concealed && sessionToken && (
           <p className="session-hidden-note">
-            {lab || authoring
+            {lab
               ? '確認できるまで、編集中の文章は表示・操作できません。同じセッションの確認が取れれば、このページに保持した編集を再開できます。'
-              : '確認できるまで、年度などのアカウント情報は表示・操作できません。同じセッションの確認が取れれば、このページに保持した入力を再開できます。'}
+              : authoring
+                ? '確認できるまで、編集中の文章は表示・操作できません。同じアカウントと確かめられたら、続きから再開できます。'
+                : '確認できるまで、アカウント情報は表示・操作できません。同じアカウントと確かめられたら、入力の続きから再開できます。'}
           </p>
         )}
         {lab ? (

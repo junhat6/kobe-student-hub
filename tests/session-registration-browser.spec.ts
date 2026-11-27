@@ -77,10 +77,10 @@ async function signedOutAccount(page: Page, failed = false) {
       'ログイン・登録を完了できませんでした。もう一度やり直してください。',
     );
   await expect(
-    page.getByText('現在ログインしていません。アカウント情報を開くにはログインが必要です。', {
+    page.getByText('ログインしていません。', {
       exact: true,
     }),
-  ).toBeVisible();
+  ).toHaveClass(/sr-only/);
   await expect(enrollment(page)).toHaveCount(0);
 }
 async function fakeGoogle(

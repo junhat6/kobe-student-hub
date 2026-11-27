@@ -145,7 +145,7 @@ test('account pagehide conceals unsaved years immediately and a failed check rec
   );
   await expect(
     page.getByText(
-      'セッションを確認できませんでした。このページの入力をメモリ内に保持したまま隠しています。再確認できるまで年度やアカウントの操作はできません。',
+      'ログイン状態を確認できませんでした。このページの入力は残したまま隠しています。確認できるまで操作できません。',
       { exact: true },
     ),
   ).toBeVisible();
@@ -158,7 +158,7 @@ test('account pagehide conceals unsaved years immediately and a failed check rec
   await expect(admission(page)).toHaveValue('2019');
   await expect(graduation(page)).toHaveValue('2020');
   await expect(
-    page.getByText('同じセッションを確認しました。手元の年度の入力を保持して再開しています。', {
+    page.getByText('ログインを確認しました。入力はそのまま残っています。', {
       exact: true,
     }),
   ).toBeVisible();
@@ -211,7 +211,7 @@ test('a changed account destroys the old buffer and rechecks a changed continuat
   await continueAccount(page).click();
   await expect(
     page.getByText(
-      '確認後にセッションが変わりました。アカウント情報は開かず、改めて続行の確認を待っています。',
+      'ログイン中のアカウントが変わりました。もう一度「確認したアカウントを開く」を押してください。',
       { exact: true },
     ),
   ).toBeVisible();
@@ -283,10 +283,10 @@ for (const returnKind of ['cancel', 'pageshow'] as const)
       if (returnKind === 'cancel') {
         await page.goto('/account');
         await expect(
-          page.getByText('現在ログインしていません。アカウント情報を開くにはログインが必要です。', {
+          page.getByText('ログインしていません。', {
             exact: true,
           }),
-        ).toBeVisible();
+        ).toHaveClass(/sr-only/);
         await screenshot(page, info, 'independent-signed-out');
       }
     },

@@ -254,7 +254,7 @@ test('a dropped connection hides the editor without losing the text and resumes 
   );
   await body(page).fill('## 続きの条件\n\n保存済みの本文。\n\n通信が切れている間に書いた文。');
   const check = page.getByRole('region', { name: '下書きのセッション確認', exact: true });
-  await expect(check).toContainText('手元の編集を保持したまま隠しています', { timeout: 7000 });
+  await expect(check).toContainText('編集中の内容は残したまま隠しています', { timeout: 7000 });
   await expect(
     check.getByRole('button', { name: 'ログイン状態を確認', exact: true }),
   ).toBeVisible();

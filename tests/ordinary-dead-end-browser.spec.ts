@@ -91,7 +91,7 @@ test('every page offers a retry during an API outage and recovers after it', asy
     // outage is the settled result before bringing the API back.
     if (retry === 'ログイン状態を確認')
       await expect(
-        main.getByText('セッションを確認できませんでした', { exact: false }),
+        main.getByText('ログイン状態を確認できませんでした', { exact: false }),
         path,
       ).toBeVisible({
         timeout: 10000,
@@ -135,7 +135,7 @@ test('every page offers a retry during an API outage and recovers after it', asy
       continue;
     }
     // Session pages re-check first and open private content only on an explicit second step.
-    const open = main.getByRole('button', { name: /^確認した.+を開く$/ });
+    const open = main.getByRole('button', { name: /^(確認した.+を開く|下書きを開き直す)$/ });
     const done = main.getByText(recovered).first();
     await expect(done.or(open).first(), path).toBeVisible();
     if (!(await done.isVisible())) await open.click();
