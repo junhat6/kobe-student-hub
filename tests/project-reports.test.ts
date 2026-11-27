@@ -111,13 +111,19 @@ it('distinguishes genuine no receipt and authorized empty queue from unavailable
   expect((await req('/api/private/project-reports/' + crypto.randomUUID())).status).toBe(404);
 });
 it('deduplicates12 concurrent reports preserving original reason; one account never hides and queues one notice', async () => {
+  // Read each body as soon as its response arrives: Miniflare expects dispatchFetch bodies to be
+  // consumed immediately, and holding 12 unread streams let one be cancelled ("Body has already been read").
   const rs = await Promise.all(
-    Array.from({ length: 12 }, () =>
-      req(reportPath(), 'POST', { reason: 'Original plain reason', detail: 'Private detail' }),
-    ),
+    Array.from({ length: 12 }, async () => {
+      const r = await req(reportPath(), 'POST', {
+        reason: 'Original plain reason',
+        detail: 'Private detail',
+      });
+      return { status: r.status, body: await r.json() };
+    }),
   );
   expect(rs.every((r) => r.status === 201)).toBe(true);
-  for (const r of rs) expect(await r.json()).toEqual({ received: true });
+  for (const r of rs) expect(r.body).toEqual({ received: true });
   await req(reportPath(), 'POST', { reason: 'Replacement forbidden' });
   const db = await mf.getD1Database('DB');
   expect(
