@@ -31,6 +31,7 @@ import {
   isProjectWriteRoute,
 } from './account/routes';
 import { AGENT_MCP_RELEASE_ENABLED } from './shared/agent-release';
+import { useServedHead } from './useServedHead';
 import {
   AccountPage,
   Community,
@@ -128,6 +129,7 @@ function App() {
       });
     return () => controller.abort();
   }, [attempt, accountPath, communityPath, serviceInfoPath]);
+  useServedHead();
   usePagePosition(
     Boolean(catalog) ||
       failed ||

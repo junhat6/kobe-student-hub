@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import worker from '../worker';
 import { INDEXABLE_ROUTES, STATIC_PAGE_HEADERS } from '../worker/indexable-pages';
 import { SITE_FILE_ROUTES } from '../worker/site-files';
+import { withPageMeta, metaText } from '../worker/page-meta';
+import { SITE_TITLE } from '../src/useServedHead';
 
 const ORIGIN = 'https://hub.example.test';
 const ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
@@ -80,6 +82,8 @@ describe('listed public pages', () => {
       expect(response.status, path).toBe(200);
       expect(response.headers.get('X-Robots-Tag'), `${path} ${origin}`).toBe('noindex, nofollow');
       expect(html, path).toMatch(META);
+      // G04 条件4：読めない記事・作品は既定のメタ情報（サイト全体の1種類）のまま。
+      expect(html, path).toBe(INDEX_HTML);
       expectStaticHeaders(response);
     }
   });
@@ -126,5 +130,71 @@ describe('the list itself', () => {
   });
   it('robots.txt is written by the worker, not a static file that would shadow it', () => {
     expect(existsSync('public/robots.txt')).toBe(false);
+  });
+});
+
+// G04：記事・作品ページの head。公開 DTO から値を選ぶ部分は tests/publication-stops.test.ts（実 D1）。
+describe('page meta', () => {
+  const head = (html: string) => html.slice(0, html.indexOf('</head>'));
+  const count = (html: string, pattern: RegExp) => (html.match(pattern) ?? []).length;
+  it('replaces the site-wide title, description, OGP and card with the page values', () => {
+    const html = withPageMeta(INDEX_HTML, {
+      title: 'Unity で作る 2D アクション',
+      description: '当たり判定の作り方',
+      url: ORIGIN + '/articles/' + ID,
+    });
+    const h = head(html);
+    expect(h).toContain('<title>Unity で作る 2D アクション | Kobe Student Hub</title>');
+    expect(h).toContain('<meta name="description" content="当たり判定の作り方" />');
+    expect(h).toContain(`<link rel="canonical" href="${ORIGIN}/articles/${ID}" />`);
+    expect(h).toContain('<meta property="og:title" content="Unity で作る 2D アクション" />');
+    expect(h).toContain('<meta property="og:description" content="当たり判定の作り方" />');
+    expect(h).toContain(`<meta property="og:url" content="${ORIGIN}/articles/${ID}" />`);
+    expect(h).toContain('<meta property="og:type" content="article" />');
+    expect(h).toContain('<meta name="twitter:card" content="summary" />');
+    expect(h).not.toContain('og:image');
+    // 既定の1種類は残らず、各タグは1つだけ。サイト名・ロケール・robots などは index.html のまま。
+    for (const key of ['description', 'og:title', 'og:description', 'og:type', 'twitter:card'])
+      expect(count(h, new RegExp(`(?:name|property)="${key}"`, 'g')), key).toBe(1);
+    expect(count(h, /<title>/g)).toBe(1);
+    expect(h).not.toContain('学生の知恵と、つくる日々');
+    expect(h).toContain('og:site_name');
+    expect(h).toMatch(META);
+    expect(html.slice(html.indexOf('</head>'))).toBe(
+      INDEX_HTML.slice(INDEX_HTML.indexOf('</head>')),
+    );
+  });
+  it('the client resets to the same site-wide title as index.html', () => {
+    expect(INDEX_HTML).toContain(`<title>${SITE_TITLE}</title>`);
+  });
+  it('a card picture becomes og:image with the large card', () => {
+    const h = head(
+      withPageMeta(INDEX_HTML, {
+        title: 't',
+        description: 'd',
+        url: ORIGIN + '/projects/' + ID,
+        image: ORIGIN + '/api/media/' + ID,
+      }),
+    );
+    expect(h).toContain(`<meta property="og:image" content="${ORIGIN}/api/media/${ID}" />`);
+    expect(h).toContain('<meta name="twitter:card" content="summary_large_image" />');
+  });
+  it('escapes every value and never reads them as replacement patterns', () => {
+    const evil = `</title><script>alert("x")</script> & 'q' $' $& $\``;
+    const h = head(
+      withPageMeta(INDEX_HTML, { title: evil, description: evil, url: ORIGIN + '/articles/' + ID }),
+    );
+    expect(h).not.toContain('<script>');
+    expect(h).not.toContain('"x"');
+    expect(h).toContain(
+      '&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &#39;q&#39; $&#39; $&amp; $`',
+    );
+    expect(count(h, /<title>/g)).toBe(1);
+    expect(count(h, /<\/head>/g)).toBe(0);
+  });
+  it('cuts long text to one line by characters', () => {
+    expect(metaText('  a\n\tb  ', 10)).toBe('a b');
+    expect(metaText('あ'.repeat(130), 120)).toBe('あ'.repeat(119) + '…');
+    expect(Array.from(metaText('😀'.repeat(200), 120))).toHaveLength(120);
   });
 });

@@ -69,3 +69,32 @@ test('listed pages go through the worker and the rest stay statically noindex', 
   await page.goto('/works');
   await expect(page.locator('#main')).toBeVisible();
 });
+
+// G04: the worker writes an article/project page's own title and canonical into index.html. They
+// belong to that page only, so moving inside the SPA returns to the site-wide title and drops the
+// canonical, and coming back restores them. The sample preview has no canonical origin, so the
+// served head is stood in for by rewriting the document response.
+test('a served page title and canonical stay with the page they were served for', async ({
+  page,
+}) => {
+  const siteTitle = '学生の知恵と、つくる日々 | Kobe Student Hub';
+  await page.route('/', async (route) => {
+    const response = await route.fetch();
+    const html = (await response.text())
+      .replace(/<title>[^<]*<\/title>/, '<title>Served page | Kobe Student Hub</title>')
+      .replace('</head>', '<link rel="canonical" href="https://hub.example.test/" /></head>');
+    await route.fulfill({ response, body: html });
+  });
+  const canonical = page.locator('link[rel="canonical"]');
+  await page.goto('/');
+  await expect(page).toHaveTitle('Served page | Kobe Student Hub');
+  await expect(canonical).toHaveCount(1);
+  await page.locator('a[data-entry-id]').first().click();
+  await expect(page).toHaveURL(/\/(articles|projects)\//);
+  await expect(page).toHaveTitle(siteTitle);
+  await expect(canonical).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveTitle('Served page | Kobe Student Hub');
+  await expect(canonical).toHaveCount(1);
+});

@@ -330,6 +330,40 @@ it('lists only published article and project pages for search engines', async ()
   expect(await robots('article', draft.id)).toBe('noindex, nofollow');
 });
 
+// G04: the page head carries the published version's title, summary and URL; stopped or missing pages keep the site-wide one.
+async function head(kind: 'article' | 'project', id: string) {
+  const html = await (await mf.dispatchFetch(O + '/' + kind + 's/' + id + '?utm_source=x')).text();
+  return html.slice(0, html.indexOf('</head>'));
+}
+it('writes the published title, summary and canonical URL into the page head', async () => {
+  const title = 'Meta <b>"quoted"</b> & $\' title';
+  const escaped = 'Meta &lt;b&gt;&quot;quoted&quot;&lt;/b&gt; &amp; $&#39; title';
+  for (const kind of ['article', 'project'] as const) {
+    const id = await publish(kind, title);
+    const url = O + '/' + kind + 's/' + id;
+    const h = await head(kind, id);
+    expect(h).toContain(`<title>${escaped} | Kobe Student Hub</title>`);
+    expect(h).toContain(`<meta property="og:title" content="${escaped}" />`);
+    const description = kind === 'article' ? 'Summary' : 'Saved project description';
+    expect(h).toContain(`<meta name="description" content="${description}" />`);
+    expect(h).toContain(`<meta property="og:description" content="${description}" />`);
+    expect(h).toContain(`<link rel="canonical" href="${url}" />`);
+    expect(h).toContain(`<meta property="og:url" content="${url}" />`);
+    expect(h).toContain('<meta name="twitter:card" content="summary" />');
+    expect(h).not.toContain('og:image');
+    expect(h).not.toContain('content="site"');
+    expect(h).not.toContain('<b>');
+    expect((await stop(kind, id)).status).toBe(200);
+    const stopped = await head(kind, id);
+    expect(stopped).toContain('<title>site</title>');
+    expect(stopped).not.toContain('canonical');
+    expect(stopped).not.toContain('Meta');
+  }
+  expect(await head('article', '0f8fad5b-d9cb-469f-a165-70867728950e')).toContain(
+    '<title>site</title>',
+  );
+});
+
 // G05: the sitemap lists published articles and projects and drops one from the next fetch once stopped.
 async function sitemap() {
   const r = await mf.dispatchFetch(O + '/sitemap.xml');

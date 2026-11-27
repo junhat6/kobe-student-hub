@@ -21,9 +21,12 @@ export default {
         AUTH_ORIGIN: origin,
         ASSETS: {
           fetch: async () =>
-            new Response('<head><meta name="robots" content="noindex,nofollow" /></head>', {
-              headers: { 'Content-Type': 'text/html' },
-            }),
+            new Response(
+              '<head><meta name="robots" content="noindex,nofollow" /><meta name="description" content="site" /><meta property="og:title" content="site" /><meta name="twitter:card" content="summary" /><title>site</title></head>',
+              {
+                headers: { 'Content-Type': 'text/html' },
+              },
+            ),
         } as unknown as Fetcher,
       }))!;
     // G05: the sitemap reads the same public bounds on every request.

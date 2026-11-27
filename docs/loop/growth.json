@@ -74,8 +74,8 @@
         "3. 値は公開 DTO と同じ公開済みの版だけから作り、HTML として escape されている（題に < や \" を含む記事のテスト）",
         "4. 公開停止・存在しない ID は既定のメタ情報（サイト全体の1種類）のまま"
       ],
-      "status": "fail",
-      "evidence": "2026-11-28 時点：index.html の静的なメタ情報1種類だけ。",
+      "status": "pass",
+      "evidence": "#327：worker/page-meta.ts が、indexable-pages.ts の公開 API と同じ読み取り（記事 readPublished・作品 readPublishedPage）の値で index.html の title・description・canonical・og:type/title/description/url・twitter:card を書き換え、カード画像（card-images.ts の readPublicPaths＝公開 media の grant）があれば絶対 URL の og:image と summary_large_image。値はすべて HTML escape（置換パターン `$'` も含む）。停止・存在しない ID は index.html のまま。SPA 内の遷移では src/useServedHead.ts が既定の題に戻し canonical を外す。検査：tests/indexable-pages.test.ts（escape・画像・既定のまま）、publication-stops.test.ts（実 D1：公開→head→停止→既定）、site-basics.spec.ts（PC/モバイル）。",
       "production": "closed"
     },
     {
