@@ -55,6 +55,13 @@ test('ordinary project snapshot reaches anonymous readers and is removed by owne
     .fill('https://github.com/example/fictional-project');
   await page.getByRole('button', { name: '作品を保存', exact: true }).click();
   await expect(page.getByText('保存済みです。', { exact: false })).toBeVisible();
+  // polish 原則6: the saved state is a check mark; the words remain for screen readers only.
+  await expect(page.getByText('保存済みです。', { exact: true })).toHaveClass(/\bsr-only\b/);
+  await expect(page.locator('.project-saved-mark svg')).toBeVisible();
+  // polish 原則1: breadcrumb and h1 already name the screen; the h2 is read aloud only.
+  await expect(page.getByRole('heading', { name: '作品を登録する', exact: true })).toHaveClass(
+    /\bsr-only\b/,
+  );
   // 原則1・6: routine save success is announced only, and autosave/list notes are gone.
   const saveStatus = page.getByRole('status').filter({ hasText: '確認した入力を保存しました。' });
   await expect(saveStatus).toHaveClass(/\bsr-only\b/);

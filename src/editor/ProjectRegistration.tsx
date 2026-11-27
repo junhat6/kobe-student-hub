@@ -24,6 +24,7 @@ import CardImageChooser from './CardImageChooser';
 import { MEDIA_PER_DRAFT, referencedMediaIds } from '../shared/media';
 import type { RescueChannel } from '../account/AccountSessionBoundary';
 import Celebration from '../shared/Celebration';
+import Icon from '../shared/Icon';
 import { PROJECT_STAGES, type ProjectStage } from '../project-types';
 import ProjectStageMark, { PROJECT_STAGE_LABELS } from '../shared/ProjectStageMark';
 import ProjectJournalLinks from './ProjectJournalLinks';
@@ -743,10 +744,14 @@ export default function ProjectRegistration({
   }
   return (
     <section
-      className="project-registration"
+      className={'project-registration' + (ordinary ? ' project-registration-ordinary' : '')}
       aria-label={ordinary ? '作品の登録' : '画像なし作品の登録'}
     >
-      <h2>{ordinary ? '作品を登録する' : '画像なしの作品を登録する'}</h2>
+      {/* The breadcrumb and the page's h1 already name this screen; ordinary keeps the h2 for
+          screen readers only and drops the inner card frame (原則1). */}
+      <h2 className={ordinary ? 'sr-only' : undefined}>
+        {ordinary ? '作品を登録する' : '画像なしの作品を登録する'}
+      </h2>
       {surface === 'lab' && (
         <p className="project-local">
           架空データによるローカル限定の試作です。実際の投稿利用ではありません。作品通報の受付・内容の読取確認はローカルで試せますが、実際の運営判断・連絡は未提供です。実サービスでの公開はできません。
@@ -805,7 +810,8 @@ export default function ProjectRegistration({
               </Button>
             )}
             <small>
-              {ordinary && saved?.id === row.id ? '編集中 · ' : ''}版 {row.version}
+              {/* The version number is for lab conflict checks; students only need 「編集中」 (原則1). */}
+              {ordinary ? (saved?.id === row.id ? '編集中' : '') : `版 ${row.version}`}
               {agentDrafts?.agentProjectDraftIds.includes(row.id) ? ' · AIエージェントが作成' : ''}
             </small>
           </li>
@@ -897,16 +903,24 @@ export default function ProjectRegistration({
         >
           作品を保存
         </Button>
-        <p>
-          {dirty
-            ? '手元に未保存の作品情報があります。'
-            : saved
-              ? ordinary
-                ? '保存済みです。'
-                : '手元の入力と保存版は一致しています。'
-              : ordinary
-                ? '' /* An empty new form needs no status line (原則1). */
-                : '保存版はまだ選んでいません。'}{' '}
+        <p className="project-save-state">
+          {dirty ? (
+            '手元に未保存の作品情報があります。'
+          ) : saved ? (
+            ordinary ? (
+              /* Saved is the quiet normal state: a check mark, words for screen readers (原則6). */
+              <span className="project-saved-mark" title="保存済み">
+                <Icon name="check" size={18} />
+                <span className="sr-only">保存済みです。</span>
+              </span>
+            ) : (
+              '手元の入力と保存版は一致しています。'
+            )
+          ) : ordinary ? (
+            '' /* An empty new form needs no status line (原則1). */
+          ) : (
+            '保存版はまだ選んでいません。'
+          )}{' '}
           {!writable
             ? '年度の登録により、いまは保存できません。'
             : ordinary

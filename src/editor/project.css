@@ -320,3 +320,20 @@ div.project-description {
   gap: 6px;
   margin: 0;
 }
+/* Ordinary /works/new already sits in the page card; a second frame only narrows the form (原則1). */
+.project-registration.project-registration-ordinary {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.project-saved-mark {
+  display: inline-flex;
+  align-items: center;
+  color: #2f7d4f;
+  vertical-align: middle;
+}
+.project-registration-ordinary .project-draft-list small {
+  white-space: nowrap;
+}

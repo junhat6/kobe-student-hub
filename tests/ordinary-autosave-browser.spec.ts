@@ -435,7 +435,9 @@ test('ordinary project input autosaves, resumes after reload and never publishes
   await expect(projectBody(page)).toHaveValue('作品説明を保存して、別の日に再開する。');
   await expect(page.getByRole('region', { name: '比較用の作品保存版' })).toHaveCount(0);
   await expect(page.getByRole('status')).toContainText('続きを編集できます');
-  await expect(page.getByText('編集中 · 版 1', { exact: true })).toBeVisible();
+  // polish: the lab version number is not shown to students; 「編集中」 alone marks the row (原則1).
+  await expect(page.getByText('編集中', { exact: true })).toBeVisible();
+  await expect(page.locator('.project-draft-list small').filter({ hasText: '版' })).toHaveCount(0);
   await image(page, info, 'project-resumed');
   // Unsaved edits are not replaced without confirmation.
   await projectTitle(page).fill('架空の自動保存作品（追記中）');
