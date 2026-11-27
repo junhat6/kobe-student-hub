@@ -40,8 +40,4 @@
     min-height: 44px !important;
     min-width: 44px !important;
   }
-  /* The copy/select buttons sit over the code block; keep the first line below the taller pair. */
-  :root .prose .code-block pre {
-    padding-top: 60px !important;
-  }
 }

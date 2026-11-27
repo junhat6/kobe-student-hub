@@ -183,6 +183,11 @@
 .prose .code-tools [role='status']:empty {
   display: none;
 }
+.prose .code-tools .copy-button-failed {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface, #fff);
+}
 .prose .code-tools [role='status'] {
   order: -1;
   padding: 2px 8px;
@@ -193,7 +198,10 @@
 }
 .prose .code-block pre {
   margin: 0;
-  padding: 44px 18px 16px;
+  /* The copy button sits over the top-right corner: keep the code out from under it on the
+     right instead of pushing the first line down with an empty row. */
+  min-height: 60px;
+  padding: 16px 64px 16px 18px;
   border-radius: 12px;
   background: #f6f8fb;
   border: 1px solid var(--line);
@@ -314,8 +322,8 @@
 }
 .author-card-kind {
   flex: none;
-  font-size: 11px;
-  font-weight: 700;
+  display: inline-flex;
+  align-self: center;
   color: var(--ink-muted);
 }
 /* On a phone the card follows the body instead of disappearing. */

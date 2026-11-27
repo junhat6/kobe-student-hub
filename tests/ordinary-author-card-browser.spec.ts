@@ -59,6 +59,10 @@ test('the author card shows public counts and the newest other works on articles
     await expect(card.locator('.author-card-counts')).toHaveText('公開中の記事 2 · 作品 1');
     const others = card.locator('.author-card-others li');
     await expect(others).toHaveText(['記事新しい記事-' + key, '作品カードの作品-' + key]);
+    // 原則2: the kind is an icon; the word stays for screen readers only.
+    await expect(others.locator('.author-card-kind svg')).toHaveCount(2);
+    await expect(others.locator('.author-card-kind .sr-only')).toHaveText(['記事', '作品']);
+    await expect(others.locator('.author-card-kind').first()).toHaveAttribute('title', '記事');
     await expect(card.getByRole('link', { name: '新しい記事-' + key })).toHaveAttribute(
       'href',
       '/articles/' + latest.contentId,

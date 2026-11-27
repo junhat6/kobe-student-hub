@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { createPublicStudentClient } from './student-client';
 import { AuthorAvatar } from '../shared/public-avatars';
 import ProfileLinks from '../shared/ProfileLinks';
+import Icon from '../shared/Icon';
 import type { Profile } from '../types';
 import type { PublicAuthorCard } from '../public-student-types';
 
@@ -69,8 +70,13 @@ export default function AuthorCard({
           <ul>
             {others.map((item) => (
               <li key={item.kind + item.id}>
-                <span className={'author-card-kind ' + item.kind}>
-                  {item.kind === 'article' ? '記事' : '作品'}
+                {/* 原則2: 種類はマイページ・履歴と同じアイコン（記事＝doc、作品＝cube）、読み上げは文字で。 */}
+                <span
+                  className={'author-card-kind ' + item.kind}
+                  title={item.kind === 'article' ? '記事' : '作品'}
+                >
+                  <Icon name={item.kind === 'article' ? 'doc' : 'cube'} size={14} />
+                  <span className="sr-only">{item.kind === 'article' ? '記事' : '作品'}</span>
                 </span>
                 <Link
                   to={(item.kind === 'article' ? '/articles/' : '/projects/') + item.id}
