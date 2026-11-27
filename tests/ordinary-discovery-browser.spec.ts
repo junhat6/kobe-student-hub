@@ -136,11 +136,12 @@ test('ordinary new, real popularity, tag recommendations and related article/pro
     await expect(
       page.getByRole('link', { name: '比較した結果-' + key, exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByText('「' + tag + '」の新着記事です。閲覧履歴はおすすめに使いません。', {
-        exact: true,
-      }),
-    ).toBeVisible();
+    // The pressed chip names the tag, so that half of the note is read aloud only; the privacy
+    // half (history is not used) stays visible.
+    await expect(page.getByText('閲覧履歴はおすすめに使いません。')).toBeVisible();
+    const tagNote = page.getByRole('status').filter({ hasText: '「' + tag + '」の新着記事です。' });
+    await expect(tagNote).toHaveCount(1);
+    await expect(tagNote).toHaveClass(/sr-only/);
     await page.getByRole('link', { name: '技術選定の記録-' + key, exact: true }).click();
     const context = page.getByRole('region', { name: '読む前の目安' });
     // #172: all three empty fields are named on one line, not three rows.

@@ -33,11 +33,8 @@ export default function PublicProjectCard({
   const Heading = headingLevel === 2 ? 'h2' : 'h3';
   // In a profile tab there is no author, so the date moves to the meta line and the footer goes.
   const compactDate = inTypedList && !author;
-  const published = (
-    <span className="public-time">
-      <PublicTime day={project.publishedOn} at={project.publishedAt} /> 公開
-    </span>
-  );
+  // Time only, like the article card: 「たった今 公開」 repeated what every public card already is.
+  const published = <PublicTime day={project.publishedOn} at={project.publishedAt} />;
   const showMeta = !inTypedList || compactDate || project.stage === 'in_progress';
   return (
     <article

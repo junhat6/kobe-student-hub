@@ -149,7 +149,11 @@ export default function Home() {
         )}
         {view === 'recommended' && value && tag && (
           <p className="home-view-note">
-            「{tag}」の新着記事です。閲覧履歴はおすすめに使いません。
+            {/* The pressed chip already shows the tag; the sentence stays for screen readers. */}
+            <span className="sr-only" role="status">
+              「{tag}」の新着記事です。
+            </span>
+            閲覧履歴はおすすめに使いません。
           </p>
         )}
         {failed ? (

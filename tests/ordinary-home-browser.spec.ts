@@ -169,6 +169,8 @@ test('anonymous top lists real articles and works newest first and every card le
     await expect(articleCard).not.toContainText(metadata.summary);
     await expect(articleCard).not.toContainText('# トップ');
     await expect(workCard).not.toContainText('トップに並ぶ架空の作品');
+    // The work card shows its time alone, like the article card (no trailing 「公開」).
+    await expect(workCard.locator('.content-card-foot')).not.toContainText('公開');
     // Kind by icon and word as well as colour, and the two kinds differ in colour.
     await expect(articleCard.locator('.content-card-kind')).toHaveText('記事');
     await expect(workCard.locator('.content-card-kind')).toHaveText('作品');
