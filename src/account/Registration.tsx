@@ -23,6 +23,8 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
   const [phase, setPhase] = useState<Phase>('checking'),
     [mayRestart, setMayRestart] = useState(false);
   const [message, setMessage] = useState('現在のログイン状態を確認しています…');
+  // 主ボタンは年度の前から押せる。押して空欄があれば、ここに理由を出し空欄へ移る（#321）。
+  const [yearsMissing, setYearsMissing] = useState(false);
   const years =
     admission && graduation
       ? canonicalEnrollmentYears({
@@ -91,7 +93,12 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
     }
   }
   async function start() {
-    if (phase !== 'ready' || (signup && !years)) return;
+    if (phase !== 'ready') return;
+    if (signup && !years) {
+      setYearsMissing(true);
+      document.getElementById(id + (admission ? 'graduation' : 'admission'))?.focus();
+      return;
+    }
     const op = begin('starting');
     if (!op) return;
     setMayRestart(false);
@@ -167,6 +174,7 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
       </p>
       <form
         autoComplete="off"
+        noValidate
         onSubmit={(event) => {
           event.preventDefault();
           void start();
@@ -184,12 +192,18 @@ export default function Registration({ mode }: { mode: 'signup' | 'login' }) {
                 setGraduation(next.graduation);
               }}
             />
+            {yearsMissing && !years && (
+              <p className="account-error" id={id + 'years-missing'} role="alert">
+                入学と卒業予定を選んでから登録してください。
+              </p>
+            )}
           </fieldset>
         )}
         <Button
           className="primary account-google"
           type="submit"
-          disabled={phase !== 'ready' || (signup && !years)}
+          disabled={phase !== 'ready'}
+          aria-describedby={yearsMissing && !years ? id + 'years-missing' : undefined}
         >
           {phase === 'leaving'
             ? '移動しています…'

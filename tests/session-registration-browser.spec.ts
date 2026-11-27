@@ -162,8 +162,19 @@ test('ordinary signup requires two blank private years and confirms persisted da
   await expect(graduation(page)).toHaveValue('');
   await expect(admission(page)).toHaveAttribute('required', '');
   await expect(graduation(page)).toHaveAttribute('required', '');
-  await expect(google(page)).toBeDisabled();
+  // 最初の画面でも主ボタンは押せる。空欄のまま押すと理由を出し、空欄へ移るだけで通信しない（#321）。
+  await expect(google(page)).toBeEnabled();
+  await google(page).click();
+  const missing = page.getByRole('alert');
+  await expect(missing).toHaveText('入学と卒業予定を選んでから登録してください。');
+  await expect(admission(page)).toBeFocused();
+  await expect(google(page)).toHaveAccessibleDescription(
+    '入学と卒業予定を選んでから登録してください。',
+  );
+  expect(calls).toEqual([]);
   await admission(page).selectOption('2026');
+  // 入学を選ぶと卒業予定に既定の値が入り、案内は消える。
+  await expect(missing).toHaveCount(0);
   // A graduation before the admission cannot even be chosen.
   await expect(graduation(page).locator('option[value="2025"]')).toHaveCount(0);
   await graduation(page).selectOption('2028');

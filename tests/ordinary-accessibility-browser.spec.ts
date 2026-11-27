@@ -104,6 +104,13 @@ test('ordinary reading, report, sign-in, account and history screens pass axe', 
     await check(page, '/signup', () =>
       expect(page.getByLabel('入学', { exact: true })).toBeVisible(),
     );
+    // #321: the years-missing notice after pressing the primary button with empty years.
+    await check(page, '/signup', async () => {
+      const google = page.getByRole('button', { name: '学校Googleで登録', exact: true });
+      await expect(google).toBeEnabled();
+      await google.click();
+      await expect(page.getByRole('alert')).toBeVisible();
+    });
     await check(page, '/guide', () => expect(page.locator('h1')).toBeVisible());
     await check(page, '/history', () =>
       expect(page.getByRole('link', { name: 'ログインして履歴を見る', exact: true })).toBeVisible(),
