@@ -44,7 +44,7 @@ export function ReadFailure({ subject, retry }: { subject: string; retry: () => 
         {subject}を<wbr />
         表示できませんでした
       </h1>
-      <p>接続を確認して、もう一度お試しください。非公開の記事は表示されません。</p>
+      <p>接続を確認して、もう一度お試しください。</p>
       <Button className="primary" onClick={retry}>
         もう一度読み込む
       </Button>
