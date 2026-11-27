@@ -14,6 +14,7 @@
 - claim から数時間コメントも commit も無く、その worktree に動いているプロセス（`lsof -d cwd`）も Orca の端末も無ければ、止まった claim として引き継いでよい。引き継ぐと Issue にコメントし、相手の未 commit の差分（`git diff`）を土台にする（run-229 が run-225 の #286 を引き継いだ）
 - 選んだら即 `gh issue edit N --add-label claimed` し、「claimed by <session名> / <worktree> / <時刻>」とコメント
 - 該当なしなら replan を促すコメントを patrol log Issue に残して終了
+- 直前の patrol log の「該当なし」から open Issue・claim・release-log が変わっていなければ、理由を書き直さず「run-N も同じ（前コメント参照）」の1行で終える（run-301〜304 が同じ分析を4回書いた）
 
 ## 2. 調べてから作る
 - **「まだ無い」と決めつけない。** 実装前に `rg` で既存の実装・似た部品を探す（重複実装は最も多い失敗）
