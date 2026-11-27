@@ -1,7 +1,7 @@
 // G03（docs/DECISIONS.md 2026-11-28）：検索エンジンに載せてよいページだけを worker が返す。
 // 列挙するのは /、/works、公開記事 /articles/:id、公開作品 /projects/:id。ほかの画面は静的配信
 // （public/_headers の X-Robots-Tag と index.html の meta）で従来どおり noindex のまま。
-// 公開かどうかは公開 API と同じ readPublished（同じ SQL の境界）で決め、読めなければ noindex に倒す。
+// 公開かどうかは公開 API と同じ読み取り（記事 readPublished・作品 readPublishedPage）で決め、読めなければ noindex に倒す。
 import { canonicalOrigin } from './http-boundary';
 import { ArticlePublicationStore } from './publication';
 import { ProjectStore } from './projects';
@@ -54,7 +54,8 @@ async function indexable(url: URL, env: Bindings): Promise<boolean> {
   if (article)
     return (await new ArticlePublicationStore(env.DB, origin).readPublished(article[1])) !== null;
   const project = projectPath.exec(url.pathname);
-  if (project) return (await new ProjectStore(env.DB, origin).readPublished(project[1])) !== null;
+  if (project)
+    return (await new ProjectStore(env.DB, origin).readPublishedPage(project[1])) !== null;
   return false;
 }
 
