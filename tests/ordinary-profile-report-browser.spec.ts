@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { actor, write } from './helpers/fictional-actor';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
-import { chooseReport, reportDialog } from './helpers/report-menu';
+import { chooseReport, expectPlainReportWords, reportDialog } from './helpers/report-menu';
 
 // #198 (first stage): a signed-in student reports another author's public profile from the
 // author page, the author never sees a report form on their own page, and a server-listed
@@ -81,6 +81,7 @@ test('a student reports a public profile and an operator reads it with the repor
       reportDialog(page, 'プロフィール').getByRole('link', { name: 'ログイン', exact: true }),
     ).toBeVisible();
     await expect(page.getByLabel('プロフィールの通報理由（必須）')).toHaveCount(0);
+    await expectPlainReportWords(page, 'プロフィール');
 
     // The author's own page has no report form.
     const own = await author.context.newPage();
@@ -98,6 +99,13 @@ test('a student reports a public profile and an operator reads it with the repor
     await chooseReport(readerPage, 'プロフィール');
     const reason = readerPage.getByLabel('プロフィールの通報理由（必須）', { exact: true });
     await expect(reason).toBeEditable();
+    await expect(
+      reportDialog(readerPage, 'プロフィール').getByText(
+        'まだ通報していません。内容を確認して送信を選んでください。',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expectPlainReportWords(readerPage, 'プロフィール');
     expect.soft(await seriousViolations(readerPage)).toEqual([]);
     await reason.fill('架空の通報理由-' + key);
     await readerPage.locator('.project-report-form').getByRole('checkbox').check();

@@ -18,11 +18,12 @@ export default function OrdinaryProjectReport({
         <ProjectSessionScope
           initial
           inDialog
+          surface="ordinary"
           signedInMessage=""
           label="この作品を通報する"
           signedOutMessage={
             <>
-              通報するには<Link to="/login">ログイン</Link>してください。前の入力は引き継ぎません。
+              通報するには<Link to="/login">ログイン</Link>してください。
             </>
           }
         >
@@ -33,6 +34,7 @@ export default function OrdinaryProjectReport({
               fetcher={session.fetcher}
               onNavigationRiskChange={onNavigationRiskChange}
               onSubmitted={onSubmitted}
+              surface="ordinary"
             />
           )}
         </ProjectSessionScope>

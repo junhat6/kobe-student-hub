@@ -17,12 +17,12 @@ export default function OrdinaryArticleReport({
         <ProjectSessionScope
           initial
           inDialog
+          surface="ordinary"
           signedInMessage=""
           label="この記事を通報する"
           signedOutMessage={
             <>
-              現在ログインしていません。前の入力・通報内容は閉じています。通報するには{' '}
-              <Link to="/login">ログインしてください</Link>。
+              通報するには<Link to="/login">ログイン</Link>してください。
             </>
           }
         >

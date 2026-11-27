@@ -19,6 +19,7 @@ export default function ProjectSessionScope({
   children,
   initial = false,
   inDialog = false,
+  surface = 'lab',
   label,
   signedOutMessage = '現在ログインしていません。前の入力・通報内容は閉じています。このローカル検証では学校Googleログインは利用できません。',
   signedInMessage = '有効な既存セッションを確認しました。この画面からログイン・権限付与は行いません。',
@@ -27,11 +28,16 @@ export default function ProjectSessionScope({
   initial?: boolean;
   /** In the report dialog the check starts on open; the button is only the way back after a failure. */
   inDialog?: boolean;
+  /** 'ordinary' is the student report dialog: same behaviour, plain words (no セッション). */
+  surface?: 'lab' | 'ordinary';
   label: string;
   signedOutMessage?: ReactNode;
   /** Shown when an existing session opens the panel; student pages pass '' (the form speaks for itself). */
   signedInMessage?: ReactNode;
 }) {
+  const lab = surface === 'lab';
+  const copy = (legacy: string, ordinary: string) => (lab ? legacy : ordinary);
+  const proceedLabel = copy('確認したセッションで通報画面を開く', '確認したアカウントで通報する');
   const client = useMemo(() => createSessionClient(), []);
   const guard = useRef<AuthorSessionGuard | null>(null),
     request = useRef<AbortController | null>(null),
@@ -90,8 +96,14 @@ export default function ProjectSessionScope({
     setCandidate(null);
     setMessage(
       token.current
-        ? 'セッションを確認できませんでした。入力・通報内容はこのページのメモリに保持したまま隠しています。同じセッションを確認できるまで操作できません。'
-        : 'セッションを確認できませんでした。入力・通報内容は開いていません。',
+        ? copy(
+            'セッションを確認できませんでした。入力・通報内容はこのページのメモリに保持したまま隠しています。同じセッションを確認できるまで操作できません。',
+            'ログイン状態を確認できませんでした。入力は残したまま隠しています。確認できるまで操作できません。',
+          )
+        : copy(
+            'セッションを確認できませんでした。入力・通報内容は開いていません。',
+            'ログイン状態を確認できませんでした。',
+          ),
     );
   }
   function install(csrf: string) {
@@ -102,7 +114,10 @@ export default function ProjectSessionScope({
       onMismatch: () => {
         if (mounted.current && guard.current === current)
           discard(
-            'セッションが無効または変更されたため、前の入力・通報内容を消しました。明示的に再確認してから続行してください。',
+            copy(
+              'セッションが無効または変更されたため、前の入力・通報内容を消しました。明示的に再確認してから続行してください。',
+              'ログインが切れたか変わったため、入力を消しました。',
+            ),
           );
       },
       onUnverified: () => {
@@ -129,7 +144,7 @@ export default function ProjectSessionScope({
       controller = new AbortController();
     request.current = controller;
     setBusy(true);
-    setMessage('既存のセッションを確認しています…');
+    setMessage(copy('既存のセッションを確認しています…', 'ログイン状態を確認しています…'));
     try {
       const csrf = await client.peek(controller.signal);
       if (!canReveal() || run !== revision.current) return;
@@ -137,16 +152,27 @@ export default function ProjectSessionScope({
         if (!guard.current) install(csrf);
         setCandidate(null);
         reveal();
-        setMessage('同じセッションを確認しました。保持した入力・通報内容を再開しています。');
+        setMessage(
+          copy(
+            '同じセッションを確認しました。保持した入力・通報内容を再開しています。',
+            'ログインを確認しました。入力はそのまま残っています。',
+          ),
+        );
       } else if (token.current !== null) {
         discard(
-          '別のセッションを確認したため、前の入力・通報内容を消しました。続行には明示的な確認が必要です。',
+          copy(
+            '別のセッションを確認したため、前の入力・通報内容を消しました。続行には明示的な確認が必要です。',
+            `別のアカウントでログインしたため、入力を消しました。「${proceedLabel}」で開き直せます。`,
+          ),
         );
         setCandidate(csrf);
       } else if (review.current) {
         setCandidate(csrf);
         setMessage(
-          '有効なセッションを確認しました。新しい状態を開くには明示的に続行してください。',
+          copy(
+            '有効なセッションを確認しました。新しい状態を開くには明示的に続行してください。',
+            `ログインを確認しました。「${proceedLabel}」で開きます。`,
+          ),
         );
       } else {
         install(csrf);
@@ -181,17 +207,29 @@ export default function ProjectSessionScope({
       if (!canReveal() || run !== revision.current) return;
       if (csrf !== expected) {
         setCandidate(csrf);
-        setMessage('確認後にセッションが変わりました。もう一度続行を確認してください。');
+        setMessage(
+          copy(
+            '確認後にセッションが変わりました。もう一度続行を確認してください。',
+            `ログイン中のアカウントが変わりました。もう一度「${proceedLabel}」を押してください。`,
+          ),
+        );
         return;
       }
       install(csrf);
       setCandidate(null);
       reveal();
-      setMessage('確認したセッションの状態を新しく開きました。前の入力は引き継いでいません。');
+      setMessage(
+        copy('確認したセッションの状態を新しく開きました。前の入力は引き継いでいません。', ''),
+      );
     } catch (error) {
       if (canReveal() && run === revision.current) {
         if (error instanceof SessionClientError && error.kind === 'signed-out')
-          discard('セッションが無効です。入力・通報内容は開いていません。');
+          discard(
+            copy(
+              'セッションが無効です。入力・通報内容は開いていません。',
+              'ログインが切れています。もう一度ログインしてください。',
+            ),
+          );
         else unknown();
       }
     } finally {
@@ -260,7 +298,7 @@ export default function ProjectSessionScope({
       )}
       {candidate && (
         <Button disabled={busy} onClick={() => void proceed()}>
-          確認したセッションで通報画面を開く
+          {proceedLabel}
         </Button>
       )}
       <div

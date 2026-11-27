@@ -1,6 +1,6 @@
 import { fulfillGoogleFormPost } from './helpers/google-form-post';
 import { test, expect, type Browser, type Page, type TestInfo } from '@playwright/test';
-import { chooseReport, reportDialog } from './helpers/report-menu';
+import { chooseReport, expectPlainReportWords, reportDialog } from './helpers/report-menu';
 
 const ORIGIN = 'https://127.0.0.1:8790';
 async function register(page: Page, info: TestInfo, who: string) {
@@ -68,6 +68,13 @@ test('three different accounts temporarily hide a project without deleting it', 
       await reader.goto(path);
       await expect(reader.getByRole('heading', { name: title, exact: true })).toBeVisible();
       await chooseReport(reader, '作品');
+      await expect(
+        reportDialog(reader, '作品').getByText(
+          'まだ通報していません。内容を確認して送信を選んでください。',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expectPlainReportWords(reader, '作品');
       await reader
         .getByLabel('作品の通報理由（必須）', { exact: true })
         .fill('架空の通報理由 ' + (n + 1));

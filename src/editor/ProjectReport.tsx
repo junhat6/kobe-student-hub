@@ -13,6 +13,7 @@ export function ReportForm({
   subject = '作品',
   createClient = createProjectReportClient,
   onSubmitted,
+  surface = 'lab',
 }: {
   projectId: string;
   csrf: string;
@@ -22,8 +23,11 @@ export function ReportForm({
   createClient?: (csrf: string, fetcher: typeof fetch) => ReportClient;
   /** Called once a new report is confirmed received (the dialog closes on it). */
   onSubmitted?: () => void;
+  /** 'ordinary' is the student dialog: it speaks of the account, never of the session (#322). */
+  surface?: 'lab' | 'ordinary';
 }) {
   const client = useMemo(() => createClient(csrf, fetcher), [createClient, csrf, fetcher]);
+  const copy = (legacy: string, ordinary: string) => (surface === 'lab' ? legacy : ordinary);
   const id = useId(),
     mounted = useRef(true),
     generation = useRef(0),
@@ -44,7 +48,12 @@ export function ReportForm({
       controller = new AbortController();
     request.current = controller;
     setConfirmed(false);
-    setMessage('このセッションの受付状態を確認しています…');
+    setMessage(
+      copy(
+        'このセッションの受付状態を確認しています…',
+        'このアカウントの通報状態を確認しています…',
+      ),
+    );
     try {
       const value = await client.received(projectId, controller.signal);
       if (mounted.current && run === generation.current) {
@@ -55,7 +64,10 @@ export function ReportForm({
         setMessage(
           value.received
             ? `この${subject}は、このアカウントから通報済みです。運営が内容を確認します。`
-            : 'このセッションの受付はまだありません。内容を確認して送信を選んでください。',
+            : copy(
+                'このセッションの受付はまだありません。内容を確認して送信を選んでください。',
+                'まだ通報していません。内容を確認して送信を選んでください。',
+              ),
         );
       }
     } catch {
@@ -224,7 +236,10 @@ export function ReportForm({
             </Button>
           </form>
           <p>
-            受付確認はこのセッションからの通報の有無だけです。入力と既存の受付内容の一致や、運営の対応結果を示すものではありません。
+            {copy(
+              '受付確認はこのセッションからの通報の有無だけです。入力と既存の受付内容の一致や、運営の対応結果を示すものではありません。',
+              '受付確認はこのアカウントからの通報の有無だけです。入力と既存の受付内容の一致や、運営の対応結果を示すものではありません。',
+            )}
           </p>
         </>
       )}

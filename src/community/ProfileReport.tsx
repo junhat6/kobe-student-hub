@@ -19,12 +19,12 @@ export default function ProfileReport({
         <ProjectSessionScope
           initial
           inDialog
+          surface="ordinary"
           signedInMessage=""
           label="このプロフィールを通報する"
           signedOutMessage={
             <>
-              通報するには<Link to="/login">ログイン</Link>
-              してください。前の入力は引き継ぎません。
+              通報するには<Link to="/login">ログイン</Link>してください。
             </>
           }
         >
@@ -37,6 +37,7 @@ export default function ProfileReport({
               createClient={createProfileReportClient}
               onNavigationRiskChange={onNavigationRiskChange}
               onSubmitted={onSubmitted}
+              surface="ordinary"
             />
           )}
         </ProjectSessionScope>

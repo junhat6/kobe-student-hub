@@ -10,3 +10,14 @@ export async function chooseReport(page: Page, subject: '記事' | '作品' | '�
 
 export const reportDialog = (page: Page, subject: '記事' | '作品' | 'プロフィール') =>
   page.getByRole('dialog', { name: `${subject}の通報`, exact: true });
+
+/** #322: the student report dialog speaks of login and the account, never of the session. */
+export async function expectPlainReportWords(
+  page: Page,
+  subject: '記事' | '作品' | 'プロフィール',
+) {
+  // innerText: the concealed form (and the fictitious input inside it) is not what the reader sees.
+  expect(
+    await reportDialog(page, subject).evaluate((node) => (node as HTMLElement).innerText),
+  ).not.toMatch(/セッション|明示的|メモリ/);
+}

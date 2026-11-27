@@ -3,7 +3,7 @@ import { test, expect, type BrowserContext, type Page, type TestInfo } from '@pl
 import { ensureProfileByApi } from './helpers/profile';
 import { accountMenu } from './helpers/header';
 import { japanDayOfIso, japanDaysSince, japanTitle, recentLabel } from './helpers/japan-day';
-import { chooseReport, reportDialog } from './helpers/report-menu';
+import { chooseReport, expectPlainReportWords, reportDialog } from './helpers/report-menu';
 
 /** Each date / reading-time label of the article header stays on a single line. */
 async function expectUnbrokenDates(page: Page) {
@@ -421,7 +421,12 @@ test('ordinary report retains same-session input while an unknown session stays 
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect(page.getByText(/セッションを確認できませんでした。入力・通報内容は/)).toBeVisible();
+  await expect(
+    page.getByText('ログイン状態を確認できませんでした。入力は残したまま隠しています。', {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expectPlainReportWords(page, '記事');
   await expect(reportReason(page)).toBeHidden();
   await expect(reportReason(page)).toHaveValue('同じセッションだけで再開する架空の理由');
   await page.unroute('**/api/private/session');
@@ -460,13 +465,18 @@ test('ordinary report blocks A input under B without a lifecycle event and requi
   await page.getByRole('button', { name: '確認した内容で通報を送信', exact: true }).click();
   await expect(reportReason(page)).toHaveCount(0);
   await expect(
-    page.getByText(/セッションが無効または変更されたため、前の入力・通報内容を消しました/),
+    page.getByText('ログインが切れたか変わったため、入力を消しました。', { exact: true }),
   ).toBeVisible();
+  await expectPlainReportWords(page, '記事');
   expect(reportPosts).toBe(0);
   await page.getByRole('button', { name: 'この記事を通報する', exact: true }).click();
-  await page
-    .getByRole('button', { name: '確認したセッションで通報画面を開く', exact: true })
-    .click();
+  await expect(
+    page.getByText('ログインを確認しました。「確認したアカウントで通報する」で開きます。', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expectPlainReportWords(page, '記事');
+  await page.getByRole('button', { name: '確認したアカウントで通報する', exact: true }).click();
   await expect(reportReason(page)).toBeEditable();
   await expect(reportReason(page)).toHaveValue('');
   await expect(page.getByLabel('詳しい説明（任意）')).toHaveValue('');
@@ -501,10 +511,44 @@ test('ordinary report removes its input after logout in another tab', async ({
   ).toBe(200);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(reportReason(page)).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'ログインしてください', exact: true })).toBeVisible();
+  await expect(
+    reportDialog(page, '記事').getByRole('link', { name: 'ログイン', exact: true }),
+  ).toBeVisible();
+  await expect(reportDialog(page, '記事')).not.toContainText('前の入力');
+  await expectPlainReportWords(page, '記事');
   await expect(
     page.getByRole('button', { name: '確認した内容で通報を送信', exact: true }),
   ).toHaveCount(0);
+});
+
+test('ordinary report asks a signed-out reader only to log in', async ({ page, browser }, info) => {
+  const articlePath = await publishArticle(page, info, '架空の通報境界ノート');
+  const anonymous = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    viewport: page.viewportSize(),
+    isMobile: info.project.name.includes('mobile'),
+    hasTouch: info.project.name.includes('mobile'),
+  });
+  try {
+    const reader = await anonymous.newPage();
+    await reader.goto(articlePath);
+    await expect(reader.locator('.prose')).toContainText('この文章は公開する保存版です。');
+    await chooseReport(reader, '記事');
+    const dialog = reportDialog(reader, '記事');
+    await expect(dialog.getByRole('link', { name: 'ログイン', exact: true })).toBeVisible();
+    await expect(
+      dialog.getByText('通報するにはログインしてください。', { exact: true }),
+    ).toBeVisible();
+    await expect(dialog).not.toContainText('前の入力');
+    await expectPlainReportWords(reader, '記事');
+    await expect(reportReason(reader)).toHaveCount(0);
+    expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await dialog.screenshot({ path: info.outputPath('ordinary-report-signed-out.png') });
+  } finally {
+    await anonymous.close();
+  }
 });
 
 test('ordinary report cancels a pending initial session proof on hide and ignores its late response', async ({
