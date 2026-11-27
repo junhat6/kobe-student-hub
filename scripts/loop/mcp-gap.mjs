@@ -208,7 +208,9 @@ export function eventsFromHook(input, coverage, now = new Date()) {
 
 function loopName() {
   const v = process.env.KSH_LOOP || process.env.ORCA_AUTOMATION_NAME || '';
-  const m = v.match(/(finish|patrol|polish|garden|replan|release|editor|mend|video-review)/);
+  const m = v.match(
+    /(finish|patrol|polish|garden|replan|release|editor|mend|measure|outreach|ops|video-review)/,
+  );
   return m ? m[1] : 'interactive';
 }
 
