@@ -353,3 +353,25 @@ test('guide keeps contact loading quiet and the contents on one row on mobile', 
   if ((page.viewportSize()?.width ?? 0) <= 430) expect(new Set(tops).size).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('sign-up and log-in screens leave the header login pair to the card', async ({ page }) => {
+  await page.goto('/');
+  const header = page.getByRole('banner');
+  // Signed out elsewhere, the header offers ログイン・登録する as before.
+  await expect(header.getByRole('link', { name: 'ログイン', exact: true })).toBeVisible();
+  await header.getByRole('link', { name: '登録する', exact: true }).click();
+  await expect(page).toHaveURL(ORIGIN + '/signup');
+  // polish: 型は GitHub・Google のサインイン画面。カードの Google ボタンと切り替えと重ねない（原則4）。
+  const card = page.locator('.account-entry');
+  await expect(card.getByRole('button', { name: '学校Googleで登録' })).toBeVisible();
+  await expect(header.getByRole('link', { name: 'ログイン', exact: true })).toHaveCount(0);
+  await expect(header.getByRole('link', { name: '登録する', exact: true })).toHaveCount(0);
+  await card.getByRole('link', { name: 'ログインする', exact: true }).click();
+  await expect(page).toHaveURL(ORIGIN + '/login');
+  await expect(card.getByRole('button', { name: '学校Googleでログイン' })).toBeVisible();
+  await expect(header.getByRole('link', { name: 'ログイン', exact: true })).toHaveCount(0);
+  await expect(header.getByRole('link', { name: '登録する', exact: true })).toHaveCount(0);
+  await header.getByRole('link', { name: 'ホーム', exact: true }).click();
+  await expect(header.getByRole('link', { name: 'ログイン', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

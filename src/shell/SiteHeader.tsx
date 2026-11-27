@@ -225,13 +225,12 @@ export default function SiteHeader() {
             </>
           ) : viewer.status === 'loading' ? (
             <span className="header-placeholder" aria-hidden="true" />
-          ) : (
+          ) : pathname === '/signup' || pathname === '/login' ? null : (
+            // On the sign-up / log-in screen the card already has the Google button and the
+            // switch between the two, so the header pair only competes with them (原則4).
+            // 型: GitHub・Google のサインイン画面はヘッダーに登録・ログインを出さない。
             <>
-              <Link
-                className="header-link"
-                to="/login"
-                aria-current={pathname === '/login' ? 'page' : undefined}
-              >
+              <Link className="header-link" to="/login">
                 ログイン
               </Link>
               <Link className="header-cta" to="/signup">
