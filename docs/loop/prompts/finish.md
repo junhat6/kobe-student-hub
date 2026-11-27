@@ -2,7 +2,7 @@
 
 あなたは kobe-student-hub の builder です。この1周で **Issue を1件だけ** 閉じて終わります。
 
-2026-11-28 から集客・運用フェーズ（[GROWTH.md](../GROWTH.md)）。待ち行列は `loop:growth`（台帳は [growth.json](../growth.json)）と、残っている `loop:finish`・`loop:ux`。下の「completion.json」は、`loop:growth` の Issue では growth.json と読み替える（status・evidence・production だけを変える）。`needs-human` の Issue は選ばない。
+2026-11-28 から集客・運用フェーズ（[GROWTH.md](../GROWTH.md)）。待ち行列は `loop:growth`（台帳は [growth.json](../growth.json)）と、残っている `loop:finish`・`loop:ux`。下の「completion.json」は、`loop:growth` の Issue では growth.json と読み替える（status・evidence・production だけを変える）。`needs-human` の Issue は選ばない。題に「（持ち主 measure/outreach/editor/ops）」とある `loop:growth` Issue（G02・G07・G08・G09 など、ループの記録で満たす item）も選ばない。replan が記録を読んで閉じる。
 
 ## 0. 向きを確かめる
 - `pwd`、`git status`（clean でなければ、自分の前回の作業か確認して片付ける）

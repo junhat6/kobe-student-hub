@@ -1,7 +1,7 @@
 # Current work
 
-- 2026-11-28 **集客・運用フェーズへ移行**（オーナー決定、[DECISIONS 2026-11-28](DECISIONS.md)）。設計は [GROWTH.md](loop/GROWTH.md)、台帳は [growth.json](loop/growth.json)（items 0/9 pass）。completion.json は 27/27 pass で凍結。
-- 本番：最新 tag `r2026.11.27.3`（a857038）。計測の受け口（G01、R2）は main に入り、独立検証のあと定時便で出る。
-- automation：measure・ops・outreach を新設、polish を停止、finish（needs-human を数えない・毎時）・replan（6時間）・patrol（release 後だけ）を作り替え。
+- 2026-11-28 集客・運用フェーズ（[GROWTH.md](loop/GROWTH.md)）。台帳 [growth.json](loop/growth.json) の items は 3/9 pass（G03・G04・G05、本番反映は次の定時便）。health の直近 ng なし（ops-log 05:11 JST、H1〜H4 ok、H5 は G01 未リリース）。
+- 本番：最新 tag `r2026.11.27.3`（a857038）。main に G01（R2 独立検証 PASS）・G03〜G05 を含む未リリース commit があり、08:00 JST 便で出る。
+- 待ち行列：P0 0・P1 2（#330 G01 は本番後に measure が acceptance 5 を確かめて閉じる、#247 needs-human）。G02・G07・G08・G09 は持ち主のループつき Issue（#331〜#334、P2、finish は選ばない）。
 - needs-human：#247（MCP の実クライアント確認）。G06（Search Console）は G03〜G05 の本番反映後に立てる。
-- 次の焦点：G01 の独立検証 → 朝便 → measure が ksh_usage の初日の数字を出す → finish が G03（index の列挙）・G04（メタ情報）・G05（sitemap）。
+- 次の焦点：朝便 → measure が ksh_usage の初日を確かめ #330 を閉じる → 次の replan が G06 の needs-human を立て、11/29 以降に ops-log 2 日分で G09 を判定。
