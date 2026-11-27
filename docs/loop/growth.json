@@ -59,8 +59,8 @@
         "3. 情報の扱い（/guide#privacy）に「公開した記事・作品は検索エンジンに表示されることがある」と、止め方（公開停止）が書かれている",
         "4. 上の 1・2 をブラウザ検査か worker のテストで確かめている"
       ],
-      "status": "fail",
-      "evidence": "2026-11-28 時点：全ページ noindex（index.html・_headers・worker）。方針変更は DECISIONS 2026-11-28。",
+      "status": "pass",
+      "evidence": "c211ffc・e9a433a（#329）：run_worker_first に /・/works・/articles/*・/projects/* を足し、worker/indexable-pages.ts が公開 API と同じ読み取りで判定（停止・非表示・存在しない・下書き・別 origin・検索クエリは noindex）。/guide#privacy に検索結果への表示と止め方。検査：tests/indexable-pages.test.ts、publication-stops.test.ts（実 D1）、site-basics.spec.ts。R2 独立検証 PASS（2回、#329）。",
       "production": "closed"
     },
     {
