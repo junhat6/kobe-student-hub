@@ -99,6 +99,9 @@ function AccountContent({
   // #263: once the profile exists, a wide screen puts the person on the left and their
   // activity on the right (as on GitHub and /students/:id). Making a profile stays one column.
   const split = authoringUiEnabled && profileState === 'exists';
+  // 作成直後は上に「最初の記事を書く」を出す。その間、下の空の公開記録には同じ入口を重ねない。
+  const showFirstArticle =
+    !returnTo && justCreated && profileState === 'exists' && !writesClosed(participation);
   useHashLanding(LANDING_SECTIONS);
   return (
     <div className={'account-layout' + (split ? ' account-layout-split' : '')}>
@@ -119,15 +122,12 @@ function AccountContent({
                 <Icon name="arrowRight" size={18} />
               </Link>
             )}
-            {!returnTo &&
-              justCreated &&
-              profileState === 'exists' &&
-              !writesClosed(participation) && (
-                <Link className="primary account-return" to="/drafts">
-                  <Icon name="doc" size={18} />
-                  最初の記事を書く
-                </Link>
-              )}
+            {showFirstArticle && (
+              <Link className="primary account-return" to="/drafts">
+                <Icon name="doc" size={18} />
+                最初の記事を書く
+              </Link>
+            )}
           </div>
         )}
         {authoringUiEnabled && ready && <AccountActions participation={participation} />}
@@ -144,6 +144,7 @@ function AccountContent({
               csrfToken={csrfToken}
               fetcher={fetcher}
               surface="ordinary"
+              emptyEntry={!showFirstArticle}
               onNavigationRiskChange={publicationRisk}
             />
           </div>

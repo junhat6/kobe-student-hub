@@ -95,6 +95,8 @@ test('profile fields start empty, publish only what the student typed, and edits
   const profileId = createdBody.profile.id as string;
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   // 書き手の導線（GROWTH.md §10）：つくった直後は、最初の記事への一手が1つだけ出る。
+  // 下の公開記録（0件）が読み込まれた後も重ならないことを確かめるので、先にそれを待つ。
+  await expect(page.getByText('まだ公開した記事・作品はありません。')).toBeVisible();
   await expect(page.getByRole('link', { name: '最初の記事を書く', exact: true })).toHaveAttribute(
     'href',
     '/drafts',
@@ -196,6 +198,7 @@ test('an invite link reaches a first draft through the screens alone', async ({ 
   await setup.getByRole('button', { name: '公開する', exact: true }).click();
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
   lap.profile = Date.now() - started;
+  await expect(page.getByText('まだ公開した記事・作品はありません。')).toBeVisible();
 
   await page.getByRole('link', { name: '最初の記事を書く', exact: true }).click();
   await expect(page).toHaveURL(/\/drafts$/);

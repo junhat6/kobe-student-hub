@@ -20,11 +20,13 @@ export default function OwnPublications({
   fetcher = fetch,
   csrfToken,
   surface = 'lab',
+  emptyEntry = true,
   onNavigationRiskChange,
 }: {
   fetcher?: typeof fetch;
   csrfToken: string;
   surface?: PublicSurface;
+  emptyEntry?: boolean;
   onNavigationRiskChange?: (risk: boolean) => void;
 }) {
   const client = useMemo(() => createOwnPublicationsClient(fetcher), [fetcher]),
@@ -156,9 +158,11 @@ export default function OwnPublications({
       {value && ordinary && value.publications.length === 0 && (
         <div className="own-publications-empty">
           <p>まだ公開した記事・作品はありません。</p>
-          <a className="primary" href="/drafts">
-            最初の記事を書く
-          </a>
+          {emptyEntry && (
+            <a className="primary" href="/drafts">
+              最初の記事を書く
+            </a>
+          )}
         </div>
       )}
       {value && (
