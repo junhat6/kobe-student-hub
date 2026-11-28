@@ -35,9 +35,8 @@ Kobe Student Hub は、神戸電子の学生が学習・制作の経験を記事
 
 | ツール | 場所 |
 | --- | --- |
-| Claude Code | `~/.claude/projects/<プロジェクト>/<セッション>.jsonl` |
+| Claude Code | claude.ai に上のカスタムコネクタを足し、同じアカウントで Claude Code にログインする（`claude mcp list` に `claude.ai` の名前つきで出る） | 2026-11-28 に確かめた（同上） |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`、依頼の一覧は `~/.codex/history.jsonl` |
-| Gemini CLI | `~/.gemini/tmp/<プロジェクト>/chats/session-*.json` |
 | Antigravity CLI | 依頼の一覧 `~/.gemini/antigravity-cli/history.jsonl`、成果物 `~/.gemini/antigravity-cli/brain/<id>/` |
 
 そのまま開くと大きすぎるので、同梱のスクリプトで絞ります（Python 3 の標準ライブラリだけで動きます）。
@@ -150,10 +149,9 @@ Kobe Student Hub はリモート MCP サーバー（`https://hub.junhat6.com/api
 
 | エージェント | つなぎ方 | 本番での確認 |
 | --- | --- | --- |
-| Claude（claude.ai・デスクトップアプリ） | 設定 → コネクタ → カスタムコネクタを追加（またはプラグイン → 追加 → カスタムコネクタを追加）→ URL に `https://hub.junhat6.com/api/mcp` | 2026-11-24 に確かめた（接続 → `create_draft` → 下書き一覧に「AIエージェントが作成」） |
-| Claude Code | `claude mcp add --transport http ksh https://hub.junhat6.com/api/mcp` のあと、`/mcp` で ksh を選んでログイン | 未確認 |
+| Claude（claude.ai・デスクトップアプリ） | 設定 → コネクタ → カスタムコネクタを追加（またはプラグイン → 追加 → カスタムコネクタを追加）→ URL に `https://hub.junhat6.com/api/mcp` | 2026-11-28 に確かめた（接続 → `create_draft` → 下書き一覧に「AIエージェントが作成」） |
+| Claude Code | claude.ai に上のカスタムコネクタを足し、同じアカウントで Claude Code にログインする（`claude mcp list` に `claude.ai` の名前つきで出る） | 2026-11-28 に確かめた（同上） |
 | Codex CLI | `codex mcp add ksh --url https://hub.junhat6.com/api/mcp` のあと `codex mcp login ksh` | 未確認 |
-| Gemini CLI | `gemini mcp add --transport http ksh https://hub.junhat6.com/api/mcp` のあと、`/mcp auth ksh` | 未確認 |
 
 「確かめた」は、AI が接続して下書きを作れたという動作の確認です。学生にとって役に立つかの検証ではありません。
 

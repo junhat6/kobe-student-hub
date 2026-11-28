@@ -63,22 +63,18 @@ export default function AgentsPage() {
               <li>
                 Claude（claude.ai・デスクトップアプリ）：設定 → コネクタ →
                 カスタムコネクタを追加（またはプラグイン → 追加 → カスタムコネクタを追加）→ 上の
-                URL。2026-11-24 に本番で接続と下書きの作成を確かめました
+                URL。2026-11-28 に本番で接続と下書きの作成を確かめました
+              </li>
+              <li>
+                Claude Code：claude.ai に足したコネクタが、同じアカウントでログインした Claude Code
+                にもそのまま出ます。2026-11-28 に確かめました
               </li>
             </ul>
-            <p>次の3つは登録方法だけの案内で、本番での接続はまだ確かめていません。</p>
+            <p>次は登録方法だけの案内で、本番での接続はまだ確かめていません。</p>
             <ul>
-              <li>
-                Claude Code：<code>claude mcp add --transport http ksh {origin}/api/mcp</code>{' '}
-                のあと <code>/mcp</code> でログイン
-              </li>
               <li>
                 Codex CLI：<code>codex mcp add ksh --url {origin}/api/mcp</code> のあと{' '}
                 <code>codex mcp login ksh</code>
-              </li>
-              <li>
-                Gemini CLI：<code>gemini mcp add --transport http ksh {origin}/api/mcp</code> のあと{' '}
-                <code>/mcp auth ksh</code>
               </li>
             </ul>
             <p>
