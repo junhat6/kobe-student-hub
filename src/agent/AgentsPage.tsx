@@ -33,11 +33,7 @@ export default function AgentsPage() {
   const origin = window.location.origin;
   const kit = `${origin}/agent-kit/ksh-article`;
   const ask = `${kit}/SKILL.md を読んで、その手順どおりに、私の最近の作業履歴から Kobe Student Hub の記事の下書きを作ってください。投稿はせず、ファイルを作るところまでにしてください。`;
-  const install = [
-    'mkdir -p ~/.claude/skills/ksh-article/scripts',
-    `curl -fsSL ${kit}/SKILL.md -o ~/.claude/skills/ksh-article/SKILL.md`,
-    `curl -fsSL ${kit}/scripts/session_index.py -o ~/.claude/skills/ksh-article/scripts/session_index.py`,
-  ].join('\n');
+  const install = `${kit}/SKILL.md と ${kit}/scripts/session_index.py を読んで、中身を私に説明してから、Claude Code のスキル ksh-article として ~/.claude/skills/ksh-article に置いてください。`;
   return (
     <article className="shell about prose agents-page">
       <h1>自分のAIエージェントと使う</h1>
@@ -138,7 +134,7 @@ export default function AgentsPage() {
           <p>
             入れておくと「hub に記事を書きたい」「最近の作業を記事にして」と頼むだけで使えます。
           </p>
-          <CopyBlock label="スキルを入れるコマンド" text={install} />
+          <CopyBlock label="スキルを入れる依頼文" text={install} />
           <p className="agents-files">
             キットの中身：
             <a href="/agent-kit/ksh-article/SKILL.md">SKILL.md（手順）</a>・

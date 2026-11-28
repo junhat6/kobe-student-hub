@@ -96,6 +96,10 @@ test('a student allows their own agent, sees its draft marked, uses its suggesti
   const consent = page.locator('.agent-consent');
   await expect(consent).toContainText(clientName);
   await expect(consent).toContainText('この端末のアプリ');
+  // A client names itself through open registration, so the screen says hub did not make it.
+  await expect(consent.getByRole('note')).toContainText(
+    'このアプリは Kobe Student Hub が作ったものではありません',
+  );
   await expect(consent).toContainText(
     '初めての公開・削除、公開済みの作品を直す、プロフィール・いいね・通報、ほかの人の下書き',
   );

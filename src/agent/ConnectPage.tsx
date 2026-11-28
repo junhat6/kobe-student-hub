@@ -60,9 +60,16 @@ function Consent({
     <div className="agent-consent">
       <p className="agent-consent-lead">
         <strong>{request.clientName}</strong>
-        が、あなたとして Kobe Student Hub につなぐ許可を求めています。
+        と名乗るアプリが、あなたとして Kobe Student Hub につなぐ許可を求めています。
+      </p>
+      <p className="agent-consent-warning" role="note">
+        このアプリは Kobe Student Hub
+        が作ったものではありません。名前はアプリが自分で名乗ったもので、hub
+        は確かめていません。許可すると、下の「許可を渡す先」に接続の鍵が渡ります。
       </p>
       <dl className="agent-consent-facts">
+        <dt>許可を渡す先</dt>
+        <dd className="agent-consent-destination">{request.destination}</dd>
         <dt>できること</dt>
         <dd>
           公開記事を読む／あなたの記事の下書きを一覧・読む・作る・直す、まだ公開していない作品の下書きを作る・読む・直す（非公開のまま）／あなたが公開済みの記事を公開したまま直す
@@ -71,13 +78,11 @@ function Consent({
         <dd>
           初めての公開・削除、公開済みの作品を直す、プロフィール・いいね・通報、ほかの人の下書き
         </dd>
-        <dt>許可を渡す先</dt>
-        <dd>{request.destination}</dd>
         <dt>期限</dt>
         <dd>90日。マイページの「AIエージェントとの接続」でいつでも解除できます。</dd>
       </dl>
       <p className="agent-consent-note">
-        心当たりのない依頼なら「許可しない」を押してください。作られた下書きは、あなたが読んで下書き画面の「公開する」から公開するまで誰にも見えません。公開済みの記事への直しは、すぐ公開ページに反映されます。
+        自分で接続を始めていない、または渡す先に心当たりがないなら「許可しない」を押してください。作られた下書きは、あなたが読んで下書き画面の「公開する」から公開するまで誰にも見えません。公開済みの記事への直しは、すぐ公開ページに反映されます。
       </p>
       {state === 'too-many' && (
         <p role="alert">

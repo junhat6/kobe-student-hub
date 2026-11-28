@@ -5,3 +5,12 @@
   X-Frame-Options: DENY
   X-Robots-Tag: noindex, nofollow
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# The writing kit is read by people and agents, never installed by the browser: without a type a
+# .py URL downloads as a file, which reads as a drive-by download to Safe Browsing (2026-11-28).
+/agent-kit/*.py
+  Content-Type: text/plain; charset=utf-8
+  Content-Disposition: inline
+/agent-kit/*.md
+  Content-Type: text/markdown; charset=utf-8
+  Content-Disposition: inline
