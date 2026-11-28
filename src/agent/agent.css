@@ -285,6 +285,14 @@
   font-size: 17px;
   overflow-wrap: anywhere;
 }
+.agent-consent-warning {
+  border-left: 4px solid currentColor;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
+}
+.agent-consent-destination {
+  font-weight: 700;
+}
 .agent-consent-facts {
   display: grid;
   grid-template-columns: max-content 1fr;

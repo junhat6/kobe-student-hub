@@ -111,8 +111,13 @@ describe('the list itself', () => {
     // worker が付ける security headers は静的配信と同じ値。
     for (const [key, value] of Object.entries(STATIC_PAGE_HEADERS))
       expect(headers).toContain(`  ${key}: ${value}\n`);
-    expect(headers.match(/^ {2}[A-Za-z-]+:/gm)).toHaveLength(
+    const all = headers.slice(headers.indexOf('/*\n')).split(/\n(?=\/)/)[0];
+    expect(all.match(/^ {2}[A-Za-z-]+:/gm)).toHaveLength(
       Object.keys(STATIC_PAGE_HEADERS).length + 1,
+    );
+    // The writing kit is shown as text, never downloaded by the browser (Safe Browsing, 2026-11-28).
+    expect(headers).toMatch(
+      /^\/agent-kit\/\*\.py\n {2}Content-Type: text\/plain; charset=utf-8\n {2}Content-Disposition: inline$/m,
     );
   });
   it('only the listed pages reach the worker before the static assets', () => {

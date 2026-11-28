@@ -37,8 +37,12 @@ await build({
 const { googleFixture } = await import('../.worker/browser-google.mjs');
 const signer = await googleFixture();
 // Mirror Static Assets headers instead of silently testing a less restrictive document.
-// This repository currently has one wildcard rule; fail if the fixture parser needs an update.
-const headerLines = readFileSync('.generation-preview/_headers', 'utf8').trimEnd().split(/\r?\n/);
+// The wildcard rule comes first; the later path rules (writing-kit Content-Type) only touch files
+// these journeys do not open. Fail if the wildcard block needs a parser update.
+const headerLines = readFileSync('.generation-preview/_headers', 'utf8')
+  .split(/\r?\n\r?\n/)[0]
+  .trimEnd()
+  .split(/\r?\n/);
 if (headerLines.shift() !== '/*' || headerLines.some((line) => !/^  [^:\s]+: .+$/.test(line)))
   throw Error('Unsupported fixture asset header rules');
 const assetHeaders = Object.fromEntries(
