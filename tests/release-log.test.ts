@@ -1,3 +1,7 @@
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   formatRecord,
@@ -18,6 +22,7 @@ import {
 } from '../scripts/loop/media-audit.mjs';
 
 import {
+  mendWake,
   releaseWake,
   // @ts-expect-error plain ESM script without type declarations
 } from '../scripts/loop/precheck.mjs';
@@ -84,6 +89,17 @@ describe('release record', () => {
     expect(body).toContain('0012_add.sql');
     expect(body).toContain('- aaaaaaa feat: x | y');
     expect(parseRecord(body)).toEqual(record);
+  });
+
+  it('a train that did not ship says where production stays and what happens next (#336)', () => {
+    const body = formatRecord({ ...record, outcome: 'ci_failed', reason: 'CI が赤' });
+    expect(body).toContain('| 本番 | 未出荷（`bbbbbbb` のまま） |');
+    expect(body).toMatch(/\| 次の動き \| mend が次の1時間以内に起きて main で直す/);
+    expect(formatRecord({ ...record, outcome: 'rollback_failed' })).toContain(
+      '| 本番 | 要確認（rollback が失敗） |',
+    );
+    // 出た便には出さない
+    expect(formatRecord(record)).not.toMatch(/\| (本番|次の動き) \|/);
   });
 
   it('ignores comments that are not records', () => {
@@ -313,5 +329,62 @@ describe('unfinished trains (2026-11-24: a train runs until it ships)', () => {
     expect(w('2026-11-24T20:50:00', [rec('ci_failed')])).toBe(false); // 失敗から 20 分：前の agent が直している
     expect(w('2026-11-24T21:00:00', [rec('ci_failed')], 'rc の full CI が実行中')).toBe(false);
     expect(w('2026-11-24T22:00:00', [])).toBe(false);
+  });
+});
+
+describe('mend precheck (main-health and the train full CI, #336)', () => {
+  const now = new Date('2026-11-28T00:30:00.000Z');
+  const run = (over: object) => ({
+    databaseId: 46080100318,
+    headBranch: 'rc/6bd165e',
+    headSha: '6bd165e',
+    status: 'completed',
+    conclusion: 'failure',
+    createdAt: '2026-11-27T23:05:00.000Z',
+    url: 'https://example.test/run/46080100318',
+    ...over,
+  });
+  const green = ['completed', 'success'];
+  const w = (runs: object[], { health = green, handled = false } = {}) =>
+    mendWake(now, { health, runs, handled: () => handled });
+
+  it('wakes on a red main-health as before', () => {
+    expect(w([], { health: ['completed', 'failure'] }).wake).toBe(true);
+    expect(w([]).wake).toBe(false);
+  });
+
+  it('wakes on the latest red train CI (rc/* or release) until someone writes its run id', () => {
+    expect(w([run({})])).toMatchObject({ wake: true });
+    expect(w([run({ headBranch: 'release' })]).wake).toBe(true);
+    expect(w([run({ conclusion: 'timed_out' })]).wake).toBe(true);
+    expect(w([run({})], { handled: true }).wake).toBe(false);
+  });
+
+  it('does not wake for other branches, a later green train, a running train, or old failures', () => {
+    expect(w([run({ headBranch: 'main' })]).wake).toBe(false);
+    expect(w([run({ conclusion: 'success', databaseId: 2 }), run({})]).wake).toBe(false);
+    expect(w([run({ status: 'in_progress', conclusion: '' }), run({})]).wake).toBe(false);
+    expect(w([run({ createdAt: '2026-11-26T00:00:00.000Z' })]).wake).toBe(false);
+    // concurrency で取り消された run は飛ばして、その前の結果を見る
+    expect(w([run({ conclusion: 'cancelled', databaseId: 3 }), run({})]).wake).toBe(true);
+  });
+});
+
+describe('precheck runs as a copy behind a symlink (Orca writes it to $TMPDIR, #336)', () => {
+  it('still judges the mode instead of falling through to exit 0', () => {
+    const realDir = mkdtempSync(join(tmpdir(), 'ksh-precheck-real-'));
+    const linkDir = `${realDir}-link`;
+    try {
+      symlinkSync(realDir, linkDir);
+      copyFileSync('scripts/loop/precheck.mjs', join(realDir, 'precheck.mjs'));
+      const r = spawnSync(process.execPath, [join(linkDir, 'precheck.mjs'), 'no-such-mode'], {
+        encoding: 'utf8',
+      });
+      expect(r.stderr).toContain('usage: precheck.mjs');
+      expect(r.status).toBe(2);
+    } finally {
+      rmSync(linkDir, { force: true });
+      rmSync(realDir, { recursive: true, force: true });
+    }
   });
 });

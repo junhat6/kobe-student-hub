@@ -119,7 +119,7 @@ Claude Code でこのリポジトリを開いたセッションには、次の h
 | 名前 | 起動 | precheck（`node scripts/loop/precheck.mjs <mode>`） | 仕事 |
 | --- | --- | --- | --- |
 | `ksh release` | 毎時 :00（`0 * * * *`、missed-run grace 100 分） | `release`：直近の定時便（08:00・20:00）の窓の中でその便の記録がまだ無い（発車）、または直近の便が出しきれておらず最後の記録から 90 分以上たった（続き）ときだけ通す。rc の CI か release.yml が動いている間は通さない。止める条件は `npm run release` が判定し、見送りとして記録する | release skill（`.claude/skills/release/SKILL.md`）に従って `npm run release -- --deploy`（続きなら `--continue`）を回し、落ちたら直して本番に出るまで繰り返す。結果は Issue `release-log` に自動で残る |
-| `ksh mend` | 毎時 | `mend`：main-health の最新が失敗 | 失敗の原因を直して main に push する（アンドン） |
+| `ksh mend` | 毎時 | `mend`：main-health の最新が失敗、または列車の full CI（rc/*・release）の最新が赤で未対応 | 失敗の原因を直して main に push する（アンドン）。列車の赤は run 番号を commit か Issue に書いて対応の印にする |
 | `ksh patrol` | 3 時間ごと（`docs/loop/prompts/patrol.md`） | `patrol`：`patrol-log` Issue に記録した前回 SHA 以降に `src/`・`worker/`・`public/` の変更がある、または前回巡回の後に release が出た | 別 context で PC / モバイルの利用者の旅を歩き、UX の所見を Issue にする |
 | `ksh finish` | 30 分ごと | `finish`：未 claim の `P0`/`P1`（`loop:finish`/`loop:ux`）があり、claim 中が 3 件未満 | `docs/loop/prompts/finish.md` に従って Issue を 1 件閉じる |
 | `ksh garden` | 毎日 5:00 | `garden`：`garden-log` の前回 SHA 以降に main への commit がある | `docs/loop/prompts/garden.md` |

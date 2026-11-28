@@ -73,8 +73,8 @@ full CI は `npm run release` の昇格時に必ず回ります。push 前に全
 | --- | --- |
 | 担当 | 壊した本人。直さないまま離れたら Orca automation `ksh mend` |
 | 起動 | **毎時**（precheck つき） |
-| precheck | `node scripts/loop/precheck.mjs mend`：main の最新 `main-health` が失敗 |
-| やること | 失敗した検査を再現 → 原因の commit を特定 → 15分で直せれば直す、無理なら原因 commit を `git revert` して push（`Loop: mend`） |
+| precheck | `node scripts/loop/precheck.mjs mend`：main の最新 `main-health` が失敗、または列車の full CI（`rc/*`・`release` の ci.yml）の最新が赤で、その run 番号がまだ main の commit にも release-log 以外の Issue にも書かれていない（#336。rc の赤は main-health に出ない） |
+| やること | 失敗した検査を再現 → 原因の commit を特定 → 15分で直せれば直す、無理なら原因 commit を `git revert` して push（`Loop: mend`）。列車の CI の赤なら、直した commit の本文か Issue に run 番号を書き（それが対応の印）、release が `--continue` で同じ便を出す |
 | 出力 | main-health が green に戻ること。revert した場合は元の Issue を開き直して理由をコメント |
 
 ## 1. 完成ループ (finish)
@@ -255,7 +255,7 @@ AIには学生の価値を検証できません。このループは人が回し
 | `ksh measure` | `30 7 * * *` | growth-log の最新から20時間以上 | prompts/measure.md（月曜は週次の報告） |
 | `ksh ops` | `10 * * * *` | 本番の `/`・`/api/health` が落ちた、または ops-log の最新から20時間以上 | prompts/ops.md |
 | `ksh outreach` | `30 18 * * *` | 前回の outreach-log の後に公開された記事がある、または7日以上たった | prompts/outreach.md |
-| `ksh mend` | 毎時 | main の最新 main-health が失敗 | （RELEASE.md） |
+| `ksh mend` | 毎時 | main-health か列車の full CI（rc/*・release）の最新が赤 | （RELEASE.md） |
 | `ksh finish` | `0 * * * *` | 未claim・needs-human でない `P0`/`P1` の `loop:growth`/`loop:finish`/`loop:ux` があり、builder が上限未満 | prompts/finish.md |
 | `ksh patrol` | `0 */3 * * *` | 前回の patrol log の後に release が出た（本番に出たものだけを歩く） | prompts/patrol.md |
 | `ksh polish` | **停止**（2026-11-28） | （再開の条件は GROWTH.md §3） | prompts/polish.md |

@@ -113,13 +113,38 @@ export const OUTCOMES = {
   promoted: { ok: true, icon: '🟦', text: 'release へ昇格（deploy なし）' },
   redeployed: { ok: true, icon: '✅', text: '出し直し（昇格なし）' },
   skipped: { ok: true, icon: '⏸️', text: '見送り' },
-  ci_failed: { ok: false, icon: '❌', text: 'full CI が赤' },
-  promote_failed: { ok: false, icon: '❌', text: 'release への push が拒否' },
+  ci_failed: {
+    ok: false,
+    icon: '❌',
+    text: 'full CI が赤',
+    next: 'mend が次の1時間以内に起きて main で直す（または Issue に残す）→ release が --continue で同じ便を出す',
+  },
+  promote_failed: {
+    ok: false,
+    icon: '❌',
+    text: 'release への push が拒否',
+    next: 'ruleset・fast-forward を確かめ、--continue で出し直す',
+  },
   config_missing: { ok: false, icon: '❌', text: '本番設定の入力が無い' },
   d1_unreachable: { ok: false, icon: '❌', text: '本番 D1 に届かない' },
-  deploy_failed: { ok: false, icon: '❌', text: 'deploy が失敗' },
-  smoke_failed: { ok: false, icon: '↩️', text: 'smoke 失敗で rollback 済み' },
-  rollback_failed: { ok: false, icon: '🚨', text: 'smoke 失敗・rollback も失敗' },
+  deploy_failed: {
+    ok: false,
+    icon: '❌',
+    text: 'deploy が失敗',
+    next: 'deploy のログで原因を直し、--continue で出し直す',
+  },
+  smoke_failed: {
+    ok: false,
+    icon: '↩️',
+    text: 'smoke 失敗で rollback 済み',
+    next: 'smoke の失敗を main で直し、--continue で出し直す',
+  },
+  rollback_failed: {
+    ok: false,
+    icon: '🚨',
+    text: 'smoke 失敗・rollback も失敗',
+    next: '最優先で本番を確かめ、手で rollback する',
+  },
   github_unreachable: { ok: false, icon: '📡', text: 'GitHub API に繋がらない' },
   error: { ok: false, icon: '❌', text: 'その他の失敗' },
 };
@@ -142,6 +167,14 @@ export function formatRecord(r) {
   const rows = [
     ['結果', `${o.icon} ${r.outcome} — ${o.text}`],
     ['理由', r.reason],
+    // 出しきれなかった便は、本番がどこに留まっているかと次の動きを見出しのすぐ下に出す（#336）
+    o.ok === false && [
+      '本番',
+      r.outcome === 'rollback_failed'
+        ? '要確認（rollback が失敗）'
+        : `未出荷（${r.from ? `\`${r.from.slice(0, 7)}\` のまま` : '前の release のまま'}）`,
+    ],
+    o.ok === false && ['次の動き', o.next ?? '原因を直し、--continue で同じ便を出しきる'],
     ['便', `${kind}${r.hotfix ? `（臨時便の理由: ${r.hotfix}）` : ''}`],
     ['開始 → 終了 (JST)', `${jstTime(new Date(r.startedAt))} → ${jstTime(new Date(r.finishedAt))}`],
     ['バージョン', version],
@@ -165,7 +198,9 @@ export function formatRecord(r) {
     ['smoke', r.smoke ? (r.smoke.ok ? 'OK' : `失敗: ${r.smoke.failures.join(', ')}`) : '—'],
     ['D1 ブックマーク', r.bookmark ? `\`${r.bookmark}\`` : '—'],
     ['media 照合', formatMediaAudit(r.mediaAudit)],
-  ].filter(([k, v]) => v !== undefined && !(k === '理由' && !v));
+  ]
+    .filter(Boolean)
+    .filter(([k, v]) => v !== undefined && !(k === '理由' && !v));
   const commits = r.commits?.list?.length
     ? [
         '<details><summary>含む commit</summary>',

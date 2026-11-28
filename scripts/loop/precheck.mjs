@@ -2,7 +2,8 @@
 // Orca automation の precheck。exit 0 のときだけ agent を起こす（無駄な起動と課金を避けるため）。
 // ループ名は docs/loop/LOOPS.md に揃える。
 //   release … 常に起こす（定時便は見送りも含めて必ず記録する。止める条件は scripts/release.mjs が判定する）
-//   mend    … main の最新 main-health が失敗している（アンドン：最優先で直す）
+//   mend    … main の最新 main-health が失敗している、または列車の full CI（rc/* か release の ci.yml）の
+//             最新が赤で、まだ誰もその run 番号を commit・Issue に書いていない（アンドン：最優先で直す）
 //   patrol  … 前回巡回の後に release が出た（集客・運用フェーズ：本番に出たものだけを歩く。docs/loop/GROWTH.md）
 //   polish  … main-health が赤でなく、open な P0 が無く、polish-log の最新コメントから 2 時間以上たっている
 //             （2026-11-28 から automation は止めている。モードは手で回すときのために残す）
@@ -14,8 +15,8 @@
 //   ops     … 本番の最小 smoke（/ と /api/health）が落ちた、または ops-log の最新コメントから 20 時間以上たっている
 //   outreach… 前回の outreach-log の後に公開された記事がある、または outreach-log から 7 日以上たっている
 import { execFileSync } from 'node:child_process';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const REPO = process.env.KSH_REPO || 'junhat6/kobe-student-hub';
 const sh = (cmd, args) => {
@@ -53,8 +54,19 @@ const skip = (why) => {
   process.exit(1);
 };
 
-// テストは releaseWake を import して使う。そのときは mode の判定を走らせない
-const direct = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+// テストは releaseWake を import して使う。そのときは mode の判定を走らせない。
+// 実体のパスで比べる。Orca は $TMPDIR（macOS では /var → /private/var の symlink）に書き出して実行するので、
+// argv[1] をそのまま URL にすると import.meta.url と食い違い、どのモードも判定せず exit 0（毎回起こす）に
+// なっていた（#336 で mend の直近の run がすべて precheck exit 0 だった）
+const real = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+const direct =
+  Boolean(process.argv[1]) && real(process.argv[1]) === real(fileURLToPath(import.meta.url));
 const mode = direct ? process.argv[2] : undefined;
 
 if (mode === 'editor') {
@@ -115,8 +127,48 @@ if (mode === 'release') {
 }
 
 if (mode === 'mend') {
-  const [status, conclusion] = health();
-  process.exit(status === 'completed' && conclusion === 'failure' ? 0 : 1);
+  // main-health の赤に加えて、列車の full CI（rc/* と release の ci.yml）の赤も拾う。rc の赤は main-health に
+  // 出ないので、見ていないと便が出ないまま誰も気づかない（2026-11-28 朝便、#336）。
+  const verdict = mendWake(new Date(), {
+    health: health(),
+    runs: JSON.parse(
+      gh(
+        'run',
+        'list',
+        '-R',
+        REPO,
+        '--workflow',
+        'ci.yml',
+        '-L',
+        '30',
+        '--json',
+        'databaseId,headBranch,headSha,status,conclusion,createdAt,url',
+      ) || '[]',
+    ),
+    handled: (id) =>
+      Boolean(
+        sh('git', ['log', 'origin/main', '-1', '--format=%H', `--grep=${id}`]) ||
+        // release-log は失敗した便の記録そのもの（run の URL を含む）なので、対応の印には数えない
+        gh(
+          'issue',
+          'list',
+          '-R',
+          REPO,
+          '--state',
+          'all',
+          '--search',
+          `${id} -label:release-log`,
+          '-L',
+          '1',
+          '--json',
+          'number',
+          '-q',
+          'length',
+        ).replace(/^0$/, ''),
+      ),
+  });
+  console.log(`mend: ${verdict.why}`);
+  process.exit(verdict.wake ? 0 : 1);
 }
 
 // label の付いたログ Issue の最新コメントから、記録された 40 桁 SHA と時刻を取る
@@ -344,6 +396,33 @@ if (direct) {
     'usage: precheck.mjs release|mend|patrol|polish|garden|finish|replan|editor|measure|ops|outreach',
   );
   process.exit(2);
+}
+
+// ---- mend（main-health と列車の full CI の赤）----
+
+// runs は gh run list --workflow ci.yml の結果（新しい順）。handled(id) はその run 番号が main の commit か
+// release-log 以外の Issue に書かれているか（mend の「直すか Issue に残す」の印）
+export function mendWake(now, { health: [status, conclusion], runs, handled }) {
+  // 定数は中に置く（mode の判定より前に呼ばれるので、外の const は TDZ になる）。
+  // cancelled は concurrency で次の push に置き換わったものなので赤に数えない
+  const MEND_RED = ['failure', 'timed_out', 'startup_failure'];
+  const MEND_WINDOW_H = 36;
+  if (status === 'completed' && conclusion === 'failure')
+    return { wake: true, why: 'main-health が赤' };
+  const train = runs.filter((r) => r.headBranch === 'release' || r.headBranch?.startsWith('rc/'));
+  if (train.some((r) => r.status !== 'completed'))
+    return { wake: false, why: '列車の full CI が実行中（結果を待つ）' };
+  const last = train.find((r) => r.conclusion !== 'cancelled' && r.conclusion !== 'skipped');
+  if (!last || !MEND_RED.includes(last.conclusion))
+    return { wake: false, why: 'main-health と列車の full CI は赤でない' };
+  if (now.getTime() - Date.parse(last.createdAt) > MEND_WINDOW_H * 3_600_000)
+    return {
+      wake: false,
+      why: `列車の full CI の赤は ${MEND_WINDOW_H} 時間より前（次の便に任せる）`,
+    };
+  const what = `${last.headBranch} の full CI が ${last.conclusion}（run ${last.databaseId}）`;
+  if (handled(last.databaseId)) return { wake: false, why: `${what}。対応の記録あり` };
+  return { wake: true, why: `${what}。${last.url}` };
 }
 
 // ---- release（定時便と、出しきれていない便の続き）----
