@@ -94,6 +94,11 @@ test('profile fields start empty, publish only what the student typed, and edits
   expect(createdBody.profile).toMatchObject(before);
   const profileId = createdBody.profile.id as string;
   await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
+  // 書き手の導線（GROWTH.md §10）：つくった直後は、最初の記事への一手が1つだけ出る。
+  await expect(page.getByRole('link', { name: '最初の記事を書く', exact: true })).toHaveAttribute(
+    'href',
+    '/drafts',
+  );
   await expectNoGoogleIdentity(page, ownerBodies);
 
   // The author page lists only students with public activity, so publish one article.

@@ -30,6 +30,10 @@ FROM ksh_usage WHERE blob1 = 'read' AND timestamp > NOW() - INTERVAL '7' DAY GRO
 - 継続（週次。GROWTH.md §5 の表3）：読者は直接来訪（`blob4 = '' AND blob5 = ''` のセッションの最初の view）の数と割合を前週と比べる（識別子はページごとに変わるので再訪は数えない）。書き手は本番 D1 を読み取りだけで、ログインのセッションの最終活動時刻から「直近 7 日に活動したアカウント数」と「そのうち前の 7 日にも活動した数」を集計する（表と列は `migrations/` で確かめる。アカウントの ID はどこにも書かない。5 件未満は「5 未満」）。
 - 記事の題は公式 MCP の `list_recent_articles`・`get_article` か公開 API `/api/articles` で ID と結ぶ（公開 DTO だけ）。
 - 公開数（M5）：本番 D1 を読み取りだけで `SELECT kind, COUNT(*) FROM content WHERE status='published' AND is_sample=0 AND …（直近 7 日）`。書き手の数も同じく集計だけ。
+- 書き手の導線（M7・G12。GROWTH.md §10、2026-12-12 まで毎週）：4 段を数える。人ごとには結ばない。
+  - 入口：`SELECT blob7 AS campaign, SUM(_sample_interval) AS sessions FROM ksh_usage WHERE blob1 = 'view' AND blob6 = 'invite' AND timestamp > NOW() - INTERVAL '7' DAY GROUP BY campaign`
+  - 登録・下書き・公開：本番 D1 を読み取りだけで、その週に `private_accounts.created_at_ms` が入ったアカウントを母数に、`private_article_drafts`・`project_drafts`・`article_publications`・`project_publications` の `owner_account_id` で「下書きか公開を 1 本以上持つ」「公開した」を数える（`COUNT(DISTINCT …)` だけを返す SQL にし、ID を出力しない）。
+  - growth-log には 4 段の表（5 未満は「5 未満」、記号 `c1` などの別）。正確な数は `~/ksh-private/growth/<週>.md` に置く。集まりの名前は書かない。
 - 計測がまだ本番に出ていない（`SHOW TABLES` に `ksh_usage` が無い）間は、M5 と「計測は未反映」だけを書く。
 
 ## 2. 異常を渡す
