@@ -101,7 +101,7 @@
         "1. hub.junhat6.com の所有権が確認され、sitemap が送信済み（オーナーの Google アカウントでの操作。needs-human）"
       ],
       "status": "fail",
-      "evidence": "G03〜G05 の本番反映後に needs-human Issue を立てる。",
+      "evidence": "G03〜G05 は r2026.11.28.1 で本番に出た（robots.txt の Sitemap 行・sitemap.xml を replan が確かめた）。オーナーの操作待ち：#335（needs-human）。",
       "production": "closed"
     },
     {
