@@ -116,8 +116,8 @@
       "acceptance": [
         "1. hub.junhat6.com の所有権が確認され、sitemap が送信済み（オーナーの Google アカウントでの操作。needs-human）"
       ],
-      "status": "fail",
-      "evidence": "G03〜G05 は r2026.11.28.1 で本番に出た（robots.txt の Sitemap 行・sitemap.xml を replan が確かめた）。オーナーの操作待ち：#335（needs-human）。",
+      "status": "pass",
+      "evidence": "2026-11-28 にオーナーが Search Console でドメインプロパティ junhat6.com の所有権を確認し、https://hub.junhat6.com/sitemap.xml を送信、ステータスは成功（#335 のオーナーのコメント https://github.com/junhat6/kobe-student-hub/issues/335）。前提の G03〜G05 は r2026.11.28.1 で本番に出ている（robots.txt の Sitemap 行・sitemap.xml を replan run-44 が確かめた）。",
       "production": "closed"
     },
     {
@@ -200,7 +200,7 @@
         "3. 表は集計だけで、5 未満は「5 未満」。アカウントの ID・名前・集まりの名前を書いていない"
       ],
       "status": "unverified",
-      "evidence": "",
+      "evidence": "1：prompts/measure.md の M7・G12 の節に 4 段の数え方（入口は ksh_usage の blob6=invite・blob7 別、登録以降はその週のコホート）がある（replan run-45 が確かめた）。2・3 は 2026-11-30（月）の週次コメント待ち。",
       "production": "n/a"
     }
   ],

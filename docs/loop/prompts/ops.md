@@ -26,6 +26,7 @@
 - 本番 D1 を読み取りだけで：24 時間を過ぎた未対応の通報の件数、1 日の新規登録・MCP の接続許可の件数（前の 7 日の中央値と比べる）。
 - 未対応の通報 → [実利用者に関わる運営](../LOOPS.md#実利用者に関わる運営)の決まりで対応する（記録は `~/ksh-private/moderation/`、公開側には件数と記録番号だけ）。
 - 急増 → 原因を確かめ（同じ時刻への集中・同じ形の下書き）、利用の制限が要るなら運営の決まりで行い、`P1` の Issue に件数だけ書く。
+- Safe Browsing（#348 が閉じるまで）：[Transparency Report](https://transparencyreport.google.com/safe-browsing/search?url=hub.junhat6.com) で `hub.junhat6.com` の状態を読み、ops-log に 1 行残す（読み取りだけ）。Chrome が hub に警告を出していると分かったら利用者が止まるので `P0` にする。
 - 計測の汚れ（measure が ops-log に書いた外れ値）は、集計から外す条件を growth-log に書くだけにする（計測の行は消さない・消せない）。
 
 ## 4. 記録する
