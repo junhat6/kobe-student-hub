@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import AccountSessionBoundary from './AccountSessionBoundary';
 import AccountEnrollment from '../editor/AccountEnrollment';
 import './account.css';
@@ -83,6 +83,15 @@ function AccountContent({
   // Follows the enrollment panel, so a correction there updates the page at once.
   const [participation, setParticipation] = useState<ParticipationState>('checking');
   const [profileState, setProfileState] = useState<ProfileState>('loading');
+  // 書き手の導線（docs/loop/GROWTH.md §10）：登録してプロフィールをつくった直後は、
+  // 次の一手（最初の記事）を1つだけ見せる。「記事の管理」は0本の人には書く入口に見えなかった。
+  const [justCreated, setJustCreated] = useState(false);
+  const lastProfileState = useRef<ProfileState>('loading');
+  const onProfileState = useCallback((next: ProfileState) => {
+    if (lastProfileState.current === 'none' && next === 'exists') setJustCreated(true);
+    lastProfileState.current = next;
+    setProfileState(next);
+  }, []);
   // A public profile comes first: until it exists, the page is only about making one.
   // Graduated students keep their tidy-up tools even without one.
   const ready =
@@ -99,7 +108,7 @@ function AccountContent({
             <ProfileEditor
               csrfToken={csrfToken}
               fetcher={fetcher}
-              onStateChange={setProfileState}
+              onStateChange={onProfileState}
               onSaved={refresh}
               onRiskChange={profileRisk}
               startEditing={editProfile}
@@ -110,6 +119,15 @@ function AccountContent({
                 <Icon name="arrowRight" size={18} />
               </Link>
             )}
+            {!returnTo &&
+              justCreated &&
+              profileState === 'exists' &&
+              !writesClosed(participation) && (
+                <Link className="primary account-return" to="/drafts">
+                  <Icon name="doc" size={18} />
+                  最初の記事を書く
+                </Link>
+              )}
           </div>
         )}
         {authoringUiEnabled && ready && <AccountActions participation={participation} />}

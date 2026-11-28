@@ -12,10 +12,26 @@
     "公開 Issue・この台帳に実利用者の個人が分かる数字（5件未満の切り方）・本文・名前を書かない。"
   ],
   "objectives": [
-    { "id": "O1", "name": "使われ方が見える" },
-    { "id": "O2", "name": "検索・SNS から人が来る" },
-    { "id": "O3", "name": "記事が増え、読まれる" },
-    { "id": "O4", "name": "本番が安定して回る" }
+    {
+      "id": "O1",
+      "name": "使われ方が見える"
+    },
+    {
+      "id": "O2",
+      "name": "検索・SNS から人が来る"
+    },
+    {
+      "id": "O3",
+      "name": "記事が増え、読まれる"
+    },
+    {
+      "id": "O4",
+      "name": "本番が安定して回る"
+    },
+    {
+      "id": "O5",
+      "name": "書き手が増える（2026-11-28〜12-12 の一番。GROWTH.md §10）"
+    }
   ],
   "items": [
     {
@@ -143,6 +159,49 @@
       "status": "unverified",
       "evidence": "",
       "production": "n/a"
+    },
+    {
+      "id": "G10",
+      "objective": "O5",
+      "capability": "集まり向けの入口（招待リンクから登録・プロフィール・最初の下書きまで）",
+      "risk": "R1",
+      "acceptance": [
+        "1. GROWTH.md §10 に招待リンクの形（/signup?utm_source=circle&utm_medium=invite&utm_campaign=<記号>）があり、記号と集まりの対応は公開物に無い（~/ksh-private/ にだけ置く）",
+        "2. 登録してプロフィールを初めてつくった直後のマイページに「最初の記事を書く」（/drafts）が出る（tests/ordinary-profile-self-entry-browser.spec.ts）",
+        "3. 本番 release の後、招待リンクで開いたセッションの最初の view が ksh_usage に utm_medium='invite' で 1 行以上ある（measure の SQL で確かめる）",
+        "4. 登録後、画面（/drafts の新しい下書き）と自分の AI（/agents の MCP の URL）のどちらの道でも最初の下書きを作れることを、G11 の計測の記録で確かめている"
+      ],
+      "status": "unverified",
+      "evidence": "1・2：GROWTH.md §10 と AccountPage の「最初の記事を書く」（e2e ordinary-profile-self-entry-browser.spec.ts）。4：#337 の表で画面の道を確認、AI の道の初回接続は #247 待ち。3 は release 後に measure が確かめる。",
+      "production": "closed"
+    },
+    {
+      "id": "G11",
+      "objective": "O5",
+      "capability": "初めての人が 1 本目の下書きを作るまでの手順と所要時間の計測",
+      "risk": "R0",
+      "acceptance": [
+        "1. 招待リンク → 登録 → 学校 Google → プロフィール → 最初の下書きの各段について、ステップ・操作数・時間・詰まりの表が Issue にある。既存のアカウントで通れない段はローカルの e2e の操作数で補い、そう書いてある",
+        "2. 合計の目安が 10 分以内でない、または詰まりがある段ごとに、loop:growth の Issue があるか、同じ PR で直してある",
+        "3. 導線の画面（登録・マイページ・下書き・/agents）を変えた release の後、次の週次までに測り直している"
+      ],
+      "status": "pass",
+      "evidence": "#337：本番で通した表（6 段・合計の目安 3〜5 分）。詰まり（プロフィール直後に次の一手が無い）は同じ PR で直した。学校 Google の切り替えと AI の初回接続は学生の実測待ち（#247）。",
+      "production": "n/a"
+    },
+    {
+      "id": "G12",
+      "objective": "O5",
+      "capability": "週次の表に書き手の導線の 4 段（入口・登録・下書き・公開）を集計で載せる",
+      "risk": "R0",
+      "acceptance": [
+        "1. prompts/measure.md に 4 段の数え方（入口は ksh_usage の utm_medium='invite'、登録・下書き・公開は本番 D1 でその週に登録したアカウントのコホート）がある",
+        "2. 月曜の growth-log の週次コメントに 4 段の表があり、utm_campaign の記号ごとの入口の数がある",
+        "3. 表は集計だけで、5 未満は「5 未満」。アカウントの ID・名前・集まりの名前を書いていない"
+      ],
+      "status": "unverified",
+      "evidence": "",
+      "production": "n/a"
     }
   ],
   "health": [
@@ -188,7 +247,11 @@
       "objective": "O1",
       "name": "週のセッション数（流入元別：検索・X・その他SNS・直接、utm_source 別）"
     },
-    { "id": "M2", "objective": "O2", "name": "検索からのセッションの割合と、着地した記事" },
+    {
+      "id": "M2",
+      "objective": "O2",
+      "name": "検索からのセッションの割合と、着地した記事"
+    },
     {
       "id": "M3",
       "objective": "O3",
@@ -199,11 +262,20 @@
       "objective": "O1",
       "name": "継続：直接来訪のセッションの割合と数（読者の再訪の目安）、週の活動アカウント数と前週からの継続数（書き手。D1 の集計）"
     },
-    { "id": "M5", "objective": "O3", "name": "週に公開された実記事・実作品の数と、書いた人の数（D1）" },
+    {
+      "id": "M5",
+      "objective": "O3",
+      "name": "週に公開された実記事・実作品の数と、書いた人の数（D1）"
+    },
     {
       "id": "M6",
       "objective": "O2",
       "name": "オーナーの告知（utm_campaign=owner）から来たセッションと、その後に読まれた記事数"
+    },
+    {
+      "id": "M7",
+      "objective": "O5",
+      "name": "書き手の導線：入口のセッション（utm_campaign 別）・新規登録・初めての下書き・初めての公開のアカウント数（週。D1 は集計だけ）"
     }
   ]
 }
