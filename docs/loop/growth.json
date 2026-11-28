@@ -172,7 +172,7 @@
         "4. 登録後、画面（/drafts の新しい下書き）と自分の AI（/agents の MCP の URL）のどちらの道でも最初の下書きを作れることを、G11 の計測の記録で確かめている"
       ],
       "status": "unverified",
-      "evidence": "1・2：GROWTH.md §10 と AccountPage の「最初の記事を書く」（e2e ordinary-profile-self-entry-browser.spec.ts）。4：#337 の表で画面の道を確認、AI の道の初回接続は #247 待ち。3 は release 後に measure が確かめる。",
+      "evidence": "1・2：GROWTH.md §10 と AccountPage の「最初の記事を書く」（e2e ordinary-profile-self-entry-browser.spec.ts）。4：#337 の表と e2e「an invite link reaches a first draft」で画面の道を確認、AI の道の初回接続は #247 待ち。3 は release 後に measure が確かめる。",
       "production": "closed"
     },
     {
@@ -186,7 +186,7 @@
         "3. 導線の画面（登録・マイページ・下書き・/agents）を変えた release の後、次の週次までに測り直している"
       ],
       "status": "pass",
-      "evidence": "#337：本番で通した表（6 段・合計の目安 3〜5 分）。詰まり（プロフィール直後に次の一手が無い）は同じ PR で直した。学校 Google の切り替えと AI の初回接続は学生の実測待ち（#247）。",
+      "evidence": "#337：本番で通した表（6 段・合計の目安 3〜5 分）。詰まり（プロフィール直後に次の一手が無い）は同じ PR で直した。学校 Google の切り替えと AI の初回接続は学生の実測待ち（#247）。 測り直し（r2026.11.28.2 の後、2026-11-28 finish run-347）：本番の 1・2 段は PC/モバイルとも約 2 秒で学校 Google（hd=st.kobedenshi.ac.jp）へ着き、utm_medium=invite の view が送られる。4・5 段は e2e ordinary-profile-self-entry の「an invite link reaches a first draft」で、プロフィール直後の「最初の記事を書く」→「新しい下書き」の 2 操作で下書きが開く（#337）。",
       "production": "n/a"
     },
     {

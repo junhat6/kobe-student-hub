@@ -39,7 +39,7 @@ async function expectNoGoogleIdentity(page: Page, bodies: string[]) {
   await expect(page.locator('main img')).toHaveCount(0);
 }
 
-async function signUp(page: Page, info: TestInfo) {
+async function signUp(page: Page, info: TestInfo, entry = '/signup') {
   const actor = `fictional-self-entry-${info.project.name}-${Date.now().toString(36)}`;
   await page.route(provider, async (route) => {
     const url = new URL(route.request().url());
@@ -52,7 +52,7 @@ async function signUp(page: Page, info: TestInfo) {
     ).toBe(200);
     await fulfillGoogleFormPost(route, ORIGIN, { state, code: state });
   });
-  await page.goto('/signup');
+  await page.goto(entry);
   await page.getByLabel('入学', { exact: true }).selectOption('2026');
   await page.getByLabel('卒業予定', { exact: true }).selectOption('2028');
   await page.getByRole('button', { name: '学校Googleで登録', exact: true }).click();
@@ -181,4 +181,28 @@ test('profile fields start empty, publish only what the student typed, and edits
   } finally {
     await guest.close();
   }
+});
+
+// G10・G11（docs/loop/GROWTH.md §10）：招待リンクから、画面の道だけで最初の下書きまで行ける。
+// 操作数と所要時間を annotation に残し、G11 の測り直しの表に使う（学生による実測ではない）。
+test('an invite link reaches a first draft through the screens alone', async ({ page }, info) => {
+  const started = Date.now();
+  const lap: Record<string, number> = {};
+  await signUp(page, info, '/signup?utm_source=circle&utm_medium=invite&utm_campaign=c0');
+  lap.signup = Date.now() - started;
+
+  const setup = page.getByRole('region', { name: 'プロフィールをつくる' });
+  await setup.getByLabel('表示名', { exact: true }).fill('招待リンクで来た架空の学生');
+  await setup.getByRole('button', { name: '公開する', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'プロフィールを編集', exact: true })).toBeVisible();
+  lap.profile = Date.now() - started;
+
+  await page.getByRole('link', { name: '最初の記事を書く', exact: true }).click();
+  await expect(page).toHaveURL(/\/drafts$/);
+  await page.getByRole('button', { name: '新しい下書き', exact: true }).click();
+  await expect(page.getByLabel('タイトル', { exact: true })).toBeEditable();
+  lap.draft = Date.now() - started;
+
+  info.annotations.push({ type: 'g11-laps-ms', description: JSON.stringify(lap) });
+  await page.screenshot({ path: info.outputPath('first-draft.png') });
 });
